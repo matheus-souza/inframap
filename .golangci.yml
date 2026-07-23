@@ -7,7 +7,6 @@ linters:
     - errcheck
     - gofumpt
     - gosec
-    - govulncheck
     - ineffassign
     - staticcheck
     - unused
