@@ -83,9 +83,11 @@ Go
 
 ### Decision
 
-The backend will be implemented using Go.
+The backend will be implemented using Go (Go 1.24+ latest stable release).
 
 The canonical Go module name for the project is `github.com/matheussouza/inframap`. This follows the standard Go convention of using the Version Control System (VCS) URL as the module namespace.
+
+All toolchain versions (Go 1.24+, JDK 21 LTS, Goose, sqlc) are deterministically managed via `mise` (`.mise.toml`).
 
 ### Why
 
@@ -211,7 +213,7 @@ Goals:
 
 ## Database Engine
 
-PostgreSQL
+PostgreSQL 17+ (Latest Stable)
 
 ### Why
 
