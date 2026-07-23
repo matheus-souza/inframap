@@ -1,6 +1,6 @@
-# InfraMap Makefile
+# InfraMap Makefile — RFC-010 Compliant
 
-.PHONY: help dev build test lint clean goose-up goose-down sqlc-generate
+.PHONY: help dev dev-down build test test-coverage lint verify generate migrate-up migrate-down clean
 
 DEFAULT_PORT ?= 8055
 CGO_ENABLED ?= 0
@@ -8,38 +8,52 @@ MISE := $(shell command -v mise 2> /dev/null)
 GO := $(if $(MISE),CGO_ENABLED=$(CGO_ENABLED) mise exec -- go,CGO_ENABLED=$(CGO_ENABLED) go)
 GOOSE := $(if $(MISE),mise exec -- goose,goose)
 SQLC := $(if $(MISE),mise exec -- sqlc,sqlc)
+DATABASE_URL ?= postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable
 
 help: ## Display available commands
-	@echo "InfraMap Development Commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-18s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-dev: ## Run local development environment (single binary)
-	@echo "Starting InfraMap backend on port $(DEFAULT_PORT)..."
-	cd backend && INFRAMAP_PORT=$(DEFAULT_PORT) $(GO) run ./cmd/api/main.go
+dev: ## Start single self-contained local development environment (PostgreSQL + backend)
+	docker-compose -f docker-compose.dev.yml up -d postgres
+	@echo "Waiting for PostgreSQL to be ready..."
+	@until docker-compose -f docker-compose.dev.yml exec postgres pg_isready -U inframap; do sleep 1; done
+	cd backend && INFRAMAP_PORT=$(DEFAULT_PORT) $(GO) run ./cmd/api
 
-build: ## Build single binary with embedded WASM frontend
+dev-down: ## Stop local development environment containers
+	docker-compose -f docker-compose.dev.yml down -v
+
+build: ## Build production backend binary
 	@echo "Building InfraMap single binary..."
-	cd backend && $(GO) build -o bin/inframap ./cmd/api
+	cd backend && $(GO) build -ldflags="-s -w" -o bin/inframap ./cmd/api
 
-test: ## Run backend unit & integration tests
+test: ## Run backend unit & integration tests with coverage
 	@echo "Running backend test suite..."
-	cd backend && $(GO) test -v -race ./...
+	cd backend && $(GO) test -v -race -coverprofile=coverage.out ./...
 
-lint: ## Run golangci-lint on backend code
+test-coverage: test ## Run tests and output HTML coverage report
+	cd backend && go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report: backend/coverage.html"
+
+lint: ## Run golangci-lint static code analysis
 	@echo "Running golangci-lint..."
 	cd backend && golangci-lint run ./...
 
-clean: ## Clean built binaries and coverage reports
-	rm -rf backend/bin/ backend/coverage.out
-
-goose-up: ## Run database migrations up
-	@echo "Running Goose migrations up..."
-	cd backend && $(GOOSE) postgres "$${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/inframap?sslmode=disable}" up
-
-goose-down: ## Rollback last database migration
-	@echo "Rolling back Goose migration..."
-	cd backend && $(GOOSE) postgres "$${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/inframap?sslmode=disable}" down
-
-sqlc-generate: ## Generate Go code from SQL queries using sqlc
-	@echo "Generating SQLC code..."
+generate: ## Run code generation (sqlc)
+	@echo "Generating sqlc code..."
 	cd backend && $(SQLC) generate
+
+migrate-up: ## Apply pending Goose database migrations
+	@echo "Running Goose migrations up..."
+	cd backend && $(GOOSE) -dir migrations postgres "$(DATABASE_URL)" up
+
+migrate-down: ## Rollback last Goose database migration
+	@echo "Rolling back Goose migration..."
+	cd backend && $(GOOSE) -dir migrations postgres "$(DATABASE_URL)" down
+
+verify: generate lint test build ## Execute complete local validation pipeline (matches CI Quality Gates)
+	@echo "=========================================="
+	@echo " All Quality Gates Passed Successfully! "
+	@echo "=========================================="
+
+clean: ## Clean build artifacts and coverage files
+	rm -rf backend/bin backend/coverage.out backend/coverage.html
