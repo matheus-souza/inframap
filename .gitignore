@@ -1,0 +1,33 @@
+# Go artifacts
+backend/bin/
+backend/coverage.out
+backend/coverage.html
+*.test
+*.out
+*.exe
+
+# Database & Storage
+*.db
+*.sqlite
+postgres_dev_data/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Frontend & Build Outputs
+frontend/build/
+frontend/.gradle/
+.gradle/
+build/
+node_modules/
+
+# IDE & OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
