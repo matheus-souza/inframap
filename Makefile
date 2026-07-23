@@ -3,8 +3,9 @@
 .PHONY: help dev build test lint clean goose-up goose-down sqlc-generate
 
 DEFAULT_PORT ?= 8055
+CGO_ENABLED ?= 0
 MISE := $(shell command -v mise 2> /dev/null)
-GO := $(if $(MISE),mise exec -- go,go)
+GO := $(if $(MISE),CGO_ENABLED=$(CGO_ENABLED) mise exec -- go,CGO_ENABLED=$(CGO_ENABLED) go)
 GOOSE := $(if $(MISE),mise exec -- goose,goose)
 SQLC := $(if $(MISE),mise exec -- sqlc,sqlc)
 
