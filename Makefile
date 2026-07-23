@@ -3,6 +3,10 @@
 .PHONY: help dev build test lint clean goose-up goose-down sqlc-generate
 
 DEFAULT_PORT ?= 8055
+MISE := $(shell command -v mise 2> /dev/null)
+GO := $(if $(MISE),mise exec -- go,go)
+GOOSE := $(if $(MISE),mise exec -- goose,goose)
+SQLC := $(if $(MISE),mise exec -- sqlc,sqlc)
 
 help: ## Display available commands
 	@echo "InfraMap Development Commands:"
@@ -10,15 +14,15 @@ help: ## Display available commands
 
 dev: ## Run local development environment (single binary)
 	@echo "Starting InfraMap backend on port $(DEFAULT_PORT)..."
-	cd backend && INFRAMAP_PORT=$(DEFAULT_PORT) go run ./cmd/api/main.go
+	cd backend && INFRAMAP_PORT=$(DEFAULT_PORT) $(GO) run ./cmd/api/main.go
 
 build: ## Build single binary with embedded WASM frontend
 	@echo "Building InfraMap single binary..."
-	cd backend && go build -o bin/inframap ./cmd/api
+	cd backend && $(GO) build -o bin/inframap ./cmd/api
 
 test: ## Run backend unit & integration tests
 	@echo "Running backend test suite..."
-	cd backend && go test -v -race ./...
+	cd backend && $(GO) test -v -race ./...
 
 lint: ## Run golangci-lint on backend code
 	@echo "Running golangci-lint..."
@@ -29,12 +33,12 @@ clean: ## Clean built binaries and coverage reports
 
 goose-up: ## Run database migrations up
 	@echo "Running Goose migrations up..."
-	cd backend && goose postgres "$${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/inframap?sslmode=disable}" up
+	cd backend && $(GOOSE) postgres "$${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/inframap?sslmode=disable}" up
 
 goose-down: ## Rollback last database migration
 	@echo "Rolling back Goose migration..."
-	cd backend && goose postgres "$${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/inframap?sslmode=disable}" down
+	cd backend && $(GOOSE) postgres "$${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/inframap?sslmode=disable}" down
 
 sqlc-generate: ## Generate Go code from SQL queries using sqlc
 	@echo "Generating SQLC code..."
-	cd backend && sqlc generate
+	cd backend && $(SQLC) generate
