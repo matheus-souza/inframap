@@ -1,0 +1,35 @@
+name: PR Target Branch Guard
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validate_pr_target:
+    name: Validate PR Target Branch Rules
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate Target Branch Constraints
+        run: |
+          TARGET_BRANCH="${{ github.base_ref }}"
+          SOURCE_BRANCH="${{ github.head_ref }}"
+
+          echo "Target Branch (Base): $TARGET_BRANCH"
+          echo "Source Branch (Head): $SOURCE_BRANCH"
+
+          if [ "$TARGET_BRANCH" = "main" ]; then
+            if [ "$SOURCE_BRANCH" != "develop" ] && [[ "$SOURCE_BRANCH" != hotfix/* ]]; then
+              echo "::error::Invalid PR Target! Pull Requests to 'main' are strictly restricted to 'develop' or 'hotfix/*' branches."
+              echo "Branch '$SOURCE_BRANCH' cannot be merged directly into 'main'. Please change the base target branch of this PR to 'develop'."
+              exit 1
+            fi
+          fi
+
+          if [ "$TARGET_BRANCH" = "develop" ]; then
+            if [[ "$SOURCE_BRANCH" == hotfix/* ]]; then
+              echo "::warning::Hotfix branches should target 'main' first, then be merged back to 'develop'."
+            fi
+          fi
+
+          echo "PR target branch validation passed successfully!"

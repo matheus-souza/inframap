@@ -237,6 +237,7 @@ Additional rules:
 - Manual merge only.
 - Only the project maintainer may merge.
 - Every merge produces an official release.
+- **PR Source Restriction:** Pull Requests targeting `main` MUST originate ONLY from `develop` (standard releases) or `hotfix/*` (emergency production fixes). Direct PRs from `feature/*` or `fix/*` to `main` are strictly forbidden.
 
 ---
 
@@ -247,6 +248,7 @@ Additional rules:
 - Auto Merge enabled.
 - Merge occurs automatically after all required validations succeed.
 - Automated code review must approve the Pull Request before merge.
+- **Primary Integration Target:** All `feature/*`, `fix/*`, `refactor/*`, `chore/*`, and `docs/*` branches MUST target `develop`.
 
 This allows continuous delivery into the development environment while maintaining quality standards.
 
