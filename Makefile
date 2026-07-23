@@ -27,9 +27,9 @@ build: ## Build production backend binary
 	@echo "Building InfraMap single binary..."
 	cd backend && $(GO) build -ldflags="-s -w" -o bin/inframap ./cmd/api
 
-test: ## Run backend unit & integration tests with coverage
+test: ## Run backend unit & integration tests
 	@echo "Running backend test suite..."
-	cd backend && $(GO) test -v -race -coverprofile=coverage.out ./...
+	cd backend && $(GO) test -v -race ./...
 
 test-coverage: test ## Run tests and output HTML coverage report
 	cd backend && go tool cover -html=coverage.out -o coverage.html
