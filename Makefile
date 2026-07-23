@@ -8,6 +8,7 @@ MISE := $(shell command -v mise 2> /dev/null)
 GO := $(if $(MISE),CGO_ENABLED=$(CGO_ENABLED) mise exec -- go,CGO_ENABLED=$(CGO_ENABLED) go)
 GOOSE := $(if $(MISE),mise exec -- goose,goose)
 SQLC := $(if $(MISE),mise exec -- sqlc,sqlc)
+LINT := $(if $(MISE),mise exec -- golangci-lint,golangci-lint)
 DATABASE_URL ?= postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable
 
 help: ## Display available commands
@@ -36,7 +37,7 @@ test-coverage: test ## Run tests and output HTML coverage report
 
 lint: ## Run golangci-lint static code analysis
 	@echo "Running golangci-lint..."
-	cd backend && golangci-lint run ./...
+	cd backend && $(LINT) run ./...
 
 generate: ## Run code generation (sqlc)
 	@echo "Generating sqlc code..."
