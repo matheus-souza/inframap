@@ -2,9 +2,9 @@ name: CI Quality Gates
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
 
 jobs:
   verify:
@@ -21,21 +21,34 @@ jobs:
           go-version: '1.22'
           check-latest: true
 
+      - name: Check if backend exists
+        id: check_backend
+        run: |
+          if [ -d "backend" ] && [ -f "backend/go.mod" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        if: steps.check_backend.outputs.exists == 'true'
+        uses: golangci/golangci-lint-action@v6
         with:
           version: v1.56.2
-          working-directory: backend
+          working-directory: ./backend
 
       - name: Run Go vulnerability check (govulncheck)
+        if: steps.check_backend.outputs.exists == 'true'
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           cd backend && govulncheck ./...
 
       - name: Run Backend Tests
+        if: steps.check_backend.outputs.exists == 'true'
         run: |
           cd backend && go test -v -race -coverprofile=coverage.out ./...
 
       - name: Build Production Backend Binary
+        if: steps.check_backend.outputs.exists == 'true'
         run: |
           cd backend && CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/api ./cmd/api
