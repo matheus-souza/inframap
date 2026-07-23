@@ -25,7 +25,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version-file: 'backend/go.mod'
           check-latest: true
 
       - name: Check if backend exists
@@ -53,7 +53,7 @@ jobs:
       - name: Run Backend Tests
         if: steps.check_backend.outputs.exists == 'true'
         run: |
-          cd backend && go test -v -race -coverprofile=coverage.out ./...
+          cd backend && go test -v -race ./...
 
       - name: Build Production Backend Binary
         if: steps.check_backend.outputs.exists == 'true'
