@@ -43,12 +43,9 @@ jobs:
 
       - name: Run golangci-lint
         if: steps.check_backend.outputs.exists == 'true'
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64.5
-          install-mode: goinstall
-          working-directory: ./backend
-          skip-cache: true
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.5
+          cd backend && golangci-lint run ./...
 
       - name: Run Go vulnerability check (govulncheck)
         if: steps.check_backend.outputs.exists == 'true'
