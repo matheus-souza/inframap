@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -31,6 +32,7 @@ func (s *Subscriber) HandleEvent(ctx context.Context, event eventbus.DomainEvent
 
 	payloadBytes, err := json.Marshal(event.Payload())
 	if err != nil {
+		log.Printf("[audit] failed to marshal payload for event %s: %v", event.EventType(), err)
 		payloadBytes = []byte("{}")
 	}
 

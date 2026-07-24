@@ -60,16 +60,8 @@ func (b *InMemoryEventBus) startWorkers() {
 		b.wg.Add(1)
 		go func() {
 			defer b.wg.Done()
-			for {
-				select {
-				case <-b.ctx.Done():
-					return
-				case event, ok := <-b.eventChan:
-					if !ok {
-						return
-					}
-					b.dispatch(event)
-				}
+			for event := range b.eventChan {
+				b.dispatch(event)
 			}
 		}()
 	}
@@ -121,6 +113,7 @@ func (b *InMemoryEventBus) Publish(ctx context.Context, event DomainEvent) error
 	case b.eventChan <- event:
 		return nil
 	default:
+		log.Printf("[eventbus] backpressure: buffer full, dropping event %s", event.EventType())
 		return fmt.Errorf("%w (event: %s)", ErrBufferFull, event.EventType())
 	}
 }
@@ -134,8 +127,8 @@ func (b *InMemoryEventBus) Close() error {
 	b.closed = true
 	b.mu.Unlock()
 
-	b.cancel()
 	close(b.eventChan)
 	b.wg.Wait()
+	b.cancel()
 	return nil
 }
