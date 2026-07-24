@@ -53,6 +53,9 @@ func main() {
 		Addr:              addr,
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       30 * time.Second,
 	}
 
 	log.Printf("InfraMap API server starting on http://localhost%s", addr)

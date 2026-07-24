@@ -239,7 +239,7 @@ By running `make verify`, developers execute the exact validation steps required
 
 # Toolchain & Linter Specification
 
-### Toolchain Versions & Management (`.mise.toml`)
+## Toolchain Versions & Management (`.mise.toml`)
 - **Toolchain Manager:** `mise` (polyglot manager for Go, JDK, Goose, sqlc).
 - **Go Version:** **Go 1.24+** (latest stable release for enhanced performance, WASM improvements, and modern concurrency features).
 - **Java / JDK:** **JDK 21 LTS** (Temurin 21 LTS for Gradle & Kotlin Compiler build environment).

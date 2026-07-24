@@ -9,6 +9,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Trigger function for automatic updated_at timestamp updates
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -16,6 +17,7 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
+-- +goose StatementEnd
 
 -- =============================================================================
 -- Module 0: Configuration — System Initialization & Onboarding
@@ -55,9 +57,6 @@ CREATE TABLE users (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_email ON users(email);
-
 CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
@@ -72,8 +71,6 @@ CREATE TABLE roles (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_roles_name ON roles(name);
 
 CREATE TRIGGER update_roles_updated_at
     BEFORE UPDATE ON roles
@@ -100,6 +97,8 @@ CREATE TABLE role_permissions (
     PRIMARY KEY (role_id, permission_id)
 );
 
+CREATE INDEX idx_role_permissions_permission_id ON role_permissions(permission_id);
+
 -- 6. user_roles (N:M)
 CREATE TABLE user_roles (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -122,7 +121,6 @@ CREATE TABLE user_sessions (
 );
 
 CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX idx_user_sessions_token_hash ON user_sessions(token_hash);
 
 -- =============================================================================
 -- Module 2: Infrastructure Inventory
@@ -285,6 +283,7 @@ CREATE TABLE device_discovery_records (
 );
 
 CREATE INDEX idx_discovery_records_device ON device_discovery_records(device_id);
+CREATE INDEX idx_discovery_records_source ON device_discovery_records(discovery_source_id);
 CREATE INDEX idx_discovery_records_payload ON device_discovery_records USING gin (raw_payload);
 
 -- =============================================================================

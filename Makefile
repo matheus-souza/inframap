@@ -1,6 +1,6 @@
 # InfraMap Makefile — RFC-010 Compliant
 
-.PHONY: help dev dev-down build test test-coverage lint verify generate migrate-up migrate-down clean
+.PHONY: help dev dev-down dev-clean build test test-coverage lint verify generate migrate-up migrate-down clean
 
 DEFAULT_PORT ?= 8055
 CGO_ENABLED ?= 0
@@ -20,7 +20,10 @@ dev: ## Start single self-contained local development environment (PostgreSQL + 
 	@until docker-compose -f docker-compose.dev.yml exec postgres pg_isready -U inframap; do sleep 1; done
 	cd backend && INFRAMAP_PORT=$(DEFAULT_PORT) $(GO) run ./cmd/api
 
-dev-down: ## Stop local development environment containers
+dev-down: ## Stop local development environment containers (preserves database volume)
+	docker-compose -f docker-compose.dev.yml down
+
+dev-clean: ## Stop containers and remove database volume
 	docker-compose -f docker-compose.dev.yml down -v
 
 build: ## Build production backend binary
@@ -31,8 +34,9 @@ test: ## Run backend unit & integration tests
 	@echo "Running backend test suite..."
 	cd backend && $(GO) test -v -race ./...
 
-test-coverage: test ## Run tests and output HTML coverage report
-	cd backend && go tool cover -html=coverage.out -o coverage.html
+test-coverage: ## Run tests and output HTML coverage report
+	@echo "Running test coverage report..."
+	cd backend && $(GO) test -v -coverprofile=coverage.out ./cmd/... && $(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: backend/coverage.html"
 
 lint: ## Run golangci-lint static code analysis

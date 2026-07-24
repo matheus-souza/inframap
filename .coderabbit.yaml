@@ -1,16 +1,24 @@
 language: "pt-BR"
 
 reviews:
+  profile: "chill"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
   auto_review:
     enabled: true
+    ignore_title_keywords:
+      - "WIP"
+      - "draft"
     drafts: false
-    request_changes_workflow: true
     base_branches:
-      - main
-      - develop
-  finishing_touches:
-    docstrings:
-      enabled: false
+      - "main"
+      - "develop"
 
 chat:
   auto_reply: true
+
+knowledge_base:
+  opt_out: false
