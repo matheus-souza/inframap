@@ -10,6 +10,9 @@ jobs:
   verify:
     name: Verify Quality Gates
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
     services:
       postgres:
@@ -88,12 +91,7 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: code-coverage-report
-          message: |
-            ## 📊 InfraMap Code Coverage Report
-            
-            ```text
-            $(cat backend/coverage.txt)
-            ```
+          path: backend/coverage.txt
 
       - name: Run golangci-lint
         if: steps.check_backend.outputs.exists == 'true'
