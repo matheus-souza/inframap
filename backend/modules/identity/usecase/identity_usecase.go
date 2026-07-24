@@ -167,8 +167,8 @@ func (uc *DefaultIdentityUseCase) recordFailedAttempt(ctx context.Context, key, 
 		tracker.lockedUntil = now.Add(15 * time.Minute)
 		if uc.logger != nil {
 			uc.logger.Warn("account temporarily locked due to brute-force attempts",
-				slog.String("username", username),
-				slog.String("ip_address", ipAddress),
+				slog.String("username", sanitizeLogInput(username)),
+				slog.String("ip_address", sanitizeLogInput(ipAddress)),
 			)
 		}
 		if uc.eventBus != nil {
@@ -216,4 +216,10 @@ func (uc *DefaultIdentityUseCase) GetMe(ctx context.Context, token string) (*dto
 		IsActive:    session.IsActive,
 		Permissions: perms,
 	}, nil
+}
+
+func sanitizeLogInput(input string) string {
+	escaped := strings.ReplaceAll(input, "\n", "")
+	escaped = strings.ReplaceAll(escaped, "\r", "")
+	return escaped
 }
