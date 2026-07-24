@@ -41,7 +41,7 @@ func (m *mockSessionRepository) HashToken(token string) string {
 	return "hash_" + token
 }
 
-func (m *mockSessionRepository) CreateSession(ctx context.Context, userID uuid.UUID, token, userAgent, ipAddress string) (*repository.SessionData, error) {
+func (m *mockSessionRepository) CreateSession(_ context.Context, userID uuid.UUID, token, _, _ string) (*repository.SessionData, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
@@ -55,7 +55,7 @@ func (m *mockSessionRepository) CreateSession(ctx context.Context, userID uuid.U
 	return data, nil
 }
 
-func (m *mockSessionRepository) GetSessionByToken(ctx context.Context, token string) (*repository.SessionData, error) {
+func (m *mockSessionRepository) GetSessionByToken(_ context.Context, token string) (*repository.SessionData, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -66,7 +66,7 @@ func (m *mockSessionRepository) GetSessionByToken(ctx context.Context, token str
 	return data, nil
 }
 
-func (m *mockSessionRepository) RevokeSession(ctx context.Context, token string) error {
+func (m *mockSessionRepository) RevokeSession(_ context.Context, token string) error {
 	if m.revokeErr != nil {
 		return m.revokeErr
 	}
@@ -74,7 +74,7 @@ func (m *mockSessionRepository) RevokeSession(ctx context.Context, token string)
 	return nil
 }
 
-func (m *mockSessionRepository) GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]string, error) {
+func (m *mockSessionRepository) GetUserPermissions(_ context.Context, userID uuid.UUID) ([]string, error) {
 	if m.permsErr != nil {
 		return nil, m.permsErr
 	}

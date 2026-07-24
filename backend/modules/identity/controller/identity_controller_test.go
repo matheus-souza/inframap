@@ -23,18 +23,18 @@ type mockIdentityUseCase struct {
 	meErr     error
 }
 
-func (m *mockIdentityUseCase) Login(ctx context.Context, req dto.LoginRequest, userAgent, ipAddress string) (*dto.LoginResponse, error) {
+func (m *mockIdentityUseCase) Login(_ context.Context, _ dto.LoginRequest, _, _ string) (*dto.LoginResponse, error) {
 	if m.loginErr != nil {
 		return nil, m.loginErr
 	}
 	return m.loginResp, nil
 }
 
-func (m *mockIdentityUseCase) Logout(ctx context.Context, token string) error {
+func (m *mockIdentityUseCase) Logout(_ context.Context, _ string) error {
 	return m.logoutErr
 }
 
-func (m *mockIdentityUseCase) GetMe(ctx context.Context, token string) (*dto.UserMeResponse, error) {
+func (m *mockIdentityUseCase) GetMe(_ context.Context, _ string) (*dto.UserMeResponse, error) {
 	if m.meErr != nil {
 		return nil, m.meErr
 	}
