@@ -25,7 +25,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.25.x'
           check-latest: true
 
       - name: Check if backend exists
@@ -37,12 +37,22 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Download Go dependencies
+        if: steps.check_backend.outputs.exists == 'true'
+        run: cd backend && go mod download
+
+      - name: Run Backend Tests
+        if: steps.check_backend.outputs.exists == 'true'
+        run: cd backend && go test -v -race ./...
+
       - name: Run golangci-lint
         if: steps.check_backend.outputs.exists == 'true'
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.56.2
+          version: v1.64.5
+          install-mode: goinstall
           working-directory: ./backend
+          skip-cache: true
 
       - name: Run Go vulnerability check (govulncheck)
         if: steps.check_backend.outputs.exists == 'true'
@@ -50,12 +60,6 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           cd backend && govulncheck ./...
 
-      - name: Run Backend Tests
-        if: steps.check_backend.outputs.exists == 'true'
-        run: |
-          cd backend && go test -v -race -coverprofile=coverage.out ./...
-
       - name: Build Production Backend Binary
         if: steps.check_backend.outputs.exists == 'true'
-        run: |
-          cd backend && CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/api ./cmd/api
+        run: cd backend && CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/api ./cmd/api
