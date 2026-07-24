@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -46,8 +47,8 @@ func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 					if logger != nil {
 						logger.Error("HTTP handler panic recovered",
 							slog.Any("panic", rec),
-							slog.String("request_id", GetRequestID(r)),
-							slog.String("path", r.URL.Path),
+							slog.String("request_id", sanitizeLogInput(GetRequestID(r))),
+							slog.String("path", sanitizeLogInput(r.URL.Path)),
 						)
 					}
 					WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected server error occurred", nil)
@@ -56,4 +57,13 @@ func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func sanitizeLogInput(input string) string {
+	clean := strings.ReplaceAll(input, "\n", "")
+	clean = strings.ReplaceAll(clean, "\r", "")
+	if len(clean) > 256 {
+		return clean[:256]
+	}
+	return clean
 }
