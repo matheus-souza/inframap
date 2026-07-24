@@ -102,7 +102,29 @@ func (r *PgSetupRepository) Onboard(ctx context.Context, params OnboardParams) (
 
 	state, err := qtx.GetSystemState(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to retrieve system state in onboarding: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			id, genErr := uuid.NewV7()
+			if genErr != nil {
+				return nil, nil, genErr
+			}
+			instID, genErr := uuid.NewV7()
+			if genErr != nil {
+				return nil, nil, genErr
+			}
+			state, err = qtx.CreateSystemState(ctx, db.CreateSystemStateParams{
+				ID:                    id,
+				OnboardingCompleted:  false,
+				OnboardingCompletedAt: pgtype.Timestamptz{Valid: false},
+				SystemInstanceID:     instID,
+				TelemetryEnabled:     false,
+				Metadata:             []byte("{}"),
+			})
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to create initial system state in onboarding: %w", err)
+			}
+		} else {
+			return nil, nil, fmt.Errorf("failed to retrieve system state in onboarding: %w", err)
+		}
 	}
 
 	if state.OnboardingCompleted {

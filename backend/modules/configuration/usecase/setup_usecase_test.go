@@ -49,6 +49,12 @@ func (m *mockRepo) Onboard(_ context.Context, params repository.OnboardParams) (
 	if m.onboardErr != nil {
 		return nil, nil, m.onboardErr
 	}
+	if m.state == nil {
+		m.state = &db.SystemState{
+			ID:               uuid.New(),
+			SystemInstanceID: uuid.New(),
+		}
+	}
 	m.state.OnboardingCompleted = true
 	m.state.OnboardingCompletedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
 
@@ -121,5 +127,30 @@ func TestSetupUseCase_Onboard(t *testing.T) {
 	_, err = uc.Onboard(context.Background(), req)
 	if !errors.Is(err, usecase.ErrAlreadyOnboarded) {
 		t.Errorf("expected ErrAlreadyOnboarded on second attempt, got %v", err)
+	}
+}
+
+func TestSetupUseCase_OnboardFreshDatabase(t *testing.T) {
+	repo := &mockRepo{state: nil}
+	bus := eventbus.NewInMemoryEventBus(1, 10)
+	defer func() { _ = bus.Close() }()
+
+	uc := usecase.NewDefaultSetupUseCase(repo, bus, nil)
+
+	req := dto.OnboardRequest{
+		AdminUsername:    "admin",
+		AdminEmail:       "admin@example.com",
+		AdminPassword:    "correct-horse-battery-staple-passphrase",
+		AdminFullName:    "System Admin",
+		TelemetryEnabled: false,
+	}
+
+	resp, err := uc.Onboard(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected onboard error on fresh DB: %v", err)
+	}
+
+	if !resp.OnboardingCompleted {
+		t.Error("expected onboarding_completed to be true")
 	}
 }
