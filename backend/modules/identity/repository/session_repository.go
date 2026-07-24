@@ -155,10 +155,12 @@ func (r *PgSessionRepository) GetSessionByToken(ctx context.Context, token strin
 
 	// Extend sliding expiration by 30 minutes
 	newExpiry := now.Add(SlidingInactivityDuration)
-	_ = queries.UpdateSessionExpiry(ctx, db.UpdateSessionExpiryParams{
+	if updateErr := queries.UpdateSessionExpiry(ctx, db.UpdateSessionExpiryParams{
 		ID:        row.ID,
 		ExpiresAt: pgtype.Timestamptz{Time: newExpiry, Valid: true},
-	})
+	}); updateErr != nil {
+		return nil, fmt.Errorf("failed to update session expiry: %w", updateErr)
+	}
 
 	return &SessionData{
 		SessionID: row.ID.String(),

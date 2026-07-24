@@ -25,29 +25,29 @@ InfraMap requires a secure, stateful authentication and role-based access contro
 
 ---
 
-# Implementation Decisions
+## Implementation Decisions
 
-### 1. Token Format & Transport
+## 1. Token Format & Transport
 - **Format**: Stateful Opaque Token with `ims_` prefix (`ims_<64_hex_chars>`).
-- **Storage**: HMAC-SHA256 hashed token (`token_hash`) stored in `user_sessions` table.
+- **Storage**: SHA-256 hashed token (`token_hash`) stored in `user_sessions` table.
 - **Dual Transport**:
   - Web UI: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age=604800` cookie (`inframap_session`).
   - API / CLI: `Authorization: Bearer ims_...` header.
 
-### 2. Session Lifecycle & Sliding Expiration
+## 2. Session Lifecycle & Sliding Expiration
 - **Inactivity Timeout**: 30 minutes of inactivity triggers expiration.
 - **Sliding Renewal**: Active requests extend `expires_at` by 30 minutes up to the hard maximum limit.
 - **Hard Maximum Expiration**: 7 days (604,800 seconds) absolute maximum lifetime from session creation.
 
-### 3. Password Verification & Brute-Force Defense
+## 3. Password Verification & Brute-Force Defense
 - **Password Check**: Verify against bcrypt `password_hash` stored in `users`.
 - **Lockout Policy**: 5 failed login attempts for a username within 5 minutes triggers a 15-minute account lock.
 - **Progressive Delay**: 100ms artificial delay penalty added on failed login responses to hinder timing attacks.
 
-### 4. Middleware & Context Injection
+## 4. Middleware & Context Injection
 - **`AuthMiddleware`**: Inspects `inframap_session` cookie first, falls back to `Authorization: Bearer` header.
 - **Bypass Routes**: `/api/v1/health`, `/api/v1/setup/status`, `/api/v1/setup/onboard`, `/api/v1/auth/login`.
-- **Context Injection**: Injects authenticated `User` and `Permissions` list into Go `context.Context` via `httputil.UserContextKey`.
+- **Context Injection**: Injects authenticated `userID` and `Permissions` list into Go `context.Context` via `httputil.UserContextKey`.
 
 ---
 

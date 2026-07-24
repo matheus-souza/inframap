@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/identity/dto"
 	"github.com/matheussouza/inframap/modules/identity/repository"
@@ -30,6 +30,9 @@ var (
 	ErrUserInactive = errors.New("user account is inactive")
 )
 
+// dummyBcryptHash is used for timing-attack mitigation when a user is not found.
+const dummyBcryptHash = "$2a$12$K1J8/1fE.zS4E.Y/8xJ1p.wXyZ1J8/1fE.zS4E.Y/8xJ1p.wXyZ1"
+
 // IdentityUseCase defines application logic for authentication and profile inspection.
 type IdentityUseCase interface {
 	Login(ctx context.Context, req dto.LoginRequest, userAgent, ipAddress string) (*dto.LoginResponse, error)
@@ -38,17 +41,17 @@ type IdentityUseCase interface {
 }
 
 type failedAttemptTracker struct {
-	count     int
-	firstFail time.Time
+	count       int
+	firstFail   time.Time
 	lockedUntil time.Time
 }
 
 // DefaultIdentityUseCase implements IdentityUseCase.
 type DefaultIdentityUseCase struct {
-	pool       *pgxpool.Pool
+	pool        *pgxpool.Pool
 	sessionRepo repository.SessionRepository
-	eventBus   eventbus.EventBus
-	logger     *slog.Logger
+	eventBus    eventbus.EventBus
+	logger      *slog.Logger
 
 	mu       sync.Mutex
 	lockouts map[string]*failedAttemptTracker
@@ -67,7 +70,13 @@ func NewDefaultIdentityUseCase(pool *pgxpool.Pool, sessionRepo repository.Sessio
 
 // Login authenticates credentials, applies brute-force defense, creates session, and emits audit events.
 func (uc *DefaultIdentityUseCase) Login(ctx context.Context, req dto.LoginRequest, userAgent, ipAddress string) (*dto.LoginResponse, error) {
-	usernameKey := fmt.Sprintf("%s:%s", req.Username, ipAddress)
+	normalizedUsername := strings.ToLower(strings.TrimSpace(req.Username))
+	cleanIP := ipAddress
+	if host, _, err := net.SplitHostPort(ipAddress); err == nil {
+		cleanIP = host
+	}
+
+	usernameKey := fmt.Sprintf("%s:%s", normalizedUsername, cleanIP)
 
 	uc.mu.Lock()
 	tracker, exists := uc.lockouts[usernameKey]
@@ -77,14 +86,18 @@ func (uc *DefaultIdentityUseCase) Login(ctx context.Context, req dto.LoginReques
 	}
 	uc.mu.Unlock()
 
-	queries := db.New(uc.pool)
-	
 	// Lookup user by username or email
-	var user db.User
+	var user struct {
+		ID           [16]byte
+		Username     string
+		Email        string
+		PasswordHash string
+		FullName     string
+		IsActive     bool
+	}
 	var err error
 
-	// Try lookup by username first
-	userRow, lookupErr := uc.pool.Query(ctx, "SELECT id, username, email, password_hash, full_name, is_active FROM users WHERE username = $1 OR email = $1 LIMIT 1", req.Username)
+	userRow, lookupErr := uc.pool.Query(ctx, "SELECT id, username, email, password_hash, full_name, is_active FROM users WHERE LOWER(username) = $1 OR LOWER(email) = $1 LIMIT 1", normalizedUsername)
 	if lookupErr == nil && userRow.Next() {
 		err = userRow.Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.FullName, &user.IsActive)
 		userRow.Close()
@@ -93,7 +106,9 @@ func (uc *DefaultIdentityUseCase) Login(ctx context.Context, req dto.LoginReques
 	}
 
 	if err != nil {
-		uc.recordFailedAttempt(ctx, usernameKey, req.Username, ipAddress, "user not found")
+		// Run dummy password check to prevent timing analysis
+		_ = bcrypt.CompareHashAndPassword([]byte(dummyBcryptHash), []byte(req.Password))
+		uc.recordFailedAttempt(ctx, usernameKey, normalizedUsername, cleanIP, "user not found")
 		time.Sleep(100 * time.Millisecond) // Progressive delay
 		return nil, ErrInvalidCredentials
 	}
@@ -104,7 +119,7 @@ func (uc *DefaultIdentityUseCase) Login(ctx context.Context, req dto.LoginReques
 
 	// Verify password
 	if bcryptErr := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); bcryptErr != nil {
-		uc.recordFailedAttempt(ctx, usernameKey, req.Username, ipAddress, "password mismatch")
+		uc.recordFailedAttempt(ctx, usernameKey, normalizedUsername, cleanIP, "password mismatch")
 		time.Sleep(100 * time.Millisecond) // Progressive delay
 		return nil, ErrInvalidCredentials
 	}
@@ -120,29 +135,30 @@ func (uc *DefaultIdentityUseCase) Login(ctx context.Context, req dto.LoginReques
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	session, err := uc.sessionRepo.CreateSession(ctx, user.ID, token, userAgent, ipAddress)
+	session, err := uc.sessionRepo.CreateSession(ctx, user.ID, token, userAgent, cleanIP)
 	if err != nil {
 		return nil, err
 	}
 
-	perms, _ := uc.sessionRepo.GetUserPermissions(ctx, user.ID)
+	perms, permErr := uc.sessionRepo.GetUserPermissions(ctx, user.ID)
+	if permErr != nil {
+		return nil, fmt.Errorf("failed to retrieve user permissions: %w", permErr)
+	}
 
 	// Publish user.login_success event
 	if uc.eventBus != nil {
 		evt := eventbus.NewBaseEvent("user.login_success", map[string]string{
-			"user_id":    user.ID.String(),
+			"user_id":    fmt.Sprintf("%x-%x-%x-%x-%x", user.ID[0:4], user.ID[4:6], user.ID[6:8], user.ID[8:10], user.ID[10:16]),
 			"username":   user.Username,
-			"ip_address": ipAddress,
+			"ip_address": cleanIP,
 			"user_agent": userAgent,
 		})
 		_ = uc.eventBus.Publish(ctx, evt)
 	}
 
-	_ = queries
-
 	return &dto.LoginResponse{
 		Token:       token,
-		UserID:      user.ID.String(),
+		UserID:      fmt.Sprintf("%x-%x-%x-%x-%x", user.ID[0:4], user.ID[4:6], user.ID[6:8], user.ID[8:10], user.ID[10:16]),
 		Username:    user.Username,
 		Email:       user.Email,
 		FullName:    user.FullName,
@@ -207,7 +223,10 @@ func (uc *DefaultIdentityUseCase) GetMe(ctx context.Context, token string) (*dto
 		return nil, err
 	}
 
-	perms, _ := uc.sessionRepo.GetUserPermissions(ctx, session.UserID)
+	perms, permErr := uc.sessionRepo.GetUserPermissions(ctx, session.UserID)
+	if permErr != nil {
+		return nil, fmt.Errorf("failed to retrieve user permissions: %w", permErr)
+	}
 
 	return &dto.UserMeResponse{
 		ID:          session.UserID.String(),

@@ -4,6 +4,7 @@ package controller
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"strings"
 
@@ -44,6 +45,9 @@ func (c *IdentityController) Login(w http.ResponseWriter, r *http.Request) {
 
 	userAgent := r.UserAgent()
 	ipAddress := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		ipAddress = host
+	}
 
 	resp, err := c.useCase.Login(r.Context(), req, userAgent, ipAddress)
 	if err != nil {
@@ -51,7 +55,7 @@ func (c *IdentityController) Login(w http.ResponseWriter, r *http.Request) {
 			httputil.WriteError(w, r, http.StatusTooManyRequests, "RATE_LIMITED", err.Error(), nil)
 			return
 		}
-		if errors.Is(err, usecase.ErrInvalidCredentials) {
+		if errors.Is(err, usecase.ErrInvalidCredentials) || errors.Is(err, usecase.ErrUserInactive) {
 			httputil.WriteError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Invalid username or password", nil)
 			return
 		}
@@ -77,7 +81,10 @@ func (c *IdentityController) Login(w http.ResponseWriter, r *http.Request) {
 func (c *IdentityController) Logout(w http.ResponseWriter, r *http.Request) {
 	token := ExtractToken(r)
 
-	_ = c.useCase.Logout(r.Context(), token)
+	if err := c.useCase.Logout(r.Context(), token); err != nil {
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to revoke session", nil)
+		return
+	}
 
 	// Clear cookie
 	http.SetCookie(w, &http.Cookie{
