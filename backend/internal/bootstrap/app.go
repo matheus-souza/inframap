@@ -21,6 +21,10 @@ import (
 	identityctrl "github.com/matheussouza/inframap/modules/identity/controller"
 	identityrepo "github.com/matheussouza/inframap/modules/identity/repository"
 	identityuc "github.com/matheussouza/inframap/modules/identity/usecase"
+	"github.com/matheussouza/inframap/modules/inventory"
+	invctrl "github.com/matheussouza/inframap/modules/inventory/controller"
+	invrepo "github.com/matheussouza/inframap/modules/inventory/repository"
+	invuc "github.com/matheussouza/inframap/modules/inventory/usecase"
 )
 
 // App holds all application-wide dependencies.
@@ -96,7 +100,12 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	identityUseCase := identityuc.NewDefaultIdentityUseCase(pool, sessionRepo, bus, log)
 	identityCtrl := identityctrl.NewIdentityController(identityUseCase)
 
-	// 6. Setup Router & Register Endpoints
+	// 6. Initialize Inventory Module
+	invRepo := invrepo.NewPgInventoryRepository(pool)
+	invUseCase := invuc.NewDefaultInventoryUseCase(invRepo, bus, log)
+	invCtrl := invctrl.NewInventoryController(invUseCase)
+
+	// 7. Setup Router & Register Endpoints
 	mux := http.NewServeMux()
 
 	// Health endpoint
@@ -109,6 +118,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 
 	configuration.RegisterRoutes(mux, setupCtrl)
 	identity.RegisterRoutes(mux, identityCtrl)
+	inventory.RegisterRoutes(mux, invCtrl)
 
 	// 7. Middleware Stack: RequestID -> SecurityHeaders -> Recovery -> AuthMiddleware -> Mux
 	validator := &sessionValidatorAdapter{repo: sessionRepo}
