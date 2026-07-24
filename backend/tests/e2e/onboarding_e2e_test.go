@@ -61,7 +61,7 @@ func TestE2E_OnboardingFlow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("health check request failed: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("expected 200 OK, got %d", resp.StatusCode)
@@ -79,7 +79,7 @@ func TestE2E_OnboardingFlow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("status request failed: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("expected 200 OK, got %d", resp.StatusCode)
@@ -105,7 +105,7 @@ func TestE2E_OnboardingFlow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("onboard request failed: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("expected 400 Bad Request for weak password, got %d", resp.StatusCode)
