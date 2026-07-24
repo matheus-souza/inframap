@@ -54,7 +54,7 @@ func TestAuditSubscriber_HandleEvent(t *testing.T) {
 
 	subscriber := audit.NewSubscriber(db)
 	bus := eventbus.NewInMemoryEventBus(1, 10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	if err := subscriber.Register(bus); err != nil {
 		t.Fatalf("failed to register subscriber: %v", err)

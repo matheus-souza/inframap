@@ -111,7 +111,7 @@ func (b *InMemoryEventBus) Subscribe(eventType string, handler EventHandler) err
 }
 
 // Publish sends a domain event to the buffered channel without blocking.
-func (b *InMemoryEventBus) Publish(ctx context.Context, event DomainEvent) error {
+func (b *InMemoryEventBus) Publish(_ context.Context, event DomainEvent) error {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 

@@ -13,7 +13,7 @@ import (
 
 func TestEventBus_PublishSubscribe(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(5, 100)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var receivedCount int32
 	var wg sync.WaitGroup
@@ -43,7 +43,7 @@ func TestEventBus_PublishSubscribe(t *testing.T) {
 
 func TestEventBus_PanicRecoveryInHandler(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(2, 10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -67,7 +67,7 @@ func TestEventBus_PanicRecoveryInHandler(t *testing.T) {
 
 func TestEventBus_WildcardSubscriber(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(2, 10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	var receivedCount int32
 	var wg sync.WaitGroup
@@ -91,7 +91,7 @@ func TestEventBus_WildcardSubscriber(t *testing.T) {
 
 func TestEventBus_BackpressureOverflow(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 1)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	blockCh := make(chan struct{})
 	defer close(blockCh)
