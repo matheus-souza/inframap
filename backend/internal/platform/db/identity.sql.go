@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"net/netip"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -59,6 +60,43 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 	return i, err
 }
 
+const createSession = `-- name: CreateSession :one
+INSERT INTO user_sessions (id, user_id, token_hash, user_agent, ip_address, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, user_id, token_hash, user_agent, ip_address, expires_at, created_at
+`
+
+type CreateSessionParams struct {
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	TokenHash string             `json:"token_hash"`
+	UserAgent pgtype.Text        `json:"user_agent"`
+	IpAddress *netip.Addr        `json:"ip_address"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (UserSession, error) {
+	row := q.db.QueryRow(ctx, createSession,
+		arg.ID,
+		arg.UserID,
+		arg.TokenHash,
+		arg.UserAgent,
+		arg.IpAddress,
+		arg.ExpiresAt,
+	)
+	var i UserSession
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.UserAgent,
+		&i.IpAddress,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, username, email, password_hash, full_name, is_active)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -98,6 +136,26 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteSession = `-- name: DeleteSession :exec
+DELETE FROM user_sessions
+WHERE token_hash = $1
+`
+
+func (q *Queries) DeleteSession(ctx context.Context, tokenHash string) error {
+	_, err := q.db.Exec(ctx, deleteSession, tokenHash)
+	return err
+}
+
+const deleteUserSessions = `-- name: DeleteUserSessions :exec
+DELETE FROM user_sessions
+WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserSessions(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserSessions, userID)
+	return err
+}
+
 const getRoleByName = `-- name: GetRoleByName :one
 SELECT id, name, description, is_system, created_at, updated_at FROM roles WHERE name = $1
 `
@@ -114,4 +172,89 @@ func (q *Queries) GetRoleByName(ctx context.Context, name string) (Role, error) 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getSessionByHash = `-- name: GetSessionByHash :one
+SELECT s.id, s.user_id, s.token_hash, s.user_agent, s.ip_address, s.expires_at, s.created_at,
+       u.username, u.email, u.full_name, u.is_active
+FROM user_sessions s
+JOIN users u ON s.user_id = u.id
+WHERE s.token_hash = $1
+`
+
+type GetSessionByHashRow struct {
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	TokenHash string             `json:"token_hash"`
+	UserAgent pgtype.Text        `json:"user_agent"`
+	IpAddress *netip.Addr        `json:"ip_address"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	Username  string             `json:"username"`
+	Email     string             `json:"email"`
+	FullName  string             `json:"full_name"`
+	IsActive  bool               `json:"is_active"`
+}
+
+func (q *Queries) GetSessionByHash(ctx context.Context, tokenHash string) (GetSessionByHashRow, error) {
+	row := q.db.QueryRow(ctx, getSessionByHash, tokenHash)
+	var i GetSessionByHashRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.UserAgent,
+		&i.IpAddress,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.Username,
+		&i.Email,
+		&i.FullName,
+		&i.IsActive,
+	)
+	return i, err
+}
+
+const getUserPermissions = `-- name: GetUserPermissions :many
+SELECT DISTINCT p.name
+FROM user_roles ur
+JOIN role_permissions rp ON ur.role_id = rp.role_id
+JOIN permissions p ON rp.permission_id = p.id
+WHERE ur.user_id = $1
+`
+
+func (q *Queries) GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, getUserPermissions, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateSessionExpiry = `-- name: UpdateSessionExpiry :exec
+UPDATE user_sessions
+SET expires_at = $2
+WHERE id = $1
+`
+
+type UpdateSessionExpiryParams struct {
+	ID        uuid.UUID          `json:"id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) UpdateSessionExpiry(ctx context.Context, arg UpdateSessionExpiryParams) error {
+	_, err := q.db.Exec(ctx, updateSessionExpiry, arg.ID, arg.ExpiresAt)
+	return err
 }

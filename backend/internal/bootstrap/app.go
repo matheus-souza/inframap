@@ -14,9 +14,13 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/logger"
 	"github.com/matheussouza/inframap/modules/audit"
 	"github.com/matheussouza/inframap/modules/configuration"
-	"github.com/matheussouza/inframap/modules/configuration/controller"
-	"github.com/matheussouza/inframap/modules/configuration/repository"
-	"github.com/matheussouza/inframap/modules/configuration/usecase"
+	configctrl "github.com/matheussouza/inframap/modules/configuration/controller"
+	configrepo "github.com/matheussouza/inframap/modules/configuration/repository"
+	configuc "github.com/matheussouza/inframap/modules/configuration/usecase"
+	"github.com/matheussouza/inframap/modules/identity"
+	identityctrl "github.com/matheussouza/inframap/modules/identity/controller"
+	identityrepo "github.com/matheussouza/inframap/modules/identity/repository"
+	identityuc "github.com/matheussouza/inframap/modules/identity/usecase"
 )
 
 // App holds all application-wide dependencies.
@@ -30,6 +34,19 @@ type App struct {
 // Config holds bootstrap configuration parameters.
 type Config struct {
 	DatabaseURL string
+}
+
+type sessionValidatorAdapter struct {
+	repo identityrepo.SessionRepository
+}
+
+func (s *sessionValidatorAdapter) ValidateSession(ctx context.Context, token string) (string, []string, error) {
+	session, err := s.repo.GetSessionByToken(ctx, token)
+	if err != nil {
+		return "", nil, err
+	}
+	perms, _ := s.repo.GetUserPermissions(ctx, session.UserID)
+	return session.UserID.String(), perms, nil
 }
 
 // NewConfigFromEnv loads configuration parameters from environment variables.
@@ -70,27 +87,36 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	}
 
 	// 4. Initialize Configuration Module
-	setupRepo := repository.NewPgSetupRepository(pool)
-	setupUseCase := usecase.NewDefaultSetupUseCase(setupRepo, bus, log)
-	setupCtrl := controller.NewSetupController(setupUseCase)
+	setupRepo := configrepo.NewPgSetupRepository(pool)
+	setupUseCase := configuc.NewDefaultSetupUseCase(setupRepo, bus, log)
+	setupCtrl := configctrl.NewSetupController(setupUseCase)
 
-	// 5. Setup Router & Register Endpoints
+	// 5. Initialize Identity Module
+	sessionRepo := identityrepo.NewPgSessionRepository(pool)
+	identityUseCase := identityuc.NewDefaultIdentityUseCase(pool, sessionRepo, bus, log)
+	identityCtrl := identityctrl.NewIdentityController(identityUseCase)
+
+	// 6. Setup Router & Register Endpoints
 	mux := http.NewServeMux()
 
 	// Health endpoint
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSON(w, r, http.StatusOK, map[string]string{
 			"status":  "ok",
-			"version": usecase.AppVersion,
+			"version": configuc.AppVersion,
 		})
 	})
 
 	configuration.RegisterRoutes(mux, setupCtrl)
+	identity.RegisterRoutes(mux, identityCtrl)
 
-	// 6. Middleware Stack: RequestID -> SecurityHeaders -> Recovery -> Mux
+	// 7. Middleware Stack: RequestID -> SecurityHeaders -> Recovery -> AuthMiddleware -> Mux
+	validator := &sessionValidatorAdapter{repo: sessionRepo}
 	handler := httputil.RequestID(
 		httputil.SecurityHeaders(
-			httputil.Recovery(log)(mux),
+			httputil.Recovery(log)(
+				httputil.AuthMiddleware(validator)(mux),
+			),
 		),
 	)
 
