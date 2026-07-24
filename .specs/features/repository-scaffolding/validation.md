@@ -22,7 +22,7 @@
 
 ## Test & Build Execution Output Evidence
 
-```
+```text
 Running backend test suite...
 cd backend && CGO_ENABLED=0 mise exec -- go test -v -race -coverprofile=coverage.out ./...
 === RUN   TestHealthHandler
@@ -39,7 +39,7 @@ Building InfraMap single binary...
 cd backend && CGO_ENABLED=0 mise exec -- go build -ldflags="-s -w" -o bin/inframap ./cmd/api
 ```
 
-```
+```text
 Generating sqlc code...
 cd backend && mise exec -- sqlc generate
 Generated: backend/internal/platform/db/{db.go, health.sql.go, models.go}

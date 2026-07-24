@@ -31,7 +31,7 @@ Implement these tasks with the `tlc-spec-driven` skill.
 
 ## Execution Plan
 
-```
+```text
 Phase 1: Foundation (Directories & Makefile)
 T1 → T2
 
@@ -166,7 +166,7 @@ T6
 - [ ] `update_updated_at_column()` trigger function created and applied
 
 **Tests**: none
-**Gate**: Build (`cd backend && go build ./...`)
+**Gate**: Build (`cd backend && go build ./...`) + Goose syntax validation (`goose -dir migrations validate`)
 **Commit**: `feat(db): create initial Goose schema migration aligned with RFC-006`
 
 ---
@@ -195,7 +195,7 @@ T6
 - [ ] `cd backend && go build ./...` passes
 
 **Tests**: none
-**Gate**: Build (`cd backend && go build ./...`)
+**Gate**: Build (`cd backend && go build ./...`) + sqlc compile (`cd backend && sqlc compile`)
 **Commit**: `feat(db): configure sqlc.yaml with RFC-010 type overrides and initial queries`
 
 ---
