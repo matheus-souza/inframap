@@ -19,8 +19,8 @@
     <a href="https://github.com/matheussouza/inframap/issues/new?labels=enhancement">Request Feature</a>
   </p>
   <br />
-  <img src="https://img.shields.io/badge/Go-1.22+-bd93f9?style=flat-square&logo=go&logoColor=white" alt="Go Version">
-  <img src="https://img.shields.io/badge/PostgreSQL-16-8be9fd?style=flat-square&logo=postgresql&logoColor=1e1f29" alt="PostgreSQL Version">
+  <img src="https://img.shields.io/badge/Go-1.25+-bd93f9?style=flat-square&logo=go&logoColor=white" alt="Go Version">
+  <img src="https://img.shields.io/badge/PostgreSQL-17-8be9fd?style=flat-square&logo=postgresql&logoColor=1e1f29" alt="PostgreSQL Version">
   <img src="https://img.shields.io/badge/Compose_Multiplatform-WASM-bd93f9?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin Compose Multiplatform">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-50fa7b?style=flat-square" alt="Apache 2.0 License"></a>
 </div>
@@ -66,8 +66,8 @@ Designed specifically for homelabs and small-scale infrastructure, InfraMap inte
 
 ### Built With
 
-* **Backend:** [Go](https://go.dev/) (1.22+)
-* **Database:** [PostgreSQL](https://www.postgresql.org/) (pgx & sqlc for type-safe queries)
+* **Backend:** [Go](https://go.dev/) (1.25+)
+* **Database:** [PostgreSQL 17](https://www.postgresql.org/) (pgx & sqlc for type-safe queries)
 * **Migrations:** [Goose](https://github.com/pressly/goose) (Automated startup migrations)
 * **Frontend:** [Kotlin Compose Multiplatform (WASM)](https://www.jetbrains.com/lp/compose-multiplatform/) embedded via Go `embed.FS`
 
@@ -79,7 +79,7 @@ InfraMap is fully self-contained. A single command spins up the database, automa
 ### Prerequisites
 
 * [Docker & Docker Compose](https://www.docker.com/)
-* [Go 1.22+](https://go.dev/dl/)
+* [Go 1.25+](https://go.dev/dl/)
 * Make
 
 ### Installation
@@ -109,15 +109,22 @@ InfraMap is designed for zero-friction homelab maintenance. You can safely confi
 <!-- ARCHITECTURE AND RFCS -->
 ## Architecture and RFCs
 
-Every major architectural decision, data model, and API contract is extensively documented in our RFCs. Before contributing, please review the foundational guidelines:
+Every major architectural decision, data model, and API contract is extensively documented in our RFCs and Domain Context:
 
+* [CONTEXT.md](CONTEXT.md) — Domain Glossary & Ubiquitous Language Definition
+* [ADR-001: Architectural Decisions](docs/adr/ADR-001-architectural-decisions.md) — Log of Active Architectural Decisions
 * [RFC-001: Technology Stack](docs/RFC-001-technology-stack.md)
+* [RFC-002: Development Workflow](docs/RFC-002-development-workflow.md)
+* [RFC-003: Quality Gates](docs/RFC-003-quality-gates.md)
+* [RFC-004: Security Policy](docs/RFC-004-security-policy.md)
 * [RFC-005: Architecture](docs/RFC-005-architecture.md)
 * [RFC-006: Data Model](docs/RFC-006-data-model.md)
+* [RFC-007: Discovery Engine](docs/RFC-007-discovery-engine.md)
+* [RFC-008: API Specification](docs/RFC-008-api-specification.md)
 * [RFC-009: Integration SDK & Event Bus](docs/RFC-009-integration-sdk-event-bus.md)
 * [RFC-010: Repository Scaffolding](docs/RFC-010-repository-scaffolding.md)
 
-*See the [docs/](docs/) folder for the full list of RFCs.*
+*See the [docs/](docs/) folder for the full documentation set.*
 
 <!-- ROADMAP -->
 ## Roadmap
