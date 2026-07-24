@@ -2,39 +2,17 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
+
+	"github.com/matheussouza/inframap/internal/bootstrap"
 )
-
-// HealthResponse represents the health check endpoint response.
-type HealthResponse struct {
-	Status  string `json:"status"`
-	Version string `json:"version"`
-}
-
-func healthHandler(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	resp := HealthResponse{
-		Status:  "ok",
-		Version: "v1.0.0-rc.1",
-	}
-
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("failed to encode health response: %v", err)
-	}
-}
-
-func setupRouter() *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v1/health", healthHandler)
-	return mux
-}
 
 func getPort() string {
 	port := os.Getenv("INFRAMAP_PORT")
@@ -45,22 +23,45 @@ func getPort() string {
 }
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	cfg := bootstrap.NewConfigFromEnv()
+	app, err := bootstrap.New(ctx, cfg)
+	if err != nil {
+		log.Fatalf("failed to bootstrap InfraMap application: %v", err)
+	}
+	defer app.Close()
+
 	port := getPort()
 	addr := fmt.Sprintf(":%s", port)
-	router := setupRouter()
 
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           router,
+		Handler:           app.Router,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}
 
-	log.Printf("InfraMap API server starting on http://localhost%s", addr)
-	// nosemgrep: go.lang.security.audit.net.use-tls.use-tls
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("server exited unexpectedly: %v", err)
+	go func() {
+		log.Printf("InfraMap API server starting on http://localhost%s", addr)
+		// nosemgrep: go.lang.security.audit.net.use-tls.use-tls
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server exited unexpectedly: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("Shutting down InfraMap API server gracefully...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("server forced to shutdown: %v", err)
 	}
+
+	log.Println("InfraMap API server stopped.")
 }

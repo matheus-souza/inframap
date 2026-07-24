@@ -17,6 +17,9 @@
 | **Discovery Source** | Configuration targeting a range, subnet, or provider API for automated discovery. | `Table: discovery_sources` |
 | **Discovery Record** | Timestamped raw observation output produced by a discovery scan. | `Table: device_discovery_records` |
 | **Credential** | Encrypted authentication secret used by discovery collectors (SNMP, SSH, API token). | `Table: credentials` |
+| **System State** | Singleton configuration entity tracking installation status, telemetry, and technical metadata. | `Table: system_state`, `struct SystemState` |
+| **Onboarding** | Single-shot system initialization process creating instance ID, system roles, and initial admin user. | `modules/configuration/usecase` |
+| **System Role** | Built-in RBAC role (`admin`, `operator`, `viewer`) seeded during system onboarding. | `Table: roles`, `struct Role` |
 
 ---
 
@@ -26,5 +29,7 @@
 - **RFC-006**: Core Domain Models & PostgreSQL Schema Definition
 - **RFC-008**: Discovery Engine & Collector Plugin Architecture
 - **RFC-010**: Repository Scaffolding & Developer Environment
+- **RFC-011**: Event Bus, Audit Logger & Crypto Engine
+- **RFC-012**: System Configuration & Onboarding Specification
 
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.

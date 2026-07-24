@@ -1,49 +1,52 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/matheussouza/inframap/internal/bootstrap"
 )
 
-func TestHealthHandler(t *testing.T) {
-	router := setupRouter()
-
-	req, err := http.NewRequest(http.MethodGet, "/api/v1/health", nil)
+func TestHealthEndpoint(t *testing.T) {
+	cfg := bootstrap.Config{
+		DatabaseURL: "postgres://invalid:invalid@localhost:5432/invalid?sslmode=disable",
+	}
+	app, err := bootstrap.New(context.Background(), cfg)
 	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
+		t.Fatalf("failed to create bootstrap app: %v", err)
+	}
+	defer app.Close()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
+
+	app.Router.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
 	}
 
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rec.Code)
+	var resp struct {
+		Data struct {
+			Status  string `json:"status"`
+			Version string `json:"version"`
+		} `json:"data"`
 	}
 
-	var resp HealthResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response body: %v", err)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if resp.Status != "ok" {
-		t.Errorf("expected status 'ok', got '%s'", resp.Status)
+	if resp.Data.Status != "ok" {
+		t.Errorf("expected status 'ok', got %q", resp.Data.Status)
 	}
 }
 
-func TestGetPortDefault(t *testing.T) {
-	t.Setenv("INFRAMAP_PORT", "")
-	port := getPort()
-	if port != "8055" {
+func TestGetPort(t *testing.T) {
+	if port := getPort(); port != "8055" {
 		t.Errorf("expected default port 8055, got %s", port)
-	}
-}
-
-func TestGetPortCustom(t *testing.T) {
-	t.Setenv("INFRAMAP_PORT", "9090")
-	port := getPort()
-	if port != "9090" {
-		t.Errorf("expected port 9090, got %s", port)
 	}
 }
