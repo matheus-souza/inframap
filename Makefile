@@ -1,6 +1,6 @@
 # InfraMap Makefile — RFC-010 Compliant
 
-.PHONY: help dev dev-down dev-clean build test test-coverage lint verify generate migrate-up migrate-down clean
+.PHONY: help dev dev-down dev-clean build test test-coverage lint verify generate migrate-up migrate-down setup-hooks clean
 
 DEFAULT_PORT ?= 8055
 MISE := $(shell command -v mise 2> /dev/null)
@@ -58,6 +58,11 @@ verify: generate lint test build ## Execute complete local validation pipeline (
 	@echo "=========================================="
 	@echo " All Quality Gates Passed Successfully! "
 	@echo "=========================================="
+
+setup-hooks: ## Configure local git hooks path (.githooks)
+	@git config core.hooksPath .githooks
+	@chmod +x .githooks/*
+	@echo "Git pre-push hook configured successfully (.githooks)!"
 
 clean: ## Clean build artifacts and coverage files
 	rm -rf backend/bin backend/coverage.out backend/coverage.html
