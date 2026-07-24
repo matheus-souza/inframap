@@ -20,6 +20,9 @@
 | **System State** | Singleton configuration entity tracking installation status, telemetry, and technical metadata. | `Table: system_state`, `struct SystemState` |
 | **Onboarding** | Single-shot system initialization process creating instance ID, system roles, and initial admin user. | `modules/configuration/usecase` |
 | **System Role** | Built-in RBAC role (`admin`, `operator`, `viewer`) seeded during system onboarding. | `Table: roles`, `struct Role` |
+| **Session Token** | Cryptographically secure stateful token prefixed with `ims_` used for authentication. | `Table: user_sessions`, `struct UserSession` |
+| **Sliding Session** | Session model with 30-minute inactivity sliding renewal and 7-day hard absolute expiration limit. | `modules/identity/usecase` |
+| **Auth Context** | Request context carrying verified authenticated `User` profile and assigned RBAC permissions. | `internal/platform/httputil` |
 
 ---
 
@@ -31,5 +34,6 @@
 - **RFC-010**: Repository Scaffolding & Developer Environment
 - **RFC-011**: Event Bus, Audit Logger & Crypto Engine
 - **RFC-012**: System Configuration & Onboarding Specification
+- **RFC-013**: Identity, Authentication & RBAC Engine Specification
 
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.
