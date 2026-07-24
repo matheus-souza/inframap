@@ -41,11 +41,17 @@ jobs:
         if: steps.check_backend.outputs.exists == 'true'
         run: cd backend && go mod download
 
+      - name: Run Backend Tests
+        if: steps.check_backend.outputs.exists == 'true'
+        run: cd backend && go test -v -race ./...
+
       - name: Run golangci-lint
         if: steps.check_backend.outputs.exists == 'true'
-        run: |
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.5
-          cd backend && golangci-lint run ./...
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.5
+          working-directory: ./backend
+          skip-cache: true
 
       - name: Run Go vulnerability check (govulncheck)
         if: steps.check_backend.outputs.exists == 'true'
@@ -53,12 +59,6 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           cd backend && govulncheck ./...
 
-      - name: Run Backend Tests
-        if: steps.check_backend.outputs.exists == 'true'
-        run: |
-          cd backend && go test -v -race ./...
-
       - name: Build Production Backend Binary
         if: steps.check_backend.outputs.exists == 'true'
-        run: |
-          cd backend && CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/api ./cmd/api
+        run: cd backend && CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/api ./cmd/api
