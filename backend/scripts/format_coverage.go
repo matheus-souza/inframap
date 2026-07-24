@@ -22,13 +22,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	filePath := os.Args[1]
+	filePath := filepath.Clean(os.Args[1])
 	file, err := os.Open(filePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening coverage file: %v\n", err)
 		os.Exit(1)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	packages := make(map[string]*pkgStats)
 	var totalStmt, totalCovered int
