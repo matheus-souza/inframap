@@ -9,6 +9,6 @@ This document tracks active architectural decisions (ADRs) for the InfraMap proj
 | AD-003 | 2026-07-23 | Portainer-Style Single Binary Distribution (RFC-001) | Static assets embedded into Go binary via `embed.FS`. | Single executable serving API on `/api/v1` and UI on `/` | Active |
 | AD-004 | 2026-07-23 | Default Application Port 8055 | Standardized port `8055` (`INFRAMAP_PORT`). | Avoids collisions with default 8080/3000 ports | Active |
 | AD-005 | 2026-07-23 | Prefix Opaque Auth Tokens `ims_` (RFC-008) | Stateful opaque token format `ims_<crypto_random>`. | Easy secret scanning, high entropy, fast lookup | Active |
-| AD-006 | 2026-07-23 | In-Memory By-Value Event Bus Payloads (RFC-009) | Go struct values passed without internal JSON serialization. | Zero allocation overhead, strong typing across modules | Active |
+| AD-006 | 2026-07-23 | In-Memory By-Value Event Bus Payloads (RFC-009) | Go struct values passed without internal JSON serialization. | Reduces serialization overhead, strong typing across modules | Active |
 | AD-007 | 2026-07-23 | GitHub Default Branch `main` & Pre-Release `develop` | `main` is production default, `develop` generates `-rc` pre-releases. | Smooth Semantic Release pipeline without doc release spam | Active |
 | AD-008 | 2026-07-23 | PR Target Branch Guard | `main` only accepts PRs from `develop` or `hotfix/*`. Features target `develop`. | Prevents unreviewed feature merges directly to production | Active |

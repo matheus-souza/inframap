@@ -1,6 +1,6 @@
 # InfraMap — Domain Context & Ubiquitous Language
 
-> **Shared Domain Vocabulary**: This document establishes the ubiquitous language used across all code, tests, documentation, and agent interactions within the InfraMap codebase.
+> **Shared Domain Vocabulary**: This document establishes the ubiquitous language used across all code, tests, and documentation within the InfraMap codebase.
 
 ---
 
@@ -25,6 +25,6 @@
 - **RFC-001**: System Vision & Technical Architecture Specification
 - **RFC-006**: Core Domain Models & PostgreSQL Schema Definition
 - **RFC-008**: Discovery Engine & Collector Plugin Architecture
-- **RFC-010**: Go Backend Scaffolding, Toolchain & Linter Specification (Mise, golangci-lint, sqlc)
+- **RFC-010**: Repository Scaffolding & Developer Environment
 
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.
