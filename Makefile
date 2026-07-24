@@ -37,10 +37,11 @@ test-e2e: ## Run end-to-end functional integration tests
 	@echo "Running E2E integration test suite..."
 	cd backend && $(GO) test -v -race ./tests/e2e/...
 
-test-coverage: ## Run tests and output HTML coverage report
+test-coverage: ## Run tests and output formatted Markdown table & HTML coverage report
 	@echo "Running test coverage report..."
-	cd backend && $(GO) test -v -coverprofile=coverage.out ./... && $(GO) tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report: backend/coverage.html"
+	cd backend && $(GO) test -coverprofile=coverage.out ./... && $(GO) run scripts/format_coverage.go coverage.out
+	cd backend && $(GO) tool cover -html=coverage.out -o coverage.html
+	@echo "HTML report: backend/coverage.html"
 
 lint: ## Run golangci-lint static code analysis
 	@echo "Running golangci-lint..."
