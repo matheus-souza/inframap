@@ -51,6 +51,21 @@ type DeviceDiscoveryRecord struct {
 	LastScannedAt     pgtype.Timestamptz `json:"last_scanned_at"`
 }
 
+type DeviceStaging struct {
+	ID                uuid.UUID          `json:"id"`
+	Hostname          string             `json:"hostname"`
+	IpAddress         *netip.Addr        `json:"ip_address"`
+	MacAddress        net.HardwareAddr   `json:"mac_address"`
+	Manufacturer      pgtype.Text        `json:"manufacturer"`
+	Model             pgtype.Text        `json:"model"`
+	DeviceType        string             `json:"device_type"`
+	DiscoverySourceID pgtype.UUID        `json:"discovery_source_id"`
+	RawPayload        []byte             `json:"raw_payload"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DiscoverySource struct {
 	ID              uuid.UUID          `json:"id"`
 	Name            string             `json:"name"`
