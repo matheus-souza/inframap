@@ -43,6 +43,7 @@ jobs:
         with:
           version: v1.64.5
           working-directory: ./backend
+          skip-cache: true
 
       - name: Run Go vulnerability check (govulncheck)
         if: steps.check_backend.outputs.exists == 'true'
