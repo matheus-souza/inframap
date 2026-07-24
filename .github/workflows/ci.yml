@@ -87,6 +87,16 @@ jobs:
           header: code-coverage-report
           path: backend/coverage_formatted.md
 
+      - name: Upload coverage to Codecov
+        if: steps.check_backend.outputs.exists == 'true'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./backend/coverage.out
+          flags: backend
+          name: inframap-backend-coverage
+          fail_ci_if_error: false
+
       - name: Run golangci-lint
         if: steps.check_backend.outputs.exists == 'true'
         uses: golangci/golangci-lint-action@v6
