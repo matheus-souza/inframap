@@ -35,7 +35,7 @@ test: ## Run backend unit & integration tests
 
 test-coverage: ## Run tests and output HTML coverage report
 	@echo "Running test coverage report..."
-	cd backend && $(GO) test -v -coverprofile=coverage.out ./cmd/... && $(GO) tool cover -html=coverage.out -o coverage.html
+	cd backend && $(GO) test -v -coverprofile=coverage.out ./... && $(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: backend/coverage.html"
 
 lint: ## Run golangci-lint static code analysis
