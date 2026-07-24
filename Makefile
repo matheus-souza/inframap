@@ -7,7 +7,7 @@ MISE := $(shell command -v mise 2> /dev/null)
 GO := $(if $(MISE),mise exec -- go,go)
 GOOSE := $(if $(MISE),mise exec -- goose,goose)
 SQLC := $(if $(MISE),mise exec -- sqlc,sqlc)
-LINT := $(if $(MISE),mise exec -- golangci-lint,golangci-lint)
+LINT := $(GO) run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
 DATABASE_URL ?= postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable
 
 help: ## Display available commands
