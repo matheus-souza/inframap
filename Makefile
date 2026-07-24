@@ -1,6 +1,6 @@
 # InfraMap Makefile — RFC-010 Compliant
 
-.PHONY: help dev dev-down dev-clean build test test-coverage lint verify generate migrate-up migrate-down setup-hooks clean
+.PHONY: help dev dev-down dev-clean build test test-e2e test-coverage lint verify generate migrate-up migrate-down setup-hooks clean
 
 DEFAULT_PORT ?= 8055
 MISE := $(shell command -v mise 2> /dev/null)
@@ -32,6 +32,10 @@ build: ## Build production backend binary
 test: ## Run backend unit & integration tests
 	@echo "Running backend test suite..."
 	cd backend && $(GO) test -v -race ./...
+
+test-e2e: ## Run end-to-end functional integration tests
+	@echo "Running E2E integration test suite..."
+	cd backend && $(GO) test -v -race ./tests/e2e/...
 
 test-coverage: ## Run tests and output HTML coverage report
 	@echo "Running test coverage report..."

@@ -11,6 +11,21 @@ jobs:
     name: Verify Quality Gates
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: inframap
+          POSTGRES_USER: inframap
+          POSTGRES_PASSWORD: inframap_dev_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,8 +56,18 @@ jobs:
         if: steps.check_backend.outputs.exists == 'true'
         run: cd backend && go mod download
 
-      - name: Run Backend Tests
+      - name: Run Database Migrations
         if: steps.check_backend.outputs.exists == 'true'
+        env:
+          DATABASE_URL: postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable
+        run: |
+          go install github.com/pressly/goose/v3/cmd/goose@latest
+          cd backend && goose -dir migrations postgres "$DATABASE_URL" up
+
+      - name: Run Backend & E2E Tests
+        if: steps.check_backend.outputs.exists == 'true'
+        env:
+          DATABASE_URL: postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable
         run: cd backend && go test -v -race ./...
 
       - name: Run golangci-lint
