@@ -3,9 +3,8 @@
 .PHONY: help dev dev-down dev-clean build test test-coverage lint verify generate migrate-up migrate-down clean
 
 DEFAULT_PORT ?= 8055
-CGO_ENABLED ?= 0
 MISE := $(shell command -v mise 2> /dev/null)
-GO := $(if $(MISE),CGO_ENABLED=$(CGO_ENABLED) mise exec -- go,CGO_ENABLED=$(CGO_ENABLED) go)
+GO := $(if $(MISE),mise exec -- go,go)
 GOOSE := $(if $(MISE),mise exec -- goose,goose)
 SQLC := $(if $(MISE),mise exec -- sqlc,sqlc)
 LINT := $(if $(MISE),mise exec -- golangci-lint,golangci-lint)
@@ -28,7 +27,7 @@ dev-clean: ## Stop containers and remove database volume
 
 build: ## Build production backend binary
 	@echo "Building InfraMap single binary..."
-	cd backend && $(GO) build -ldflags="-s -w" -o bin/inframap ./cmd/api
+	cd backend && CGO_ENABLED=0 $(GO) build -ldflags="-s -w" -o bin/inframap ./cmd/api
 
 test: ## Run backend unit & integration tests
 	@echo "Running backend test suite..."
