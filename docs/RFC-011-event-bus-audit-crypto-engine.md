@@ -66,6 +66,8 @@ type EventHandler func(ctx context.Context, event DomainEvent) error
 type EventBus interface {
     Publish(ctx context.Context, event DomainEvent) error
     Subscribe(eventType string, handler EventHandler) error
+    // Close performs a graceful shutdown: stops accepting new Publish calls (returning ErrBusClosed),
+    // drains all already-enqueued events in the channel buffer, waits for worker completion, and cancels context.
     Close() error
 }
 ```
