@@ -21,8 +21,8 @@
 | **Onboarding** | Single-shot system initialization process creating instance ID, system roles, and initial admin user. | `modules/configuration/usecase` |
 | **System Role** | Built-in RBAC role (`admin`, `operator`, `viewer`) seeded during system onboarding. | `Table: roles`, `struct Role` |
 | **Session Token** | Cryptographically secure stateful token prefixed with `ims_` used for authentication. | `Table: user_sessions`, `struct UserSession` |
-| **Sliding Session** | Session model with 30-minute inactivity sliding renewal and 7-day hard absolute expiration limit. | `modules/identity/usecase` |
-| **Auth Context** | Request context carrying verified authenticated `User` profile and assigned RBAC permissions. | `internal/platform/httputil` |
+| **Sliding Session** | Session model with 30-minute inactivity sliding renewal managed by `SessionRepository` and 7-day hard absolute expiration limit. | `modules/identity/repository` |
+| **Auth Context** | Request context carrying authenticated `userID` and assigned RBAC `permissions` list. | `internal/platform/httputil` |
 
 ---
 

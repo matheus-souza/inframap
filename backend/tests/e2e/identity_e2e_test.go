@@ -110,8 +110,8 @@ func TestE2E_IdentityAuthFlow(t *testing.T) {
 		token = tokenStr
 	})
 
-	// 4. Authenticated Request GET /auth/me with Bearer Header
-	t.Run("Step 4: GET /auth/me with Bearer Header", func(t *testing.T) {
+	// 4a. Authenticated Request GET /auth/me with Bearer Header
+	t.Run("Step 4a: GET /auth/me with Bearer Header", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/auth/me", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 
@@ -128,6 +128,24 @@ func TestE2E_IdentityAuthFlow(t *testing.T) {
 		var env httputil.SuccessEnvelope
 		if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 			t.Fatalf("failed to decode me response: %v", err)
+		}
+	})
+
+	// 4b. Authenticated Request GET /auth/me with Cookie
+	t.Run("Step 4b: GET /auth/me with Cookie", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/auth/me", nil)
+		if sessionCookie != nil {
+			req.AddCookie(sessionCookie)
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("get me request with cookie failed: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected 200 OK for authenticated user with cookie, got %d", resp.StatusCode)
 		}
 	})
 
