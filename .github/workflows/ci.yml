@@ -37,6 +37,10 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Download Go dependencies
+        if: steps.check_backend.outputs.exists == 'true'
+        run: cd backend && go mod download
+
       - name: Run golangci-lint
         if: steps.check_backend.outputs.exists == 'true'
         uses: golangci/golangci-lint-action@v6
