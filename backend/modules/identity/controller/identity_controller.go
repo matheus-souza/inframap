@@ -65,6 +65,7 @@ func (c *IdentityController) Login(w http.ResponseWriter, r *http.Request) {
 		Value:    resp.Token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   604800, // 7 days
 	})
@@ -84,6 +85,7 @@ func (c *IdentityController) Logout(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})

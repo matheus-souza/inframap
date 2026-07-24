@@ -69,8 +69,9 @@ jobs:
         env:
           DATABASE_URL: postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable
         run: |
-          cd backend && go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-          cd backend && go tool cover -func=coverage.out > coverage.txt
+          cd backend
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out > coverage.txt
 
       - name: Publish Visual Coverage Report to Job Summary
         if: steps.check_backend.outputs.exists == 'true'
