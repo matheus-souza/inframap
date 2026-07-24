@@ -9,18 +9,27 @@ import (
 )
 
 var (
+	// ErrBufferFull indicates that the event channel buffer is at capacity and dropped an event.
 	ErrBufferFull = errors.New("event bus buffer full: event dropped due to backpressure")
-	ErrBusClosed  = errors.New("event bus is closed")
+
+	// ErrBusClosed indicates operations on a closed EventBus.
+	ErrBusClosed = errors.New("event bus is closed")
 )
 
+// DefaultWorkers is the default number of parallel worker goroutines handling event dispatch.
+const DefaultWorkers = 5
+
+// EventHandler function contract for processing subscribed domain events.
 type EventHandler func(ctx context.Context, event DomainEvent) error
 
+// EventBus defines the contract for publishing, subscribing, and gracefully closing event dispatch.
 type EventBus interface {
 	Publish(ctx context.Context, event DomainEvent) error
 	Subscribe(eventType string, handler EventHandler) error
 	Close() error
 }
 
+// InMemoryEventBus implements EventBus using Go channels and worker goroutines.
 type InMemoryEventBus struct {
 	mu          sync.RWMutex
 	subscribers map[string][]EventHandler
@@ -32,8 +41,7 @@ type InMemoryEventBus struct {
 	closed      bool
 }
 
-const DefaultWorkers = 5
-
+// NewInMemoryEventBus constructs an InMemoryEventBus with the given worker count and channel buffer size.
 func NewInMemoryEventBus(workers int, bufferSize int) *InMemoryEventBus {
 	if workers < 1 {
 		workers = DefaultWorkers
@@ -89,6 +97,7 @@ func (b *InMemoryEventBus) dispatch(event DomainEvent) {
 	}
 }
 
+// Subscribe registers a handler function for the specified eventType or wildcard *.
 func (b *InMemoryEventBus) Subscribe(eventType string, handler EventHandler) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -101,6 +110,7 @@ func (b *InMemoryEventBus) Subscribe(eventType string, handler EventHandler) err
 	return nil
 }
 
+// Publish sends a domain event to the buffered channel without blocking.
 func (b *InMemoryEventBus) Publish(ctx context.Context, event DomainEvent) error {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -118,6 +128,7 @@ func (b *InMemoryEventBus) Publish(ctx context.Context, event DomainEvent) error
 	}
 }
 
+// Close performs a graceful shutdown: stops accepting new Publish calls, drains the event channel, and waits for workers.
 func (b *InMemoryEventBus) Close() error {
 	b.mu.Lock()
 	if b.closed {

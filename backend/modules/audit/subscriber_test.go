@@ -15,15 +15,15 @@ type mockDBTX struct {
 	onQueryRow func(sql string, args []any)
 }
 
-func (m *mockDBTX) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+func (m *mockDBTX) Exec(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
 	return pgconn.NewCommandTag("INSERT 0 1"), nil
 }
 
-func (m *mockDBTX) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+func (m *mockDBTX) Query(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
 	return nil, nil
 }
 
-func (m *mockDBTX) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+func (m *mockDBTX) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
 	if m.onQueryRow != nil {
 		m.onQueryRow(sql, args)
 	}
@@ -32,7 +32,7 @@ func (m *mockDBTX) QueryRow(ctx context.Context, sql string, args ...any) pgx.Ro
 
 type mockRow struct{}
 
-func (m mockRow) Scan(dest ...any) error {
+func (m mockRow) Scan(_ ...any) error {
 	return nil
 }
 
@@ -42,7 +42,7 @@ func TestAuditSubscriber_HandleEvent(t *testing.T) {
 	wg.Add(1)
 
 	db := &mockDBTX{
-		onQueryRow: func(sql string, args []any) {
+		onQueryRow: func(_ string, args []any) {
 			defer wg.Done()
 			if len(args) >= 4 {
 				if action, ok := args[3].(string); ok {

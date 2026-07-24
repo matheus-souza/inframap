@@ -19,7 +19,7 @@ func TestEventBus_PublishSubscribe(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	err := bus.Subscribe("device.created", func(ctx context.Context, event eventbus.DomainEvent) error {
+	err := bus.Subscribe("device.created", func(_ context.Context, _ eventbus.DomainEvent) error {
 		atomic.AddInt32(&receivedCount, 1)
 		wg.Done()
 		return nil
@@ -49,7 +49,7 @@ func TestEventBus_PanicRecoveryInHandler(t *testing.T) {
 	wg.Add(1)
 
 	// Handler that panics
-	_ = bus.Subscribe("test.panic", func(ctx context.Context, event eventbus.DomainEvent) error {
+	_ = bus.Subscribe("test.panic", func(_ context.Context, _ eventbus.DomainEvent) error {
 		defer wg.Done()
 		panic("handler panic testing recovery")
 	})
@@ -73,7 +73,7 @@ func TestEventBus_WildcardSubscriber(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	_ = bus.Subscribe("*", func(ctx context.Context, event eventbus.DomainEvent) error {
+	_ = bus.Subscribe("*", func(_ context.Context, _ eventbus.DomainEvent) error {
 		atomic.AddInt32(&receivedCount, 1)
 		wg.Done()
 		return nil
@@ -97,7 +97,7 @@ func TestEventBus_BackpressureOverflow(t *testing.T) {
 	defer close(blockCh)
 
 	// Subscriber blocks worker
-	_ = bus.Subscribe("overflow.test", func(ctx context.Context, event eventbus.DomainEvent) error {
+	_ = bus.Subscribe("overflow.test", func(_ context.Context, _ eventbus.DomainEvent) error {
 		<-blockCh
 		return nil
 	})
