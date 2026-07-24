@@ -1,0 +1,64 @@
+name: CodeRabbit Rate Limit Handler
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  handle_rate_limit:
+    name: Handle CodeRabbit Rate Limit & Auto-Retry
+    if: github.event.issue.pull_request != null && (contains(github.event.comment.body, 'Review limit reached') || contains(github.event.comment.body, 'reached your PR review limit'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Parse Wait Time & Schedule Re-review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Detecting CodeRabbit rate limit comment on PR #${PR_NUMBER}..."
+
+          WAIT_MINUTES=$(python3 -c "
+          import re, os
+          comment = os.environ.get('COMMENT_BODY', '')
+          match = re.search(r'Next review available in:\s*(\d+)\s*minutes?', comment, re.IGNORECASE)
+          if match:
+              print(int(match.group(1)) + 2)
+          else:
+              match_hours = re.search(r'Next review available in:\s*(\d+)\s*hours?', comment, re.IGNORECASE)
+              if match_hours:
+                  print(int(match_hours.group(1)) * 60 + 2)
+              else:
+                  print(40)
+          ")
+
+          echo "Wait time parsed: ${WAIT_MINUTES} minutes."
+
+          gh pr comment ${PR_NUMBER} --repo ${REPO} --body "⏳ **CodeRabbit Rate Limit Triggered**
+
+          Detected review rate limit on PR #${PR_NUMBER}. Auto-waiting **${WAIT_MINUTES} minutes** before automatically requesting \`@coderabbitai review\`.
+
+          *This automated process will trigger \`@coderabbitai review\` after the rate limit window expires.*"
+
+          # Add label to PR to visually signal rate limit wait state
+          gh pr edit ${PR_NUMBER} --repo ${REPO} --add-label "coderabbit:rate-limited" || true
+
+          # Sleep for wait duration
+          SLEEP_SECONDS=$((WAIT_MINUTES * 60))
+          echo "Sleeping for ${SLEEP_SECONDS} seconds..."
+          sleep ${SLEEP_SECONDS}
+
+          # Post re-review request to CodeRabbit
+          echo "Requesting re-review from CodeRabbit..."
+          gh pr comment ${PR_NUMBER} --repo ${REPO} --body "@coderabbitai review"
+
+          # Remove rate limit label
+          gh pr edit ${PR_NUMBER} --repo ${REPO} --remove-label "coderabbit:rate-limited" || true
+          echo "Auto-review trigger dispatched successfully!"
