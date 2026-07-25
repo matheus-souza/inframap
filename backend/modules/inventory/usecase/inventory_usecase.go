@@ -3,7 +3,6 @@ package usecase
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -194,6 +193,22 @@ func (uc *DefaultInventoryUseCase) UpdateDevice(ctx context.Context, idStr strin
 		params.DeviceType = strings.TrimSpace(*req.DeviceType)
 		if !slices.Contains(lockedFields, "device_type") {
 			lockedFields = append(lockedFields, "device_type")
+		}
+	}
+	if req.IPAddress != nil {
+		if parsedIP, err := netip.ParseAddr(strings.TrimSpace(*req.IPAddress)); err == nil {
+			params.IpAddress = &parsedIP
+		}
+		if !slices.Contains(lockedFields, "ip_address") {
+			lockedFields = append(lockedFields, "ip_address")
+		}
+	}
+	if req.MACAddress != nil {
+		if parsedMAC, err := net.ParseMAC(strings.TrimSpace(*req.MACAddress)); err == nil {
+			params.MacAddress = parsedMAC
+		}
+		if !slices.Contains(lockedFields, "mac_address") {
+			lockedFields = append(lockedFields, "mac_address")
 		}
 	}
 	if req.Status != nil {
@@ -395,16 +410,20 @@ func (uc *DefaultInventoryUseCase) CreateSubnet(ctx context.Context, req dto.Cre
 		return nil, err
 	}
 
-	return &dto.SubnetResponse{
+	resp := &dto.SubnetResponse{
 		ID:               subnet.ID.String(),
 		Name:             subnet.Name,
 		CIDR:             subnet.Cidr.String(),
-		VLANID:           &subnet.VlanID.Int32,
 		GatewayIP:        repository.MapInetToString(subnet.GatewayIp),
 		Description:      subnet.Description.String,
 		DiscoveryEnabled: subnet.DiscoveryEnabled,
 		CreatedAt:        subnet.CreatedAt.Time,
-	}, nil
+	}
+	if subnet.VlanID.Valid {
+		vlan := subnet.VlanID.Int32
+		resp.VLANID = &vlan
+	}
+	return resp, nil
 }
 
 // ListSubnets lists all configured subnets.
@@ -458,6 +477,3 @@ func (uc *DefaultInventoryUseCase) mapDeviceToResponse(device *db.Device) *dto.D
 		UpdatedAt:        device.UpdatedAt.Time,
 	}
 }
-
-// Ensure json import is retained if needed
-var _ = json.Unmarshal

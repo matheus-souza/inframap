@@ -44,13 +44,18 @@ func (c *InventoryController) ListDevices(w http.ResponseWriter, r *http.Request
 	page := parsePositiveInt32(r.URL.Query().Get("page"), 1)
 	perPage := parsePositiveInt32(r.URL.Query().Get("per_page"), 50)
 
-	devices, _, err := c.useCase.ListDevices(r.Context(), q, deviceType, page, perPage, includeDeleted)
+	devices, total, err := c.useCase.ListDevices(r.Context(), q, deviceType, page, perPage, includeDeleted)
 	if err != nil {
 		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list devices", nil)
 		return
 	}
 
-	httputil.WriteJSON(w, r, http.StatusOK, devices)
+	httputil.WriteJSON(w, r, http.StatusOK, map[string]any{
+		"items":    devices,
+		"total":    total,
+		"page":     page,
+		"per_page": perPage,
+	})
 }
 
 // CreateDevice handles POST /api/v1/devices.
@@ -60,6 +65,8 @@ func (c *InventoryController) CreateDevice(w http.ResponseWriter, r *http.Reques
 		httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", "Invalid JSON payload", nil)
 		return
 	}
+
+	req.Normalize()
 
 	if valErrs := req.Validate(); len(valErrs) > 0 {
 		fieldErrs := make([]httputil.FieldError, len(valErrs))
@@ -155,13 +162,18 @@ func (c *InventoryController) ListStagingDevices(w http.ResponseWriter, r *http.
 	page := parsePositiveInt32(r.URL.Query().Get("page"), 1)
 	perPage := parsePositiveInt32(r.URL.Query().Get("per_page"), 50)
 
-	items, _, err := c.useCase.ListStagingDevices(r.Context(), status, page, perPage)
+	items, total, err := c.useCase.ListStagingDevices(r.Context(), status, page, perPage)
 	if err != nil {
 		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list staging queue", nil)
 		return
 	}
 
-	httputil.WriteJSON(w, r, http.StatusOK, items)
+	httputil.WriteJSON(w, r, http.StatusOK, map[string]any{
+		"items":    items,
+		"total":    total,
+		"page":     page,
+		"per_page": perPage,
+	})
 }
 
 // ApproveStagingDevice handles POST /api/v1/devices/staging/{id}/approve.
@@ -178,7 +190,7 @@ func (c *InventoryController) ApproveStagingDevice(w http.ResponseWriter, r *htt
 			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Staged device not found", nil)
 			return
 		}
-		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error(), nil)
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to approve staging device", nil)
 		return
 	}
 
@@ -226,8 +238,12 @@ func (c *InventoryController) CreateSubnet(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if req.Name == "" {
-		httputil.WriteError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", "subnet name is required", nil)
+	if valErrs := req.Validate(); len(valErrs) > 0 {
+		fieldErrs := make([]httputil.FieldError, len(valErrs))
+		for i, ve := range valErrs {
+			fieldErrs[i] = httputil.FieldError{Field: ve.Field, Issue: ve.Issue}
+		}
+		httputil.WriteError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", "Request validation failed", fieldErrs)
 		return
 	}
 
