@@ -1,8 +1,10 @@
-// Command format_coverage formats Go coverage.out profiles into clean, readable GitHub Markdown tables.
+// Command format_coverage formats Go coverage.out profiles into clean, readable GitHub Markdown tables
+// and optionally enforces minimum coverage thresholds per InfraMap Coverage Policy.
 package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,13 +18,38 @@ type pkgStats struct {
 	coveredStmt int
 }
 
+func isExcludedPath(cleanPkg, filePath string) bool {
+	// Policy exclusions:
+	// 1. Auto-generated code (internal/platform/db)
+	// 2. Configuration & scripts (scripts)
+	// 3. Bootstrap code (internal/bootstrap)
+	// 4. Entrypoints (cmd)
+	// 5. Mocks / Stubs (*_mock.go)
+	if strings.HasPrefix(cleanPkg, "scripts") ||
+		strings.HasPrefix(cleanPkg, "cmd") ||
+		strings.HasPrefix(cleanPkg, "internal/bootstrap") ||
+		cleanPkg == "internal/platform/db" {
+		return true
+	}
+
+	if strings.HasSuffix(filePath, "_mock.go") || strings.HasSuffix(filePath, "mock.go") {
+		return true
+	}
+
+	return false
+}
+
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run format_coverage.go <coverage.out>")
+	enforceThreshold := flag.Float64("enforce", 0, "Enforce minimum total coverage percentage (e.g., 85). Exits 1 if violated.")
+	flag.Parse()
+
+	args := flag.Args()
+	if len(args) < 1 {
+		fmt.Println("Usage: go run format_coverage.go [--enforce 85] <coverage.out>")
 		os.Exit(1)
 	}
 
-	filePath := filepath.Clean(os.Args[1])
+	filePath := filepath.Clean(args[0])
 	file, err := os.Open(filePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening coverage file: %v\n", err)
@@ -66,8 +93,8 @@ func main() {
 			cleanPkg = dirPath[idx+len("inframap/"):]
 		}
 
-		// Skip generated code or scripts directory
-		if strings.HasPrefix(cleanPkg, "scripts") || cleanPkg == "internal/platform/db" {
+		// Apply policy exclusion rules
+		if isExcludedPath(cleanPkg, fullFilePath) {
 			continue
 		}
 
@@ -126,13 +153,19 @@ func main() {
 	totalStatus := getStatusEmoji(totalPct)
 
 	sb.WriteString("\n> [!NOTE]\n")
-	sb.WriteString(fmt.Sprintf("> **Total Application Coverage:** **%.1f%%** (%d / %d lines) %s\n", totalPct, totalCovered, totalStmt, totalStatus))
+	sb.WriteString(fmt.Sprintf("> **Total Filtered Application Coverage:** **%.1f%%** (%d / %d lines) %s\n", totalPct, totalCovered, totalStmt, totalStatus))
 
 	fmt.Print(sb.String())
+
+	// Enforce threshold if requested
+	if *enforceThreshold > 0 && totalPct < *enforceThreshold {
+		fmt.Fprintf(os.Stderr, "\n❌ COVERAGE POLICY VIOLATION: Total application coverage is %.1f%%, which is below required threshold of %.1f%%\n", totalPct, *enforceThreshold)
+		os.Exit(1)
+	}
 }
 
 func getStatusEmoji(pct float64) string {
-	if pct >= 80.0 {
+	if pct >= 85.0 {
 		return "🟢"
 	} else if pct >= 50.0 {
 		return "🟡"

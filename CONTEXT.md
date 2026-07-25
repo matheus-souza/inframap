@@ -38,5 +38,7 @@
 - **RFC-011**: Event Bus, Audit Logger & Crypto Engine
 - **RFC-012**: System Configuration & Onboarding Specification
 - **RFC-013**: Identity, Authentication & RBAC Engine Specification
+- **RFC-014**: Infrastructure Inventory Engine Specification
+- **RFC-015**: Code Coverage & Quality Gate Policy (Patch Coverage >= 85%)
 
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.
