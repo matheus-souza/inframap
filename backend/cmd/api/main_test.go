@@ -40,8 +40,8 @@ func TestHealthEndpoint(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if resp.Data.Status != "ok" {
-		t.Errorf("expected status 'ok', got %q", resp.Data.Status)
+	if resp.Data.Status != "degraded" {
+		t.Errorf("expected status 'degraded' with unreachable DB, got %q", resp.Data.Status)
 	}
 }
 
