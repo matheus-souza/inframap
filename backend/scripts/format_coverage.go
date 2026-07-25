@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,19 +21,24 @@ type pkgStats struct {
 
 func isExcludedPath(cleanPkg, filePath string) bool {
 	// Policy exclusions:
-	// 1. Auto-generated code (internal/platform/db)
+	// 1. Auto-generated code (internal/platform/db, *.sql.go)
 	// 2. Configuration & scripts (scripts)
 	// 3. Bootstrap code (internal/bootstrap)
 	// 4. Entrypoints (cmd)
-	// 5. Mocks / Stubs (*_mock.go)
+	// 5. Migrations (migrations)
+	// 6. Mocks / Stubs (*_mock.go, mock_*.go)
+	base := filepath.Base(filePath)
 	if strings.HasPrefix(cleanPkg, "scripts") ||
 		strings.HasPrefix(cleanPkg, "cmd") ||
 		strings.HasPrefix(cleanPkg, "internal/bootstrap") ||
+		strings.HasPrefix(cleanPkg, "migrations") ||
 		cleanPkg == "internal/platform/db" {
 		return true
 	}
 
-	if strings.HasSuffix(filePath, "_mock.go") || strings.HasSuffix(filePath, "mock.go") {
+	if strings.HasSuffix(base, ".sql.go") ||
+		strings.HasSuffix(base, "_mock.go") ||
+		strings.HasPrefix(base, "mock_") {
 		return true
 	}
 
@@ -40,8 +46,13 @@ func isExcludedPath(cleanPkg, filePath string) bool {
 }
 
 func main() {
-	enforceThreshold := flag.Float64("enforce", 0, "Enforce minimum total coverage percentage (e.g., 85). Exits 1 if violated.")
+	enforceThreshold := flag.Float64("enforce", 0, "Enforce minimum total coverage percentage (0..100). Exits 1 if violated.")
 	flag.Parse()
+
+	if *enforceThreshold < 0 || *enforceThreshold > 100 || math.IsNaN(*enforceThreshold) || math.IsInf(*enforceThreshold, 0) {
+		fmt.Fprintf(os.Stderr, "Error: --enforce threshold must be a finite number between 0 and 100\n")
+		os.Exit(1)
+	}
 
 	args := flag.Args()
 	if len(args) < 1 {

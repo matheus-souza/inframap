@@ -22,7 +22,9 @@ ignore:
   - "backend/internal/bootstrap/**"
   - "backend/cmd/**"
   - "backend/scripts/**"
+  - "**/*.sql.go"
   - "**/*_mock.go"
+  - "**/mock_*.go"
 
 comment:
   layout: "reach, diff, flags, files"
