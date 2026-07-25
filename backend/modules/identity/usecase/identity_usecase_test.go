@@ -202,7 +202,7 @@ func TestIdentityUseCase_Unit(t *testing.T) {
 	})
 }
 
-func TestCleanupLockouts_ContextCancel(t *testing.T) {
+func TestCleanupLockouts_ContextCancel(_ *testing.T) {
 	repo := newMockSessionRepo()
 	ctx, cancel := context.WithCancel(context.Background())
 	_ = usecase.NewDefaultIdentityUseCase(ctx, repo, nil, nil)
