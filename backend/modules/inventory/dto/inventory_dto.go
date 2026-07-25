@@ -2,6 +2,8 @@
 package dto
 
 import (
+	"net/netip"
+	"strings"
 	"time"
 )
 
@@ -40,14 +42,21 @@ type FieldError struct {
 	Issue string `json:"issue"`
 }
 
+// Normalize applies defaults and trims whitespace before validation.
+func (r *CreateDeviceRequest) Normalize() {
+	r.Hostname = strings.TrimSpace(r.Hostname)
+	r.DeviceType = strings.TrimSpace(r.DeviceType)
+	if r.DeviceType == "" {
+		r.DeviceType = "unknown"
+	}
+}
+
 // Validate validates CreateDeviceRequest attributes.
+// Call Normalize() before Validate().
 func (r *CreateDeviceRequest) Validate() []FieldError {
 	var errs []FieldError
 	if len(r.Hostname) == 0 {
 		errs = append(errs, FieldError{Field: "hostname", Issue: "hostname is required"})
-	}
-	if len(r.DeviceType) == 0 {
-		r.DeviceType = "unknown"
 	}
 	return errs
 }
@@ -86,6 +95,23 @@ type CreateSubnetRequest struct {
 	GatewayIP        string `json:"gateway_ip,omitempty"`
 	Description      string `json:"description,omitempty"`
 	DiscoveryEnabled bool   `json:"discovery_enabled"`
+}
+
+// Validate validates CreateSubnetRequest attributes.
+func (r *CreateSubnetRequest) Validate() []FieldError {
+	var errs []FieldError
+	if strings.TrimSpace(r.Name) == "" {
+		errs = append(errs, FieldError{Field: "name", Issue: "subnet name is required"})
+	}
+	cidr := strings.TrimSpace(r.CIDR)
+	if cidr == "" {
+		errs = append(errs, FieldError{Field: "cidr", Issue: "CIDR is required"})
+	} else {
+		if _, err := netip.ParsePrefix(cidr); err != nil {
+			errs = append(errs, FieldError{Field: "cidr", Issue: "invalid CIDR notation"})
+		}
+	}
+	return errs
 }
 
 // SubnetResponse represents a network subnet configuration.

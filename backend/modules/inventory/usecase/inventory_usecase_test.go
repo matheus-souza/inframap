@@ -82,6 +82,8 @@ func (m *mockInventoryRepository) UpdateDevice(_ context.Context, params db.Upda
 		return nil, repository.ErrDeviceNotFound
 	}
 	d.Hostname = params.Hostname
+	d.IpAddress = params.IpAddress
+	d.MacAddress = params.MacAddress
 	d.Manufacturer = params.Manufacturer
 	d.Model = params.Model
 	d.DeviceType = params.DeviceType
@@ -230,6 +232,60 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("UpdateDevice InvalidIP returns ErrInvalidInput", func(t *testing.T) {
+		createReq := dto.CreateDeviceRequest{Hostname: "ip-test", DeviceType: "server"}
+		created, _ := uc.CreateDevice(context.Background(), createReq)
+
+		badIP := "not-an-ip"
+		updateReq := dto.UpdateDeviceRequest{IPAddress: &badIP}
+		_, err := uc.UpdateDevice(context.Background(), created.ID, updateReq)
+		if !errors.Is(err, usecase.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for invalid IP, got %v", err)
+		}
+	})
+
+	t.Run("UpdateDevice InvalidMAC returns ErrInvalidInput", func(t *testing.T) {
+		createReq := dto.CreateDeviceRequest{Hostname: "mac-test", DeviceType: "server"}
+		created, _ := uc.CreateDevice(context.Background(), createReq)
+
+		badMAC := "ZZ:ZZ:ZZ:ZZ:ZZ:ZZ"
+		updateReq := dto.UpdateDeviceRequest{MACAddress: &badMAC}
+		_, err := uc.UpdateDevice(context.Background(), created.ID, updateReq)
+		if !errors.Is(err, usecase.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for invalid MAC, got %v", err)
+		}
+	})
+
+	t.Run("UpdateDevice ValidIP succeeds", func(t *testing.T) {
+		createReq := dto.CreateDeviceRequest{Hostname: "valid-ip-test", DeviceType: "server"}
+		created, _ := uc.CreateDevice(context.Background(), createReq)
+
+		validIP := "192.168.1.100"
+		updateReq := dto.UpdateDeviceRequest{IPAddress: &validIP}
+		updated, err := uc.UpdateDevice(context.Background(), created.ID, updateReq)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if updated.IPAddress != "192.168.1.100" {
+			t.Errorf("expected IP 192.168.1.100, got %s", updated.IPAddress)
+		}
+	})
+
+	t.Run("UpdateDevice ValidMAC succeeds", func(t *testing.T) {
+		createReq := dto.CreateDeviceRequest{Hostname: "valid-mac-test", DeviceType: "server"}
+		created, _ := uc.CreateDevice(context.Background(), createReq)
+
+		validMAC := "AA:BB:CC:DD:EE:FF"
+		updateReq := dto.UpdateDeviceRequest{MACAddress: &validMAC}
+		updated, err := uc.UpdateDevice(context.Background(), created.ID, updateReq)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if updated.MACAddress != "aa:bb:cc:dd:ee:ff" {
+			t.Errorf("expected MAC aa:bb:cc:dd:ee:ff, got %s", updated.MACAddress)
+		}
+	})
+
 	t.Run("SoftDeleteDevice Success", func(t *testing.T) {
 		createReq := dto.CreateDeviceRequest{Hostname: "to-delete", DeviceType: "server"}
 		created, _ := uc.CreateDevice(context.Background(), createReq)
@@ -293,6 +349,23 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 		}
 		if res.Name != "Management VLAN" {
 			t.Errorf("expected subnet name Management VLAN, got %s", res.Name)
+		}
+	})
+
+	t.Run("CreateSubnet with VLANID", func(t *testing.T) {
+		vlanID := int32(100)
+		req := dto.CreateSubnetRequest{
+			Name:             "VLAN 100",
+			CIDR:             "10.100.0.0/24",
+			VLANID:           &vlanID,
+			DiscoveryEnabled: false,
+		}
+		res, err := uc.CreateSubnet(context.Background(), req)
+		if err != nil {
+			t.Fatalf("unexpected error creating subnet with VLAN: %v", err)
+		}
+		if res.Name != "VLAN 100" {
+			t.Errorf("expected subnet name 'VLAN 100', got %s", res.Name)
 		}
 	})
 

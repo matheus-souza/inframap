@@ -6,7 +6,6 @@ import (
 	"net/mail"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/trustelem/zxcvbn"
 )
 
@@ -42,11 +41,18 @@ func (v ValidationError) Error() string {
 	return fmt.Sprintf("%s: %s", v.Field, v.Issue)
 }
 
+// Normalize trims whitespace from string fields before validation.
+func (r *OnboardRequest) Normalize() {
+	r.AdminUsername = strings.TrimSpace(r.AdminUsername)
+	r.AdminEmail = strings.TrimSpace(r.AdminEmail)
+	r.AdminFullName = strings.TrimSpace(r.AdminFullName)
+}
+
 // Validate validates OnboardRequest fields according to RFC-012 guidelines.
+// Call Normalize() before Validate().
 func (r *OnboardRequest) Validate() []ValidationError {
 	var errs []ValidationError
 
-	r.AdminUsername = strings.TrimSpace(r.AdminUsername)
 	if len(r.AdminUsername) < 3 || len(r.AdminUsername) > 64 {
 		errs = append(errs, ValidationError{
 			Field: "admin_username",
@@ -54,7 +60,6 @@ func (r *OnboardRequest) Validate() []ValidationError {
 		})
 	}
 
-	r.AdminEmail = strings.TrimSpace(r.AdminEmail)
 	if _, err := mail.ParseAddress(r.AdminEmail); err != nil {
 		errs = append(errs, ValidationError{
 			Field: "admin_email",
@@ -62,7 +67,6 @@ func (r *OnboardRequest) Validate() []ValidationError {
 		})
 	}
 
-	r.AdminFullName = strings.TrimSpace(r.AdminFullName)
 	if len(r.AdminFullName) == 0 || len(r.AdminFullName) > 128 {
 		errs = append(errs, ValidationError{
 			Field: "admin_full_name",
@@ -70,7 +74,6 @@ func (r *OnboardRequest) Validate() []ValidationError {
 		})
 	}
 
-	// Password validation: min 12 chars, zxcvbn score >= 3
 	if len(r.AdminPassword) < 12 {
 		errs = append(errs, ValidationError{
 			Field: "admin_password",
@@ -85,8 +88,6 @@ func (r *OnboardRequest) Validate() []ValidationError {
 			})
 		}
 	}
-
-	_ = uuid.Nil
 
 	return errs
 }

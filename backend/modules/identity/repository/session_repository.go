@@ -35,6 +35,9 @@ var (
 	ErrSessionExpired = errors.New("session has expired")
 )
 
+// ErrUserNotFound indicates that no user matched the lookup criteria.
+var ErrUserNotFound = errors.New("user not found")
+
 // SessionData holds session details along with joined user info.
 type SessionData struct {
 	SessionID string
@@ -47,6 +50,16 @@ type SessionData struct {
 	CreatedAt time.Time
 }
 
+// UserCredentials holds the fields needed for authentication.
+type UserCredentials struct {
+	ID           uuid.UUID
+	Username     string
+	Email        string
+	PasswordHash string
+	FullName     string
+	IsActive     bool
+}
+
 // SessionRepository defines the contract for stateful session persistence.
 type SessionRepository interface {
 	GenerateToken() (string, error)
@@ -55,6 +68,7 @@ type SessionRepository interface {
 	GetSessionByToken(ctx context.Context, token string) (*SessionData, error)
 	RevokeSession(ctx context.Context, token string) error
 	GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]string, error)
+	LookupUserByUsername(ctx context.Context, username string) (*UserCredentials, error)
 }
 
 // PgSessionRepository implements SessionRepository backed by PostgreSQL via pgxpool.
@@ -179,6 +193,25 @@ func (r *PgSessionRepository) RevokeSession(ctx context.Context, token string) e
 	queries := db.New(r.pool)
 	tokenHash := r.HashToken(token)
 	return queries.DeleteSession(ctx, tokenHash)
+}
+
+// LookupUserByUsername finds a user by username or email (case-insensitive).
+func (r *PgSessionRepository) LookupUserByUsername(ctx context.Context, username string) (*UserCredentials, error) {
+	row := r.pool.QueryRow(ctx,
+		"SELECT id, username, email, password_hash, full_name, is_active FROM users WHERE LOWER(username) = $1 OR LOWER(email) = $1 LIMIT 1",
+		username,
+	)
+
+	var creds UserCredentials
+	err := row.Scan(&creds.ID, &creds.Username, &creds.Email, &creds.PasswordHash, &creds.FullName, &creds.IsActive)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("failed to lookup user: %w", err)
+	}
+
+	return &creds, nil
 }
 
 // GetUserPermissions retrieves assigned RBAC permissions for a user.

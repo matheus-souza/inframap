@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -113,5 +114,38 @@ func TestSetupController_OnboardAlreadyCompleted(t *testing.T) {
 
 	if w.Code != http.StatusConflict {
 		t.Errorf("expected status 409 Conflict on retry, got %d", w.Code)
+	}
+}
+
+func TestSetupController_OnboardInternalError(t *testing.T) {
+	uc := &mockSetupUseCase{
+		onboardErr: errors.New("database connection lost"),
+	}
+
+	ctrl := controller.NewSetupController(uc)
+
+	reqPayload := dto.OnboardRequest{
+		AdminUsername: "admin",
+		AdminEmail:    "admin@example.com",
+		AdminPassword: "correct-horse-battery-staple-passphrase",
+		AdminFullName: "System Admin",
+	}
+	body, _ := json.Marshal(reqPayload)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/setup/onboard", bytes.NewReader(body))
+
+	ctrl.Onboard(w, r)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+
+	var env httputil.ErrorEnvelope
+	if err := json.NewDecoder(w.Body).Decode(&env); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if env.Error.Message == "database connection lost" {
+		t.Error("internal error details should not leak to client")
 	}
 }

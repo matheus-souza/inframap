@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/identity/dto"
 	"github.com/matheussouza/inframap/modules/identity/repository"
@@ -31,7 +29,7 @@ var (
 )
 
 // dummyBcryptHash is used for timing-attack mitigation when a user is not found.
-const dummyBcryptHash = "$2a$12$K1J8/1fE.zS4E.Y/8xJ1p.wXyZ1J8/1fE.zS4E.Y/8xJ1p.wXyZ1"
+const dummyBcryptHash = "$2a$12$13f3jK8x1fdgZti0gBQuPuf/fKyokAsdsb3YVnwf4/fxqpSCUJFhK"
 
 // IdentityUseCase defines application logic for authentication and profile inspection.
 type IdentityUseCase interface {
@@ -48,7 +46,6 @@ type failedAttemptTracker struct {
 
 // DefaultIdentityUseCase implements IdentityUseCase.
 type DefaultIdentityUseCase struct {
-	pool        *pgxpool.Pool
 	sessionRepo repository.SessionRepository
 	eventBus    eventbus.EventBus
 	logger      *slog.Logger
@@ -57,14 +54,41 @@ type DefaultIdentityUseCase struct {
 	lockouts map[string]*failedAttemptTracker
 }
 
+const lockoutCleanupInterval = 10 * time.Minute
+const lockoutWindowDuration = 5 * time.Minute
+
 // NewDefaultIdentityUseCase creates a new DefaultIdentityUseCase.
-func NewDefaultIdentityUseCase(pool *pgxpool.Pool, sessionRepo repository.SessionRepository, bus eventbus.EventBus, logger *slog.Logger) *DefaultIdentityUseCase {
-	return &DefaultIdentityUseCase{
-		pool:        pool,
+// The provided context controls the lifetime of the background lockout cleanup goroutine.
+func NewDefaultIdentityUseCase(ctx context.Context, sessionRepo repository.SessionRepository, bus eventbus.EventBus, logger *slog.Logger) *DefaultIdentityUseCase {
+	uc := &DefaultIdentityUseCase{
 		sessionRepo: sessionRepo,
 		eventBus:    bus,
 		logger:      logger,
 		lockouts:    make(map[string]*failedAttemptTracker),
+	}
+	go uc.cleanupLockouts(ctx)
+	return uc
+}
+
+func (uc *DefaultIdentityUseCase) cleanupLockouts(ctx context.Context) {
+	ticker := time.NewTicker(lockoutCleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			uc.mu.Lock()
+			now := time.Now()
+			for key, tracker := range uc.lockouts {
+				expired := now.After(tracker.lockedUntil) && now.Sub(tracker.firstFail) > lockoutWindowDuration
+				if expired {
+					delete(uc.lockouts, key)
+				}
+			}
+			uc.mu.Unlock()
+		}
 	}
 }
 
@@ -86,30 +110,17 @@ func (uc *DefaultIdentityUseCase) Login(ctx context.Context, req dto.LoginReques
 	}
 	uc.mu.Unlock()
 
-	// Lookup user by username or email
-	var user struct {
-		ID           [16]byte
-		Username     string
-		Email        string
-		PasswordHash string
-		FullName     string
-		IsActive     bool
-	}
-	var err error
-
-	userRow, lookupErr := uc.pool.Query(ctx, "SELECT id, username, email, password_hash, full_name, is_active FROM users WHERE LOWER(username) = $1 OR LOWER(email) = $1 LIMIT 1", normalizedUsername)
-	if lookupErr == nil && userRow.Next() {
-		err = userRow.Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.FullName, &user.IsActive)
-		userRow.Close()
-	} else {
-		err = pgx.ErrNoRows
-	}
-
+	user, err := uc.sessionRepo.LookupUserByUsername(ctx, normalizedUsername)
 	if err != nil {
-		// Run dummy password check to prevent timing analysis
 		_ = bcrypt.CompareHashAndPassword([]byte(dummyBcryptHash), []byte(req.Password))
 		uc.recordFailedAttempt(ctx, usernameKey, normalizedUsername, cleanIP, "user not found")
-		time.Sleep(100 * time.Millisecond) // Progressive delay
+		time.Sleep(100 * time.Millisecond)
+		return nil, ErrInvalidCredentials
+	}
+
+	if bcryptErr := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); bcryptErr != nil {
+		uc.recordFailedAttempt(ctx, usernameKey, normalizedUsername, cleanIP, "password mismatch")
+		time.Sleep(100 * time.Millisecond)
 		return nil, ErrInvalidCredentials
 	}
 
@@ -117,19 +128,10 @@ func (uc *DefaultIdentityUseCase) Login(ctx context.Context, req dto.LoginReques
 		return nil, ErrUserInactive
 	}
 
-	// Verify password
-	if bcryptErr := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); bcryptErr != nil {
-		uc.recordFailedAttempt(ctx, usernameKey, normalizedUsername, cleanIP, "password mismatch")
-		time.Sleep(100 * time.Millisecond) // Progressive delay
-		return nil, ErrInvalidCredentials
-	}
-
-	// Reset failed attempts on success
 	uc.mu.Lock()
 	delete(uc.lockouts, usernameKey)
 	uc.mu.Unlock()
 
-	// Generate stateful session token
 	token, err := uc.sessionRepo.GenerateToken()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
@@ -145,10 +147,9 @@ func (uc *DefaultIdentityUseCase) Login(ctx context.Context, req dto.LoginReques
 		return nil, fmt.Errorf("failed to retrieve user permissions: %w", permErr)
 	}
 
-	// Publish user.login_success event
 	if uc.eventBus != nil {
 		evt := eventbus.NewBaseEvent("user.login_success", map[string]string{
-			"user_id":    fmt.Sprintf("%x-%x-%x-%x-%x", user.ID[0:4], user.ID[4:6], user.ID[6:8], user.ID[8:10], user.ID[10:16]),
+			"user_id":    user.ID.String(),
 			"username":   user.Username,
 			"ip_address": cleanIP,
 			"user_agent": userAgent,
@@ -158,7 +159,7 @@ func (uc *DefaultIdentityUseCase) Login(ctx context.Context, req dto.LoginReques
 
 	return &dto.LoginResponse{
 		Token:       token,
-		UserID:      fmt.Sprintf("%x-%x-%x-%x-%x", user.ID[0:4], user.ID[4:6], user.ID[6:8], user.ID[8:10], user.ID[10:16]),
+		UserID:      user.ID.String(),
 		Username:    user.Username,
 		Email:       user.Email,
 		FullName:    user.FullName,
@@ -173,7 +174,7 @@ func (uc *DefaultIdentityUseCase) recordFailedAttempt(ctx context.Context, key, 
 
 	now := time.Now()
 	tracker, exists := uc.lockouts[key]
-	if !exists || now.Sub(tracker.firstFail) > 5*time.Minute {
+	if !exists || now.Sub(tracker.firstFail) > lockoutWindowDuration {
 		tracker = &failedAttemptTracker{count: 1, firstFail: now}
 		uc.lockouts[key] = tracker
 	} else {
@@ -239,7 +240,10 @@ func (uc *DefaultIdentityUseCase) GetMe(ctx context.Context, token string) (*dto
 }
 
 func sanitizeLogInput(input string) string {
-	escaped := strings.ReplaceAll(input, "\n", "")
-	escaped = strings.ReplaceAll(escaped, "\r", "")
-	return escaped
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7F {
+			return -1
+		}
+		return r
+	}, input)
 }
