@@ -27,7 +27,7 @@ func TestSessionRepository_Unit(t *testing.T) {
 	})
 
 	t.Run("HashToken produces deterministic SHA-256 string", func(t *testing.T) {
-		token := "ims_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+		token := "ims_test_token_string_sample_for_unit_tests_without_false_positives"
 		hash1 := repo.HashToken(token)
 		hash2 := repo.HashToken(token)
 
