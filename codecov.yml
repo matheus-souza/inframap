@@ -10,11 +10,21 @@ coverage:
   status:
     project:
       default:
-        target: 80%
-        threshold: 1%
+        target: auto
+        threshold: 0%
     patch:
       default:
-        target: 80%
+        target: 85%
+
+ignore:
+  - "backend/migrations/**"
+  - "backend/internal/platform/db/**"
+  - "backend/internal/bootstrap/**"
+  - "backend/cmd/**"
+  - "backend/scripts/**"
+  - "**/*.sql.go"
+  - "**/*_mock.go"
+  - "**/mock_*.go"
 
 comment:
   layout: "reach, diff, flags, files"
