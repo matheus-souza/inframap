@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,6 +15,8 @@ import (
 	"github.com/matheussouza/inframap/modules/inventory/repository"
 	"github.com/matheussouza/inframap/modules/inventory/usecase"
 )
+
+func strPtr(s string) *string { return &s }
 
 type mockInventoryUseCase struct {
 	createDeviceResp  *dto.DeviceResponse
@@ -254,6 +257,157 @@ func TestInventoryController_Unit(t *testing.T) {
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("expected 201 Created, got %d", w.Code)
+		}
+	})
+
+	t.Run("UpdateDevice Success", func(t *testing.T) {
+		mockUC.updateDeviceErr = nil
+		mockUC.updateDeviceResp = &dto.DeviceResponse{ID: "dev-123", Hostname: "updated-host"}
+
+		payload := dto.UpdateDeviceRequest{Hostname: strPtr("updated-host")}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/devices/dev-123", bytes.NewReader(body))
+		req.SetPathValue("id", "dev-123")
+		w := httptest.NewRecorder()
+
+		ctrl.UpdateDevice(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200 OK, got %d", w.Code)
+		}
+	})
+
+	t.Run("UpdateDevice ErrInvalidInput", func(t *testing.T) {
+		mockUC.updateDeviceErr = usecase.ErrInvalidInput
+		payload := dto.UpdateDeviceRequest{IPAddress: strPtr("not-an-ip")}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/devices/dev-123", bytes.NewReader(body))
+		req.SetPathValue("id", "dev-123")
+		w := httptest.NewRecorder()
+
+		ctrl.UpdateDevice(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request, got %d", w.Code)
+		}
+	})
+
+	t.Run("UpdateDevice ErrInvalidUUID", func(t *testing.T) {
+		mockUC.updateDeviceErr = usecase.ErrInvalidUUID
+		payload := dto.UpdateDeviceRequest{Hostname: strPtr("h")}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/devices/bad-uuid", bytes.NewReader(body))
+		req.SetPathValue("id", "bad-uuid")
+		w := httptest.NewRecorder()
+
+		ctrl.UpdateDevice(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request, got %d", w.Code)
+		}
+	})
+
+	t.Run("UpdateDevice NotFound", func(t *testing.T) {
+		mockUC.updateDeviceErr = repository.ErrDeviceNotFound
+		payload := dto.UpdateDeviceRequest{Hostname: strPtr("h")}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/devices/0198a123-4567-7890-abcd-ef1234567890", bytes.NewReader(body))
+		req.SetPathValue("id", "0198a123-4567-7890-abcd-ef1234567890")
+		w := httptest.NewRecorder()
+
+		ctrl.UpdateDevice(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404 Not Found, got %d", w.Code)
+		}
+	})
+
+	t.Run("UpdateDevice InternalError", func(t *testing.T) {
+		mockUC.updateDeviceErr = errors.New("db error")
+		payload := dto.UpdateDeviceRequest{Hostname: strPtr("h")}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/devices/dev-123", bytes.NewReader(body))
+		req.SetPathValue("id", "dev-123")
+		w := httptest.NewRecorder()
+
+		ctrl.UpdateDevice(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500 Internal Server Error, got %d", w.Code)
+		}
+	})
+
+	t.Run("UpdateDevice InvalidJSON", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/devices/dev-123", bytes.NewReader([]byte(`{invalid`)))
+		req.SetPathValue("id", "dev-123")
+		w := httptest.NewRecorder()
+
+		ctrl.UpdateDevice(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request, got %d", w.Code)
+		}
+	})
+
+	t.Run("ListDevices returns pagination envelope", func(t *testing.T) {
+		mockUC.listDevicesResp = []dto.DeviceResponse{{ID: "dev-1", Hostname: "pve1"}}
+		mockUC.listDevicesTotal = 42
+		mockUC.listDevicesErr = nil
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/devices?page=2&per_page=10", nil)
+		w := httptest.NewRecorder()
+
+		ctrl.ListDevices(w, req)
+
+		var body map[string]any
+		if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		data, ok := body["data"].(map[string]any)
+		if !ok {
+			t.Fatal("expected data envelope")
+		}
+		if data["total"] != float64(42) {
+			t.Errorf("expected total 42, got %v", data["total"])
+		}
+		if data["page"] != float64(2) {
+			t.Errorf("expected page 2, got %v", data["page"])
+		}
+		if data["per_page"] != float64(10) {
+			t.Errorf("expected per_page 10, got %v", data["per_page"])
+		}
+	})
+
+	t.Run("ListStagingDevices returns pagination envelope", func(t *testing.T) {
+		mockUC.stagingResp = []dto.StagingDeviceResponse{{ID: "st-1", Hostname: "staged"}}
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/devices/staging?page=1&per_page=25", nil)
+		w := httptest.NewRecorder()
+
+		ctrl.ListStagingDevices(w, req)
+
+		var body map[string]any
+		if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		data, ok := body["data"].(map[string]any)
+		if !ok {
+			t.Fatal("expected data envelope")
+		}
+		if data["page"] != float64(1) {
+			t.Errorf("expected page 1, got %v", data["page"])
+		}
+	})
+
+	t.Run("CreateSubnet ValidationFailure", func(t *testing.T) {
+		payload := dto.CreateSubnetRequest{Name: "", CIDR: ""}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/subnets", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+
+		ctrl.CreateSubnet(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request, got %d", w.Code)
 		}
 	})
 

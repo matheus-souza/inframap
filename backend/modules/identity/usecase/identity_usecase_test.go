@@ -3,15 +3,29 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/identity/dto"
 	"github.com/matheussouza/inframap/modules/identity/repository"
 	"github.com/matheussouza/inframap/modules/identity/usecase"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type mockEventBus struct {
+	events []eventbus.DomainEvent
+}
+
+func (m *mockEventBus) Publish(_ context.Context, event eventbus.DomainEvent) error {
+	m.events = append(m.events, event)
+	return nil
+}
+
+func (m *mockEventBus) Subscribe(_ string, _ eventbus.EventHandler) error { return nil }
+func (m *mockEventBus) Close() error                                      { return nil }
 
 type mockSessionRepo struct {
 	sessions    map[string]*repository.SessionData
@@ -188,6 +202,14 @@ func TestIdentityUseCase_Unit(t *testing.T) {
 	})
 }
 
+func TestCleanupLockouts_ContextCancel(t *testing.T) {
+	repo := newMockSessionRepo()
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = usecase.NewDefaultIdentityUseCase(ctx, repo, nil, nil)
+	cancel()
+	time.Sleep(50 * time.Millisecond)
+}
+
 func TestIdentityUseCase_Login(t *testing.T) {
 	t.Run("Login with valid credentials", func(t *testing.T) {
 		repo := newMockSessionRepo()
@@ -271,6 +293,79 @@ func TestIdentityUseCase_Login(t *testing.T) {
 
 		if !errors.Is(err, usecase.ErrInvalidCredentials) {
 			t.Errorf("expected ErrInvalidCredentials for wrong password on inactive user, got %v", err)
+		}
+	})
+
+	t.Run("Login success emits event", func(t *testing.T) {
+		repo := newMockSessionRepo()
+		bus := &mockEventBus{}
+		logger := slog.Default()
+		uc := usecase.NewDefaultIdentityUseCase(context.Background(), repo, bus, logger)
+		seedTestUser(repo, "evtuser", "correct-horse-battery-staple")
+
+		_, err := uc.Login(context.Background(), dto.LoginRequest{
+			Username: "evtuser",
+			Password: "correct-horse-battery-staple",
+		}, "test-agent", "127.0.0.1")
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		found := false
+		for _, evt := range bus.events {
+			if evt.EventType() == "user.login_success" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected user.login_success event to be published")
+		}
+	})
+
+	t.Run("Login failure emits login_failed event", func(t *testing.T) {
+		repo := newMockSessionRepo()
+		bus := &mockEventBus{}
+		uc := usecase.NewDefaultIdentityUseCase(context.Background(), repo, bus, nil)
+		seedTestUser(repo, "evtuser2", "correct-horse-battery-staple")
+
+		_, _ = uc.Login(context.Background(), dto.LoginRequest{
+			Username: "evtuser2",
+			Password: "wrong",
+		}, "test-agent", "127.0.0.1")
+
+		found := false
+		for _, evt := range bus.events {
+			if evt.EventType() == "user.login_failed" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected user.login_failed event to be published")
+		}
+	})
+
+	t.Run("Login lockout emits account_locked event and logs warning", func(t *testing.T) {
+		repo := newMockSessionRepo()
+		bus := &mockEventBus{}
+		logger := slog.Default()
+		uc := usecase.NewDefaultIdentityUseCase(context.Background(), repo, bus, logger)
+		seedTestUser(repo, "lockevt", "correct-horse-battery-staple")
+
+		for i := 0; i < 5; i++ {
+			_, _ = uc.Login(context.Background(), dto.LoginRequest{
+				Username: "lockevt",
+				Password: "wrong",
+			}, "test-agent", "10.0.0.1")
+		}
+
+		found := false
+		for _, evt := range bus.events {
+			if evt.EventType() == "user.account_locked" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected user.account_locked event to be published")
 		}
 	})
 

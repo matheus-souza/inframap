@@ -82,6 +82,8 @@ func (m *mockInventoryRepository) UpdateDevice(_ context.Context, params db.Upda
 		return nil, repository.ErrDeviceNotFound
 	}
 	d.Hostname = params.Hostname
+	d.IpAddress = params.IpAddress
+	d.MacAddress = params.MacAddress
 	d.Manufacturer = params.Manufacturer
 	d.Model = params.Model
 	d.DeviceType = params.DeviceType
@@ -227,6 +229,45 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 
 		if len(updated.UserLockedFields) != 1 || updated.UserLockedFields[0] != "hostname" {
 			t.Errorf("expected user_locked_fields ['hostname'], got %v", updated.UserLockedFields)
+		}
+	})
+
+	t.Run("UpdateDevice InvalidIP returns ErrInvalidInput", func(t *testing.T) {
+		createReq := dto.CreateDeviceRequest{Hostname: "ip-test", DeviceType: "server"}
+		created, _ := uc.CreateDevice(context.Background(), createReq)
+
+		badIP := "not-an-ip"
+		updateReq := dto.UpdateDeviceRequest{IPAddress: &badIP}
+		_, err := uc.UpdateDevice(context.Background(), created.ID, updateReq)
+		if !errors.Is(err, usecase.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for invalid IP, got %v", err)
+		}
+	})
+
+	t.Run("UpdateDevice InvalidMAC returns ErrInvalidInput", func(t *testing.T) {
+		createReq := dto.CreateDeviceRequest{Hostname: "mac-test", DeviceType: "server"}
+		created, _ := uc.CreateDevice(context.Background(), createReq)
+
+		badMAC := "ZZ:ZZ:ZZ:ZZ:ZZ:ZZ"
+		updateReq := dto.UpdateDeviceRequest{MACAddress: &badMAC}
+		_, err := uc.UpdateDevice(context.Background(), created.ID, updateReq)
+		if !errors.Is(err, usecase.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for invalid MAC, got %v", err)
+		}
+	})
+
+	t.Run("UpdateDevice ValidIP succeeds", func(t *testing.T) {
+		createReq := dto.CreateDeviceRequest{Hostname: "valid-ip-test", DeviceType: "server"}
+		created, _ := uc.CreateDevice(context.Background(), createReq)
+
+		validIP := "192.168.1.100"
+		updateReq := dto.UpdateDeviceRequest{IPAddress: &validIP}
+		updated, err := uc.UpdateDevice(context.Background(), created.ID, updateReq)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if updated.IPAddress != "192.168.1.100" {
+			t.Errorf("expected IP 192.168.1.100, got %s", updated.IPAddress)
 		}
 	})
 
