@@ -3,7 +3,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -167,11 +166,6 @@ func (r *PgSetupRepository) Onboard(ctx context.Context, params OnboardParams) (
 	}
 
 	// 4. Update system_state
-	metadataMap := map[string]string{
-		"installed_version": params.InstalledVersion,
-	}
-	metadataBytes, _ := json.Marshal(metadataMap)
-
 	err = qtx.UpdateSystemStateOnboarding(ctx, state.ID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to update system state onboarding: %w", err)
@@ -186,8 +180,6 @@ func (r *PgSetupRepository) Onboard(ctx context.Context, params OnboardParams) (
 	if err != nil {
 		return nil, nil, err
 	}
-
-	_ = metadataBytes
 
 	return updatedState, &user, nil
 }

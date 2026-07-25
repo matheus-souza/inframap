@@ -40,6 +40,8 @@ func (c *SetupController) Onboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.Normalize()
+
 	if valErrs := req.Validate(); len(valErrs) > 0 {
 		fieldErrs := make([]httputil.FieldError, len(valErrs))
 		for i, ve := range valErrs {
@@ -58,7 +60,7 @@ func (c *SetupController) Onboard(w http.ResponseWriter, r *http.Request) {
 			httputil.WriteError(w, r, http.StatusConflict, "CONFLICT", "System onboarding is already completed", nil)
 			return
 		}
-		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error(), nil)
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to complete system onboarding", nil)
 		return
 	}
 

@@ -56,6 +56,7 @@ func TestOnboardRequest_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.req.Normalize()
 			errs := tt.req.Validate()
 			if (len(errs) > 0) != tt.wantErr {
 				t.Errorf("Validate() error count = %d, wantErr %v", len(errs), tt.wantErr)
