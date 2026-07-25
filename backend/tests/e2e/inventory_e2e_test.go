@@ -51,9 +51,18 @@ func TestE2E_InventoryFlow(t *testing.T) {
 		}
 
 		var env httputil.SuccessEnvelope
-		_ = json.NewDecoder(resp.Body).Decode(&env)
-		dataMap := env.Data.(map[string]any)
-		adminToken = dataMap["token"].(string)
+		if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode login response: %v", err)
+		}
+		dataMap, ok := env.Data.(map[string]any)
+		if !ok {
+			t.Fatal("expected data map in login response")
+		}
+		tok, ok := dataMap["token"].(string)
+		if !ok || tok == "" {
+			t.Fatal("expected non-empty token string in login response")
+		}
+		adminToken = tok
 	})
 
 	// 2. Create Device
@@ -88,8 +97,15 @@ func TestE2E_InventoryFlow(t *testing.T) {
 			t.Fatalf("failed to decode response: %v", err)
 		}
 
-		dataMap := env.Data.(map[string]any)
-		deviceID = dataMap["id"].(string)
+		dataMap, ok := env.Data.(map[string]any)
+		if !ok {
+			t.Fatal("expected data map in create device response")
+		}
+		id, ok := dataMap["id"].(string)
+		if !ok || id == "" {
+			t.Fatal("expected non-empty id string in create device response")
+		}
+		deviceID = id
 	})
 
 	// 3. List Devices with Offset Pagination

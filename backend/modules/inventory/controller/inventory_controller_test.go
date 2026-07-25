@@ -16,21 +16,23 @@ import (
 )
 
 type mockInventoryUseCase struct {
-	createDeviceResp *dto.DeviceResponse
-	createDeviceErr  error
-	getDeviceResp    *dto.DeviceResponse
-	getDeviceErr     error
-	listDevicesResp  []dto.DeviceResponse
-	listDevicesTotal int64
-	listDevicesErr   error
-	deleteDeviceErr  error
-	stagingResp      []dto.StagingDeviceResponse
-	approveResp      *dto.DeviceResponse
-	approveErr       error
-	dismissErr       error
-	subnetResp       *dto.SubnetResponse
-	subnetErr        error
-	listSubnetsResp  []dto.SubnetResponse
+	createDeviceResp  *dto.DeviceResponse
+	createDeviceErr   error
+	getDeviceResp     *dto.DeviceResponse
+	getDeviceErr      error
+	updateDeviceResp  *dto.DeviceResponse
+	updateDeviceErr   error
+	listDevicesResp   []dto.DeviceResponse
+	listDevicesTotal  int64
+	listDevicesErr    error
+	deleteDeviceErr   error
+	stagingResp       []dto.StagingDeviceResponse
+	approveResp       *dto.DeviceResponse
+	approveErr        error
+	dismissErr        error
+	subnetResp        *dto.SubnetResponse
+	subnetErr         error
+	listSubnetsResp   []dto.SubnetResponse
 }
 
 func (m *mockInventoryUseCase) CreateDevice(_ context.Context, _ dto.CreateDeviceRequest) (*dto.DeviceResponse, error) {
@@ -55,10 +57,10 @@ func (m *mockInventoryUseCase) ListDevices(_ context.Context, _, _ string, _, _ 
 }
 
 func (m *mockInventoryUseCase) UpdateDevice(_ context.Context, _ string, _ dto.UpdateDeviceRequest) (*dto.DeviceResponse, error) {
-	if m.getDeviceErr != nil {
-		return nil, m.getDeviceErr
+	if m.updateDeviceErr != nil {
+		return nil, m.updateDeviceErr
 	}
-	return m.getDeviceResp, nil
+	return m.updateDeviceResp, nil
 }
 
 func (m *mockInventoryUseCase) SoftDeleteDevice(_ context.Context, _ string) error {
