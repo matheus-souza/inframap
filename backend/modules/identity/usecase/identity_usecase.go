@@ -118,14 +118,14 @@ func (uc *DefaultIdentityUseCase) Login(ctx context.Context, req dto.LoginReques
 		return nil, ErrInvalidCredentials
 	}
 
-	if !user.IsActive {
-		return nil, ErrUserInactive
-	}
-
 	if bcryptErr := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); bcryptErr != nil {
 		uc.recordFailedAttempt(ctx, usernameKey, normalizedUsername, cleanIP, "password mismatch")
 		time.Sleep(100 * time.Millisecond)
 		return nil, ErrInvalidCredentials
+	}
+
+	if !user.IsActive {
+		return nil, ErrUserInactive
 	}
 
 	uc.mu.Lock()

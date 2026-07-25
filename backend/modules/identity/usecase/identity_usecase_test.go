@@ -242,12 +242,11 @@ func TestIdentityUseCase_Login(t *testing.T) {
 		}
 	})
 
-	t.Run("Login with inactive user returns ErrUserInactive", func(t *testing.T) {
+	t.Run("Login with inactive user and correct password returns ErrUserInactive", func(t *testing.T) {
 		repo := newMockSessionRepo()
 		uc := usecase.NewDefaultIdentityUseCase(context.Background(), repo, nil, nil)
-		userID := seedTestUser(repo, "disabled", "correct-horse-battery-staple")
+		seedTestUser(repo, "disabled", "correct-horse-battery-staple")
 		repo.users["disabled"].IsActive = false
-		_ = userID
 
 		_, err := uc.Login(context.Background(), dto.LoginRequest{
 			Username: "disabled",
@@ -256,6 +255,22 @@ func TestIdentityUseCase_Login(t *testing.T) {
 
 		if !errors.Is(err, usecase.ErrUserInactive) {
 			t.Errorf("expected ErrUserInactive, got %v", err)
+		}
+	})
+
+	t.Run("Login with inactive user and wrong password returns ErrInvalidCredentials", func(t *testing.T) {
+		repo := newMockSessionRepo()
+		uc := usecase.NewDefaultIdentityUseCase(context.Background(), repo, nil, nil)
+		seedTestUser(repo, "disabled2", "correct-horse-battery-staple")
+		repo.users["disabled2"].IsActive = false
+
+		_, err := uc.Login(context.Background(), dto.LoginRequest{
+			Username: "disabled2",
+			Password: "wrong-password",
+		}, "test-agent", "127.0.0.1")
+
+		if !errors.Is(err, usecase.ErrInvalidCredentials) {
+			t.Errorf("expected ErrInvalidCredentials for wrong password on inactive user, got %v", err)
 		}
 	})
 

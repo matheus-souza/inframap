@@ -103,8 +103,11 @@ func (r *CreateSubnetRequest) Validate() []FieldError {
 	if strings.TrimSpace(r.Name) == "" {
 		errs = append(errs, FieldError{Field: "name", Issue: "subnet name is required"})
 	}
-	if r.CIDR != "" {
-		if _, err := netip.ParsePrefix(strings.TrimSpace(r.CIDR)); err != nil {
+	cidr := strings.TrimSpace(r.CIDR)
+	if cidr == "" {
+		errs = append(errs, FieldError{Field: "cidr", Issue: "CIDR is required"})
+	} else {
+		if _, err := netip.ParsePrefix(cidr); err != nil {
 			errs = append(errs, FieldError{Field: "cidr", Issue: "invalid CIDR notation"})
 		}
 	}

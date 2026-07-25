@@ -12,8 +12,8 @@ import (
 	"github.com/matheussouza/inframap/modules/identity/usecase"
 )
 
-// SessionCookieName is the official cookie name for browser WASM clients per RFC-008.
-const SessionCookieName = "inframap_session"
+// SessionCookieName re-exports httputil.SessionCookieName for local usage.
+const SessionCookieName = httputil.SessionCookieName
 
 // IdentityController handles authentication endpoints.
 type IdentityController struct {

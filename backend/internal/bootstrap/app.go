@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
@@ -111,7 +112,9 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	// Health endpoint
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		status := "ok"
-		if err := pool.Ping(r.Context()); err != nil {
+		pingCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := pool.Ping(pingCtx); err != nil {
 			status = "degraded"
 		}
 		httputil.WriteJSON(w, r, http.StatusOK, map[string]string{

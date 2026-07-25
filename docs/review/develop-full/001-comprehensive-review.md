@@ -13,7 +13,7 @@
 21 findings across 4 severity levels. 5 critical, 5 high, 8 medium, 3 low.
 Prior per-feature reviews (event-bus, identity, configuration) approved the functional spec compliance — this review focuses on cross-cutting quality, security, and correctness gaps.
 
-**Resolution**: All 21 findings addressed — 18 fixed in code, 3 documented as known limitations (F19, F20, F21 was fixed).
+**Resolution**: All 21 findings addressed — 19 fixed in code, 2 documented as known limitations (F19, F20).
 
 ---
 
@@ -142,11 +142,11 @@ Prior per-feature reviews (event-bus, identity, configuration) approved the func
 
 | Phase | Findings | Status |
 |---|---|---|
-| **Phase 1 — Security** | F1, F2, F3, F5, F6, F7, F10, F13, F14 | Done |
+| **Phase 1 — Security** | F1, F2, F3, F4, F5, F6, F7, F10, F13, F14, F16 | Done |
 | **Phase 2 — Correctness** | F8, F9, F11, F12, F13 | Done |
 | **Phase 3 — Code quality** | F12, F13, F14, F17 | Done |
 | **Phase 4 — Test quality** | F15, F18, F21 | Done |
-| **Phase 5 — Cosmetic/Deferred** | F4, F16, F19, F20 | Done |
+| **Phase 5 — Acknowledged** | F19, F20 | Known limitations |
 
 ---
 

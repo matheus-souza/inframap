@@ -66,13 +66,16 @@ func isPublicRoute(path string) bool {
 	return publicRoutes[path]
 }
 
-// ExtractToken inspects the inframap_session cookie first, falling back to Authorization: Bearer header.
+// SessionCookieName is the canonical cookie name for session tokens.
+const SessionCookieName = "inframap_session"
+
+// ExtractToken inspects the session cookie first, falling back to Authorization: Bearer header.
 func ExtractToken(r *http.Request) string {
 	if r == nil {
 		return ""
 	}
 
-	if cookie, err := r.Cookie("inframap_session"); err == nil && cookie.Value != "" {
+	if cookie, err := r.Cookie(SessionCookieName); err == nil && cookie.Value != "" {
 		return cookie.Value
 	}
 

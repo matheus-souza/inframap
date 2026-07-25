@@ -119,8 +119,8 @@ func (c *InventoryController) UpdateDevice(w http.ResponseWriter, r *http.Reques
 
 	resp, err := c.useCase.UpdateDevice(r.Context(), idStr, req)
 	if err != nil {
-		if errors.Is(err, usecase.ErrInvalidUUID) {
-			httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", "Invalid device ID format", nil)
+		if errors.Is(err, usecase.ErrInvalidUUID) || errors.Is(err, usecase.ErrInvalidInput) {
+			httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", err.Error(), nil)
 			return
 		}
 		if errors.Is(err, repository.ErrDeviceNotFound) {

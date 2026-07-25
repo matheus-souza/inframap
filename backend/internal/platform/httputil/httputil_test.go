@@ -1,7 +1,9 @@
 package httputil_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -72,6 +74,79 @@ func TestMiddlewares(t *testing.T) {
 	if w.Header().Get("X-Frame-Options") != "DENY" {
 		t.Error("expected X-Frame-Options DENY")
 	}
+}
+
+func TestLimitBody(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	stack := httputil.LimitBody(handler)
+
+	t.Run("small body passes", func(t *testing.T) {
+		body := bytes.NewReader([]byte(`{"ok": true}`))
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", body)
+		stack.ServeHTTP(w, r)
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("oversized body rejected", func(t *testing.T) {
+		oversized := make([]byte, httputil.MaxBodySize+1)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(oversized))
+		stack.ServeHTTP(w, r)
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Errorf("expected 413, got %d", w.Code)
+		}
+	})
+}
+
+func TestExtractToken(t *testing.T) {
+	t.Run("nil request returns empty", func(t *testing.T) {
+		if tok := httputil.ExtractToken(nil); tok != "" {
+			t.Errorf("expected empty token for nil request, got %q", tok)
+		}
+	})
+
+	t.Run("from cookie", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{Name: httputil.SessionCookieName, Value: "cookie_token"})
+		if tok := httputil.ExtractToken(r); tok != "cookie_token" {
+			t.Errorf("expected cookie_token, got %q", tok)
+		}
+	})
+
+	t.Run("from bearer header", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.Header.Set("Authorization", "Bearer header_token")
+		if tok := httputil.ExtractToken(r); tok != "header_token" {
+			t.Errorf("expected header_token, got %q", tok)
+		}
+	})
+
+	t.Run("cookie takes precedence over header", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{Name: httputil.SessionCookieName, Value: "cookie_val"})
+		r.Header.Set("Authorization", "Bearer header_val")
+		if tok := httputil.ExtractToken(r); tok != "cookie_val" {
+			t.Errorf("expected cookie_val, got %q", tok)
+		}
+	})
+
+	t.Run("no token returns empty", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		if tok := httputil.ExtractToken(r); tok != "" {
+			t.Errorf("expected empty token, got %q", tok)
+		}
+	})
 }
 
 func TestRecoveryMiddleware(t *testing.T) {

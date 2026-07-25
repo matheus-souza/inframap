@@ -23,6 +23,9 @@ import (
 var (
 	// ErrInvalidUUID indicates a malformed UUID string.
 	ErrInvalidUUID = errors.New("invalid resource UUID format")
+
+	// ErrInvalidInput indicates malformed user input.
+	ErrInvalidInput = errors.New("invalid input")
 )
 
 // InventoryUseCase defines business capabilities for inventory resources.
@@ -196,17 +199,21 @@ func (uc *DefaultInventoryUseCase) UpdateDevice(ctx context.Context, idStr strin
 		}
 	}
 	if req.IPAddress != nil {
-		if parsedIP, err := netip.ParseAddr(strings.TrimSpace(*req.IPAddress)); err == nil {
-			params.IpAddress = &parsedIP
+		parsedIP, err := netip.ParseAddr(strings.TrimSpace(*req.IPAddress))
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid IP address %q", ErrInvalidInput, *req.IPAddress)
 		}
+		params.IpAddress = &parsedIP
 		if !slices.Contains(lockedFields, "ip_address") {
 			lockedFields = append(lockedFields, "ip_address")
 		}
 	}
 	if req.MACAddress != nil {
-		if parsedMAC, err := net.ParseMAC(strings.TrimSpace(*req.MACAddress)); err == nil {
-			params.MacAddress = parsedMAC
+		parsedMAC, err := net.ParseMAC(strings.TrimSpace(*req.MACAddress))
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid MAC address %q", ErrInvalidInput, *req.MACAddress)
 		}
+		params.MacAddress = parsedMAC
 		if !slices.Contains(lockedFields, "mac_address") {
 			lockedFields = append(lockedFields, "mac_address")
 		}
