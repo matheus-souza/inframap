@@ -271,6 +271,21 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("UpdateDevice ValidMAC succeeds", func(t *testing.T) {
+		createReq := dto.CreateDeviceRequest{Hostname: "valid-mac-test", DeviceType: "server"}
+		created, _ := uc.CreateDevice(context.Background(), createReq)
+
+		validMAC := "AA:BB:CC:DD:EE:FF"
+		updateReq := dto.UpdateDeviceRequest{MACAddress: &validMAC}
+		updated, err := uc.UpdateDevice(context.Background(), created.ID, updateReq)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if updated.MACAddress != "aa:bb:cc:dd:ee:ff" {
+			t.Errorf("expected MAC aa:bb:cc:dd:ee:ff, got %s", updated.MACAddress)
+		}
+	})
+
 	t.Run("SoftDeleteDevice Success", func(t *testing.T) {
 		createReq := dto.CreateDeviceRequest{Hostname: "to-delete", DeviceType: "server"}
 		created, _ := uc.CreateDevice(context.Background(), createReq)
@@ -334,6 +349,23 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 		}
 		if res.Name != "Management VLAN" {
 			t.Errorf("expected subnet name Management VLAN, got %s", res.Name)
+		}
+	})
+
+	t.Run("CreateSubnet with VLANID", func(t *testing.T) {
+		vlanID := int32(100)
+		req := dto.CreateSubnetRequest{
+			Name:             "VLAN 100",
+			CIDR:             "10.100.0.0/24",
+			VLANID:           &vlanID,
+			DiscoveryEnabled: false,
+		}
+		res, err := uc.CreateSubnet(context.Background(), req)
+		if err != nil {
+			t.Fatalf("unexpected error creating subnet with VLAN: %v", err)
+		}
+		if res.Name != "VLAN 100" {
+			t.Errorf("expected subnet name 'VLAN 100', got %s", res.Name)
 		}
 	})
 
