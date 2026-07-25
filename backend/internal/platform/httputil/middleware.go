@@ -37,6 +37,17 @@ func SecurityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+// MaxBodySize limits the size of incoming request bodies to prevent memory exhaustion.
+const MaxBodySize = 1 << 20 // 1 MiB
+
+// LimitBody middleware caps request body reads at MaxBodySize bytes.
+func LimitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, MaxBodySize)
+		next.ServeHTTP(w, r)
+	})
+}
+
 // Recovery middleware handles panics and returns a 500 error envelope.
 func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

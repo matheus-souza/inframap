@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"strings"
 
 	"github.com/matheussouza/inframap/internal/platform/httputil"
 	"github.com/matheussouza/inframap/modules/identity/dto"
@@ -33,6 +32,8 @@ func (c *IdentityController) Login(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", "Invalid JSON payload", nil)
 		return
 	}
+
+	req.Normalize()
 
 	if valErrs := req.Validate(); len(valErrs) > 0 {
 		fieldErrs := make([]httputil.FieldError, len(valErrs))
@@ -79,7 +80,7 @@ func (c *IdentityController) Login(w http.ResponseWriter, r *http.Request) {
 
 // Logout handles POST /api/v1/auth/logout.
 func (c *IdentityController) Logout(w http.ResponseWriter, r *http.Request) {
-	token := ExtractToken(r)
+	token := httputil.ExtractToken(r)
 
 	if err := c.useCase.Logout(r.Context(), token); err != nil {
 		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to revoke session", nil)
@@ -104,7 +105,7 @@ func (c *IdentityController) Logout(w http.ResponseWriter, r *http.Request) {
 
 // GetMe handles GET /api/v1/auth/me.
 func (c *IdentityController) GetMe(w http.ResponseWriter, r *http.Request) {
-	token := ExtractToken(r)
+	token := httputil.ExtractToken(r)
 	if token == "" {
 		httputil.WriteError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Missing or invalid session token", nil)
 		return
@@ -119,22 +120,3 @@ func (c *IdentityController) GetMe(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, r, http.StatusOK, resp)
 }
 
-// ExtractToken inspects inframap_session cookie first, falling back to Authorization: Bearer header.
-func ExtractToken(r *http.Request) string {
-	if r == nil {
-		return ""
-	}
-
-	// 1. Inspect cookie
-	if cookie, err := r.Cookie(SessionCookieName); err == nil && cookie.Value != "" {
-		return cookie.Value
-	}
-
-	// 2. Inspect Authorization: Bearer header
-	authHeader := r.Header.Get("Authorization")
-	if strings.HasPrefix(authHeader, "Bearer ") {
-		return strings.TrimPrefix(authHeader, "Bearer ")
-	}
-
-	return ""
-}

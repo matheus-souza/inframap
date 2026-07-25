@@ -30,7 +30,7 @@ func AuthMiddleware(validator SessionValidator) func(http.Handler) http.Handler 
 			}
 
 			// Extract token from cookie or Authorization header
-			token := extractTokenFromRequest(r)
+			token := ExtractToken(r)
 			if token == "" {
 				WriteError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Missing authentication token", nil)
 				return
@@ -55,22 +55,23 @@ func AuthMiddleware(validator SessionValidator) func(http.Handler) http.Handler 
 	}
 }
 
-func isPublicRoute(path string) bool {
-	publicPrefixes := []string{
-		"/api/v1/health",
-		"/api/v1/setup/",
-		"/api/v1/auth/login",
-	}
-
-	for _, prefix := range publicPrefixes {
-		if strings.HasPrefix(path, prefix) {
-			return true
-		}
-	}
-	return false
+var publicRoutes = map[string]bool{
+	"/api/v1/health":        true,
+	"/api/v1/setup/status":  true,
+	"/api/v1/setup/onboard": true,
+	"/api/v1/auth/login":    true,
 }
 
-func extractTokenFromRequest(r *http.Request) string {
+func isPublicRoute(path string) bool {
+	return publicRoutes[path]
+}
+
+// ExtractToken inspects the inframap_session cookie first, falling back to Authorization: Bearer header.
+func ExtractToken(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+
 	if cookie, err := r.Cookie("inframap_session"); err == nil && cookie.Value != "" {
 		return cookie.Value
 	}

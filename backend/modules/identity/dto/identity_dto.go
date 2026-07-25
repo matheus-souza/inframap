@@ -3,7 +3,6 @@ package dto
 
 import (
 	"fmt"
-	"net/mail"
 	"strings"
 	"time"
 )
@@ -45,11 +44,16 @@ func (v ValidationError) Error() string {
 	return fmt.Sprintf("%s: %s", v.Field, v.Issue)
 }
 
+// Normalize trims whitespace from string fields before validation.
+func (r *LoginRequest) Normalize() {
+	r.Username = strings.TrimSpace(r.Username)
+}
+
 // Validate validates LoginRequest fields.
+// Call Normalize() before Validate().
 func (r *LoginRequest) Validate() []ValidationError {
 	var errs []ValidationError
 
-	r.Username = strings.TrimSpace(r.Username)
 	if len(r.Username) == 0 {
 		errs = append(errs, ValidationError{
 			Field: "username",
@@ -63,8 +67,6 @@ func (r *LoginRequest) Validate() []ValidationError {
 			Issue: "password is required",
 		})
 	}
-
-	_ = mail.ParseAddress
 
 	return errs
 }

@@ -97,7 +97,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 
 	// 5. Initialize Identity Module
 	sessionRepo := identityrepo.NewPgSessionRepository(pool)
-	identityUseCase := identityuc.NewDefaultIdentityUseCase(pool, sessionRepo, bus, log)
+	identityUseCase := identityuc.NewDefaultIdentityUseCase(ctx, sessionRepo, bus, log)
 	identityCtrl := identityctrl.NewIdentityController(identityUseCase)
 
 	// 6. Initialize Inventory Module
@@ -110,8 +110,12 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 
 	// Health endpoint
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
+		status := "ok"
+		if err := pool.Ping(r.Context()); err != nil {
+			status = "degraded"
+		}
 		httputil.WriteJSON(w, r, http.StatusOK, map[string]string{
-			"status":  "ok",
+			"status":  status,
 			"version": configuc.AppVersion,
 		})
 	})
@@ -120,12 +124,14 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	identity.RegisterRoutes(mux, identityCtrl)
 	inventory.RegisterRoutes(mux, invCtrl)
 
-	// 7. Middleware Stack: RequestID -> SecurityHeaders -> Recovery -> AuthMiddleware -> Mux
+	// 7. Middleware Stack: RequestID -> SecurityHeaders -> LimitBody -> Recovery -> AuthMiddleware -> Mux
 	validator := &sessionValidatorAdapter{repo: sessionRepo}
 	handler := httputil.RequestID(
 		httputil.SecurityHeaders(
-			httputil.Recovery(log)(
-				httputil.AuthMiddleware(validator)(mux),
+			httputil.LimitBody(
+				httputil.Recovery(log)(
+					httputil.AuthMiddleware(validator)(mux),
+				),
 			),
 		),
 	)
