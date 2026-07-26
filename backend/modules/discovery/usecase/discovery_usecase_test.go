@@ -215,7 +215,7 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 	discRepo := newMockDiscRepo()
 	invRepo := newMockInvRepo()
 	bus := eventbus.NewInMemoryEventBus(1, 10)
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 	buf := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(buf, nil))
 
