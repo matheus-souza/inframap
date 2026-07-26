@@ -15,7 +15,9 @@ func TestFieldReconciler_Reconcile(t *testing.T) {
 
 	t.Run("Higher confidence score updates device fields", func(t *testing.T) {
 		meta, _ := json.Marshal(map[string]interface{}{
-			"source_confidence_score": 20,
+			"field_confidence_scores": map[string]interface{}{
+				"hostname": 20,
+			},
 		})
 		existing := &db.Device{
 			ID:         uuid.New(),
@@ -44,8 +46,10 @@ func TestFieldReconciler_Reconcile(t *testing.T) {
 
 	t.Run("User locked field is protected from scan update", func(t *testing.T) {
 		meta, _ := json.Marshal(map[string]interface{}{
-			"user_locked_fields":      []interface{}{"hostname"},
-			"source_confidence_score": 100,
+			"user_locked_fields": []interface{}{"hostname"},
+			"field_confidence_scores": map[string]interface{}{
+				"hostname": 100,
+			},
 		})
 		existing := &db.Device{
 			ID:       uuid.New(),
@@ -65,7 +69,9 @@ func TestFieldReconciler_Reconcile(t *testing.T) {
 
 	t.Run("Lower confidence score does not overwrite fields", func(t *testing.T) {
 		meta, _ := json.Marshal(map[string]interface{}{
-			"source_confidence_score": 80,
+			"field_confidence_scores": map[string]interface{}{
+				"hostname": 80,
+			},
 		})
 		existing := &db.Device{
 			ID:         uuid.New(),

@@ -10,7 +10,7 @@ import (
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 )
 
-// SourceConfidenceMatrix maps discovery collector types to their confidence score.
+// SourceConfidenceMatrix maps discovery collector types to their default confidence score.
 var SourceConfidenceMatrix = map[string]int{
 	"user_override": 100,
 	"proxmox":       80,
@@ -36,7 +36,7 @@ func NewDefaultFieldReconciler() *DefaultFieldReconciler {
 	return &DefaultFieldReconciler{}
 }
 
-// Reconcile evaluates field updates using confidence scores and user-lock immunity.
+// Reconcile evaluates field updates using per-field confidence scores and user-lock immunity.
 func (r *DefaultFieldReconciler) Reconcile(existing *db.Device, incoming *dto.NormalizedDeviceDTO, sourceType string) (*db.Device, bool) {
 	changed := false
 	updated := *existing
@@ -49,68 +49,87 @@ func (r *DefaultFieldReconciler) Reconcile(existing *db.Device, incoming *dto.No
 		meta = make(map[string]interface{})
 	}
 
+	fieldScores := extractFieldScores(meta)
 	lockedFields := extractUserLockedFields(meta)
 	incomingScore, exists := SourceConfidenceMatrix[sourceType]
 	if !exists {
 		incomingScore = 20
 	}
 
-	existingScore := extractFieldScore(meta, "source_confidence_score")
+	canUpdate := func(fieldName string) bool {
+		if lockedFields[fieldName] {
+			return false
+		}
+		currentScore := fieldScores[fieldName]
+		return incomingScore >= currentScore
+	}
 
-	// Apply field updates if incoming score >= existing score and field is not locked by user
-	if incomingScore >= existingScore {
-		if !lockedFields["hostname"] && incoming.Hostname != "" && incoming.Hostname != updated.Hostname {
-			updated.Hostname = incoming.Hostname
-			changed = true
-		}
-		if !lockedFields["ip_address"] && incoming.IPAddress != "" {
-			if addr, err := netip.ParseAddr(incoming.IPAddress); err == nil {
-				if updated.IpAddress == nil || *updated.IpAddress != addr {
-					updated.IpAddress = &addr
-					changed = true
-				}
-			}
-		}
-		if !lockedFields["mac_address"] && incoming.MACAddress != "" {
-			if hw, err := net.ParseMAC(incoming.MACAddress); err == nil {
-				if len(updated.MacAddress) == 0 || !strings.EqualFold(updated.MacAddress.String(), hw.String()) {
-					updated.MacAddress = hw
-					changed = true
-				}
-			}
-		}
-		if !lockedFields["manufacturer"] && incoming.Manufacturer != "" && (!updated.Manufacturer.Valid || updated.Manufacturer.String != incoming.Manufacturer) {
-			updated.Manufacturer.String = incoming.Manufacturer
-			updated.Manufacturer.Valid = true
-			changed = true
-		}
-		if !lockedFields["model"] && incoming.Model != "" && (!updated.Model.Valid || updated.Model.String != incoming.Model) {
-			updated.Model.String = incoming.Model
-			updated.Model.Valid = true
-			changed = true
-		}
-		if !lockedFields["serial_number"] && incoming.SerialNumber != "" && (!updated.SerialNumber.Valid || updated.SerialNumber.String != incoming.SerialNumber) {
-			updated.SerialNumber.String = incoming.SerialNumber
-			updated.SerialNumber.Valid = true
-			changed = true
-		}
-		if !lockedFields["device_type"] && incoming.DeviceType != "" && incoming.DeviceType != "unknown" && incoming.DeviceType != updated.DeviceType {
-			updated.DeviceType = incoming.DeviceType
-			changed = true
-		}
+	if canUpdate("hostname") && incoming.Hostname != "" && incoming.Hostname != updated.Hostname {
+		updated.Hostname = incoming.Hostname
+		fieldScores["hostname"] = incomingScore
+		changed = true
+	}
 
-		if changed {
-			meta["source_confidence_score"] = incomingScore
+	if canUpdate("ip_address") && incoming.IPAddress != "" {
+		if addr, err := netip.ParseAddr(incoming.IPAddress); err == nil {
+			if updated.IpAddress == nil || *updated.IpAddress != addr {
+				updated.IpAddress = &addr
+				fieldScores["ip_address"] = incomingScore
+				changed = true
+			}
 		}
 	}
 
-	// Additive raw payload metadata merge
-	if len(incoming.RawPayload) > 0 {
-		providerNamespace := sourceType
-		if providerNamespace != "" {
-			meta[providerNamespace] = incoming.RawPayload
-			changed = true
+	if canUpdate("mac_address") && incoming.MACAddress != "" {
+		if hw, err := net.ParseMAC(incoming.MACAddress); err == nil {
+			if len(updated.MacAddress) == 0 || !strings.EqualFold(updated.MacAddress.String(), hw.String()) {
+				updated.MacAddress = hw
+				fieldScores["mac_address"] = incomingScore
+				changed = true
+			}
 		}
+	}
+
+	if canUpdate("manufacturer") && incoming.Manufacturer != "" && (!updated.Manufacturer.Valid || updated.Manufacturer.String != incoming.Manufacturer) {
+		updated.Manufacturer.String = incoming.Manufacturer
+		updated.Manufacturer.Valid = true
+		fieldScores["manufacturer"] = incomingScore
+		changed = true
+	}
+
+	if canUpdate("model") && incoming.Model != "" && (!updated.Model.Valid || updated.Model.String != incoming.Model) {
+		updated.Model.String = incoming.Model
+		updated.Model.Valid = true
+		fieldScores["model"] = incomingScore
+		changed = true
+	}
+
+	if canUpdate("serial_number") && incoming.SerialNumber != "" && (!updated.SerialNumber.Valid || updated.SerialNumber.String != incoming.SerialNumber) {
+		updated.SerialNumber.String = incoming.SerialNumber
+		updated.SerialNumber.Valid = true
+		fieldScores["serial_number"] = incomingScore
+		changed = true
+	}
+
+	if canUpdate("device_type") && incoming.DeviceType != "" && incoming.DeviceType != "unknown" && incoming.DeviceType != updated.DeviceType {
+		updated.DeviceType = incoming.DeviceType
+		fieldScores["device_type"] = incomingScore
+		changed = true
+	}
+
+	meta["field_confidence_scores"] = fieldScores
+
+	// Deep-merge additive raw payload metadata
+	if len(incoming.RawPayload) > 0 && sourceType != "" {
+		existingNs, _ := meta[sourceType].(map[string]interface{})
+		if existingNs == nil {
+			existingNs = make(map[string]interface{})
+		}
+		for k, v := range incoming.RawPayload {
+			existingNs[k] = v
+		}
+		meta[sourceType] = existingNs
+		changed = true
 	}
 
 	if changed {
@@ -133,14 +152,17 @@ func extractUserLockedFields(metadata map[string]interface{}) map[string]bool {
 	return locked
 }
 
-func extractFieldScore(metadata map[string]interface{}, key string) int {
-	if val, ok := metadata[key]; ok {
-		switch v := val.(type) {
-		case int:
-			return v
-		case float64:
-			return int(v)
+func extractFieldScores(metadata map[string]interface{}) map[string]int {
+	scores := make(map[string]int)
+	if rawScores, ok := metadata["field_confidence_scores"].(map[string]interface{}); ok {
+		for k, val := range rawScores {
+			switch v := val.(type) {
+			case int:
+				scores[k] = v
+			case float64:
+				scores[k] = int(v)
+			}
 		}
 	}
-	return 0
+	return scores
 }

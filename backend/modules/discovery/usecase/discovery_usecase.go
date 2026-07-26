@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"strings"
@@ -41,6 +42,7 @@ type DefaultDiscoveryUseCase struct {
 	discRepo   repository.DiscoveryRepository
 	invRepo    inventoryRepo.InventoryRepository
 	eventBus   eventbus.EventBus
+	logger     *slog.Logger
 	matcher    engine.IdentityMatcher
 	reconciler engine.FieldReconciler
 }
@@ -50,11 +52,13 @@ func NewDefaultDiscoveryUseCase(
 	discRepo repository.DiscoveryRepository,
 	invRepo inventoryRepo.InventoryRepository,
 	eventBus eventbus.EventBus,
+	logger *slog.Logger,
 ) *DefaultDiscoveryUseCase {
 	return &DefaultDiscoveryUseCase{
 		discRepo:   discRepo,
 		invRepo:    invRepo,
 		eventBus:   eventBus,
+		logger:     logger,
 		matcher:    engine.NewDefaultIdentityMatcher(),
 		reconciler: engine.NewDefaultFieldReconciler(),
 	}
@@ -165,11 +169,15 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 			if norm.IPAddress != "" {
 				if addr, err := netip.ParseAddr(norm.IPAddress); err == nil {
 					createParams.IpAddress = &addr
+				} else if u.logger != nil {
+					u.logger.Warn("invalid IP address in discovery payload", slog.String("value", norm.IPAddress), slog.Any("error", err))
 				}
 			}
 			if norm.MACAddress != "" {
 				if hw, err := net.ParseMAC(norm.MACAddress); err == nil {
 					createParams.MacAddress = hw
+				} else if u.logger != nil {
+					u.logger.Warn("invalid MAC address in discovery payload", slog.String("value", norm.MACAddress), slog.Any("error", err))
 				}
 			}
 			if norm.Manufacturer != "" {
@@ -205,11 +213,15 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 			if norm.IPAddress != "" {
 				if addr, err := netip.ParseAddr(norm.IPAddress); err == nil {
 					stageParams.IpAddress = &addr
+				} else if u.logger != nil {
+					u.logger.Warn("invalid IP address in staging payload", slog.String("value", norm.IPAddress), slog.Any("error", err))
 				}
 			}
 			if norm.MACAddress != "" {
 				if hw, err := net.ParseMAC(norm.MACAddress); err == nil {
 					stageParams.MacAddress = hw
+				} else if u.logger != nil {
+					u.logger.Warn("invalid MAC address in staging payload", slog.String("value", norm.MACAddress), slog.Any("error", err))
 				}
 			}
 			staged, stageErr := u.invRepo.CreateStagingDevice(ctx, stageParams)

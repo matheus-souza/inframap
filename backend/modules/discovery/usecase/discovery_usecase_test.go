@@ -180,7 +180,7 @@ func (m *mockInvRepo) ListSubnets(_ context.Context) ([]db.Subnet, error) {
 func TestDiscoveryUseCase_Unit(t *testing.T) {
 	discRepo := newMockDiscRepo()
 	invRepo := newMockInvRepo()
-	uc := usecase.NewDefaultDiscoveryUseCase(discRepo, invRepo, nil)
+	uc := usecase.NewDefaultDiscoveryUseCase(discRepo, invRepo, nil, nil)
 
 	ctx := context.Background()
 

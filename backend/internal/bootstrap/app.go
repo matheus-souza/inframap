@@ -112,7 +112,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 
 	// 7. Initialize Discovery Module
 	discRepo := discrepo.NewPgDiscoveryRepository(pool, nil)
-	discUseCase := discuc.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus)
+	discUseCase := discuc.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, log)
 	discCtrl := discctrl.NewDiscoveryController(discUseCase)
 
 	// 8. Setup Router & Register Endpoints
