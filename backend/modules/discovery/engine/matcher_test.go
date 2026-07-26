@@ -56,13 +56,35 @@ func TestIdentityMatcher_MatchDevice(t *testing.T) {
 		}
 	})
 
-	t.Run("Tier 2: Match by Provider UUID", func(t *testing.T) {
+	t.Run("Tier 2: Match by Provider UUID (String)", func(t *testing.T) {
 		norm := &dto.NormalizedDeviceDTO{
 			ProviderUUID: "100",
 		}
 		res := matcher.MatchDevice(norm, activeDevices)
 		if res.DeviceID == nil || *res.DeviceID != devID1 {
 			t.Errorf("expected match with devID1, got %v", res.DeviceID)
+		}
+		if res.MatchedBy != "provider_uuid" {
+			t.Errorf("expected matchedBy provider_uuid, got %s", res.MatchedBy)
+		}
+	})
+
+	t.Run("Tier 2: Match by Provider UUID (Numeric JSON)", func(t *testing.T) {
+		metaNum, _ := json.Marshal(map[string]interface{}{
+			"proxmox": map[string]interface{}{"vm_id": 100},
+		})
+		devNumID := uuid.New()
+		devicesWithNum := append(activeDevices, db.Device{
+			ID:       devNumID,
+			Hostname: "pve-num-node",
+			Metadata: metaNum,
+		})
+		norm := &dto.NormalizedDeviceDTO{
+			ProviderUUID: "100",
+		}
+		res := matcher.MatchDevice(norm, devicesWithNum)
+		if res.DeviceID == nil {
+			t.Fatal("expected non-nil match for numeric vm_id")
 		}
 		if res.MatchedBy != "provider_uuid" {
 			t.Errorf("expected matchedBy provider_uuid, got %s", res.MatchedBy)

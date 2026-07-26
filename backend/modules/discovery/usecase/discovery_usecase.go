@@ -101,7 +101,17 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 	}
 
 	_ = sanitizeLogInput(source.Name)
-	return u.discRepo.UpdateSourceStatus(ctx, source.ID, "running")
+
+	if _, updateErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "running"); updateErr != nil {
+		return nil, fmt.Errorf("failed to set discovery status to running: %w", updateErr)
+	}
+
+	res, finishErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "idle")
+	if finishErr != nil {
+		return nil, fmt.Errorf("failed to complete discovery run: %w", finishErr)
+	}
+
+	return res, nil
 }
 
 // IngestNormalizedDevice processes a normalized scan observation:

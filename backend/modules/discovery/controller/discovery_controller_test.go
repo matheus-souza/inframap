@@ -56,7 +56,7 @@ func (m *mockDiscoveryUseCase) TriggerRun(_ context.Context, idStr string) (*dto
 	if err != nil {
 		return nil, err
 	}
-	s.LastStatus = "running"
+	s.LastStatus = "idle"
 	return s, nil
 }
 

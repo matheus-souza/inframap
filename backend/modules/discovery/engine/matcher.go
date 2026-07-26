@@ -3,6 +3,7 @@ package engine
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/netip"
 	"strings"
@@ -61,7 +62,7 @@ func (m *DefaultIdentityMatcher) MatchDevice(norm *dto.NormalizedDeviceDTO, acti
 		}
 	}
 
-	// Tier 2: Provider UUID match
+	// Tier 2: Provider UUID match (accepts string or numeric JSON values)
 	if normProviderUUID != "" {
 		for i := range activeDevices {
 			dev := &activeDevices[i]
@@ -111,13 +112,13 @@ func (m *DefaultIdentityMatcher) MatchDevice(norm *dto.NormalizedDeviceDTO, acti
 
 func extractProviderUUID(metadata map[string]interface{}) (string, bool) {
 	if proxmox, ok := metadata["proxmox"].(map[string]interface{}); ok {
-		if vmID, exists := proxmox["vm_id"].(string); exists {
-			return vmID, true
+		if val, exists := proxmox["vm_id"]; exists && val != nil {
+			return strings.TrimSpace(fmt.Sprintf("%v", val)), true
 		}
 	}
 	if docker, ok := metadata["docker"].(map[string]interface{}); ok {
-		if containerID, exists := docker["container_id"].(string); exists {
-			return containerID, true
+		if val, exists := docker["container_id"]; exists && val != nil {
+			return strings.TrimSpace(fmt.Sprintf("%v", val)), true
 		}
 	}
 	return "", false

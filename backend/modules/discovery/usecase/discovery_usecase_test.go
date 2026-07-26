@@ -212,7 +212,7 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
-	t.Run("TriggerRun updates status to running", func(t *testing.T) {
+	t.Run("TriggerRun updates status to running then resets to idle", func(t *testing.T) {
 		sources, _ := uc.ListSources(ctx)
 		if len(sources) == 0 {
 			t.Fatal("expected at least 1 source")
@@ -223,8 +223,8 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected nil error on TriggerRun, got %v", err)
 		}
-		if res.LastStatus != "running" {
-			t.Errorf("expected status running, got %s", res.LastStatus)
+		if res.LastStatus != "idle" {
+			t.Errorf("expected status idle upon completion, got %s", res.LastStatus)
 		}
 	})
 

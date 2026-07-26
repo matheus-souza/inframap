@@ -67,15 +67,14 @@ func (r *PgDiscoveryRepository) CreateSource(ctx context.Context, req *dto.Creat
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal discovery config: %w", err)
 		}
-		if r.encryptor != nil {
-			encStr, err := r.encryptor.Encrypt(configBytes)
-			if err != nil {
-				return nil, fmt.Errorf("failed to encrypt discovery config: %w", err)
-			}
-			encryptedConfig = pgtype.Text{String: encStr, Valid: true}
-		} else {
-			encryptedConfig = pgtype.Text{String: string(configBytes), Valid: true}
+		if r.encryptor == nil {
+			return nil, fmt.Errorf("discovery config encryption is required but no encryptor is configured")
 		}
+		encStr, err := r.encryptor.Encrypt(configBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt discovery config: %w", err)
+		}
+		encryptedConfig = pgtype.Text{String: encStr, Valid: true}
 	}
 
 	row, err := r.queries.CreateDiscoverySource(ctx, db.CreateDiscoverySourceParams{
