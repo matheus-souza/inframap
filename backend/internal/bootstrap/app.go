@@ -18,6 +18,10 @@ import (
 	configctrl "github.com/matheussouza/inframap/modules/configuration/controller"
 	configrepo "github.com/matheussouza/inframap/modules/configuration/repository"
 	configuc "github.com/matheussouza/inframap/modules/configuration/usecase"
+	"github.com/matheussouza/inframap/modules/discovery"
+	discctrl "github.com/matheussouza/inframap/modules/discovery/controller"
+	discrepo "github.com/matheussouza/inframap/modules/discovery/repository"
+	discuc "github.com/matheussouza/inframap/modules/discovery/usecase"
 	"github.com/matheussouza/inframap/modules/identity"
 	identityctrl "github.com/matheussouza/inframap/modules/identity/controller"
 	identityrepo "github.com/matheussouza/inframap/modules/identity/repository"
@@ -106,7 +110,12 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	invUseCase := invuc.NewDefaultInventoryUseCase(invRepo, bus, log)
 	invCtrl := invctrl.NewInventoryController(invUseCase)
 
-	// 7. Setup Router & Register Endpoints
+	// 7. Initialize Discovery Module
+	discRepo := discrepo.NewPgDiscoveryRepository(pool, nil)
+	discUseCase := discuc.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, log)
+	discCtrl := discctrl.NewDiscoveryController(discUseCase)
+
+	// 8. Setup Router & Register Endpoints
 	mux := http.NewServeMux()
 
 	// Health endpoint
@@ -126,9 +135,11 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	configuration.RegisterRoutes(mux, setupCtrl)
 	identity.RegisterRoutes(mux, identityCtrl)
 	inventory.RegisterRoutes(mux, invCtrl)
+	discovery.RegisterRoutes(mux, discCtrl)
 
-	// 7. Middleware Stack: RequestID -> SecurityHeaders -> LimitBody -> Recovery -> AuthMiddleware -> Mux
 	validator := &sessionValidatorAdapter{repo: sessionRepo}
+
+	// 9. Middleware Stack: RequestID -> SecurityHeaders -> LimitBody -> Recovery -> AuthMiddleware -> Mux
 	handler := httputil.RequestID(
 		httputil.SecurityHeaders(
 			httputil.LimitBody(
