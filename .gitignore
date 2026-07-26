@@ -31,7 +31,3 @@ node_modules/
 .vscode/
 *.swp
 *.swo
-
-# Local Review Scratch & Analysis Logs
-docs/review/
-.scratch/
