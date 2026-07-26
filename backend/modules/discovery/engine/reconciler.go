@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/netip"
+	"reflect"
 	"strings"
 
 	"github.com/matheussouza/inframap/internal/platform/db"
@@ -38,6 +39,9 @@ func NewDefaultFieldReconciler() *DefaultFieldReconciler {
 
 // Reconcile evaluates field updates using per-field confidence scores and user-lock immunity.
 func (r *DefaultFieldReconciler) Reconcile(existing *db.Device, incoming *dto.NormalizedDeviceDTO, sourceType string) (*db.Device, bool) {
+	if existing == nil || incoming == nil {
+		return existing, false
+	}
 	changed := false
 	updated := *existing
 
@@ -119,17 +123,23 @@ func (r *DefaultFieldReconciler) Reconcile(existing *db.Device, incoming *dto.No
 
 	meta["field_confidence_scores"] = fieldScores
 
-	// Deep-merge additive raw payload metadata
+	// Deep-merge additive raw payload metadata only when keys actually differ
 	if len(incoming.RawPayload) > 0 && sourceType != "" {
 		existingNs, _ := meta[sourceType].(map[string]interface{})
 		if existingNs == nil {
 			existingNs = make(map[string]interface{})
 		}
+		nsChanged := false
 		for k, v := range incoming.RawPayload {
-			existingNs[k] = v
+			if oldV, exists := existingNs[k]; !exists || !reflect.DeepEqual(oldV, v) {
+				existingNs[k] = v
+				nsChanged = true
+			}
 		}
-		meta[sourceType] = existingNs
-		changed = true
+		if nsChanged {
+			meta[sourceType] = existingNs
+			changed = true
+		}
 	}
 
 	if changed {

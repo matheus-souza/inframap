@@ -4,6 +4,7 @@ package engine
 import (
 	"encoding/json"
 	"net"
+	"net/netip"
 	"strings"
 
 	"github.com/google/uuid"
@@ -37,6 +38,10 @@ func NewDefaultIdentityMatcher() *DefaultIdentityMatcher {
 // Priority 4: Hostname + IP Address
 // Priority 5: No Match (returns nil DeviceID)
 func (m *DefaultIdentityMatcher) MatchDevice(norm *dto.NormalizedDeviceDTO, activeDevices []db.Device) MatchResult {
+	if norm == nil {
+		return MatchResult{DeviceID: nil, MatchedBy: ""}
+	}
+
 	normMAC := strings.ToLower(strings.TrimSpace(norm.MACAddress))
 	normSerial := strings.TrimSpace(norm.SerialNumber)
 	normHost := strings.ToLower(strings.TrimSpace(norm.Hostname))
@@ -83,10 +88,19 @@ func (m *DefaultIdentityMatcher) MatchDevice(norm *dto.NormalizedDeviceDTO, acti
 
 	// Tier 4: Hostname + IP Address match
 	if normHost != "" && normIP != "" {
+		normIPAddr, normIPErr := netip.ParseAddr(normIP)
 		for i := range activeDevices {
 			dev := &activeDevices[i]
-			if strings.EqualFold(dev.Hostname, normHost) && dev.IpAddress != nil && dev.IpAddress.String() == normIP {
-				return MatchResult{DeviceID: &dev.ID, MatchedBy: "hostname_ip"}
+			if strings.EqualFold(dev.Hostname, normHost) && dev.IpAddress != nil {
+				ipMatches := false
+				if normIPErr == nil {
+					ipMatches = (*dev.IpAddress == normIPAddr)
+				} else {
+					ipMatches = (dev.IpAddress.String() == normIP)
+				}
+				if ipMatches {
+					return MatchResult{DeviceID: &dev.ID, MatchedBy: "hostname_ip"}
+				}
 			}
 		}
 	}
