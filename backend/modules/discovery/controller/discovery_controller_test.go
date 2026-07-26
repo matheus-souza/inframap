@@ -13,7 +13,7 @@ import (
 	"github.com/matheussouza/inframap/modules/discovery/controller"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 	"github.com/matheussouza/inframap/modules/discovery/repository"
-	inventoryUC "github.com/matheussouza/inframap/modules/inventory/usecase"
+	"github.com/matheussouza/inframap/modules/discovery/usecase"
 )
 
 type mockDiscoveryUseCase struct {
@@ -32,7 +32,7 @@ func (m *mockDiscoveryUseCase) CreateSource(_ context.Context, req *dto.CreateDi
 		return nil, errors.New("internal create error")
 	}
 	if req.Name == "" {
-		return nil, inventoryUC.ErrInvalidInput
+		return nil, usecase.ErrInvalidInput
 	}
 	resp := &dto.DiscoverySourceResponse{
 		ID:         uuid.New(),
@@ -50,7 +50,7 @@ func (m *mockDiscoveryUseCase) GetSourceByID(_ context.Context, idStr string) (*
 	}
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, inventoryUC.ErrInvalidUUID
+		return nil, usecase.ErrInvalidUUID
 	}
 	for _, s := range m.sources {
 		if s.ID == id {
@@ -88,7 +88,7 @@ func (m *mockDiscoveryUseCase) ListRecordsByDevice(_ context.Context, idStr stri
 		return nil, errors.New("internal list records error")
 	}
 	if _, err := uuid.Parse(idStr); err != nil {
-		return nil, inventoryUC.ErrInvalidUUID
+		return nil, usecase.ErrInvalidUUID
 	}
 	return m.records, nil
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 	"github.com/matheussouza/inframap/modules/discovery/repository"
 	"github.com/matheussouza/inframap/modules/discovery/usecase"
-	inventoryUC "github.com/matheussouza/inframap/modules/inventory/usecase"
 )
 
 // DiscoveryController handles HTTP requests for discovery management.
@@ -33,7 +32,7 @@ func (c *DiscoveryController) CreateSource(w http.ResponseWriter, r *http.Reques
 
 	resp, err := c.uc.CreateSource(r.Context(), &req)
 	if err != nil {
-		if errors.Is(err, inventoryUC.ErrInvalidInput) {
+		if errors.Is(err, usecase.ErrInvalidInput) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_INPUT", err.Error(), nil)
 			return
 		}
@@ -49,7 +48,7 @@ func (c *DiscoveryController) GetSourceByID(w http.ResponseWriter, r *http.Reque
 	idStr := r.PathValue("id")
 	resp, err := c.uc.GetSourceByID(r.Context(), idStr)
 	if err != nil {
-		if errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid discovery source UUID format", nil)
 			return
 		}
@@ -83,7 +82,7 @@ func (c *DiscoveryController) TriggerRun(w http.ResponseWriter, r *http.Request)
 	idStr := r.PathValue("id")
 	resp, err := c.uc.TriggerRun(r.Context(), idStr)
 	if err != nil {
-		if errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid discovery source UUID format", nil)
 			return
 		}
@@ -103,7 +102,7 @@ func (c *DiscoveryController) ListRecordsByDevice(w http.ResponseWriter, r *http
 	deviceIDStr := r.PathValue("id")
 	records, err := c.uc.ListRecordsByDevice(r.Context(), deviceIDStr)
 	if err != nil {
-		if errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid device UUID format", nil)
 			return
 		}

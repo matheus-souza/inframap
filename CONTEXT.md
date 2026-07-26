@@ -59,3 +59,4 @@ See [docs/review/LESSONS_LEARNED.md](file:///Users/matheussouza/git/personal/inf
 6. **Paginated Database Queries**: Any database listing operation used for in-memory matching/processing MUST use pagination loops to handle datasets > 1000 items.
 7. **Resilient JSON Type Assertions**: Dynamic JSON metadata unmarshaled into `map[string]interface{}` MUST handle numbers (`float64`) and strings via `fmt.Sprintf("%v", val)`.
 8. **Strict Encryption Enforcement**: Operations requiring secret storage MUST error when encryptors are missing, with NO silent fallback to plaintext.
+9. **Module-Local Sentinel Errors**: Modules MUST NOT import sentinel errors (`ErrInvalidUUID`, `ErrInvalidInput`, etc.) from sibling module `usecase` packages. Shared error types belong in `internal/platform/` or are re-declared locally within each module that needs them.

@@ -86,7 +86,10 @@ func TestFieldReconciler_Reconcile(t *testing.T) {
 			MACAddress: "invalid-mac",
 		}
 
-		updated, _ := reconciler.Reconcile(existing, norm, "unifi")
+		updated, changed := reconciler.Reconcile(existing, norm, "unifi")
+		if changed {
+			t.Error("expected changed = false for invalid IP and MAC formats")
+		}
 		if updated.IpAddress != nil {
 			t.Errorf("expected nil IP for invalid format, got %v", updated.IpAddress)
 		}

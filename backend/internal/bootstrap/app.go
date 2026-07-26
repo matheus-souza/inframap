@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/matheussouza/inframap/internal/platform/crypto"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/internal/platform/httputil"
 	"github.com/matheussouza/inframap/internal/platform/logger"
@@ -43,6 +44,7 @@ type App struct {
 // Config holds bootstrap configuration parameters.
 type Config struct {
 	DatabaseURL string
+	MasterKey   string
 }
 
 type sessionValidatorAdapter struct {
@@ -64,7 +66,10 @@ func NewConfigFromEnv() Config {
 	if dbURL == "" {
 		dbURL = "postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable"
 	}
-	return Config{DatabaseURL: dbURL}
+	return Config{
+		DatabaseURL: dbURL,
+		MasterKey:   os.Getenv("INFRAMAP_MASTER_KEY"),
+	}
 }
 
 // New initializes and wires all application components.
@@ -111,7 +116,17 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	invCtrl := invctrl.NewInventoryController(invUseCase)
 
 	// 7. Initialize Discovery Module
-	discRepo := discrepo.NewPgDiscoveryRepository(pool, nil)
+	var encryptor crypto.Encryptor
+	if cfg.MasterKey != "" {
+		enc, encErr := crypto.NewAESGCMEncryptor(cfg.MasterKey)
+		if encErr != nil {
+			return nil, fmt.Errorf("failed to initialize encryptor: %w", encErr)
+		}
+		encryptor = enc
+	} else {
+		log.Warn("INFRAMAP_MASTER_KEY not set: discovery source config encryption unavailable")
+	}
+	discRepo := discrepo.NewPgDiscoveryRepository(pool, encryptor)
 	discUseCase := discuc.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, log)
 	discCtrl := discctrl.NewDiscoveryController(discUseCase)
 

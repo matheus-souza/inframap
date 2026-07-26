@@ -15,7 +15,6 @@ import (
 	"github.com/matheussouza/inframap/modules/discovery/repository"
 	"github.com/matheussouza/inframap/modules/discovery/usecase"
 	inventoryRepo "github.com/matheussouza/inframap/modules/inventory/repository"
-	inventoryUC "github.com/matheussouza/inframap/modules/inventory/usecase"
 )
 
 type mockDiscRepo struct {
@@ -226,7 +225,7 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 	t.Run("CreateSource Validation Failure", func(t *testing.T) {
 		req := &dto.CreateDiscoverySourceRequest{Name: ""}
 		_, err := uc.CreateSource(ctx, req)
-		if !errors.Is(err, inventoryUC.ErrInvalidInput) {
+		if !errors.Is(err, usecase.ErrInvalidInput) {
 			t.Errorf("expected ErrInvalidInput, got %v", err)
 		}
 	})
@@ -247,7 +246,7 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 	t.Run("GetSourceByID Invalid UUID", func(t *testing.T) {
 		_, err := uc.GetSourceByID(ctx, "invalid-uuid")
-		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID, got %v", err)
 		}
 	})
@@ -425,7 +424,7 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 	t.Run("ListRecordsByDevice Success and Invalid UUID", func(t *testing.T) {
 		_, err := uc.ListRecordsByDevice(ctx, "invalid-uuid")
-		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID, got %v", err)
 		}
 
