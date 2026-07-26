@@ -40,5 +40,16 @@
 - **RFC-013**: Identity, Authentication & RBAC Engine Specification
 - **RFC-014**: Infrastructure Inventory Engine Specification
 - **RFC-015**: Code Coverage & Quality Gate Policy (Patch Coverage >= 85%)
+- **RFC-016**: Automated Discovery & Reconciliation Engine Specification
 
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.
+
+---
+
+## Mandatory Engineering Guidelines (Learned from Code Reviews)
+
+1. **Opaque Error Responses in Controllers**: HTTP handlers MUST return generic, opaque messages to clients (e.g. `"Failed to process request"`) and log root cause details internally (`log.Printf`).
+2. **Clean Concurrency & Graceful Shutdown**: Background workers MUST take `context.Context` for clean termination. Async test assertions using `wg.Wait()` MUST enforce timeouts via `select` with `time.After(2 * time.Second)`.
+3. **Pure Validation & Explicit Normalization**: DTOs MUST separate mutating `Normalize()` (trimming, default values) from pure `Validate()` methods. Input range checks (e.g., `0..100`, valid IP/CIDR/MAC) MUST be executed before domain logic.
+4. **Sanitized Logging & Sentinel Errors**: Dynamic user data in log strings MUST be sanitized (`sanitizeLogInput`). Error wrapping MUST preserve sentinels (`fmt.Errorf("%w: %v", SentinelErr, err)`) for `errors.Is` compatibility.
+5. **Coverage Policy Alignment**: Single exclusion policy MUST be maintained synchronously across `format_coverage.go` and `codecov.yml`, with minimum 85% Patch Coverage enforced on every PR.
