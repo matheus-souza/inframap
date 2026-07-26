@@ -42,6 +42,13 @@ func TestIdentityMatcher_MatchDevice(t *testing.T) {
 		},
 	}
 
+	t.Run("Nil Input Returns No Match", func(t *testing.T) {
+		res := matcher.MatchDevice(nil, activeDevices)
+		if res.DeviceID != nil {
+			t.Errorf("expected nil DeviceID, got %v", res.DeviceID)
+		}
+	})
+
 	t.Run("Tier 1: Match by MAC Address", func(t *testing.T) {
 		norm := &dto.NormalizedDeviceDTO{
 			MACAddress: "AA:BB:CC:11:22:33",
@@ -53,6 +60,16 @@ func TestIdentityMatcher_MatchDevice(t *testing.T) {
 		}
 		if res.MatchedBy != "mac_address" {
 			t.Errorf("expected matchedBy mac_address, got %s", res.MatchedBy)
+		}
+	})
+
+	t.Run("Tier 1: Invalid MAC string ignored", func(t *testing.T) {
+		norm := &dto.NormalizedDeviceDTO{
+			MACAddress: "invalid-mac",
+		}
+		res := matcher.MatchDevice(norm, activeDevices)
+		if res.DeviceID != nil {
+			t.Errorf("expected no match for invalid mac, got %v", res.DeviceID)
 		}
 	})
 
@@ -88,6 +105,21 @@ func TestIdentityMatcher_MatchDevice(t *testing.T) {
 		}
 		if res.MatchedBy != "provider_uuid" {
 			t.Errorf("expected matchedBy provider_uuid, got %s", res.MatchedBy)
+		}
+	})
+
+	t.Run("Tier 2: Docker Provider UUID Match", func(t *testing.T) {
+		metaDocker, _ := json.Marshal(map[string]interface{}{
+			"docker": map[string]interface{}{"container_id": "c12345"},
+		})
+		devDockerID := uuid.New()
+		devs := []db.Device{
+			{ID: devDockerID, Hostname: "doc-container", Metadata: metaDocker},
+		}
+		norm := &dto.NormalizedDeviceDTO{ProviderUUID: "c12345"}
+		res := matcher.MatchDevice(norm, devs)
+		if res.DeviceID == nil || *res.DeviceID != devDockerID {
+			t.Errorf("expected match with devDockerID, got %v", res.DeviceID)
 		}
 	})
 
