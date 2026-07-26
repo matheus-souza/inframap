@@ -114,12 +114,22 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 		return nil, fmt.Errorf("failed to fetch discovery source: %w", err)
 	}
 
-	activeDevices, _, err := u.invRepo.ListDevices(ctx, "", "", 1000, 0, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list active devices: %w", err)
+	var allActive []db.Device
+	offset := int32(0)
+	limit := int32(1000)
+	for {
+		devices, total, fetchErr := u.invRepo.ListDevices(ctx, "", "", limit, offset, false)
+		if fetchErr != nil {
+			return nil, fmt.Errorf("failed to list active devices: %w", fetchErr)
+		}
+		allActive = append(allActive, devices...)
+		if int64(len(allActive)) >= total || len(devices) == 0 {
+			break
+		}
+		offset += limit
 	}
 
-	match := u.matcher.MatchDevice(norm, activeDevices)
+	match := u.matcher.MatchDevice(norm, allActive)
 
 	var targetDeviceID uuid.UUID
 	var matchedBy string
@@ -131,29 +141,40 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 		matchedBy = match.MatchedBy
 
 		existingDB, fetchErr := u.invRepo.GetDeviceByID(ctx, targetDeviceID, false)
-		if fetchErr == nil {
-			reconciledDB, changed := u.reconciler.Reconcile(existingDB, norm, source.Type)
-			if changed {
-				updateParams := db.UpdateDeviceParams{
-					ID:           reconciledDB.ID,
-					Hostname:     reconciledDB.Hostname,
-					IpAddress:    reconciledDB.IpAddress,
-					MacAddress:   reconciledDB.MacAddress,
-					Manufacturer: reconciledDB.Manufacturer,
-					Model:        reconciledDB.Model,
-					SerialNumber: reconciledDB.SerialNumber,
-					DeviceType:   reconciledDB.DeviceType,
-					Status:       reconciledDB.Status,
-					Metadata:     reconciledDB.Metadata,
+		if fetchErr != nil {
+			if u.logger != nil {
+				u.logger.Error("matched device not found in inventory", slog.String("device_id", targetDeviceID.String()), slog.Any("error", fetchErr))
+			}
+			return nil, fmt.Errorf("failed to fetch matched device %s: %w", targetDeviceID, fetchErr)
+		}
+
+		reconciledDB, changed := u.reconciler.Reconcile(existingDB, norm, source.Type)
+		if changed {
+			updateParams := db.UpdateDeviceParams{
+				ID:           reconciledDB.ID,
+				Hostname:     reconciledDB.Hostname,
+				IpAddress:    reconciledDB.IpAddress,
+				MacAddress:   reconciledDB.MacAddress,
+				Manufacturer: reconciledDB.Manufacturer,
+				Model:        reconciledDB.Model,
+				SerialNumber: reconciledDB.SerialNumber,
+				DeviceType:   reconciledDB.DeviceType,
+				Status:       reconciledDB.Status,
+				Metadata:     reconciledDB.Metadata,
+			}
+			_, updateErr := u.invRepo.UpdateDevice(ctx, updateParams)
+			if updateErr != nil {
+				if u.logger != nil {
+					u.logger.Error("failed to update reconciled device", slog.String("device_id", targetDeviceID.String()), slog.Any("error", updateErr))
 				}
-				_, updateErr := u.invRepo.UpdateDevice(ctx, updateParams)
-				if updateErr == nil && u.eventBus != nil {
-					_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.updated", map[string]interface{}{
-						"device_id":   targetDeviceID.String(),
-						"matched_by":  matchedBy,
-						"source_type": source.Type,
-					}))
-				}
+				return nil, fmt.Errorf("failed to update reconciled device %s: %w", targetDeviceID, updateErr)
+			}
+			if u.eventBus != nil {
+				_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.updated", map[string]interface{}{
+					"device_id":   targetDeviceID.String(),
+					"matched_by":  matchedBy,
+					"source_type": source.Type,
+				}))
 			}
 		}
 	} else {
