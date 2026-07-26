@@ -52,7 +52,7 @@ The implementation is solid overall, with strong test coverage across all layers
 
 **Impact**: Dead code that misleads readers into thinking log sanitization is applied.
 
-**Fix**: Remove the dead call. The `sanitizeLogInput` function is retained since it will be used when actual scan logging is implemented in Phase 2.
+**Fix**: Remove the dead call and the now-unused `sanitizeLogInput` function. Re-add when actual scan logging is implemented in Phase 2.
 
 ---
 

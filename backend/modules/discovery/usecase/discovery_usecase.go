@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -293,11 +292,3 @@ func isTrustedProvider(sourceType string) bool {
 	}
 }
 
-func sanitizeLogInput(input string) string {
-	return strings.Map(func(r rune) rune {
-		if r < 0x20 || r == 0x7F {
-			return -1
-		}
-		return r
-	}, input)
-}
