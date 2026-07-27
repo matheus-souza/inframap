@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/modules/topology/dto"
@@ -85,7 +87,10 @@ func (r *PgTopologyRepository) CreateLink(ctx context.Context, req *dto.CreateTo
 func (r *PgTopologyRepository) GetLinkByID(ctx context.Context, id uuid.UUID) (*dto.TopologyLinkResponse, error) {
 	row, err := r.queries.GetTopologyLinkByID(ctx, id)
 	if err != nil {
-		return nil, ErrLinkNotFound
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrLinkNotFound
+		}
+		return nil, fmt.Errorf("failed to get topology link: %w", err)
 	}
 	return mapRowToLinkResponse(row), nil
 }
@@ -173,7 +178,9 @@ func (r *PgTopologyRepository) GetGraphData(ctx context.Context) (*dto.TopologyG
 
 			var nodeMeta map[string]interface{}
 			if len(d.Metadata) > 0 {
-				_ = json.Unmarshal(d.Metadata, &nodeMeta)
+				if err := json.Unmarshal(d.Metadata, &nodeMeta); err != nil {
+					slog.Warn("failed to unmarshal device metadata in graph", "device_id", d.ID, "error", err)
+				}
 			}
 
 			nodes = append(nodes, dto.DeviceNode{
@@ -266,7 +273,9 @@ func mapRowToLinkResponse(row db.TopologyLink) *dto.TopologyLinkResponse {
 
 	var meta map[string]interface{}
 	if len(row.Metadata) > 0 {
-		_ = json.Unmarshal(row.Metadata, &meta)
+		if err := json.Unmarshal(row.Metadata, &meta); err != nil {
+			slog.Warn("failed to unmarshal link metadata", "link_id", row.ID, "error", err)
+		}
 	}
 
 	return &dto.TopologyLinkResponse{

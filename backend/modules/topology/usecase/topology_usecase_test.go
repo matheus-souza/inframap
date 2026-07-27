@@ -13,7 +13,6 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	inventoryRepo "github.com/matheussouza/inframap/modules/inventory/repository"
-	inventoryUC "github.com/matheussouza/inframap/modules/inventory/usecase"
 	"github.com/matheussouza/inframap/modules/topology/dto"
 	topoRepo "github.com/matheussouza/inframap/modules/topology/repository"
 	"github.com/matheussouza/inframap/modules/topology/usecase"
@@ -172,7 +171,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 
 	t.Run("CreateLink Nil Payload", func(t *testing.T) {
 		_, err := uc.CreateLink(ctx, nil)
-		if !errors.Is(err, inventoryUC.ErrInvalidInput) {
+		if !errors.Is(err, usecase.ErrInvalidInput) {
 			t.Errorf("expected ErrInvalidInput, got %v", err)
 		}
 	})
@@ -180,7 +179,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 	t.Run("CreateLink Invalid Device IDs", func(t *testing.T) {
 		req := &dto.CreateTopologyLinkRequest{SourceDeviceID: dev1, TargetDeviceID: dev1}
 		_, err := uc.CreateLink(ctx, req)
-		if !errors.Is(err, inventoryUC.ErrInvalidInput) {
+		if !errors.Is(err, usecase.ErrInvalidInput) {
 			t.Errorf("expected ErrInvalidInput, got %v", err)
 		}
 	})
@@ -222,7 +221,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 		}
 
 		_, err = uc.GetLinkByID(ctx, "invalid-uuid")
-		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID, got %v", err)
 		}
 
@@ -242,12 +241,12 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 		}
 
 		_, err = uc.ListLinks(ctx, "", "invalid-uuid", "", 1, 100)
-		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID for source_device_id, got %v", err)
 		}
 
 		_, err = uc.ListLinks(ctx, "", "", "invalid-uuid", 1, 100)
-		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID for target_device_id, got %v", err)
 		}
 	})
@@ -260,7 +259,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 		}
 
 		err = uc.DeleteLink(ctx, "invalid-uuid")
-		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID, got %v", err)
 		}
 

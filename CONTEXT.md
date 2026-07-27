@@ -42,6 +42,7 @@
 - **RFC-014**: Infrastructure Inventory Engine Specification
 - **RFC-015**: Code Coverage & Quality Gate Policy (Patch Coverage >= 85%)
 - **RFC-016**: Automated Discovery & Reconciliation Engine Specification
+- **RFC-017**: Network Topology & Mapping Engine Specification
 
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.
 
@@ -68,3 +69,5 @@ Guidelines below are continuously updated from internal code reviews, CodeRabbit
 15. **Ordering Subscription & Replay Query in Event Streams**: Streaming HTTP handlers (such as SSE) MUST register client subscription (`Subscribe()`) BEFORE executing past event replay queries (`GetEventsAfter(lastEventID)`). This eliminates race windows where live events emitted during the replay query phase could be dropped.
 16. **Non-Blocking Event Drop Visibility & Safe UUID Construction**: Event message builders MUST handle UUID generation without calling `uuid.Must` (avoiding panic in background EventBus workers). Channel broadcast drops in event gateways MUST log a warning (`slog.Warn`) with event metadata.
 17. **Deterministic Async Test Synchronization**: Unit tests waiting for background goroutines or channel subscriptions MUST use deterministic state polling (e.g. `waitForSubscriber(gw, count, timeout)`) instead of arbitrary fixed `time.Sleep` durations to prevent test flakiness under CI load.
+18. **Explicit HTTP Client Timeout for External Requests**: Any `http.Client` created for external API calls (provider integrations, webhooks, health checks) MUST set an explicit `Timeout` field (e.g. `30 * time.Second`). Omitting it causes the client to hang indefinitely if the target accepts the TCP connection but never responds.
+19. **Error Logging in Non-Critical Provider Fetch Paths**: Provider integration code that fetches optional or per-item data (e.g., Docker `/info`, Proxmox QEMU VMs per node) MUST log errors via `slog.Warn` before continuing. Silent error swallowing hides operational failures that produce incomplete discovery results.

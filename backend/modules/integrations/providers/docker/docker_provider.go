@@ -6,9 +6,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/matheussouza/inframap/internal/platform/sdk"
 )
@@ -103,14 +105,21 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 	infoURL := baseURL.JoinPath("info")
 	// lgtm[go/ssrf] - Target URL is validated by buildClient with strict scheme and host checks
 	infoReq, err := http.NewRequestWithContext(ctx, http.MethodGet, infoURL.String(), nil)
-	if err == nil {
-		if infoResp, err := client.Do(infoReq); err == nil && infoResp.StatusCode == http.StatusOK {
+	if err != nil {
+		slog.Warn("docker: failed to create /info request", "error", err)
+	} else {
+		infoResp, doErr := client.Do(infoReq)
+		if doErr != nil {
+			slog.Warn("docker: failed to fetch /info", "error", doErr)
+		} else {
 			var info struct {
 				Name      string `json:"Name"`
 				OSType    string `json:"OSType"`
 				OSVersion string `json:"OperatingSystem"`
 			}
-			if err := json.NewDecoder(infoResp.Body).Decode(&info); err == nil && info.Name != "" {
+			if decErr := json.NewDecoder(infoResp.Body).Decode(&info); decErr != nil {
+				slog.Warn("docker: failed to decode /info response", "error", decErr)
+			} else if info.Name != "" {
 				devices = append(devices, sdk.NormalizedDevice{
 					Hostname:   info.Name,
 					DeviceType: "server",
@@ -161,7 +170,10 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 	}
 
 	for _, c := range containers {
-		name := c.ID[:12]
+		name := c.ID
+		if len(c.ID) >= 12 {
+			name = c.ID[:12]
+		}
 		if len(c.Names) > 0 {
 			name = strings.TrimPrefix(c.Names[0], "/")
 		}
@@ -216,7 +228,7 @@ func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, *url.UR
 			MinVersion:         tls.VersionTLS12,
 		},
 	}
-	client := &http.Client{Transport: tr}
+	client := &http.Client{Transport: tr, Timeout: 30 * time.Second}
 
 	return client, cleanURL, nil
 }

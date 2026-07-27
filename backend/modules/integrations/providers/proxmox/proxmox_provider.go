@@ -6,9 +6,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/matheussouza/inframap/internal/platform/sdk"
 )
@@ -164,9 +166,14 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 		qemuURL := baseURL.JoinPath("api2/json/nodes", n.Node, "qemu")
 		// lgtm[go/ssrf] - Target URL is validated by buildClient with strict scheme and host checks
 		qemuReq, err := http.NewRequestWithContext(ctx, http.MethodGet, qemuURL.String(), nil)
-		if err == nil {
+		if err != nil {
+			slog.Warn("proxmox: failed to create QEMU request", "node", n.Node, "error", err)
+		} else {
 			qemuReq.Header.Set("Authorization", tokenHeader)
-			if qemuResp, err := client.Do(qemuReq); err == nil {
+			qemuResp, doErr := client.Do(qemuReq)
+			if doErr != nil {
+				slog.Warn("proxmox: failed to fetch QEMU VMs", "node", n.Node, "error", doErr)
+			} else {
 				var vms struct {
 					Data []struct {
 						VMID   int    `json:"vmid"`
@@ -174,7 +181,9 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 						Status string `json:"status"`
 					} `json:"data"`
 				}
-				if err := json.NewDecoder(qemuResp.Body).Decode(&vms); err == nil {
+				if decErr := json.NewDecoder(qemuResp.Body).Decode(&vms); decErr != nil {
+					slog.Warn("proxmox: failed to decode QEMU response", "node", n.Node, "error", decErr)
+				} else {
 					for _, vm := range vms.Data {
 						devices = append(devices, sdk.NormalizedDevice{
 							Hostname:   vm.Name,
@@ -238,7 +247,7 @@ func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, *url.UR
 			MinVersion:         tls.VersionTLS12,
 		},
 	}
-	client := &http.Client{Transport: tr}
+	client := &http.Client{Transport: tr, Timeout: 30 * time.Second}
 	tokenHeader := fmt.Sprintf("PVEAPIToken=%s=%s", tokenID, tokenSecret)
 
 	return client, cleanURL, tokenHeader, nil
