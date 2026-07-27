@@ -166,39 +166,37 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 		qemuURL := baseURL.JoinPath("api2/json/nodes", n.Node, "qemu")
 		// lgtm[go/ssrf] - Target URL is validated by buildClient with strict scheme and host checks
 		qemuReq, err := http.NewRequestWithContext(ctx, http.MethodGet, qemuURL.String(), nil)
-		if err != nil {
-			slog.Warn("proxmox: failed to create QEMU request", "node", n.Node, "error", err)
-		} else {
+		if err == nil {
 			qemuReq.Header.Set("Authorization", tokenHeader)
-			qemuResp, doErr := client.Do(qemuReq)
-			if doErr != nil {
-				slog.Warn("proxmox: failed to fetch QEMU VMs", "node", n.Node, "error", doErr)
-			} else {
-				var vms struct {
-					Data []struct {
-						VMID   int    `json:"vmid"`
-						Name   string `json:"name"`
-						Status string `json:"status"`
-					} `json:"data"`
-				}
-				if decErr := json.NewDecoder(qemuResp.Body).Decode(&vms); decErr != nil {
-					slog.Warn("proxmox: failed to decode QEMU response", "node", n.Node, "error", decErr)
-				} else {
-					for _, vm := range vms.Data {
-						devices = append(devices, sdk.NormalizedDevice{
-							Hostname:   vm.Name,
-							DeviceType: "virtual_machine",
-							Vendor:     "QEMU",
-							Metadata: map[string]interface{}{
-								"proxmox": map[string]interface{}{
-									"vm_id":     vm.VMID,
-									"node":      n.Node,
-									"status":    vm.Status,
-									"type":      "qemu",
-									"node_host": n.Node,
+			qemuResp, err := client.Do(qemuReq)
+			if err == nil {
+				if qemuResp.StatusCode == http.StatusOK {
+					var vms struct {
+						Data []struct {
+							VMID   int    `json:"vmid"`
+							Name   string `json:"name"`
+							Status string `json:"status"`
+						} `json:"data"`
+					}
+					if err := json.NewDecoder(qemuResp.Body).Decode(&vms); err != nil {
+						slog.Warn("proxmox: failed to decode QEMU response", "node", n.Node, "error", err)
+					} else {
+						for _, vm := range vms.Data {
+							devices = append(devices, sdk.NormalizedDevice{
+								Hostname:   vm.Name,
+								DeviceType: "virtual_machine",
+								Vendor:     "QEMU",
+								Metadata: map[string]interface{}{
+									"proxmox": map[string]interface{}{
+										"vm_id":     vm.VMID,
+										"node":      n.Node,
+										"status":    vm.Status,
+										"type":      "qemu",
+										"node_host": n.Node,
+									},
 								},
-							},
-						})
+							})
+						}
 					}
 				}
 				_ = qemuResp.Body.Close()

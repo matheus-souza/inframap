@@ -105,34 +105,32 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 	infoURL := baseURL.JoinPath("info")
 	// lgtm[go/ssrf] - Target URL is validated by buildClient with strict scheme and host checks
 	infoReq, err := http.NewRequestWithContext(ctx, http.MethodGet, infoURL.String(), nil)
-	if err != nil {
-		slog.Warn("docker: failed to create /info request", "error", err)
-	} else {
-		infoResp, doErr := client.Do(infoReq)
-		if doErr != nil {
-			slog.Warn("docker: failed to fetch /info", "error", doErr)
-		} else {
-			var info struct {
-				Name      string `json:"Name"`
-				OSType    string `json:"OSType"`
-				OSVersion string `json:"OperatingSystem"`
-			}
-			if decErr := json.NewDecoder(infoResp.Body).Decode(&info); decErr != nil {
-				slog.Warn("docker: failed to decode /info response", "error", decErr)
-			} else if info.Name != "" {
-				devices = append(devices, sdk.NormalizedDevice{
-					Hostname:   info.Name,
-					DeviceType: "server",
-					Vendor:     "Docker",
-					Model:      "Docker Engine Host",
-					OSName:     info.OSType,
-					OSVersion:  info.OSVersion,
-					Metadata: map[string]interface{}{
-						"docker": map[string]interface{}{
-							"is_host": true,
+	if err == nil {
+		infoResp, err := client.Do(infoReq)
+		if err == nil {
+			if infoResp.StatusCode == http.StatusOK {
+				var info struct {
+					Name      string `json:"Name"`
+					OSType    string `json:"OSType"`
+					OSVersion string `json:"OperatingSystem"`
+				}
+				if err := json.NewDecoder(infoResp.Body).Decode(&info); err != nil {
+					slog.Warn("docker: failed to decode /info response", "error", err)
+				} else if info.Name != "" {
+					devices = append(devices, sdk.NormalizedDevice{
+						Hostname:   info.Name,
+						DeviceType: "server",
+						Vendor:     "Docker",
+						Model:      "Docker Engine Host",
+						OSName:     info.OSType,
+						OSVersion:  info.OSVersion,
+						Metadata: map[string]interface{}{
+							"docker": map[string]interface{}{
+								"is_host": true,
+							},
 						},
-					},
-				})
+					})
+				}
 			}
 			_ = infoResp.Body.Close()
 		}

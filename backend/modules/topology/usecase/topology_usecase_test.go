@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -337,6 +338,35 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 		links, _ := uc.ListLinks(ctx, dto.LinkTypeContainerVeth, "", "", 1, 100)
 		if len(links) == 0 {
 			t.Fatal("expected container_veth link to be inferred")
+		}
+	})
+
+	t.Run("HandleDeviceEvent Infer Link CreateLink Failure Logs Warning", func(t *testing.T) {
+		parentID := uuid.New()
+		childID := uuid.New()
+
+		parentMeta, _ := json.Marshal(map[string]interface{}{
+			"proxmox": map[string]interface{}{"is_host": true},
+		})
+		childMeta, _ := json.Marshal(map[string]interface{}{
+			"proxmox": map[string]interface{}{"vm_id": 999},
+		})
+
+		invRepo.devices = []db.Device{
+			{ID: parentID, Hostname: "pve-fail-host", Metadata: parentMeta},
+			{ID: childID, Hostname: "vm-fail-child", Metadata: childMeta},
+		}
+
+		repo.failCreate = true
+		event := eventbus.NewBaseEvent("device.created", map[string]interface{}{"id": childID.String()})
+		err := uc.HandleDeviceEvent(ctx, event)
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		repo.failCreate = false
+
+		if !strings.Contains(buf.String(), "failed to auto-infer virtual link") {
+			t.Error("expected warning log for failed auto-infer link")
 		}
 	})
 
