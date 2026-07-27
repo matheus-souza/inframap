@@ -208,8 +208,8 @@ func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, string,
 	}
 
 	parsedURL, err := url.Parse(apiURL)
-	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return nil, "", "", fmt.Errorf("invalid api_url format: %s", apiURL)
+	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+		return nil, "", "", fmt.Errorf("invalid api_url format: must start with http:// or https://")
 	}
 	cleanURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 
@@ -219,7 +219,10 @@ func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, string,
 	}
 
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: !verifySSL}, // #nosec G402 - Proxmox homelab self-signed certificates
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: !verifySSL, // #nosec G402
+			MinVersion:         tls.VersionTLS12,
+		},
 	}
 	client := &http.Client{Transport: tr}
 	tokenHeader := fmt.Sprintf("PVEAPIToken=%s=%s", tokenID, tokenSecret)
