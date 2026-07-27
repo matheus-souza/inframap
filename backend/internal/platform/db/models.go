@@ -24,6 +24,16 @@ type AuditLog struct {
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
+type Credential struct {
+	ID            uuid.UUID          `json:"id"`
+	Name          string             `json:"name"`
+	Type          string             `json:"type"`
+	EncryptedData string             `json:"encrypted_data"`
+	Description   pgtype.Text        `json:"description"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Device struct {
 	ID           uuid.UUID          `json:"id"`
 	Hostname     string             `json:"hostname"`
