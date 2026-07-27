@@ -28,15 +28,7 @@ func (m *mockQueries) CreateCredential(_ context.Context, arg db.CreateCredentia
 		m.failNext = false
 		return db.Credential{}, errors.New("db error")
 	}
-	c := db.Credential{
-		ID:            arg.ID,
-		Name:          arg.Name,
-		Type:          arg.Type,
-		EncryptedData: arg.EncryptedData,
-		Description:   arg.Description,
-		CreatedAt:     arg.CreatedAt,
-		UpdatedAt:     arg.UpdatedAt,
-	}
+	c := db.Credential(arg)
 	m.creds[arg.ID] = c
 	return c, nil
 }
