@@ -69,7 +69,8 @@ func (p *Provider) HealthCheck(ctx context.Context, config sdk.ProviderConfig) e
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/_ping", nil)
+	reqURL := baseURL.JoinPath("_ping")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create ping request: %w", err)
 	}
@@ -98,7 +99,8 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 	// 1. Fetch info for host device
 	var devices []sdk.NormalizedDevice
 
-	infoReq, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/info", nil)
+	infoURL := baseURL.JoinPath("info")
+	infoReq, err := http.NewRequestWithContext(ctx, http.MethodGet, infoURL.String(), nil)
 	if err == nil {
 		if infoResp, err := client.Do(infoReq); err == nil && infoResp.StatusCode == http.StatusOK {
 			var info struct {
@@ -126,7 +128,8 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 	}
 
 	// 2. Fetch running containers
-	containersReq, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/containers/json", nil)
+	containersURL := baseURL.JoinPath("containers/json")
+	containersReq, err := http.NewRequestWithContext(ctx, http.MethodGet, containersURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create containers request: %w", err)
 	}
@@ -180,7 +183,7 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 	return devices, nil
 }
 
-func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, string, error) {
+func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, *url.URL, error) {
 	apiURL, err := config.GetString("api_url")
 	if err != nil {
 		apiURL = "http://localhost:2375"
@@ -188,9 +191,12 @@ func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, string,
 
 	parsedURL, err := url.Parse(apiURL)
 	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
-		return nil, "", fmt.Errorf("invalid api_url format: must start with http:// or https://")
+		return nil, nil, fmt.Errorf("invalid api_url format: must start with http:// or https://")
 	}
-	cleanURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+	cleanURL := &url.URL{
+		Scheme: parsedURL.Scheme,
+		Host:   parsedURL.Host,
+	}
 
 	verifySSL := false
 	if v, ok := config["verify_ssl"].(bool); ok {

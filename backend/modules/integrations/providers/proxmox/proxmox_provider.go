@@ -81,7 +81,8 @@ func (p *Provider) HealthCheck(ctx context.Context, config sdk.ProviderConfig) e
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api2/json/version", nil)
+	reqURL := baseURL.JoinPath("api2/json/version")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create health check request: %w", err)
 	}
@@ -109,7 +110,8 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 	}
 
 	// 1. Fetch nodes
-	nodesReq, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api2/json/nodes", nil)
+	nodesURL := baseURL.JoinPath("api2/json/nodes")
+	nodesReq, err := http.NewRequestWithContext(ctx, http.MethodGet, nodesURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create nodes request: %w", err)
 	}
@@ -156,7 +158,8 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 		devices = append(devices, hostDevice)
 
 		// Fetch QEMU VMs for node
-		qemuReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api2/json/nodes/%s/qemu", baseURL, n.Node), nil)
+		qemuURL := baseURL.JoinPath("api2/json/nodes", n.Node, "qemu")
+		qemuReq, err := http.NewRequestWithContext(ctx, http.MethodGet, qemuURL.String(), nil)
 		if err == nil {
 			qemuReq.Header.Set("Authorization", tokenHeader)
 			if qemuResp, err := client.Do(qemuReq); err == nil {
@@ -193,25 +196,28 @@ func (p *Provider) Discover(ctx context.Context, config sdk.ProviderConfig) ([]s
 	return devices, nil
 }
 
-func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, string, string, error) {
+func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, *url.URL, string, error) {
 	apiURL, err := config.GetString("api_url")
 	if err != nil {
-		return nil, "", "", err
+		return nil, nil, "", err
 	}
 	tokenID, err := config.GetString("token_id")
 	if err != nil {
-		return nil, "", "", err
+		return nil, nil, "", err
 	}
 	tokenSecret, err := config.GetString("token_secret")
 	if err != nil {
-		return nil, "", "", err
+		return nil, nil, "", err
 	}
 
 	parsedURL, err := url.Parse(apiURL)
 	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
-		return nil, "", "", fmt.Errorf("invalid api_url format: must start with http:// or https://")
+		return nil, nil, "", fmt.Errorf("invalid api_url format: must start with http:// or https://")
 	}
-	cleanURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+	cleanURL := &url.URL{
+		Scheme: parsedURL.Scheme,
+		Host:   parsedURL.Host,
+	}
 
 	verifySSL := false
 	if v, ok := config["verify_ssl"].(bool); ok {
