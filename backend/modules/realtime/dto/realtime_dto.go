@@ -1,6 +1,8 @@
 // Package dto defines data transfer objects for the Realtime module.
 package dto
 
+import "strings"
+
 // StreamQueryParams holds parsed query parameters for SSE connections.
 type StreamQueryParams struct {
 	LastEventID string `json:"last_event_id,omitempty"`
@@ -9,7 +11,8 @@ type StreamQueryParams struct {
 
 // Normalize sanitizes string fields.
 func (q *StreamQueryParams) Normalize() {
-	// Query params can be trimmed if needed
+	q.LastEventID = strings.TrimSpace(q.LastEventID)
+	q.Token = strings.TrimSpace(q.Token)
 }
 
 // Validate checks parameter validity.

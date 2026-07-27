@@ -59,4 +59,23 @@ func TestGateway(t *testing.T) {
 			t.Error("timeout waiting for EventBus forwarded message")
 		}
 	})
+
+	t.Run("GetEventsAfter Delegates to RingBuffer", func(t *testing.T) {
+		m1 := gateway.EventMessage{ID: "gw-id-1", Event: "e1"}
+		m2 := gateway.EventMessage{ID: "gw-id-2", Event: "e2"}
+		gw.Broadcast(m1)
+		gw.Broadcast(m2)
+
+		replayed := gw.GetEventsAfter("gw-id-1")
+		if len(replayed) != 1 || replayed[0].ID != "gw-id-2" {
+			t.Errorf("expected 1 replayed event gw-id-2, got %v", replayed)
+		}
+	})
+
+	t.Run("Start with Nil EventBus", func(t *testing.T) {
+		nilGw := gateway.NewGateway(nil)
+		if err := nilGw.Start(ctx); err != nil {
+			t.Errorf("expected nil error when starting Gateway with nil bus, got %v", err)
+		}
+	})
 }
