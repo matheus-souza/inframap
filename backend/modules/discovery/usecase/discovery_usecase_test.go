@@ -412,13 +412,14 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		invRepo.failListDevices = false
 
 		// Fail create device
+		trustedSource, _ := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{Name: "ProxmoxTest", Type: "proxmox"})
 		invRepo.failCreateDevice = true
 		normNew := &dto.NormalizedDeviceDTO{
 			Hostname:   "unique-unmatched-host-12345",
 			IPAddress:  "10.254.254.254",
 			DeviceType: "server",
 		}
-		_, err = uc.IngestNormalizedDevice(ctx, srcID, normNew)
+		_, err = uc.IngestNormalizedDevice(ctx, trustedSource.ID, normNew)
 		if err == nil {
 			t.Error("expected error when CreateDevice fails")
 		}
