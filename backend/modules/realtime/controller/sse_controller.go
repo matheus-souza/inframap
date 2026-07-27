@@ -3,6 +3,7 @@ package controller
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -41,7 +42,10 @@ func (c *SSEController) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	defer unsub()
 
 	// Initial connection ack
-	_, _ = fmt.Fprint(w, ": connected\n\n")
+	if _, err := fmt.Fprint(w, ": connected\n\n"); err != nil {
+		slog.Error("failed to write initial SSE ack", "error", err)
+		return
+	}
 	flusher.Flush()
 
 	// 2. Inspect Last-Event-ID for replay
@@ -53,7 +57,10 @@ func (c *SSEController) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	if lastEventID != "" {
 		missedEvents := c.gw.GetEventsAfter(lastEventID)
 		for _, evt := range missedEvents {
-			_, _ = fmt.Fprint(w, evt.FormatSSE())
+			if _, err := fmt.Fprint(w, evt.FormatSSE()); err != nil {
+				slog.Error("failed to write SSE replay event", "error", err, "event_id", evt.ID)
+				return
+			}
 		}
 		if len(missedEvents) > 0 {
 			flusher.Flush()
@@ -68,13 +75,19 @@ func (c *SSEController) StreamEvents(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			_, _ = fmt.Fprint(w, ": ping\n\n")
+			if _, err := fmt.Fprint(w, ": ping\n\n"); err != nil {
+				slog.Error("failed to write SSE heartbeat", "error", err)
+				return
+			}
 			flusher.Flush()
 		case msg, open := <-subChan:
 			if !open {
 				return
 			}
-			_, _ = fmt.Fprint(w, msg.FormatSSE())
+			if _, err := fmt.Fprint(w, msg.FormatSSE()); err != nil {
+				slog.Error("failed to write SSE event message", "error", err, "event_id", msg.ID)
+				return
+			}
 			flusher.Flush()
 		}
 	}
