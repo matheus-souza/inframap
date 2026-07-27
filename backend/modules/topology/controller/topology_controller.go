@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/matheussouza/inframap/internal/platform/httputil"
 	inventoryUC "github.com/matheussouza/inframap/modules/inventory/usecase"
@@ -69,8 +70,9 @@ func (c *TopologyController) ListLinks(w http.ResponseWriter, r *http.Request) {
 	linkType := r.URL.Query().Get("link_type")
 	sourceID := r.URL.Query().Get("source_device_id")
 	targetID := r.URL.Query().Get("target_device_id")
+	page, limit := parsePagination(r)
 
-	links, err := c.useCase.ListLinks(r.Context(), linkType, sourceID, targetID)
+	links, err := c.useCase.ListLinks(r.Context(), linkType, sourceID, targetID, page, limit)
 	if err != nil {
 		if errors.Is(err, inventoryUC.ErrInvalidUUID) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid device UUID format in query parameter", nil)
@@ -81,6 +83,22 @@ func (c *TopologyController) ListLinks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.WriteJSON(w, r, http.StatusOK, links)
+}
+
+func parsePagination(r *http.Request) (int32, int32) {
+	page := int32(1)
+	limit := int32(100)
+	if pStr := r.URL.Query().Get("page"); pStr != "" {
+		if p, err := strconv.ParseInt(pStr, 10, 32); err == nil && p > 0 {
+			page = int32(p)
+		}
+	}
+	if lStr := r.URL.Query().Get("limit"); lStr != "" {
+		if l, err := strconv.ParseInt(lStr, 10, 32); err == nil && l > 0 && l <= 1000 {
+			limit = int32(l)
+		}
+	}
+	return page, limit
 }
 
 // DeleteLink handles DELETE /api/v1/topology/links/{id}

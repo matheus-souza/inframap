@@ -60,7 +60,7 @@ func (m *mockTopoUseCase) GetLinkByID(_ context.Context, idStr string) (*dto.Top
 	return nil, topoRepo.ErrLinkNotFound
 }
 
-func (m *mockTopoUseCase) ListLinks(_ context.Context, _, sourceIDStr, _ string) ([]*dto.TopologyLinkResponse, error) {
+func (m *mockTopoUseCase) ListLinks(_ context.Context, _, sourceIDStr, _ string, _, _ int32) ([]*dto.TopologyLinkResponse, error) {
 	if m.failList {
 		return nil, errors.New("internal list error")
 	}

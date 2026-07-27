@@ -23,7 +23,7 @@ var (
 type TopologyRepository interface {
 	CreateLink(ctx context.Context, req *dto.CreateTopologyLinkRequest) (*dto.TopologyLinkResponse, error)
 	GetLinkByID(ctx context.Context, id uuid.UUID) (*dto.TopologyLinkResponse, error)
-	ListLinks(ctx context.Context, linkType string, sourceDeviceID, targetDeviceID *uuid.UUID) ([]*dto.TopologyLinkResponse, error)
+	ListLinks(ctx context.Context, linkType string, sourceDeviceID, targetDeviceID *uuid.UUID, page, limit int32) ([]*dto.TopologyLinkResponse, error)
 	DeleteLink(ctx context.Context, id uuid.UUID) error
 	GetGraphData(ctx context.Context) (*dto.TopologyGraphResponse, error)
 }
@@ -90,8 +90,16 @@ func (r *PgTopologyRepository) GetLinkByID(ctx context.Context, id uuid.UUID) (*
 	return mapRowToLinkResponse(row), nil
 }
 
-// ListLinks lists topology links filtering by type or device IDs.
-func (r *PgTopologyRepository) ListLinks(ctx context.Context, linkType string, sourceDeviceID, targetDeviceID *uuid.UUID) ([]*dto.TopologyLinkResponse, error) {
+// ListLinks lists topology links filtering by type or device IDs with pagination.
+func (r *PgTopologyRepository) ListLinks(ctx context.Context, linkType string, sourceDeviceID, targetDeviceID *uuid.UUID, page, limit int32) ([]*dto.TopologyLinkResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 1000 {
+		limit = 100
+	}
+	offset := (page - 1) * limit
+
 	var lt pgtype.Text
 	if linkType != "" {
 		lt = pgtype.Text{String: linkType, Valid: true}
@@ -108,6 +116,8 @@ func (r *PgTopologyRepository) ListLinks(ctx context.Context, linkType string, s
 		LinkType:       lt,
 		SourceDeviceID: srcID,
 		TargetDeviceID: tgtID,
+		Limit:          limit,
+		Offset:         offset,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list topology links: %w", err)
@@ -120,88 +130,118 @@ func (r *PgTopologyRepository) ListLinks(ctx context.Context, linkType string, s
 	return result, nil
 }
 
-// DeleteLink removes a topology link by UUID.
+// DeleteLink removes a topology link by UUID and errors if 0 rows were deleted.
 func (r *PgTopologyRepository) DeleteLink(ctx context.Context, id uuid.UUID) error {
-	return r.queries.DeleteTopologyLink(ctx, id)
+	rowsAffected, err := r.queries.DeleteTopologyLink(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete topology link: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrLinkNotFound
+	}
+	return nil
 }
 
-// GetGraphData builds the complete topology graph response.
+// GetGraphData builds the complete topology graph response using paginated queries.
 func (r *PgTopologyRepository) GetGraphData(ctx context.Context) (*dto.TopologyGraphResponse, error) {
-	rows, err := r.queries.ListAllActiveNodesAndLinks(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch active nodes and links: %w", err)
-	}
+	var nodes []dto.DeviceNode
+	var devPage int32 = 1
+	var limit int32 = 1000
 
-	nodesMap := make(map[uuid.UUID]dto.DeviceNode)
-	edgesMap := make(map[uuid.UUID]dto.LinkEdge)
+	// 1. Paginate active devices
+	for {
+		devRows, err := r.queries.ListActiveDevicesForGraph(ctx, db.ListActiveDevicesForGraphParams{
+			Limit:  limit,
+			Offset: (devPage - 1) * limit,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch active devices for graph: %w", err)
+		}
+		if len(devRows) == 0 {
+			break
+		}
 
-	for _, row := range rows {
-		if _, exists := nodesMap[row.DeviceID]; !exists {
+		for _, d := range devRows {
 			ipStr := ""
-			if row.IpAddress != nil {
-				ipStr = row.IpAddress.String()
+			if d.IpAddress != nil {
+				ipStr = d.IpAddress.String()
 			}
 			macStr := ""
-			if len(row.MacAddress) > 0 {
-				macStr = row.MacAddress.String()
+			if len(d.MacAddress) > 0 {
+				macStr = d.MacAddress.String()
 			}
 
 			var nodeMeta map[string]interface{}
-			if len(row.DeviceMetadata) > 0 {
-				_ = json.Unmarshal(row.DeviceMetadata, &nodeMeta)
+			if len(d.Metadata) > 0 {
+				_ = json.Unmarshal(d.Metadata, &nodeMeta)
 			}
 
-			nodesMap[row.DeviceID] = dto.DeviceNode{
-				ID:         row.DeviceID,
-				Hostname:   row.Hostname,
+			nodes = append(nodes, dto.DeviceNode{
+				ID:         d.ID,
+				Hostname:   d.Hostname,
 				IPAddress:  ipStr,
 				MACAddress: macStr,
-				DeviceType: row.DeviceType,
-				Status:     row.Status,
+				DeviceType: d.DeviceType,
+				Status:     d.Status,
 				Metadata:   nodeMeta,
-			}
+			})
 		}
 
-		if row.LinkID.Valid {
-			linkID := row.LinkID.Bytes
-			if _, exists := edgesMap[linkID]; !exists {
-				confFloat, _ := row.ConfidenceScore.Float64Value()
-				var srcIf, tgtIf *uuid.UUID
-				if row.SourceInterfaceID.Valid {
-					id := uuid.UUID(row.SourceInterfaceID.Bytes)
-					srcIf = &id
-				}
-				if row.TargetInterfaceID.Valid {
-					id := uuid.UUID(row.TargetInterfaceID.Bytes)
-					tgtIf = &id
-				}
-
-				edgesMap[linkID] = dto.LinkEdge{
-					ID:                linkID,
-					SourceDeviceID:    row.SourceDeviceID.Bytes,
-					TargetDeviceID:    row.TargetDeviceID.Bytes,
-					SourceInterfaceID: srcIf,
-					TargetInterfaceID: tgtIf,
-					LinkType:          row.LinkType.String,
-					ConfidenceScore:   confFloat.Float64,
-					DiscoveredBy:      row.DiscoveredBy.String,
-				}
-			}
+		if len(devRows) < int(limit) {
+			break
 		}
+		devPage++
 	}
 
-	nodes := make([]dto.DeviceNode, 0, len(nodesMap))
-	for _, n := range nodesMap {
-		nodes = append(nodes, n)
-	}
-	edges := make([]dto.LinkEdge, 0, len(edgesMap))
-	for _, e := range edgesMap {
-		edges = append(edges, e)
+	// 2. Paginate topology links
+	var edges []dto.LinkEdge
+	var linkPage int32 = 1
+
+	for {
+		linkRows, err := r.queries.ListActiveTopologyLinksForGraph(ctx, db.ListActiveTopologyLinksForGraphParams{
+			Limit:  limit,
+			Offset: (linkPage - 1) * limit,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch active topology links for graph: %w", err)
+		}
+		if len(linkRows) == 0 {
+			break
+		}
+
+		for _, l := range linkRows {
+			confFloat, _ := l.ConfidenceScore.Float64Value()
+			var srcIf, tgtIf *uuid.UUID
+			if l.SourceInterfaceID.Valid {
+				id := uuid.UUID(l.SourceInterfaceID.Bytes)
+				srcIf = &id
+			}
+			if l.TargetInterfaceID.Valid {
+				id := uuid.UUID(l.TargetInterfaceID.Bytes)
+				tgtIf = &id
+			}
+
+			edges = append(edges, dto.LinkEdge{
+				ID:                l.ID,
+				SourceDeviceID:    l.SourceDeviceID,
+				TargetDeviceID:    l.TargetDeviceID,
+				SourceInterfaceID: srcIf,
+				TargetInterfaceID: tgtIf,
+				LinkType:          l.LinkType,
+				ConfidenceScore:   confFloat.Float64,
+				DiscoveredBy:      l.DiscoveredBy,
+			})
+		}
+
+		if len(linkRows) < int(limit) {
+			break
+		}
+		linkPage++
 	}
 
 	graphMeta := map[string]interface{}{
-		"total_nodes": len(nodes),
-		"total_edges": len(edges),
+		"total_nodes":  len(nodes),
+		"total_edges":  len(edges),
 		"generated_at": time.Now().Format(time.RFC3339),
 	}
 

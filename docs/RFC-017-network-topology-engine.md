@@ -41,7 +41,7 @@ When domain events (`device.created`, `device.updated`) arrive on the `EventBus`
 ## 4. REST API Specification
 
 ### `GET /api/v1/topology/graph`
-Returns complete network graph containing `nodes` (devices), `edges` (links), `subnets` (groupings), and `metadata`.
+Returns complete network graph containing `nodes` (devices with embedded subnet attributes), `edges` (links), and `metadata`.
 
 ### `GET /api/v1/topology/links`
 Returns list of topology links with optional filtering by `link_type`, `source_device_id`, or `target_device_id`.

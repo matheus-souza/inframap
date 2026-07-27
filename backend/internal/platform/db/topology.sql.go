@@ -74,14 +74,17 @@ func (q *Queries) CreateTopologyLink(ctx context.Context, arg CreateTopologyLink
 	return i, err
 }
 
-const deleteTopologyLink = `-- name: DeleteTopologyLink :exec
+const deleteTopologyLink = `-- name: DeleteTopologyLink :execrows
 DELETE FROM topology_links
 WHERE id = $1
 `
 
-func (q *Queries) DeleteTopologyLink(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteTopologyLink, id)
-	return err
+func (q *Queries) DeleteTopologyLink(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTopologyLink, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getTopologyLinkByID = `-- name: GetTopologyLinkByID :one
@@ -108,66 +111,108 @@ func (q *Queries) GetTopologyLinkByID(ctx context.Context, id uuid.UUID) (Topolo
 	return i, err
 }
 
-const listAllActiveNodesAndLinks = `-- name: ListAllActiveNodesAndLinks :many
+const listActiveDevicesForGraph = `-- name: ListActiveDevicesForGraph :many
 SELECT 
-    d.id AS device_id,
-    d.hostname,
-    d.ip_address,
-    d.mac_address,
-    d.device_type,
-    d.status,
-    d.metadata AS device_metadata,
-    tl.id AS link_id,
-    tl.source_device_id,
-    tl.target_device_id,
-    tl.source_interface_id,
-    tl.target_interface_id,
-    tl.link_type,
-    tl.confidence_score,
-    tl.discovered_by,
-    tl.metadata AS link_metadata
-FROM devices d
-LEFT JOIN topology_links tl ON (d.id = tl.source_device_id OR d.id = tl.target_device_id)
-WHERE d.status != 'deleted'
+    id,
+    hostname,
+    ip_address,
+    mac_address,
+    device_type,
+    status,
+    metadata
+FROM devices
+WHERE status != 'deleted'
+ORDER BY id
+LIMIT $2 OFFSET $1
 `
 
-type ListAllActiveNodesAndLinksRow struct {
-	DeviceID          uuid.UUID        `json:"device_id"`
-	Hostname          string           `json:"hostname"`
-	IpAddress         *netip.Addr      `json:"ip_address"`
-	MacAddress        net.HardwareAddr `json:"mac_address"`
-	DeviceType        string           `json:"device_type"`
-	Status            string           `json:"status"`
-	DeviceMetadata    []byte           `json:"device_metadata"`
-	LinkID            pgtype.UUID      `json:"link_id"`
-	SourceDeviceID    pgtype.UUID      `json:"source_device_id"`
-	TargetDeviceID    pgtype.UUID      `json:"target_device_id"`
-	SourceInterfaceID pgtype.UUID      `json:"source_interface_id"`
-	TargetInterfaceID pgtype.UUID      `json:"target_interface_id"`
-	LinkType          pgtype.Text      `json:"link_type"`
-	ConfidenceScore   pgtype.Numeric   `json:"confidence_score"`
-	DiscoveredBy      pgtype.Text      `json:"discovered_by"`
-	LinkMetadata      []byte           `json:"link_metadata"`
+type ListActiveDevicesForGraphParams struct {
+	Offset int32 `json:"offset"`
+	Limit  int32 `json:"limit"`
 }
 
-func (q *Queries) ListAllActiveNodesAndLinks(ctx context.Context) ([]ListAllActiveNodesAndLinksRow, error) {
-	rows, err := q.db.Query(ctx, listAllActiveNodesAndLinks)
+type ListActiveDevicesForGraphRow struct {
+	ID         uuid.UUID        `json:"id"`
+	Hostname   string           `json:"hostname"`
+	IpAddress  *netip.Addr      `json:"ip_address"`
+	MacAddress net.HardwareAddr `json:"mac_address"`
+	DeviceType string           `json:"device_type"`
+	Status     string           `json:"status"`
+	Metadata   []byte           `json:"metadata"`
+}
+
+func (q *Queries) ListActiveDevicesForGraph(ctx context.Context, arg ListActiveDevicesForGraphParams) ([]ListActiveDevicesForGraphRow, error) {
+	rows, err := q.db.Query(ctx, listActiveDevicesForGraph, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListAllActiveNodesAndLinksRow{}
+	items := []ListActiveDevicesForGraphRow{}
 	for rows.Next() {
-		var i ListAllActiveNodesAndLinksRow
+		var i ListActiveDevicesForGraphRow
 		if err := rows.Scan(
-			&i.DeviceID,
+			&i.ID,
 			&i.Hostname,
 			&i.IpAddress,
 			&i.MacAddress,
 			&i.DeviceType,
 			&i.Status,
-			&i.DeviceMetadata,
-			&i.LinkID,
+			&i.Metadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveTopologyLinksForGraph = `-- name: ListActiveTopologyLinksForGraph :many
+SELECT 
+    id,
+    source_device_id,
+    target_device_id,
+    source_interface_id,
+    target_interface_id,
+    link_type,
+    confidence_score,
+    discovered_by,
+    metadata
+FROM topology_links
+ORDER BY id
+LIMIT $2 OFFSET $1
+`
+
+type ListActiveTopologyLinksForGraphParams struct {
+	Offset int32 `json:"offset"`
+	Limit  int32 `json:"limit"`
+}
+
+type ListActiveTopologyLinksForGraphRow struct {
+	ID                uuid.UUID      `json:"id"`
+	SourceDeviceID    uuid.UUID      `json:"source_device_id"`
+	TargetDeviceID    uuid.UUID      `json:"target_device_id"`
+	SourceInterfaceID pgtype.UUID    `json:"source_interface_id"`
+	TargetInterfaceID pgtype.UUID    `json:"target_interface_id"`
+	LinkType          string         `json:"link_type"`
+	ConfidenceScore   pgtype.Numeric `json:"confidence_score"`
+	DiscoveredBy      string         `json:"discovered_by"`
+	Metadata          []byte         `json:"metadata"`
+}
+
+func (q *Queries) ListActiveTopologyLinksForGraph(ctx context.Context, arg ListActiveTopologyLinksForGraphParams) ([]ListActiveTopologyLinksForGraphRow, error) {
+	rows, err := q.db.Query(ctx, listActiveTopologyLinksForGraph, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveTopologyLinksForGraphRow{}
+	for rows.Next() {
+		var i ListActiveTopologyLinksForGraphRow
+		if err := rows.Scan(
+			&i.ID,
 			&i.SourceDeviceID,
 			&i.TargetDeviceID,
 			&i.SourceInterfaceID,
@@ -175,7 +220,7 @@ func (q *Queries) ListAllActiveNodesAndLinks(ctx context.Context) ([]ListAllActi
 			&i.LinkType,
 			&i.ConfidenceScore,
 			&i.DiscoveredBy,
-			&i.LinkMetadata,
+			&i.Metadata,
 		); err != nil {
 			return nil, err
 		}
@@ -194,16 +239,25 @@ WHERE
     AND ($2::uuid IS NULL OR source_device_id = $2)
     AND ($3::uuid IS NULL OR target_device_id = $3)
 ORDER BY created_at DESC
+LIMIT $5 OFFSET $4
 `
 
 type ListTopologyLinksParams struct {
 	LinkType       pgtype.Text `json:"link_type"`
 	SourceDeviceID pgtype.UUID `json:"source_device_id"`
 	TargetDeviceID pgtype.UUID `json:"target_device_id"`
+	Offset         int32       `json:"offset"`
+	Limit          int32       `json:"limit"`
 }
 
 func (q *Queries) ListTopologyLinks(ctx context.Context, arg ListTopologyLinksParams) ([]TopologyLink, error) {
-	rows, err := q.db.Query(ctx, listTopologyLinks, arg.LinkType, arg.SourceDeviceID, arg.TargetDeviceID)
+	rows, err := q.db.Query(ctx, listTopologyLinks,
+		arg.LinkType,
+		arg.SourceDeviceID,
+		arg.TargetDeviceID,
+		arg.Offset,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

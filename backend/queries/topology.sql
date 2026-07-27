@@ -26,30 +26,38 @@ WHERE
     (sqlc.narg('link_type')::varchar IS NULL OR link_type = sqlc.narg('link_type'))
     AND (sqlc.narg('source_device_id')::uuid IS NULL OR source_device_id = sqlc.narg('source_device_id'))
     AND (sqlc.narg('target_device_id')::uuid IS NULL OR target_device_id = sqlc.narg('target_device_id'))
-ORDER BY created_at DESC;
+ORDER BY created_at DESC
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 
--- name: DeleteTopologyLink :exec
+-- name: DeleteTopologyLink :execrows
 DELETE FROM topology_links
 WHERE id = $1;
 
--- name: ListAllActiveNodesAndLinks :many
+-- name: ListActiveDevicesForGraph :many
 SELECT 
-    d.id AS device_id,
-    d.hostname,
-    d.ip_address,
-    d.mac_address,
-    d.device_type,
-    d.status,
-    d.metadata AS device_metadata,
-    tl.id AS link_id,
-    tl.source_device_id,
-    tl.target_device_id,
-    tl.source_interface_id,
-    tl.target_interface_id,
-    tl.link_type,
-    tl.confidence_score,
-    tl.discovered_by,
-    tl.metadata AS link_metadata
-FROM devices d
-LEFT JOIN topology_links tl ON (d.id = tl.source_device_id OR d.id = tl.target_device_id)
-WHERE d.status != 'deleted';
+    id,
+    hostname,
+    ip_address,
+    mac_address,
+    device_type,
+    status,
+    metadata
+FROM devices
+WHERE status != 'deleted'
+ORDER BY id
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+
+-- name: ListActiveTopologyLinksForGraph :many
+SELECT 
+    id,
+    source_device_id,
+    target_device_id,
+    source_interface_id,
+    target_interface_id,
+    link_type,
+    confidence_score,
+    discovered_by,
+    metadata
+FROM topology_links
+ORDER BY id
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');

@@ -62,7 +62,7 @@ func (m *mockTopoRepo) GetLinkByID(_ context.Context, id uuid.UUID) (*dto.Topolo
 	return l, nil
 }
 
-func (m *mockTopoRepo) ListLinks(_ context.Context, linkType string, _, _ *uuid.UUID) ([]*dto.TopologyLinkResponse, error) {
+func (m *mockTopoRepo) ListLinks(_ context.Context, linkType string, _, _ *uuid.UUID, _, _ int32) ([]*dto.TopologyLinkResponse, error) {
 	res := make([]*dto.TopologyLinkResponse, 0, len(m.links))
 	for _, l := range m.links {
 		if linkType == "" || l.LinkType == linkType {
@@ -208,7 +208,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 	})
 
 	t.Run("GetLinkByID Success & Invalid UUID & NotFound", func(t *testing.T) {
-		links, _ := uc.ListLinks(ctx, "", "", "")
+		links, _ := uc.ListLinks(ctx, "", "", "", 1, 100)
 		if len(links) == 0 {
 			t.Fatal("expected at least 1 link")
 		}
@@ -233,7 +233,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 	})
 
 	t.Run("ListLinks Filters", func(t *testing.T) {
-		links, err := uc.ListLinks(ctx, dto.LinkTypeManual, dev1.String(), dev2.String())
+		links, err := uc.ListLinks(ctx, dto.LinkTypeManual, dev1.String(), dev2.String(), 1, 100)
 		if err != nil {
 			t.Fatalf("expected nil error, got %v", err)
 		}
@@ -241,19 +241,19 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 			t.Errorf("expected matching links")
 		}
 
-		_, err = uc.ListLinks(ctx, "", "invalid-uuid", "")
+		_, err = uc.ListLinks(ctx, "", "invalid-uuid", "", 1, 100)
 		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID for source_device_id, got %v", err)
 		}
 
-		_, err = uc.ListLinks(ctx, "", "", "invalid-uuid")
+		_, err = uc.ListLinks(ctx, "", "", "invalid-uuid", 1, 100)
 		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID for target_device_id, got %v", err)
 		}
 	})
 
 	t.Run("DeleteLink Success & Failures", func(t *testing.T) {
-		links, _ := uc.ListLinks(ctx, "", "", "")
+		links, _ := uc.ListLinks(ctx, "", "", "", 1, 100)
 		err := uc.DeleteLink(ctx, links[0].ID.String())
 		if err != nil {
 			t.Fatalf("expected nil error on DeleteLink, got %v", err)
@@ -304,7 +304,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 			t.Fatalf("expected nil error on HandleDeviceEvent, got %v", err)
 		}
 
-		links, _ := uc.ListLinks(ctx, dto.LinkTypeVirtualHypervisor, "", "")
+		links, _ := uc.ListLinks(ctx, dto.LinkTypeVirtualHypervisor, "", "", 1, 100)
 		if len(links) == 0 {
 			t.Fatal("expected virtual_hypervisor link to be inferred")
 		}
@@ -335,7 +335,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 			t.Fatalf("expected nil error on HandleDeviceEvent, got %v", err)
 		}
 
-		links, _ := uc.ListLinks(ctx, dto.LinkTypeContainerVeth, "", "")
+		links, _ := uc.ListLinks(ctx, dto.LinkTypeContainerVeth, "", "", 1, 100)
 		if len(links) == 0 {
 			t.Fatal("expected container_veth link to be inferred")
 		}

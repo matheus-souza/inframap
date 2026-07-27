@@ -21,7 +21,7 @@ import (
 type TopologyUseCase interface {
 	CreateLink(ctx context.Context, req *dto.CreateTopologyLinkRequest) (*dto.TopologyLinkResponse, error)
 	GetLinkByID(ctx context.Context, idStr string) (*dto.TopologyLinkResponse, error)
-	ListLinks(ctx context.Context, linkType, sourceIDStr, targetIDStr string) ([]*dto.TopologyLinkResponse, error)
+	ListLinks(ctx context.Context, linkType, sourceIDStr, targetIDStr string, page, limit int32) ([]*dto.TopologyLinkResponse, error)
 	DeleteLink(ctx context.Context, idStr string) error
 	GetGraph(ctx context.Context) (*dto.TopologyGraphResponse, error)
 	HandleDeviceEvent(ctx context.Context, event eventbus.DomainEvent) error
@@ -82,8 +82,8 @@ func (u *DefaultTopologyUseCase) GetLinkByID(ctx context.Context, idStr string) 
 	return u.repo.GetLinkByID(ctx, id)
 }
 
-// ListLinks filters links by type or device UUIDs.
-func (u *DefaultTopologyUseCase) ListLinks(ctx context.Context, linkType, sourceIDStr, targetIDStr string) ([]*dto.TopologyLinkResponse, error) {
+// ListLinks filters links by type or device UUIDs with pagination.
+func (u *DefaultTopologyUseCase) ListLinks(ctx context.Context, linkType, sourceIDStr, targetIDStr string, page, limit int32) ([]*dto.TopologyLinkResponse, error) {
 	var srcID, tgtID *uuid.UUID
 	if sourceIDStr != "" {
 		parsedSrc, err := uuid.Parse(sourceIDStr)
@@ -100,7 +100,7 @@ func (u *DefaultTopologyUseCase) ListLinks(ctx context.Context, linkType, source
 		tgtID = &parsedTgt
 	}
 
-	return u.repo.ListLinks(ctx, linkType, srcID, tgtID)
+	return u.repo.ListLinks(ctx, linkType, srcID, tgtID, page, limit)
 }
 
 // DeleteLink removes a topology link by string UUID.
