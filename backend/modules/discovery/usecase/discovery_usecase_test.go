@@ -413,7 +413,12 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 		// Fail create device
 		invRepo.failCreateDevice = true
-		_, err = uc.IngestNormalizedDevice(ctx, srcID, &dto.NormalizedDeviceDTO{Hostname: "new-host"})
+		normNew := &dto.NormalizedDeviceDTO{
+			Hostname:   "unique-unmatched-host-12345",
+			IPAddress:  "10.254.254.254",
+			DeviceType: "server",
+		}
+		_, err = uc.IngestNormalizedDevice(ctx, srcID, normNew)
 		if err == nil {
 			t.Error("expected error when CreateDevice fails")
 		}
