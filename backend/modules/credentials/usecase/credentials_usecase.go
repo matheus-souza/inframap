@@ -4,11 +4,12 @@ package usecase
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/internal/platform/db"
+	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/credentials/dto"
 	"github.com/matheussouza/inframap/modules/credentials/repository"
 )
@@ -54,6 +55,7 @@ func (uc *credentialsUseCase) CreateCredential(ctx context.Context, req dto.Crea
 
 	id, err := uuid.NewV7()
 	if err != nil {
+		slog.Warn("UUIDv7 generation failed, falling back to UUIDv4", "error", err)
 		id = uuid.New()
 	}
 
@@ -77,11 +79,13 @@ func (uc *credentialsUseCase) CreateCredential(ctx context.Context, req dto.Crea
 	res := uc.toResponse(created, "")
 
 	if uc.bus != nil {
-		_ = uc.bus.Publish(ctx, eventbus.NewBaseEvent("credential.created", map[string]interface{}{
+		if err := uc.bus.Publish(ctx, eventbus.NewBaseEvent("credential.created", map[string]interface{}{
 			"credential_id": created.ID.String(),
 			"name":          created.Name,
 			"type":          created.Type,
-		}))
+		})); err != nil {
+			slog.Warn("failed to publish credential.created event", "credential_id", created.ID, "error", err)
+		}
 	}
 
 	return res, nil
@@ -138,9 +142,11 @@ func (uc *credentialsUseCase) DeleteCredential(ctx context.Context, idStr string
 	}
 
 	if uc.bus != nil {
-		_ = uc.bus.Publish(ctx, eventbus.NewBaseEvent("credential.deleted", map[string]interface{}{
+		if err := uc.bus.Publish(ctx, eventbus.NewBaseEvent("credential.deleted", map[string]interface{}{
 			"credential_id": id.String(),
-		}))
+		})); err != nil {
+			slog.Warn("failed to publish credential.deleted event", "credential_id", id, "error", err)
+		}
 	}
 
 	return nil

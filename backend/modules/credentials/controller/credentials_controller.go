@@ -66,7 +66,8 @@ func (c *CredentialsController) CreateCredential(w http.ResponseWriter, r *http.
 	res, err := c.uc.CreateCredential(r.Context(), req)
 	if err != nil {
 		if errors.Is(err, dto.ErrMissingCredentialName) || errors.Is(err, dto.ErrInvalidCredentialType) || errors.Is(err, dto.ErrMissingSecretData) {
-			httputil.WriteError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", err.Error(), nil)
+			slog.Warn("credential creation validation failed", "error", err)
+			httputil.WriteError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", "Invalid credential input", nil)
 			return
 		}
 		slog.Error("failed to create credential", "error", err)
