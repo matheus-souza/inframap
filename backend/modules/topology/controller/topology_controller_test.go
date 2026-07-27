@@ -74,6 +74,9 @@ func (m *mockTopoUseCase) DeleteLink(_ context.Context, idStr string) error {
 	if m.failDelete {
 		return errors.New("internal delete error")
 	}
+	if idStr == "00000000-0000-0000-0000-000000000000" {
+		return topoRepo.ErrLinkNotFound
+	}
 	if _, err := uuid.Parse(idStr); err != nil {
 		return inventoryUC.ErrInvalidUUID
 	}
@@ -268,6 +271,14 @@ func TestTopologyController_Unit(t *testing.T) {
 
 		if recInvalid.Code != http.StatusBadRequest {
 			t.Errorf("expected 400 Bad Request, got %d", recInvalid.Code)
+		}
+
+		reqNotFound := httptest.NewRequest("DELETE", "/api/v1/topology/links/00000000-0000-0000-0000-000000000000", nil)
+		recNotFound := httptest.NewRecorder()
+		mux.ServeHTTP(recNotFound, reqNotFound)
+
+		if recNotFound.Code != http.StatusNotFound {
+			t.Errorf("expected 404 Not Found, got %d", recNotFound.Code)
 		}
 
 		uc.failDelete = true

@@ -59,5 +59,7 @@ SELECT
     discovered_by,
     metadata
 FROM topology_links
+WHERE source_device_id IN (SELECT id FROM devices WHERE status != 'deleted')
+  AND target_device_id IN (SELECT id FROM devices WHERE status != 'deleted')
 ORDER BY id
 LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');

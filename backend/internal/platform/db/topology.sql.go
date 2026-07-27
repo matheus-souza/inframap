@@ -181,6 +181,8 @@ SELECT
     discovered_by,
     metadata
 FROM topology_links
+WHERE source_device_id IN (SELECT id FROM devices WHERE status != 'deleted')
+  AND target_device_id IN (SELECT id FROM devices WHERE status != 'deleted')
 ORDER BY id
 LIMIT $2 OFFSET $1
 `

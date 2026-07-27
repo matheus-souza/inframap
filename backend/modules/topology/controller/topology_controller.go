@@ -109,6 +109,10 @@ func (c *TopologyController) DeleteLink(w http.ResponseWriter, r *http.Request) 
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid link UUID format", nil)
 			return
 		}
+		if errors.Is(err, topoRepo.ErrLinkNotFound) {
+			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Topology link not found", nil)
+			return
+		}
 		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete topology link", nil)
 		return
 	}
