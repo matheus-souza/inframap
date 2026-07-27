@@ -37,6 +37,9 @@ import (
 	dockerprovider "github.com/matheussouza/inframap/modules/integrations/providers/docker"
 	proxmoxprovider "github.com/matheussouza/inframap/modules/integrations/providers/proxmox"
 	integrationsreg "github.com/matheussouza/inframap/modules/integrations/registry"
+	"github.com/matheussouza/inframap/modules/realtime"
+	realtimectrl "github.com/matheussouza/inframap/modules/realtime/controller"
+	realtimegw "github.com/matheussouza/inframap/modules/realtime/gateway"
 	"github.com/matheussouza/inframap/modules/topology"
 	topoctrl "github.com/matheussouza/inframap/modules/topology/controller"
 	toporepo "github.com/matheussouza/inframap/modules/topology/repository"
@@ -175,12 +178,20 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	_ = integRegistry.Register(dockerprovider.NewProvider())
 	integCtrl := integrationsctrl.NewIntegrationsController(integRegistry)
 
+	// Wire Realtime Gateway & SSE Controller
+	rtGateway := realtimegw.NewGateway(bus)
+	if err := rtGateway.Start(ctx); err != nil {
+		return nil, fmt.Errorf("failed to start realtime gateway: %w", err)
+	}
+	rtCtrl := realtimectrl.NewSSEController(rtGateway)
+
 	configuration.RegisterRoutes(mux, setupCtrl)
 	identity.RegisterRoutes(mux, identityCtrl)
 	inventory.RegisterRoutes(mux, invCtrl)
 	discovery.RegisterRoutes(mux, discCtrl)
 	topology.RegisterRoutes(mux, topoCtrl)
 	integrations.RegisterRoutes(mux, integCtrl)
+	realtime.RegisterRoutes(mux, rtCtrl)
 
 	validator := &sessionValidatorAdapter{repo: sessionRepo}
 
