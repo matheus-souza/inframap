@@ -118,6 +118,19 @@ func TestCredentialsController_Unit(t *testing.T) {
 		repo.shouldError = false
 	})
 
+	t.Run("CreateCredential Payload Too Large", func(t *testing.T) {
+		largeSecret := string(bytes.Repeat([]byte("A"), 2<<20))
+		body, _ := json.Marshal(map[string]string{
+			"name": "big", "type": "api_token", "secret_data": largeSecret,
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/credentials", bytes.NewReader(body))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusRequestEntityTooLarge {
+			t.Errorf("expected status 413, got %d", rec.Code)
+		}
+	})
+
 	t.Run("CreateCredential Invalid JSON & Validation Error", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/credentials", bytes.NewReader([]byte("invalid-json")))
 		rec := httptest.NewRecorder()

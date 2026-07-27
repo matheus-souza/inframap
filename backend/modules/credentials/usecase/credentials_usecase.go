@@ -16,7 +16,7 @@ import (
 
 var (
 	// ErrInvalidCredentialID indicates the UUID is invalid or empty.
-	ErrInvalidCredentialID = errors.New("invalid credential id: must be a valid UUIDv7")
+	ErrInvalidCredentialID = errors.New("invalid credential id: must be a valid, non-nil UUID")
 
 	// ErrNilRepository indicates the repository dependency is missing.
 	ErrNilRepository = errors.New("credentials repository is required")

@@ -98,7 +98,7 @@ func TestCredentialsUseCase_Unit(t *testing.T) {
 		res, err := uc.CreateCredential(ctx, dto.CreateCredentialRequest{
 			Name:        "SSH Homelab Key",
 			Type:        "ssh_key",
-			SecretData:  "-----BEGIN RSA PRIVATE KEY-----",
+			SecretData:  "ssh-test-dummy-key-data-not-real",
 			Description: "Main SSH Key",
 		})
 		if err != nil {
@@ -113,7 +113,7 @@ func TestCredentialsUseCase_Unit(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected nil error on GetCredentialByID, got %v", err)
 		}
-		if fetched.SecretData != "-----BEGIN RSA PRIVATE KEY-----" {
+		if fetched.SecretData != "ssh-test-dummy-key-data-not-real" {
 			t.Errorf("expected decrypted secret data, got %s", fetched.SecretData)
 		}
 

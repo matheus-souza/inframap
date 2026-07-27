@@ -108,7 +108,7 @@ func (q *Queries) GetCredentialByID(ctx context.Context, id uuid.UUID) (Credenti
 const listCredentials = `-- name: ListCredentials :many
 SELECT id, name, type, description, created_at, updated_at
 FROM credentials
-ORDER BY created_at DESC
+ORDER BY created_at DESC, id DESC
 LIMIT $1 OFFSET $2
 `
 

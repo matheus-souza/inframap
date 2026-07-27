@@ -3,6 +3,7 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -102,9 +103,16 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		}
 		encryptor = enc
 	} else {
-		log.Warn("INFRAMAP_MASTER_KEY not set: generating fallback dev key (set INFRAMAP_MASTER_KEY in production)")
-		fallbackEnc, _ := crypto.NewAESGCMEncryptor("12345678901234567890123456789012")
-		encryptor = fallbackEnc
+		randomKey := make([]byte, 32)
+		if _, err := rand.Read(randomKey); err != nil {
+			return nil, fmt.Errorf("failed to generate random dev key: %w", err)
+		}
+		enc, encErr := crypto.NewAESGCMEncryptor(string(randomKey))
+		if encErr != nil {
+			return nil, fmt.Errorf("failed to initialize dev encryptor: %w", encErr)
+		}
+		encryptor = enc
+		log.Warn("INFRAMAP_MASTER_KEY not set: using ephemeral random key — encrypted data will NOT survive restarts (set this variable in production)")
 	}
 
 	// 2. Database Connection Pool

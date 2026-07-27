@@ -14,6 +14,8 @@ import (
 	"github.com/matheussouza/inframap/modules/credentials/usecase"
 )
 
+const maxCredentialBodyBytes = 1 << 20 // 1 MiB
+
 // CredentialsController manages HTTP REST requests for secret credentials.
 type CredentialsController struct {
 	uc usecase.UseCase
@@ -57,8 +59,15 @@ func (c *CredentialsController) ListCredentials(w http.ResponseWriter, r *http.R
 
 // CreateCredential handles POST /api/v1/credentials
 func (c *CredentialsController) CreateCredential(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxCredentialBodyBytes)
+
 	var req dto.CreateCredentialRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			httputil.WriteError(w, r, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "Request body exceeds size limit", nil)
+			return
+		}
 		httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_JSON", "Invalid JSON request payload", nil)
 		return
 	}
