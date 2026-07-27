@@ -18,7 +18,9 @@ import (
 )
 
 var (
-	ErrInvalidUUID  = errors.New("invalid UUID format")
+	// ErrInvalidUUID indicates that a provided UUID string is malformed.
+	ErrInvalidUUID = errors.New("invalid UUID format")
+	// ErrInvalidInput indicates that the input payload failed validation.
 	ErrInvalidInput = errors.New("invalid input")
 )
 
