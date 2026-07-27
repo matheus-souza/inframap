@@ -258,6 +258,13 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("TriggerRun Invalid UUID", func(t *testing.T) {
+		_, err := uc.TriggerRun(ctx, "not-a-valid-uuid")
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
+			t.Errorf("expected ErrInvalidUUID, got %v", err)
+		}
+	})
+
 	t.Run("TriggerRun status update failure", func(t *testing.T) {
 		sources, _ := uc.ListSources(ctx)
 		discRepo.failUpdateSourceStatus = true

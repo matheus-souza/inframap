@@ -49,7 +49,7 @@ All active architecture decisions and technical specifications live in `docs/` a
 
 ## Mandatory Engineering Guidelines (Learned from Code Reviews)
 
-See [docs/review/LESSONS_LEARNED.md](file:///Users/matheussouza/git/personal/inframap/docs/review/LESSONS_LEARNED.md) for full catalog and examples.
+Guidelines below are continuously updated from internal code reviews, CodeRabbit findings, and peer audits.
 
 1. **Opaque Error Responses in Controllers**: HTTP handlers MUST return generic, opaque messages to clients (e.g. `"Failed to process request"`) and log root cause details internally (`log.Printf` / `slog.Error`).
 2. **Clean Concurrency & Graceful Shutdown**: Background workers MUST take `context.Context` for clean termination. Async test assertions using `wg.Wait()` MUST enforce timeouts via `select` with `time.After(2 * time.Second)`.
@@ -60,3 +60,4 @@ See [docs/review/LESSONS_LEARNED.md](file:///Users/matheussouza/git/personal/inf
 7. **Resilient JSON Type Assertions**: Dynamic JSON metadata unmarshaled into `map[string]interface{}` MUST handle numbers (`float64`) and strings via `fmt.Sprintf("%v", val)`.
 8. **Strict Encryption Enforcement**: Operations requiring secret storage MUST error when encryptors are missing, with NO silent fallback to plaintext.
 9. **Module-Local Sentinel Errors**: Modules MUST NOT import sentinel errors (`ErrInvalidUUID`, `ErrInvalidInput`, etc.) from sibling module `usecase` packages. Shared error types belong in `internal/platform/` or are re-declared locally within each module that needs them.
+10. **Bootstrap Validation Before Resource Allocation**: Configuration validations (encryptor keys, credentials, feature flags) MUST be performed BEFORE allocating resources that require explicit cleanup (database pools, event bus workers). This prevents resource leaks on validation failures.

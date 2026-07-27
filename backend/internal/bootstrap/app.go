@@ -76,7 +76,19 @@ func NewConfigFromEnv() Config {
 func New(ctx context.Context, cfg Config) (*App, error) {
 	log := logger.New()
 
-	// 1. Database Connection Pool
+	// 1. Validate & initialize encryptor (before any resource allocation)
+	var encryptor crypto.Encryptor
+	if cfg.MasterKey != "" {
+		enc, encErr := crypto.NewAESGCMEncryptor(cfg.MasterKey)
+		if encErr != nil {
+			return nil, fmt.Errorf("failed to initialize encryptor: %w", encErr)
+		}
+		encryptor = enc
+	} else {
+		log.Warn("INFRAMAP_MASTER_KEY not set: discovery source config encryption unavailable (set this variable in production)")
+	}
+
+	// 2. Database Connection Pool
 	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid database URL: %w", err)
@@ -91,46 +103,36 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		log.Warn("database ping failed on bootstrap (continuing for offline/testing mode)", slog.Any("error", err))
 	}
 
-	// 2. In-Memory Event Bus
+	// 3. In-Memory Event Bus
 	bus := eventbus.NewInMemoryEventBus(eventbus.DefaultWorkers, 1000)
 
-	// 3. Register Audit Logger Subscriber
+	// 4. Register Audit Logger Subscriber
 	auditSubscriber := audit.NewSubscriber(pool)
 	if err := auditSubscriber.Register(bus); err != nil {
 		return nil, fmt.Errorf("failed to register audit subscriber: %w", err)
 	}
 
-	// 4. Initialize Configuration Module
+	// 5. Initialize Configuration Module
 	setupRepo := configrepo.NewPgSetupRepository(pool)
 	setupUseCase := configuc.NewDefaultSetupUseCase(setupRepo, bus, log)
 	setupCtrl := configctrl.NewSetupController(setupUseCase)
 
-	// 5. Initialize Identity Module
+	// 6. Initialize Identity Module
 	sessionRepo := identityrepo.NewPgSessionRepository(pool)
 	identityUseCase := identityuc.NewDefaultIdentityUseCase(ctx, sessionRepo, bus, log)
 	identityCtrl := identityctrl.NewIdentityController(identityUseCase)
 
-	// 6. Initialize Inventory Module
+	// 7. Initialize Inventory Module
 	invRepo := invrepo.NewPgInventoryRepository(pool)
 	invUseCase := invuc.NewDefaultInventoryUseCase(invRepo, bus, log)
 	invCtrl := invctrl.NewInventoryController(invUseCase)
 
-	// 7. Initialize Discovery Module
-	var encryptor crypto.Encryptor
-	if cfg.MasterKey != "" {
-		enc, encErr := crypto.NewAESGCMEncryptor(cfg.MasterKey)
-		if encErr != nil {
-			return nil, fmt.Errorf("failed to initialize encryptor: %w", encErr)
-		}
-		encryptor = enc
-	} else {
-		log.Warn("INFRAMAP_MASTER_KEY not set: discovery source config encryption unavailable")
-	}
+	// 8. Initialize Discovery Module
 	discRepo := discrepo.NewPgDiscoveryRepository(pool, encryptor)
 	discUseCase := discuc.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, log)
 	discCtrl := discctrl.NewDiscoveryController(discUseCase)
 
-	// 8. Setup Router & Register Endpoints
+	// 9. Setup Router & Register Endpoints
 	mux := http.NewServeMux()
 
 	// Health endpoint
@@ -154,7 +156,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 
 	validator := &sessionValidatorAdapter{repo: sessionRepo}
 
-	// 9. Middleware Stack: RequestID -> SecurityHeaders -> LimitBody -> Recovery -> AuthMiddleware -> Mux
+	// 10. Middleware Stack: RequestID -> SecurityHeaders -> LimitBody -> Recovery -> AuthMiddleware -> Mux
 	handler := httputil.RequestID(
 		httputil.SecurityHeaders(
 			httputil.LimitBody(
