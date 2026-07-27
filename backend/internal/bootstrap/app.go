@@ -32,6 +32,11 @@ import (
 	invctrl "github.com/matheussouza/inframap/modules/inventory/controller"
 	invrepo "github.com/matheussouza/inframap/modules/inventory/repository"
 	invuc "github.com/matheussouza/inframap/modules/inventory/usecase"
+	"github.com/matheussouza/inframap/modules/integrations"
+	integrationsctrl "github.com/matheussouza/inframap/modules/integrations/controller"
+	dockerprovider "github.com/matheussouza/inframap/modules/integrations/providers/docker"
+	proxmoxprovider "github.com/matheussouza/inframap/modules/integrations/providers/proxmox"
+	integrationsreg "github.com/matheussouza/inframap/modules/integrations/registry"
 	"github.com/matheussouza/inframap/modules/topology"
 	topoctrl "github.com/matheussouza/inframap/modules/topology/controller"
 	toporepo "github.com/matheussouza/inframap/modules/topology/repository"
@@ -164,11 +169,18 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		})
 	})
 
+	// Wire Integrations Registry & Native Providers
+	integRegistry := integrationsreg.NewRegistry()
+	_ = integRegistry.Register(proxmoxprovider.NewProvider())
+	_ = integRegistry.Register(dockerprovider.NewProvider())
+	integCtrl := integrationsctrl.NewIntegrationsController(integRegistry)
+
 	configuration.RegisterRoutes(mux, setupCtrl)
 	identity.RegisterRoutes(mux, identityCtrl)
 	inventory.RegisterRoutes(mux, invCtrl)
 	discovery.RegisterRoutes(mux, discCtrl)
 	topology.RegisterRoutes(mux, topoCtrl)
+	integrations.RegisterRoutes(mux, integCtrl)
 
 	validator := &sessionValidatorAdapter{repo: sessionRepo}
 

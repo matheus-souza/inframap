@@ -30,6 +30,9 @@ To maintain the architectural decoupled boundaries specified in [RFC-005](./RFC-
 4. **Fault Isolation & Resilience**
    - Each provider scan executes inside an isolated goroutine protected by a `panic` recovery handler (`recover()`). A failing integration can **never** crash the main application process.
 
+5. **Strict TLS MinVersion & URL Sanitization**
+   - All provider HTTP clients must enforce `tls.Config{MinVersion: tls.VersionTLS12}` and validate target URLs (`http://` or `https://`) to prevent protocol downgrade and SSRF security risks.
+
 ---
 
 # Integration Provider SDK
