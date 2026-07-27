@@ -4,6 +4,7 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -12,9 +13,15 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/inventory/repository"
-	inventoryUC "github.com/matheussouza/inframap/modules/inventory/usecase"
 	"github.com/matheussouza/inframap/modules/topology/dto"
 	topoRepo "github.com/matheussouza/inframap/modules/topology/repository"
+)
+
+var (
+	// ErrInvalidUUID indicates that a provided UUID string is malformed.
+	ErrInvalidUUID = errors.New("invalid UUID format")
+	// ErrInvalidInput indicates that the input payload failed validation.
+	ErrInvalidInput = errors.New("invalid input")
 )
 
 // TopologyUseCase defines the core business operations for network topology.
@@ -56,11 +63,11 @@ func NewDefaultTopologyUseCase(
 // CreateLink normalizes, validates, and inserts a topology link.
 func (u *DefaultTopologyUseCase) CreateLink(ctx context.Context, req *dto.CreateTopologyLinkRequest) (*dto.TopologyLinkResponse, error) {
 	if req == nil {
-		return nil, inventoryUC.ErrInvalidInput
+		return nil, ErrInvalidInput
 	}
 	req.Normalize()
 	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", inventoryUC.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
 
 	link, err := u.repo.CreateLink(ctx, req)
@@ -77,7 +84,7 @@ func (u *DefaultTopologyUseCase) CreateLink(ctx context.Context, req *dto.Create
 func (u *DefaultTopologyUseCase) GetLinkByID(ctx context.Context, idStr string) (*dto.TopologyLinkResponse, error) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, inventoryUC.ErrInvalidUUID
+		return nil, ErrInvalidUUID
 	}
 	return u.repo.GetLinkByID(ctx, id)
 }
@@ -88,14 +95,14 @@ func (u *DefaultTopologyUseCase) ListLinks(ctx context.Context, linkType, source
 	if sourceIDStr != "" {
 		parsedSrc, err := uuid.Parse(sourceIDStr)
 		if err != nil {
-			return nil, inventoryUC.ErrInvalidUUID
+			return nil, ErrInvalidUUID
 		}
 		srcID = &parsedSrc
 	}
 	if targetIDStr != "" {
 		parsedTgt, err := uuid.Parse(targetIDStr)
 		if err != nil {
-			return nil, inventoryUC.ErrInvalidUUID
+			return nil, ErrInvalidUUID
 		}
 		tgtID = &parsedTgt
 	}
@@ -107,7 +114,7 @@ func (u *DefaultTopologyUseCase) ListLinks(ctx context.Context, linkType, source
 func (u *DefaultTopologyUseCase) DeleteLink(ctx context.Context, idStr string) error {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return inventoryUC.ErrInvalidUUID
+		return ErrInvalidUUID
 	}
 	if err := u.repo.DeleteLink(ctx, id); err != nil {
 		u.logger.Error("failed to delete topology link", "id", idStr, "error", err)
@@ -207,7 +214,9 @@ func (u *DefaultTopologyUseCase) inferVirtualLink(ctx context.Context, childDevi
 						},
 					}
 					req.Normalize()
-					if _, err := u.repo.CreateLink(ctx, req); err == nil {
+					if _, err := u.repo.CreateLink(ctx, req); err != nil {
+						u.logger.Warn("failed to auto-infer virtual link", "parent", parent.ID, "child", childDevice.ID, "error", err)
+					} else {
 						u.publishTopologyUpdated(ctx, parent.ID, "inferred", linkType)
 					}
 					return

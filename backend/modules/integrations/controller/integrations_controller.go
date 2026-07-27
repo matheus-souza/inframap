@@ -3,6 +3,7 @@ package controller
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/matheussouza/inframap/internal/platform/httputil"
@@ -54,15 +55,17 @@ func (c *IntegrationsController) TestProviderHealth(w http.ResponseWriter, r *ht
 	}
 	req.Normalize()
 	if err := req.Validate(); err != nil {
-		httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_INPUT", err.Error(), nil)
+		slog.Warn("integration health check validation failed", "provider", id, "error", err)
+		httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_INPUT", "Invalid health check request", nil)
 		return
 	}
 
 	if err := provider.HealthCheck(r.Context(), sdk.ProviderConfig(req.Config)); err != nil {
+		slog.Error("integration provider health check failed", "provider", id, "error", err)
 		httputil.WriteJSON(w, r, http.StatusOK, dto.HealthCheckResponse{
 			ProviderID: id,
 			Status:     "error",
-			Message:    err.Error(),
+			Message:    "Health check failed",
 		})
 		return
 	}

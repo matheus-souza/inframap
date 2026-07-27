@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	inventoryRepo "github.com/matheussouza/inframap/modules/inventory/repository"
-	inventoryUC "github.com/matheussouza/inframap/modules/inventory/usecase"
 	"github.com/matheussouza/inframap/modules/topology/dto"
 	topoRepo "github.com/matheussouza/inframap/modules/topology/repository"
 	"github.com/matheussouza/inframap/modules/topology/usecase"
@@ -172,7 +172,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 
 	t.Run("CreateLink Nil Payload", func(t *testing.T) {
 		_, err := uc.CreateLink(ctx, nil)
-		if !errors.Is(err, inventoryUC.ErrInvalidInput) {
+		if !errors.Is(err, usecase.ErrInvalidInput) {
 			t.Errorf("expected ErrInvalidInput, got %v", err)
 		}
 	})
@@ -180,7 +180,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 	t.Run("CreateLink Invalid Device IDs", func(t *testing.T) {
 		req := &dto.CreateTopologyLinkRequest{SourceDeviceID: dev1, TargetDeviceID: dev1}
 		_, err := uc.CreateLink(ctx, req)
-		if !errors.Is(err, inventoryUC.ErrInvalidInput) {
+		if !errors.Is(err, usecase.ErrInvalidInput) {
 			t.Errorf("expected ErrInvalidInput, got %v", err)
 		}
 	})
@@ -222,7 +222,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 		}
 
 		_, err = uc.GetLinkByID(ctx, "invalid-uuid")
-		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID, got %v", err)
 		}
 
@@ -242,12 +242,12 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 		}
 
 		_, err = uc.ListLinks(ctx, "", "invalid-uuid", "", 1, 100)
-		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID for source_device_id, got %v", err)
 		}
 
 		_, err = uc.ListLinks(ctx, "", "", "invalid-uuid", 1, 100)
-		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID for target_device_id, got %v", err)
 		}
 	})
@@ -260,7 +260,7 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 		}
 
 		err = uc.DeleteLink(ctx, "invalid-uuid")
-		if !errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID, got %v", err)
 		}
 
@@ -338,6 +338,35 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 		links, _ := uc.ListLinks(ctx, dto.LinkTypeContainerVeth, "", "", 1, 100)
 		if len(links) == 0 {
 			t.Fatal("expected container_veth link to be inferred")
+		}
+	})
+
+	t.Run("HandleDeviceEvent Infer Link CreateLink Failure Logs Warning", func(t *testing.T) {
+		parentID := uuid.New()
+		childID := uuid.New()
+
+		parentMeta, _ := json.Marshal(map[string]interface{}{
+			"proxmox": map[string]interface{}{"is_host": true},
+		})
+		childMeta, _ := json.Marshal(map[string]interface{}{
+			"proxmox": map[string]interface{}{"vm_id": 999},
+		})
+
+		invRepo.devices = []db.Device{
+			{ID: parentID, Hostname: "pve-fail-host", Metadata: parentMeta},
+			{ID: childID, Hostname: "vm-fail-child", Metadata: childMeta},
+		}
+
+		repo.failCreate = true
+		event := eventbus.NewBaseEvent("device.created", map[string]interface{}{"id": childID.String()})
+		err := uc.HandleDeviceEvent(ctx, event)
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		repo.failCreate = false
+
+		if !strings.Contains(buf.String(), "failed to auto-infer virtual link") {
+			t.Error("expected warning log for failed auto-infer link")
 		}
 	})
 

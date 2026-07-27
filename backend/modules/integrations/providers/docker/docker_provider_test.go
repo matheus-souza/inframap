@@ -96,6 +96,67 @@ func TestDockerProvider(t *testing.T) {
 		}
 	})
 
+	t.Run("Discover Info Failure and Short Container ID", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/info" {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if r.URL.Path == "/containers/json" {
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode([]map[string]interface{}{
+					{
+						"Id":    "abc",
+						"Names": []string{},
+						"Image": "busybox",
+						"State": "running",
+					},
+				})
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer ts.Close()
+
+		cfg := sdk.ProviderConfig{"api_url": ts.URL}
+		devices, err := provider.Discover(context.Background(), cfg)
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if len(devices) != 1 {
+			t.Fatalf("expected 1 device (container only, no host), got %d", len(devices))
+		}
+		if devices[0].Hostname != "abc" {
+			t.Errorf("expected short ID as hostname, got %s", devices[0].Hostname)
+		}
+	})
+
+	t.Run("Discover Info Invalid JSON", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/info" {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("not-json"))
+				return
+			}
+			if r.URL.Path == "/containers/json" {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("[]"))
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer ts.Close()
+
+		cfg := sdk.ProviderConfig{"api_url": ts.URL}
+		devices, err := provider.Discover(context.Background(), cfg)
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if len(devices) != 0 {
+			t.Errorf("expected 0 devices when /info returns invalid JSON, got %d", len(devices))
+		}
+	})
+
 	t.Run("HealthCheck Non-200 HTTP Status", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)

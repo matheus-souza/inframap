@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"log/slog"
+
 	"github.com/matheussouza/inframap/internal/platform/httputil"
-	inventoryUC "github.com/matheussouza/inframap/modules/inventory/usecase"
 	"github.com/matheussouza/inframap/modules/topology/dto"
 	topoRepo "github.com/matheussouza/inframap/modules/topology/repository"
 	"github.com/matheussouza/inframap/modules/topology/usecase"
@@ -34,8 +35,9 @@ func (c *TopologyController) CreateLink(w http.ResponseWriter, r *http.Request) 
 
 	resp, err := c.useCase.CreateLink(r.Context(), &req)
 	if err != nil {
-		if errors.Is(err, inventoryUC.ErrInvalidInput) {
-			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_INPUT", err.Error(), nil)
+		if errors.Is(err, usecase.ErrInvalidInput) {
+			slog.Warn("topology CreateLink validation failed", "error", err)
+			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_INPUT", "Invalid topology link input", nil)
 			return
 		}
 		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create topology link", nil)
@@ -50,7 +52,7 @@ func (c *TopologyController) GetLinkByID(w http.ResponseWriter, r *http.Request)
 	idStr := r.PathValue("id")
 	resp, err := c.useCase.GetLinkByID(r.Context(), idStr)
 	if err != nil {
-		if errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid link UUID format", nil)
 			return
 		}
@@ -74,7 +76,7 @@ func (c *TopologyController) ListLinks(w http.ResponseWriter, r *http.Request) {
 
 	links, err := c.useCase.ListLinks(r.Context(), linkType, sourceID, targetID, page, limit)
 	if err != nil {
-		if errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid device UUID format in query parameter", nil)
 			return
 		}
@@ -105,7 +107,7 @@ func parsePagination(r *http.Request) (int32, int32) {
 func (c *TopologyController) DeleteLink(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	if err := c.useCase.DeleteLink(r.Context(), idStr); err != nil {
-		if errors.Is(err, inventoryUC.ErrInvalidUUID) {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid link UUID format", nil)
 			return
 		}

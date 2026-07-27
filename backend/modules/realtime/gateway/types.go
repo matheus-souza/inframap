@@ -4,6 +4,7 @@ package gateway
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ func NewEventMessage(event string, data interface{}) EventMessage {
 	id, err := uuid.NewV7()
 	idStr := ""
 	if err != nil {
+		slog.Warn("UUIDv7 generation failed, falling back to UUIDv4", "error", err)
 		idStr = uuid.New().String()
 	} else {
 		idStr = id.String()

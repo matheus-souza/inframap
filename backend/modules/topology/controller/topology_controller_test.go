@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
-	inventoryUC "github.com/matheussouza/inframap/modules/inventory/usecase"
 	"github.com/matheussouza/inframap/modules/topology/controller"
 	"github.com/matheussouza/inframap/modules/topology/dto"
 	topoRepo "github.com/matheussouza/inframap/modules/topology/repository"
+	"github.com/matheussouza/inframap/modules/topology/usecase"
 )
 
 type mockTopoUseCase struct {
@@ -32,7 +32,7 @@ func (m *mockTopoUseCase) CreateLink(_ context.Context, req *dto.CreateTopologyL
 		return nil, errors.New("internal create error")
 	}
 	if req.SourceDeviceID == uuid.Nil || req.TargetDeviceID == uuid.Nil {
-		return nil, inventoryUC.ErrInvalidInput
+		return nil, usecase.ErrInvalidInput
 	}
 	resp := &dto.TopologyLinkResponse{
 		ID:             uuid.New(),
@@ -50,7 +50,7 @@ func (m *mockTopoUseCase) GetLinkByID(_ context.Context, idStr string) (*dto.Top
 	}
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, inventoryUC.ErrInvalidUUID
+		return nil, usecase.ErrInvalidUUID
 	}
 	for _, l := range m.links {
 		if l.ID == id {
@@ -65,7 +65,7 @@ func (m *mockTopoUseCase) ListLinks(_ context.Context, _, sourceIDStr, _ string,
 		return nil, errors.New("internal list error")
 	}
 	if sourceIDStr == "invalid-uuid" {
-		return nil, inventoryUC.ErrInvalidUUID
+		return nil, usecase.ErrInvalidUUID
 	}
 	return m.links, nil
 }
@@ -78,7 +78,7 @@ func (m *mockTopoUseCase) DeleteLink(_ context.Context, idStr string) error {
 		return topoRepo.ErrLinkNotFound
 	}
 	if _, err := uuid.Parse(idStr); err != nil {
-		return inventoryUC.ErrInvalidUUID
+		return usecase.ErrInvalidUUID
 	}
 	return nil
 }

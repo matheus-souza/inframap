@@ -101,6 +101,68 @@ func TestProxmoxProvider(t *testing.T) {
 		}
 	})
 
+	t.Run("Discover QEMU Fetch Failure", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/api2/json/nodes" {
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"data": []map[string]interface{}{
+						{"node": "pve-fail", "status": "online"},
+					},
+				})
+				return
+			}
+			if r.URL.Path == "/api2/json/nodes/pve-fail/qemu" {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer ts.Close()
+
+		cfg := sdk.ProviderConfig{"api_url": ts.URL, "token_id": "a", "token_secret": "b"}
+		devices, err := provider.Discover(context.Background(), cfg)
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if len(devices) != 1 {
+			t.Fatalf("expected 1 device (host only, no VMs), got %d", len(devices))
+		}
+		if devices[0].Hostname != "pve-fail" {
+			t.Errorf("expected hostname pve-fail, got %s", devices[0].Hostname)
+		}
+	})
+
+	t.Run("Discover QEMU Invalid JSON", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/api2/json/nodes" {
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"data": []map[string]interface{}{
+						{"node": "pve-badjson", "status": "online"},
+					},
+				})
+				return
+			}
+			if r.URL.Path == "/api2/json/nodes/pve-badjson/qemu" {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("not-json"))
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer ts.Close()
+
+		cfg := sdk.ProviderConfig{"api_url": ts.URL, "token_id": "a", "token_secret": "b"}
+		devices, err := provider.Discover(context.Background(), cfg)
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if len(devices) != 1 {
+			t.Fatalf("expected 1 device (host only), got %d", len(devices))
+		}
+	})
+
 	t.Run("HealthCheck Non-200 HTTP Status", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
