@@ -13,6 +13,17 @@ import (
 	"github.com/matheussouza/inframap/modules/realtime/gateway"
 )
 
+func waitForSubscriber(gw *gateway.Gateway, expectedCount int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if gw.ActiveSubscribersCount() == expectedCount {
+			return true
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return false
+}
+
 func TestSSEController_StreamEvents(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() {
@@ -36,8 +47,9 @@ func TestSSEController_StreamEvents(t *testing.T) {
 			done <- true
 		}()
 
-		// Give connection time to initialize
-		time.Sleep(50 * time.Millisecond)
+		if !waitForSubscriber(gw, 1, 1*time.Second) {
+			t.Fatal("timeout waiting for subscriber to connect")
+		}
 
 		gw.Broadcast(gateway.EventMessage{
 			ID:    "evt-test-1",
@@ -45,7 +57,7 @@ func TestSSEController_StreamEvents(t *testing.T) {
 			Data:  map[string]string{"link": "created"},
 		})
 
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 		cancel()
 
 		select {
@@ -79,7 +91,11 @@ func TestSSEController_StreamEvents(t *testing.T) {
 			done <- true
 		}()
 
-		time.Sleep(50 * time.Millisecond)
+		if !waitForSubscriber(gw, 1, 1*time.Second) {
+			t.Fatal("timeout waiting for subscriber to connect")
+		}
+
+		time.Sleep(20 * time.Millisecond)
 		cancel()
 
 		select {

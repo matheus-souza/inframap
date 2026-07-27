@@ -40,6 +40,7 @@ func (rb *RingBuffer) Add(msg EventMessage) {
 }
 
 // GetEventsAfter returns all events added after the specified lastEventID.
+// If lastEventID is not found (evicted), returns all currently buffered events (best effort).
 func (rb *RingBuffer) GetEventsAfter(lastEventID string) []EventMessage {
 	if lastEventID == "" {
 		return nil
@@ -62,14 +63,19 @@ func (rb *RingBuffer) GetEventsAfter(lastEventID string) []EventMessage {
 		}
 	}
 
-	if foundIdx == -1 || foundIdx == rb.count-1 {
+	if foundIdx == rb.count-1 {
 		return nil
 	}
 
-	replayCount := rb.count - 1 - foundIdx
+	startFrom := 0
+	if foundIdx != -1 {
+		startFrom = foundIdx + 1
+	}
+
+	replayCount := rb.count - startFrom
 	result := make([]EventMessage, 0, replayCount)
 
-	for i := foundIdx + 1; i < rb.count; i++ {
+	for i := startFrom; i < rb.count; i++ {
 		idx := (startIndex + i) % rb.capacity
 		result = append(result, rb.events[idx])
 	}

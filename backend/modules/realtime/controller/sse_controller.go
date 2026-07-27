@@ -36,7 +36,15 @@ func (c *SSEController) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	// 1. Inspect Last-Event-ID for replay
+	// 1. Register subscription FIRST to prevent missing concurrent live events during replay query
+	subChan, unsub := c.gw.Subscribe()
+	defer unsub()
+
+	// Initial connection ack
+	_, _ = fmt.Fprint(w, ": connected\n\n")
+	flusher.Flush()
+
+	// 2. Inspect Last-Event-ID for replay
 	lastEventID := r.Header.Get("Last-Event-ID")
 	if lastEventID == "" {
 		lastEventID = r.URL.Query().Get("last_event_id")
@@ -52,16 +60,8 @@ func (c *SSEController) StreamEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 2. Subscribe to live events
-	subChan, unsub := c.gw.Subscribe()
-	defer unsub()
-
 	ticker := time.NewTicker(DefaultHeartbeatInterval)
 	defer ticker.Stop()
-
-	// Initial connection ack
-	_, _ = fmt.Fprint(w, ": connected\n\n")
-	flusher.Flush()
 
 	for {
 		select {

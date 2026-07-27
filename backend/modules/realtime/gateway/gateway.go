@@ -2,10 +2,14 @@ package gateway
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 )
+
+// DefaultSubscriberChannelCapacity is the default buffer size for subscriber channels.
+const DefaultSubscriberChannelCapacity = 50
 
 // Gateway manages real-time EventBus subscriptions and client SSE connections.
 type Gateway struct {
@@ -54,7 +58,7 @@ func (g *Gateway) Start(_ context.Context) error {
 
 // Subscribe registers a new client subscriber channel.
 func (g *Gateway) Subscribe() (chan EventMessage, func()) {
-	ch := make(chan EventMessage, 50)
+	ch := make(chan EventMessage, DefaultSubscriberChannelCapacity)
 
 	g.mu.Lock()
 	g.subscribers[ch] = true
@@ -83,7 +87,7 @@ func (g *Gateway) Broadcast(msg EventMessage) {
 		select {
 		case ch <- msg:
 		default:
-			// Non-blocking drop if subscriber channel is full
+			slog.Warn("subscriber channel full: SSE event dropped", "event_id", msg.ID, "event_type", msg.Event)
 		}
 	}
 }

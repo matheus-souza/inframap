@@ -35,7 +35,15 @@ func TestRegisterRoutes(t *testing.T) {
 		done <- true
 	}()
 
-	time.Sleep(50 * time.Millisecond)
+	// Wait for active subscriber deterministically
+	deadline := time.Now().Add(1 * time.Second)
+	for time.Now().Before(deadline) {
+		if gw.ActiveSubscribersCount() == 1 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
 	cancel()
 
 	select {

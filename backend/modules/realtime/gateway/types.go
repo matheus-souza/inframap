@@ -19,8 +19,16 @@ type EventMessage struct {
 
 // NewEventMessage constructs a new EventMessage with a time-ordered UUIDv7 ID.
 func NewEventMessage(event string, data interface{}) EventMessage {
+	id, err := uuid.NewV7()
+	idStr := ""
+	if err != nil {
+		idStr = uuid.New().String()
+	} else {
+		idStr = id.String()
+	}
+
 	return EventMessage{
-		ID:        uuid.Must(uuid.NewV7()).String(),
+		ID:        idStr,
 		Event:     event,
 		Data:      data,
 		Timestamp: time.Now().UTC(),
