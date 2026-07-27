@@ -51,7 +51,19 @@ func TestCreateTopologyLinkRequest_NormalizeAndValidate(t *testing.T) {
 		}
 		req.Normalize()
 		if *req.ConfidenceScore != 0.90 {
-			t.Errorf("expected confidence 0.90, got %f", *req.ConfidenceScore)
+			t.Errorf("expected 0.90 confidence score, got %f", *req.ConfidenceScore)
+		}
+	})
+
+	t.Run("Layer3 Routed Default Confidence Score", func(t *testing.T) {
+		req := &dto.CreateTopologyLinkRequest{
+			SourceDeviceID: dev1,
+			TargetDeviceID: dev2,
+			LinkType:       dto.LinkTypeLayer3Routed,
+		}
+		req.Normalize()
+		if *req.ConfidenceScore != 0.85 {
+			t.Errorf("expected 0.85 confidence score, got %f", *req.ConfidenceScore)
 		}
 	})
 
