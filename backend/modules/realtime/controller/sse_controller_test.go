@@ -157,13 +157,13 @@ func TestSSEController_StreamEvents(t *testing.T) {
 		}
 	})
 
-	t.Run("Initial Write Failure Returns Immediately", func(t *testing.T) {
+	t.Run("Initial Write Failure Returns Immediately", func(_ *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/events/stream", nil)
 		failingWriter := &failingResponseWriter{rec: httptest.NewRecorder(), failOnInit: true}
 		mux.ServeHTTP(failingWriter, req)
 	})
 
-	t.Run("Replay Write Failure Returns Immediately", func(t *testing.T) {
+	t.Run("Replay Write Failure Returns Immediately", func(_ *testing.T) {
 		m1 := gateway.EventMessage{ID: "rfail-100", Event: "e1"}
 		m2 := gateway.EventMessage{ID: "rfail-101", Event: "e2"}
 		gw.Broadcast(m1)
