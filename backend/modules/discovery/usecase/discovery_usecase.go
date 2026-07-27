@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -19,10 +18,15 @@ import (
 	"github.com/matheussouza/inframap/modules/discovery/engine"
 	"github.com/matheussouza/inframap/modules/discovery/repository"
 	inventoryRepo "github.com/matheussouza/inframap/modules/inventory/repository"
-	inventoryUC "github.com/matheussouza/inframap/modules/inventory/usecase"
 )
 
 var (
+	// ErrInvalidUUID indicates a malformed UUID string.
+	ErrInvalidUUID = errors.New("invalid resource UUID format")
+
+	// ErrInvalidInput indicates malformed user input.
+	ErrInvalidInput = errors.New("invalid input")
+
 	// ErrInvalidPayload indicates that the raw discovery payload is malformed.
 	ErrInvalidPayload = errors.New("invalid discovery payload format")
 )
@@ -68,7 +72,7 @@ func NewDefaultDiscoveryUseCase(
 func (u *DefaultDiscoveryUseCase) CreateSource(ctx context.Context, req *dto.CreateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
 	req.Normalize()
 	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", inventoryUC.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
 
 	return u.discRepo.CreateSource(ctx, req)
@@ -78,7 +82,7 @@ func (u *DefaultDiscoveryUseCase) CreateSource(ctx context.Context, req *dto.Cre
 func (u *DefaultDiscoveryUseCase) GetSourceByID(ctx context.Context, idStr string) (*dto.DiscoverySourceResponse, error) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, inventoryUC.ErrInvalidUUID
+		return nil, ErrInvalidUUID
 	}
 	return u.discRepo.GetSourceByID(ctx, id)
 }
@@ -92,15 +96,13 @@ func (u *DefaultDiscoveryUseCase) ListSources(ctx context.Context) ([]*dto.Disco
 func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) (*dto.DiscoverySourceResponse, error) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, inventoryUC.ErrInvalidUUID
+		return nil, ErrInvalidUUID
 	}
 
 	source, err := u.discRepo.GetSourceByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-
-	_ = sanitizeLogInput(source.Name)
 
 	if _, updateErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "running"); updateErr != nil {
 		return nil, fmt.Errorf("failed to set discovery status to running: %w", updateErr)
@@ -276,7 +278,7 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 func (u *DefaultDiscoveryUseCase) ListRecordsByDevice(ctx context.Context, deviceIDStr string) ([]*dto.DiscoveryRecordResponse, error) {
 	deviceID, err := uuid.Parse(deviceIDStr)
 	if err != nil {
-		return nil, inventoryUC.ErrInvalidUUID
+		return nil, ErrInvalidUUID
 	}
 	return u.discRepo.ListRecordsByDevice(ctx, deviceID)
 }
@@ -290,11 +292,3 @@ func isTrustedProvider(sourceType string) bool {
 	}
 }
 
-func sanitizeLogInput(input string) string {
-	return strings.Map(func(r rune) rune {
-		if r < 0x20 || r == 0x7F {
-			return -1
-		}
-		return r
-	}, input)
-}
