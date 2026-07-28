@@ -37,6 +37,8 @@ ignore:
   - "**/mock_*.go"
   - "backend/modules/*/repository/*_repository.go"
   - "frontend/src/wasmJsMain/kotlin/**/Main.kt"
+  - "frontend/src/commonMain/kotlin/**/designsystem/**"
+  - "frontend/src/commonMain/kotlin/**/data/dto/**"
 
 comment:
   layout: "reach, diff, flags, files"
