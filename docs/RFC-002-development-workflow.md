@@ -249,8 +249,18 @@ Additional rules:
 - Merge occurs automatically after all required validations succeed.
 - Automated code review must approve the Pull Request before merge.
 - **Primary Integration Target:** All `feature/*`, `fix/*`, `refactor/*`, `chore/*`, and `docs/*` branches MUST target `develop`.
+- **Required Checks Completeness:** Every CI quality gate job MUST be listed in branch protection required status checks. Adding a new CI job without adding it as a required check is a defect — the job will run but will not block merge on failure.
 
 This allows continuous delivery into the development environment while maintaining quality standards.
+
+### Auto-Merge Token Limitation
+
+The auto-merge workflow uses `GITHUB_TOKEN` (`github.token`). GitHub suppresses workflow runs for events caused by `GITHUB_TOKEN` to prevent infinite loops. This means:
+
+- Pushes to `develop` from auto-merge do **not** trigger CI workflows
+- External tools that need CI reports for the target branch (e.g., Codecov `target: auto`) will have stale baselines
+- The CI workflow includes `workflow_dispatch` for manual baseline refresh when needed
+- For automatic baseline updates, the auto-merge workflow should be migrated to use a GitHub App token or PAT
 
 ---
 

@@ -64,6 +64,15 @@ If any mandatory validation fails, the Pull Request cannot be merged.
 
 There are no exceptions.
 
+### External Tool Consistency
+
+External quality tools that post GitHub status checks (e.g., Codecov, CodeRabbit) may use multiple reporting mechanisms (CheckRun API + commit Status API). When these mechanisms report divergent results, the more lenient one may satisfy a required check while the correct (stricter) one is ignored.
+
+**Mandatory safeguards:**
+- External tools receiving data from multiple CI jobs MUST be configured to wait for all uploads before evaluating (e.g., Codecov `after_n_builds` must equal the number of coverage upload jobs).
+- Every CI quality gate job MUST be listed in branch protection required status checks. A job that is not required will not block merge on failure, regardless of its result.
+- CI workflows MUST include `workflow_dispatch` for manual re-runs when external tool baselines become stale.
+
 ---
 
 # Quality Dimensions
