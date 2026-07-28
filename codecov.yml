@@ -16,6 +16,16 @@ coverage:
       default:
         target: 85%
 
+flags:
+  backend:
+    paths:
+      - backend/
+    carryforward: true
+  frontend:
+    paths:
+      - frontend/src/
+    carryforward: true
+
 ignore:
   - "backend/migrations/**"
   - "backend/internal/platform/db/**"
@@ -26,6 +36,7 @@ ignore:
   - "**/*_mock.go"
   - "**/mock_*.go"
   - "backend/modules/*/repository/*_repository.go"
+  - "frontend/src/wasmJsMain/kotlin/**/Main.kt"
 
 comment:
   layout: "reach, diff, flags, files"
