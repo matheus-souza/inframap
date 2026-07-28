@@ -1,6 +1,6 @@
 # InfraMap Makefile — RFC-010 Compliant
 
-.PHONY: help dev dev-down dev-clean build test test-e2e test-coverage lint verify generate migrate-up migrate-down setup-hooks clean
+.PHONY: help dev dev-down dev-clean build test test-e2e test-coverage lint lint-frontend test-frontend verify generate migrate-up migrate-down setup-hooks clean
 
 DEFAULT_PORT ?= 8055
 MISE := $(shell command -v mise 2> /dev/null)
@@ -59,7 +59,15 @@ migrate-down: ## Rollback last Goose database migration
 	@echo "Rolling back Goose migration..."
 	cd backend && $(GOOSE) -dir migrations postgres "$(DATABASE_URL)" down
 
-verify: generate lint test build ## Execute complete local validation pipeline (matches CI Quality Gates)
+lint-frontend: ## Run ktlint and detekt on frontend Kotlin code
+	@echo "Running frontend lint checks..."
+	cd frontend && ./gradlew ktlintCheck detekt
+
+test-frontend: ## Run frontend tests with coverage verification
+	@echo "Running frontend test suite..."
+	cd frontend && ./gradlew jvmTest koverVerify
+
+verify: generate lint test lint-frontend test-frontend build ## Execute complete local validation pipeline (matches CI Quality Gates)
 	@echo "=========================================="
 	@echo " All Quality Gates Passed Successfully! "
 	@echo "=========================================="
