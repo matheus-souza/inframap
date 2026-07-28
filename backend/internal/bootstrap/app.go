@@ -3,6 +3,7 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -20,6 +21,10 @@ import (
 	configctrl "github.com/matheussouza/inframap/modules/configuration/controller"
 	configrepo "github.com/matheussouza/inframap/modules/configuration/repository"
 	configuc "github.com/matheussouza/inframap/modules/configuration/usecase"
+	"github.com/matheussouza/inframap/modules/credentials"
+	credentialsctrl "github.com/matheussouza/inframap/modules/credentials/controller"
+	credentialsrepo "github.com/matheussouza/inframap/modules/credentials/repository"
+	credentialsuc "github.com/matheussouza/inframap/modules/credentials/usecase"
 	"github.com/matheussouza/inframap/modules/discovery"
 	discctrl "github.com/matheussouza/inframap/modules/discovery/controller"
 	discrepo "github.com/matheussouza/inframap/modules/discovery/repository"
@@ -28,15 +33,15 @@ import (
 	identityctrl "github.com/matheussouza/inframap/modules/identity/controller"
 	identityrepo "github.com/matheussouza/inframap/modules/identity/repository"
 	identityuc "github.com/matheussouza/inframap/modules/identity/usecase"
-	"github.com/matheussouza/inframap/modules/inventory"
-	invctrl "github.com/matheussouza/inframap/modules/inventory/controller"
-	invrepo "github.com/matheussouza/inframap/modules/inventory/repository"
-	invuc "github.com/matheussouza/inframap/modules/inventory/usecase"
 	"github.com/matheussouza/inframap/modules/integrations"
 	integrationsctrl "github.com/matheussouza/inframap/modules/integrations/controller"
 	dockerprovider "github.com/matheussouza/inframap/modules/integrations/providers/docker"
 	proxmoxprovider "github.com/matheussouza/inframap/modules/integrations/providers/proxmox"
 	integrationsreg "github.com/matheussouza/inframap/modules/integrations/registry"
+	"github.com/matheussouza/inframap/modules/inventory"
+	invctrl "github.com/matheussouza/inframap/modules/inventory/controller"
+	invrepo "github.com/matheussouza/inframap/modules/inventory/repository"
+	invuc "github.com/matheussouza/inframap/modules/inventory/usecase"
 	"github.com/matheussouza/inframap/modules/realtime"
 	realtimectrl "github.com/matheussouza/inframap/modules/realtime/controller"
 	realtimegw "github.com/matheussouza/inframap/modules/realtime/gateway"
@@ -98,7 +103,16 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		}
 		encryptor = enc
 	} else {
-		log.Warn("INFRAMAP_MASTER_KEY not set: discovery source config encryption unavailable (set this variable in production)")
+		randomKey := make([]byte, 32)
+		if _, err := rand.Read(randomKey); err != nil {
+			return nil, fmt.Errorf("failed to generate random dev key: %w", err)
+		}
+		enc, encErr := crypto.NewAESGCMEncryptor(string(randomKey))
+		if encErr != nil {
+			return nil, fmt.Errorf("failed to initialize dev encryptor: %w", encErr)
+		}
+		encryptor = enc
+		log.Warn("INFRAMAP_MASTER_KEY not set: using ephemeral random key — encrypted data will NOT survive restarts (set this variable in production)")
 	}
 
 	// 2. Database Connection Pool
@@ -155,7 +169,18 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	_ = bus.Subscribe("device.updated", topoUseCase.HandleDeviceEvent)
 	_ = bus.Subscribe("device.deleted", topoUseCase.HandleDeviceEvent)
 
-	// 10. Setup Router & Register Endpoints
+	// 10. Initialize Credentials Module
+	credRepo, err := credentialsrepo.NewPgxRepository(queries, encryptor)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize credentials repository: %w", err)
+	}
+	credUseCase, err := credentialsuc.NewCredentialsUseCase(credRepo, bus)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize credentials usecase: %w", err)
+	}
+	credCtrl := credentialsctrl.NewCredentialsController(credUseCase)
+
+	// 11. Setup Router & Register Endpoints
 	mux := http.NewServeMux()
 
 	// Health endpoint
@@ -192,10 +217,11 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	topology.RegisterRoutes(mux, topoCtrl)
 	integrations.RegisterRoutes(mux, integCtrl)
 	realtime.RegisterRoutes(mux, rtCtrl)
+	credentials.RegisterRoutes(mux, credCtrl)
 
 	validator := &sessionValidatorAdapter{repo: sessionRepo}
 
-	// 10. Middleware Stack: RequestID -> SecurityHeaders -> LimitBody -> Recovery -> AuthMiddleware -> Mux
+	// Middleware Stack: RequestID -> SecurityHeaders -> LimitBody -> Recovery -> AuthMiddleware -> Mux
 	handler := httputil.RequestID(
 		httputil.SecurityHeaders(
 			httputil.LimitBody(
