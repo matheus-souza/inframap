@@ -133,6 +133,8 @@ kover {
                 classes(
                     "com.inframap.frontend.MainKt",
                     "com.inframap.frontend.ui.splash.SplashScreenKt*",
+                    "com.inframap.frontend.ui.login.LoginScreenKt*",
+                    "com.inframap.frontend.ui.onboarding.OnboardingScreenKt*",
                     "com.inframap.frontend.ui.app.InfraMapAppKt*",
                     "com.inframap.frontend.ui.app.MainScaffoldKt*",
                     "com.inframap.frontend.ui.app.PlaceholderScreenKt*",
