@@ -36,7 +36,8 @@ jobs:
               echo "has_code=false" >> $GITHUB_OUTPUT
             fi
           elif [ "${{ matrix.language }}" = "java-kotlin" ]; then
-            if [ -d "frontend" ] && find frontend -name "*.kt" | grep -q .; then
+            # CodeQL java-kotlin only supports JVM targets, not Kotlin/WASM
+            if find . -name "*.kt" -not -path "*/wasmJs*" -not -path "*/.gradle/*" -not -path "*/build/*" | grep -q .; then
               echo "has_code=true" >> $GITHUB_OUTPUT
             else
               echo "has_code=false" >> $GITHUB_OUTPUT
