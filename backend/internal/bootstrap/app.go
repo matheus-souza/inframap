@@ -61,8 +61,9 @@ type App struct {
 
 // Config holds bootstrap configuration parameters.
 type Config struct {
-	DatabaseURL string
-	MasterKey   string
+	DatabaseURL        string
+	MasterKey          string
+	CORSAllowedOrigins string
 }
 
 type sessionValidatorAdapter struct {
@@ -85,8 +86,9 @@ func NewConfigFromEnv() Config {
 		dbURL = "postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable"
 	}
 	return Config{
-		DatabaseURL: dbURL,
-		MasterKey:   os.Getenv("INFRAMAP_MASTER_KEY"),
+		DatabaseURL:        dbURL,
+		MasterKey:          os.Getenv("INFRAMAP_MASTER_KEY"),
+		CORSAllowedOrigins: os.Getenv("INFRAMAP_CORS_ALLOWED_ORIGINS"),
 	}
 }
 
@@ -221,12 +223,14 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 
 	validator := &sessionValidatorAdapter{repo: sessionRepo}
 
-	// Middleware Stack: RequestID -> SecurityHeaders -> LimitBody -> Recovery -> AuthMiddleware -> Mux
-	handler := httputil.RequestID(
-		httputil.SecurityHeaders(
-			httputil.LimitBody(
-				httputil.Recovery(log)(
-					httputil.AuthMiddleware(validator)(mux),
+	// Middleware Stack: CORS -> RequestID -> SecurityHeaders -> LimitBody -> Recovery -> AuthMiddleware -> Mux
+	handler := httputil.CORS(cfg.CORSAllowedOrigins)(
+		httputil.RequestID(
+			httputil.SecurityHeaders(
+				httputil.LimitBody(
+					httputil.Recovery(log)(
+						httputil.AuthMiddleware(validator)(mux),
+					),
 				),
 			),
 		),
