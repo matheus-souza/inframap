@@ -40,6 +40,10 @@ kotlin {
 
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+
+                implementation("io.ktor:ktor-client-core:3.1.3")
+                implementation("io.ktor:ktor-client-content-negotiation:3.1.3")
+                implementation("io.ktor:ktor-serialization-kotlinx-json:3.1.3")
             }
         }
 
@@ -47,14 +51,23 @@ kotlin {
             dependencies {
                 implementation(kotlin("test"))
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+                implementation("io.ktor:ktor-client-mock:3.1.3")
             }
         }
 
-        val wasmJsMain by getting
+        val wasmJsMain by getting {
+            dependencies {
+                implementation("io.ktor:ktor-client-js:3.1.3")
+            }
+        }
 
         val wasmJsTest by getting
 
-        val jvmMain by getting
+        val jvmMain by getting {
+            dependencies {
+                implementation("io.ktor:ktor-client-cio:3.1.3")
+            }
+        }
 
         val jvmTest by getting {
             dependencies {
@@ -116,6 +129,17 @@ kover {
         filters {
             excludes {
                 classes("com.inframap.frontend.MainKt")
+                packages("com.inframap.frontend.data.dto")
+                classes(
+                    "com.inframap.frontend.designsystem.*",
+                    "com.inframap.frontend.data.api.SuccessEnvelope",
+                    "com.inframap.frontend.data.api.ErrorEnvelope",
+                    "com.inframap.frontend.data.api.Meta",
+                    "com.inframap.frontend.data.api.ErrorBody",
+                    "com.inframap.frontend.data.api.FieldError",
+                )
+                annotatedBy("kotlinx.serialization.Serializable")
+                inheritedFrom("kotlinx.serialization.KSerializer")
             }
         }
 
