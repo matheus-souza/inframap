@@ -39,6 +39,9 @@ ignore:
   - "frontend/src/wasmJsMain/kotlin/**/Main.kt"
   - "frontend/src/commonMain/kotlin/**/designsystem/**"
   - "frontend/src/commonMain/kotlin/**/data/dto/**"
+  - "frontend/src/commonMain/kotlin/**/ui/app/**"
+  - "frontend/src/commonMain/kotlin/**/ui/splash/SplashScreen.kt"
+  - "frontend/src/wasmJsMain/kotlin/**/data/sse/**"
 
 comment:
   layout: "reach, diff, flags, files"

@@ -128,7 +128,15 @@ kover {
     reports {
         filters {
             excludes {
-                classes("com.inframap.frontend.MainKt")
+                classes(
+                    "com.inframap.frontend.MainKt",
+                    "com.inframap.frontend.ui.splash.SplashScreenKt*",
+                    "com.inframap.frontend.ui.app.InfraMapAppKt*",
+                    "com.inframap.frontend.ui.app.MainScaffoldKt*",
+                    "com.inframap.frontend.ui.app.PlaceholderScreenKt*",
+                    "com.inframap.frontend.ui.app.NavItem",
+                    "com.inframap.frontend.ui.app.ComposableSingletons*",
+                )
                 packages("com.inframap.frontend.data.dto")
                 classes(
                     "com.inframap.frontend.designsystem.*",
