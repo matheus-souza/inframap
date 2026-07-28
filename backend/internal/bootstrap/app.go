@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/internal/platform/httputil"
+	"github.com/matheussouza/inframap/internal/platform/spa"
 	"github.com/matheussouza/inframap/internal/platform/logger"
 	"github.com/matheussouza/inframap/modules/audit"
 	"github.com/matheussouza/inframap/modules/configuration"
@@ -64,6 +66,7 @@ type Config struct {
 	DatabaseURL        string
 	MasterKey          string
 	CORSAllowedOrigins string
+	StaticFS           fs.FS
 }
 
 type sessionValidatorAdapter struct {
@@ -220,6 +223,11 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	integrations.RegisterRoutes(mux, integCtrl)
 	realtime.RegisterRoutes(mux, rtCtrl)
 	credentials.RegisterRoutes(mux, credCtrl)
+
+	if cfg.StaticFS != nil {
+		spaHandler := spa.NewSPAHandler(cfg.StaticFS)
+		mux.Handle("/", spaHandler)
+	}
 
 	validator := &sessionValidatorAdapter{repo: sessionRepo}
 
