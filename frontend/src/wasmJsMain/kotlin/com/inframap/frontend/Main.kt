@@ -16,6 +16,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.CanvasBasedWindow
+import com.inframap.frontend.designsystem.InfraMapTheme
 
 @JsFun("function() { if (typeof window.infraMapReady === 'function') window.infraMapReady(); }")
 private external fun notifyReady()
@@ -30,7 +31,7 @@ fun main() {
 @Composable
 fun InfraMapApp() {
     LaunchedEffect(Unit) { notifyReady() }
-    MaterialTheme(colorScheme = InfraMapColorScheme) {
+    InfraMapTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),

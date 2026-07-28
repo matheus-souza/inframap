@@ -1,15 +1,9 @@
-package com.inframap.frontend
+package com.inframap.frontend.designsystem
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.ui.graphics.Color
-
-internal val InfraMapPurple = Color(0xFFbd93f9)
-internal val InfraMapCyan = Color(0xFF8be9fd)
-internal val InfraMapBackground = Color(0xFF1e1f29)
-internal val InfraMapSurface = Color(0xFF282a36)
-internal val InfraMapForeground = Color(0xFFf8f8f2)
-internal val InfraMapRed = Color(0xFFff5555)
+import androidx.compose.runtime.Composable
 
 internal val InfraMapColorScheme: ColorScheme =
     darkColorScheme(
@@ -22,4 +16,14 @@ internal val InfraMapColorScheme: ColorScheme =
         onSecondary = InfraMapBackground,
         onBackground = InfraMapForeground,
         onSurface = InfraMapForeground,
+        outline = InfraMapComment,
     )
+
+@Composable
+fun InfraMapTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = InfraMapColorScheme,
+        typography = InfraMapTypography,
+        content = content,
+    )
+}
