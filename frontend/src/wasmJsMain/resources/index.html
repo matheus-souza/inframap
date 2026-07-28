@@ -17,6 +17,15 @@
             transition: opacity 0.3s ease-out;
         }
         #loading-screen.hidden { opacity: 0; pointer-events: none; }
+        #loading-screen.error #loading-text { color: #ff5555; animation: none; opacity: 1; }
+        #retry-btn {
+            margin-top: 16px; padding: 8px 24px; border: 1px solid #bd93f9;
+            background: transparent; color: #bd93f9; border-radius: 4px;
+            cursor: pointer; font-family: system-ui, sans-serif; font-size: 14px;
+            display: none;
+        }
+        #loading-screen.error #retry-btn { display: inline-block; }
+        #retry-btn:hover { background: #bd93f933; }
         #loading-text {
             margin-top: 24px; color: #f8f8f2; font-family: system-ui, sans-serif;
             font-size: 14px; opacity: 0.7;
@@ -45,22 +54,22 @@
             <circle cx="40" cy="34" r="8" fill="#bd93f9"/>
         </svg>
         <div id="loading-text">Loading InfraMap...</div>
+        <button id="retry-btn" onclick="location.reload()">Retry</button>
     </div>
     <canvas id="inframap-canvas"></canvas>
     <script src="inframap.js"></script>
     <script>
-        const observer = new MutationObserver(() => {
-            const canvas = document.getElementById('inframap-canvas');
-            if (canvas && canvas.width > 0) {
-                document.getElementById('loading-screen').classList.add('hidden');
-                observer.disconnect();
-            }
-        });
-        observer.observe(document.getElementById('inframap-canvas'), { attributes: true });
-        setTimeout(() => {
+        window.infraMapReady = function() {
             document.getElementById('loading-screen').classList.add('hidden');
-            observer.disconnect();
-        }, 10000);
+        };
+        setTimeout(function() {
+            var screen = document.getElementById('loading-screen');
+            if (!screen.classList.contains('hidden')) {
+                screen.classList.add('error');
+                document.getElementById('loading-text').textContent =
+                    'Failed to load InfraMap. Check your connection and try again.';
+            }
+        }, 30000);
     </script>
 </body>
 </html>
