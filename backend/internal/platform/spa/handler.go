@@ -4,7 +4,7 @@ package spa
 import (
 	"io/fs"
 	"net/http"
-	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -15,7 +15,8 @@ func NewSPAHandler(fsys fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(fsys))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		urlPath := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+		cleaned := filepath.Clean("/" + strings.Trim(r.URL.Path, "/"))
+		urlPath := strings.TrimPrefix(filepath.ToSlash(cleaned), "/")
 
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			http.NotFound(w, r)
@@ -57,7 +58,7 @@ func setCacheHeaders(w http.ResponseWriter, filePath string) {
 }
 
 func setContentType(w http.ResponseWriter, filePath string) {
-	ext := path.Ext(filePath)
+	ext := filepath.Ext(filePath)
 	switch ext {
 	case ".wasm":
 		w.Header().Set("Content-Type", "application/wasm")
