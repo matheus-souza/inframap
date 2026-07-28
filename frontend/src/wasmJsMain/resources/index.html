@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InfraMap</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #1e1f29; }
+        #inframap-canvas { width: 100%; height: 100%; display: block; }
+
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            background-color: #1e1f29; z-index: 9999;
+            transition: opacity 0.3s ease-out;
+        }
+        #loading-screen.hidden { opacity: 0; pointer-events: none; }
+        #loading-screen.error #loading-text { color: #ff5555; animation: none; opacity: 1; }
+        #retry-btn {
+            margin-top: 16px; padding: 8px 24px; border: 1px solid #bd93f9;
+            background: transparent; color: #bd93f9; border-radius: 4px;
+            cursor: pointer; font-family: system-ui, sans-serif; font-size: 14px;
+            display: none;
+        }
+        #loading-screen.error #retry-btn { display: inline-block; }
+        #retry-btn:hover { background: #bd93f933; }
+        #loading-text {
+            margin-top: 24px; color: #f8f8f2; font-family: system-ui, sans-serif;
+            font-size: 14px; opacity: 0.7;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        #loading-text { animation: pulse 1.5s ease-in-out infinite; }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="120" height="120">
+            <path d="M40 6 L64 20 L64 46 L40 76 L16 46 L16 20 Z" fill="none" stroke="#bd93f9" stroke-width="3"/>
+            <line x1="40" y1="34" x2="40" y2="6" stroke="#6272a4" stroke-width="1.8"/>
+            <line x1="40" y1="34" x2="64" y2="20" stroke="#6272a4" stroke-width="1.8"/>
+            <line x1="40" y1="34" x2="64" y2="46" stroke="#6272a4" stroke-width="1.8"/>
+            <line x1="40" y1="34" x2="16" y2="46" stroke="#6272a4" stroke-width="1.8"/>
+            <line x1="40" y1="34" x2="16" y2="20" stroke="#6272a4" stroke-width="1.8"/>
+            <circle cx="40" cy="6" r="5" fill="#8be9fd"/>
+            <circle cx="64" cy="20" r="5" fill="#8be9fd"/>
+            <circle cx="64" cy="46" r="5" fill="#8be9fd"/>
+            <circle cx="16" cy="46" r="5" fill="#8be9fd"/>
+            <circle cx="16" cy="20" r="5" fill="#8be9fd"/>
+            <circle cx="40" cy="34" r="8" fill="#bd93f9"/>
+        </svg>
+        <div id="loading-text">Loading InfraMap...</div>
+        <button id="retry-btn" onclick="location.reload()">Retry</button>
+    </div>
+    <canvas id="inframap-canvas"></canvas>
+    <script src="inframap.js"></script>
+    <script>
+        window.infraMapReady = function() {
+            document.getElementById('loading-screen').classList.add('hidden');
+        };
+        setTimeout(function() {
+            var screen = document.getElementById('loading-screen');
+            if (!screen.classList.contains('hidden')) {
+                screen.classList.add('error');
+                document.getElementById('loading-text').textContent =
+                    'Failed to load InfraMap. Check your connection and try again.';
+            }
+        }, 30000);
+    </script>
+</body>
+</html>
