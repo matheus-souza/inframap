@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class SetupStatusDto(
-    @SerialName("is_onboarded") val isOnboarded: Boolean,
-    val version: String? = null,
+    @SerialName("onboarding_completed") val onboardingCompleted: Boolean,
+    @SerialName("system_instance_id") val systemInstanceId: String = "",
 )
 
 @Serializable
@@ -25,7 +25,10 @@ data class LoginRequest(
 data class UserProfileDto(
     val id: String,
     val username: String,
-    val roles: List<String> = emptyList(),
+    val email: String = "",
+    @SerialName("full_name") val fullName: String = "",
+    @SerialName("is_active") val isActive: Boolean = true,
+    val permissions: List<String> = emptyList(),
 )
 
 @Serializable

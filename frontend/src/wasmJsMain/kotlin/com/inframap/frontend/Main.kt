@@ -1,55 +1,21 @@
 package com.inframap.frontend
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.CanvasBasedWindow
-import com.inframap.frontend.designsystem.InfraMapTheme
+import com.inframap.frontend.data.api.ApiClient
+import com.inframap.frontend.ui.app.InfraMapApp
+
+@JsFun("function() { return window.location.origin; }")
+private external fun getOrigin(): String
 
 @JsFun("function() { if (typeof window.infraMapReady === 'function') window.infraMapReady(); }")
 private external fun notifyReady()
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
+    val apiClient = ApiClient(baseUrl = getOrigin())
     CanvasBasedWindow(canvasElementId = "inframap-canvas", title = "InfraMap") {
-        InfraMapApp()
+        InfraMapApp(apiClient = apiClient)
     }
-}
-
-@Composable
-fun InfraMapApp() {
-    LaunchedEffect(Unit) { notifyReady() }
-    InfraMapTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = "InfraMap",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Infrastructure Discovery & Mapping",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                )
-            }
-        }
-    }
+    notifyReady()
 }
