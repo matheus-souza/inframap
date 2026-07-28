@@ -39,7 +39,7 @@ fun InfraMapSnackbarHost(
             dismissAction =
                 data.visuals.actionLabel?.let {
                     {
-                        TextButton(onClick = { data.dismiss() }) {
+                        TextButton(onClick = { data.performAction() }) {
                             Text(
                                 text = it,
                                 color = MaterialTheme.colorScheme.background,

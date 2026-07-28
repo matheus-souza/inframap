@@ -28,6 +28,10 @@ fun InfraMapLoadingSkeleton(
     lineHeight: Dp = 16.dp,
     spacing: Dp = 12.dp,
 ) {
+    require(lines > 0) { "lines must be positive" }
+    require(lineHeight.value > 0f) { "lineHeight must be positive" }
+    require(spacing.value >= 0f) { "spacing must be non-negative" }
+
     val transition = rememberInfiniteTransition()
     val alpha by transition.animateFloat(
         initialValue = 0.3f,

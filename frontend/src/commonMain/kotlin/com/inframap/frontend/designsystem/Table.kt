@@ -23,7 +23,11 @@ import androidx.compose.ui.unit.dp
 data class TableColumn(
     val header: String,
     val weight: Float = 1f,
-)
+) {
+    init {
+        require(weight > 0f) { "weight must be positive" }
+    }
+}
 
 @Composable
 fun <T> InfraMapTable(
@@ -87,6 +91,8 @@ fun InfraMapTablePagination(
     onPageChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val safeTotalPages = maxOf(totalPages, 1)
+    val safeCurrentPage = currentPage.coerceIn(1, safeTotalPages)
     Row(
         modifier = modifier.fillMaxWidth().padding(16.dp),
         horizontalArrangement = Arrangement.Center,
@@ -94,11 +100,11 @@ fun InfraMapTablePagination(
     ) {
         InfraMapOutlinedButton(
             text = "Previous",
-            onClick = { onPageChange(currentPage - 1) },
-            enabled = currentPage > 1,
+            onClick = { onPageChange(safeCurrentPage - 1) },
+            enabled = safeCurrentPage > 1,
         )
         Text(
-            text = "$currentPage / $totalPages",
+            text = "$safeCurrentPage / $safeTotalPages",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -106,8 +112,8 @@ fun InfraMapTablePagination(
         )
         InfraMapOutlinedButton(
             text = "Next",
-            onClick = { onPageChange(currentPage + 1) },
-            enabled = currentPage < totalPages,
+            onClick = { onPageChange(safeCurrentPage + 1) },
+            enabled = safeCurrentPage < safeTotalPages,
         )
     }
 }
