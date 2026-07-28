@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -27,6 +28,11 @@ func main() {
 	defer stop()
 
 	cfg := bootstrap.NewConfigFromEnv()
+	staticSub, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		log.Fatalf("failed to create static sub-filesystem: %v", err)
+	}
+	cfg.StaticFS = staticSub
 	app, err := bootstrap.New(ctx, cfg)
 	if err != nil {
 		log.Fatalf("failed to bootstrap InfraMap application: %v", err)
