@@ -1,6 +1,9 @@
 # Codecov Configuration for InfraMap Engine
 codecov:
   require_ci_to_pass: true
+  notify:
+    after_n_builds: 2
+    wait_for_ci: true
 
 coverage:
   precision: 2
@@ -11,7 +14,7 @@ coverage:
     project:
       default:
         target: auto
-        threshold: 1%
+        threshold: 0%
     patch:
       default:
         target: 85%
