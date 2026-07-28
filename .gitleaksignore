@@ -1,1 +1,2 @@
 a5c7e60a3beeef72bb2b7a496976da6a3d8a80c3:backend/modules/identity/repository/session_repository_test.go:generic-api-key:30
+8b96f0e471c9160c84515eac529007db1cdf0686:backend/modules/credentials/usecase/credentials_usecase_test.go:private-key:101
