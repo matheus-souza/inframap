@@ -2,7 +2,7 @@ name: Auto-Merge PRs to Develop
 
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, ready_for_review]
     branches: [develop]
 
 permissions:
@@ -13,7 +13,7 @@ jobs:
   enable-auto-merge:
     name: Enable Auto-Merge
     runs-on: ubuntu-latest
-    if: github.base_ref == 'develop'
+    if: github.base_ref == 'develop' && github.event.pull_request.draft == false
 
     steps:
       - name: Enable auto-merge (squash)

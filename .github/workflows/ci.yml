@@ -115,3 +115,74 @@ jobs:
       - name: Build Production Backend Binary
         if: steps.check_backend.outputs.exists == 'true'
         run: cd backend && CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/api ./cmd/api
+
+  verify-frontend:
+    name: Verify Frontend Quality Gates
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check if frontend exists
+        id: check_frontend
+        run: |
+          if [ -f "frontend/build.gradle.kts" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Java
+        if: steps.check_frontend.outputs.exists == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle packages
+        if: steps.check_frontend.outputs.exists == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            frontend/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('frontend/**/*.gradle.kts', 'frontend/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Run ktlint
+        if: steps.check_frontend.outputs.exists == 'true'
+        run: cd frontend && ./gradlew ktlintCheck
+
+      - name: Run detekt
+        if: steps.check_frontend.outputs.exists == 'true'
+        run: cd frontend && ./gradlew detekt
+
+      - name: Run JVM tests with coverage
+        if: steps.check_frontend.outputs.exists == 'true'
+        run: cd frontend && ./gradlew jvmTest koverXmlReport koverVerify
+
+      - name: Build WASM distribution
+        if: steps.check_frontend.outputs.exists == 'true'
+        run: cd frontend && ./gradlew wasmJsBrowserDistribution
+
+      - name: Upload frontend coverage to Codecov
+        if: steps.check_frontend.outputs.exists == 'true'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./frontend/build/reports/kover/report.xml
+          flags: frontend
+          name: inframap-frontend-coverage
+          fail_ci_if_error: false
+
+      - name: Upload WASM build artifacts
+        if: steps.check_frontend.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-wasm-dist
+          path: frontend/build/dist/wasmJs/productionExecutable/
+          retention-days: 7
