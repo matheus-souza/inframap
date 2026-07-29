@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
@@ -418,9 +419,16 @@ func TestCreateDevice_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var published []eventbus.DomainEvent
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var capturedType string
+	wg.Add(1)
+
 	_ = bus.Subscribe("device.created", func(_ context.Context, event eventbus.DomainEvent) error {
-		published = append(published, event)
+		mu.Lock()
+		capturedType = event.EventType()
+		mu.Unlock()
+		wg.Done()
 		return nil
 	})
 
@@ -433,13 +441,12 @@ func TestCreateDevice_WithEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	wg.Wait()
 
-	if len(published) != 1 {
-		t.Fatalf("expected 1 event published, got %d", len(published))
-	}
-	if published[0].EventType() != "device.created" {
-		t.Errorf("expected device.created event, got %s", published[0].EventType())
+	mu.Lock()
+	defer mu.Unlock()
+	if capturedType != "device.created" {
+		t.Errorf("expected device.created event, got %s", capturedType)
 	}
 }
 
@@ -459,9 +466,20 @@ func TestUpdateDevice_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var published []eventbus.DomainEvent
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var capturedType string
+
+	_ = bus.Subscribe("device.created", func(_ context.Context, _ eventbus.DomainEvent) error {
+		return nil
+	})
+
+	wg.Add(1)
 	_ = bus.Subscribe("device.updated", func(_ context.Context, event eventbus.DomainEvent) error {
-		published = append(published, event)
+		mu.Lock()
+		capturedType = event.EventType()
+		mu.Unlock()
+		wg.Done()
 		return nil
 	})
 
@@ -474,16 +492,12 @@ func TestUpdateDevice_WithEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	wg.Wait()
 
-	found := false
-	for _, evt := range published {
-		if evt.EventType() == "device.updated" {
-			found = true
-		}
-	}
-	if !found {
-		t.Error("expected device.updated event to be published")
+	mu.Lock()
+	defer mu.Unlock()
+	if capturedType != "device.updated" {
+		t.Errorf("expected device.updated event, got %s", capturedType)
 	}
 }
 
@@ -492,9 +506,16 @@ func TestSoftDeleteDevice_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var published []eventbus.DomainEvent
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var capturedType string
+
+	wg.Add(1)
 	_ = bus.Subscribe("device.deleted", func(_ context.Context, event eventbus.DomainEvent) error {
-		published = append(published, event)
+		mu.Lock()
+		capturedType = event.EventType()
+		mu.Unlock()
+		wg.Done()
 		return nil
 	})
 
@@ -506,10 +527,12 @@ func TestSoftDeleteDevice_WithEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	wg.Wait()
 
-	if len(published) != 1 {
-		t.Fatalf("expected 1 device.deleted event, got %d", len(published))
+	mu.Lock()
+	defer mu.Unlock()
+	if capturedType != "device.deleted" {
+		t.Errorf("expected device.deleted event, got %s", capturedType)
 	}
 }
 
@@ -731,9 +754,20 @@ func TestApproveStagingDevice_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var approved []eventbus.DomainEvent
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var capturedType string
+
+	_ = bus.Subscribe("device.created", func(_ context.Context, _ eventbus.DomainEvent) error {
+		return nil
+	})
+
+	wg.Add(1)
 	_ = bus.Subscribe("device.approved", func(_ context.Context, event eventbus.DomainEvent) error {
-		approved = append(approved, event)
+		mu.Lock()
+		capturedType = event.EventType()
+		mu.Unlock()
+		wg.Done()
 		return nil
 	})
 
@@ -752,16 +786,12 @@ func TestApproveStagingDevice_WithEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	wg.Wait()
 
-	foundApproved := false
-	for _, evt := range approved {
-		if evt.EventType() == "device.approved" {
-			foundApproved = true
-		}
-	}
-	if !foundApproved {
-		t.Error("expected device.approved event to be published")
+	mu.Lock()
+	defer mu.Unlock()
+	if capturedType != "device.approved" {
+		t.Errorf("expected device.approved event, got %s", capturedType)
 	}
 }
 
@@ -786,9 +816,16 @@ func TestDismissStagingDevice_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var dismissed []eventbus.DomainEvent
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var capturedType string
+
+	wg.Add(1)
 	_ = bus.Subscribe("device.dismissed", func(_ context.Context, event eventbus.DomainEvent) error {
-		dismissed = append(dismissed, event)
+		mu.Lock()
+		capturedType = event.EventType()
+		mu.Unlock()
+		wg.Done()
 		return nil
 	})
 
@@ -806,10 +843,12 @@ func TestDismissStagingDevice_WithEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	wg.Wait()
 
-	if len(dismissed) != 1 {
-		t.Fatalf("expected 1 device.dismissed event, got %d", len(dismissed))
+	mu.Lock()
+	defer mu.Unlock()
+	if capturedType != "device.dismissed" {
+		t.Errorf("expected device.dismissed event, got %s", capturedType)
 	}
 }
 
