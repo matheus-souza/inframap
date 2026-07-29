@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/db"
@@ -14,10 +15,11 @@ import (
 )
 
 type mockSetupRepo struct {
-	state      *db.SystemState
-	adminUser  *db.User
+	state       *db.SystemState
+	adminUser   *db.User
 	getStateErr error
-	onboardErr error
+	ensureErr   error
+	onboardErr  error
 }
 
 func (m *mockSetupRepo) GetState(_ context.Context) (*db.SystemState, error) {
@@ -31,8 +33,8 @@ func (m *mockSetupRepo) GetState(_ context.Context) (*db.SystemState, error) {
 }
 
 func (m *mockSetupRepo) EnsureInitialState(_ context.Context, instanceID uuid.UUID) (*db.SystemState, error) {
-	if m.getStateErr != nil {
-		return nil, m.getStateErr
+	if m.ensureErr != nil {
+		return nil, m.ensureErr
 	}
 	m.state = &db.SystemState{
 		SystemInstanceID:    instanceID,
@@ -123,5 +125,116 @@ func TestSetupUseCase_Onboard(t *testing.T) {
 	_, err = uc.Onboard(context.Background(), req)
 	if !errors.Is(err, usecase.ErrAlreadyOnboarded) {
 		t.Errorf("expected ErrAlreadyOnboarded, got %v", err)
+	}
+}
+
+func TestSetupUseCase_GetStatus_NonStateNotFoundError(t *testing.T) {
+	repo := &mockSetupRepo{
+		getStateErr: errors.New("database connection refused"),
+	}
+	uc := usecase.NewDefaultSetupUseCase(repo, nil, nil)
+
+	_, err := uc.GetStatus(context.Background())
+	if err == nil {
+		t.Fatal("expected error for non-ErrStateNotFound")
+	}
+	if err.Error() != "database connection refused" {
+		t.Errorf("expected pass-through error, got %v", err)
+	}
+}
+
+func TestSetupUseCase_GetStatus_EnsureInitialStateError(t *testing.T) {
+	repo := &mockSetupRepo{
+		state:     nil,
+		ensureErr: errors.New("insert failed"),
+	}
+	uc := usecase.NewDefaultSetupUseCase(repo, nil, nil)
+
+	_, err := uc.GetStatus(context.Background())
+	if err == nil {
+		t.Fatal("expected error when EnsureInitialState fails")
+	}
+}
+
+func TestSetupUseCase_Onboard_WithEventBus(t *testing.T) {
+	repo := &mockSetupRepo{
+		state: &db.SystemState{
+			SystemInstanceID:    uuid.New(),
+			OnboardingCompleted: false,
+		},
+	}
+	bus := eventbus.NewInMemoryEventBus(1, 10)
+	defer func() { _ = bus.Close() }()
+
+	var published []eventbus.DomainEvent
+	_ = bus.Subscribe("system.onboarded", func(_ context.Context, event eventbus.DomainEvent) error {
+		published = append(published, event)
+		return nil
+	})
+
+	uc := usecase.NewDefaultSetupUseCase(repo, bus, nil)
+
+	req := dto.OnboardRequest{
+		AdminUsername: "admin",
+		AdminEmail:    "admin@example.com",
+		AdminPassword: "correct-horse-battery-staple-passphrase",
+		AdminFullName: "System Administrator",
+	}
+
+	_, err := uc.Onboard(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Wait for async event dispatch
+	time.Sleep(100 * time.Millisecond)
+
+	if len(published) != 1 {
+		t.Fatalf("expected 1 system.onboarded event, got %d", len(published))
+	}
+	if published[0].EventType() != "system.onboarded" {
+		t.Errorf("expected system.onboarded event, got %s", published[0].EventType())
+	}
+}
+
+func TestSetupUseCase_Onboard_RepoError(t *testing.T) {
+	repo := &mockSetupRepo{
+		state: &db.SystemState{
+			SystemInstanceID:    uuid.New(),
+			OnboardingCompleted: false,
+		},
+		onboardErr: errors.New("transaction failed"),
+	}
+	uc := usecase.NewDefaultSetupUseCase(repo, nil, nil)
+
+	req := dto.OnboardRequest{
+		AdminUsername: "admin",
+		AdminEmail:    "admin@example.com",
+		AdminPassword: "correct-horse-battery-staple-passphrase",
+		AdminFullName: "Admin",
+	}
+
+	_, err := uc.Onboard(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error from repo")
+	}
+}
+
+func TestSetupUseCase_Onboard_GetStateError(t *testing.T) {
+	repo := &mockSetupRepo{
+		getStateErr: errors.New("db failure"),
+	}
+	uc := usecase.NewDefaultSetupUseCase(repo, nil, nil)
+
+	req := dto.OnboardRequest{
+		AdminUsername: "admin",
+		AdminEmail:    "admin@example.com",
+		AdminPassword: "correct-horse-battery-staple-passphrase",
+		AdminFullName: "Admin",
+	}
+
+	_, err := uc.Onboard(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error when GetState fails")
 	}
 }

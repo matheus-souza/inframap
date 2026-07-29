@@ -33,9 +33,11 @@ type mockInventoryUseCase struct {
 	approveResp       *dto.DeviceResponse
 	approveErr        error
 	dismissErr        error
+	listStagingErr    error
 	subnetResp        *dto.SubnetResponse
 	subnetErr         error
 	listSubnetsResp   []dto.SubnetResponse
+	listSubnetsErr    error
 }
 
 func (m *mockInventoryUseCase) CreateDevice(_ context.Context, _ dto.CreateDeviceRequest) (*dto.DeviceResponse, error) {
@@ -71,6 +73,9 @@ func (m *mockInventoryUseCase) SoftDeleteDevice(_ context.Context, _ string) err
 }
 
 func (m *mockInventoryUseCase) ListStagingDevices(_ context.Context, _ string, _, _ int32) ([]dto.StagingDeviceResponse, int64, error) {
+	if m.listStagingErr != nil {
+		return nil, 0, m.listStagingErr
+	}
 	return m.stagingResp, int64(len(m.stagingResp)), nil
 }
 
@@ -93,6 +98,9 @@ func (m *mockInventoryUseCase) CreateSubnet(_ context.Context, _ dto.CreateSubne
 }
 
 func (m *mockInventoryUseCase) ListSubnets(_ context.Context) ([]dto.SubnetResponse, error) {
+	if m.listSubnetsErr != nil {
+		return nil, m.listSubnetsErr
+	}
 	return m.listSubnetsResp, nil
 }
 
@@ -413,6 +421,7 @@ func TestInventoryController_Unit(t *testing.T) {
 
 	t.Run("ListSubnets Success", func(t *testing.T) {
 		mockUC.listSubnetsResp = []dto.SubnetResponse{{ID: "sub-1", Name: "LAN", CIDR: "192.168.1.0/24"}}
+		mockUC.listSubnetsErr = nil
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/subnets", nil)
 		w := httptest.NewRecorder()
 
@@ -421,5 +430,236 @@ func TestInventoryController_Unit(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("expected 200 OK, got %d", w.Code)
 		}
+	})
+
+	t.Run("ListDevices InternalError", func(t *testing.T) {
+		mockUC.listDevicesErr = errors.New("db failure")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/devices", nil)
+		w := httptest.NewRecorder()
+
+		ctrl.ListDevices(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+		mockUC.listDevicesErr = nil
+	})
+
+	t.Run("CreateDevice InvalidJSON", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/devices", bytes.NewReader([]byte(`{invalid`)))
+		w := httptest.NewRecorder()
+
+		ctrl.CreateDevice(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("CreateDevice InternalError", func(t *testing.T) {
+		mockUC.createDeviceErr = errors.New("db failure")
+		payload := dto.CreateDeviceRequest{Hostname: "fail-dev", DeviceType: "server"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/devices", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+
+		ctrl.CreateDevice(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+		mockUC.createDeviceErr = nil
+	})
+
+	t.Run("GetDeviceByID InternalError", func(t *testing.T) {
+		mockUC.getDeviceErr = errors.New("db failure")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/devices/some-id", nil)
+		req.SetPathValue("id", "some-id")
+		w := httptest.NewRecorder()
+
+		ctrl.GetDeviceByID(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+		mockUC.getDeviceErr = nil
+	})
+
+	t.Run("DeleteDevice InvalidUUID", func(t *testing.T) {
+		mockUC.deleteDeviceErr = usecase.ErrInvalidUUID
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/devices/bad-id", nil)
+		req.SetPathValue("id", "bad-id")
+		w := httptest.NewRecorder()
+
+		ctrl.DeleteDevice(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+		mockUC.deleteDeviceErr = nil
+	})
+
+	t.Run("DeleteDevice NotFound", func(t *testing.T) {
+		mockUC.deleteDeviceErr = repository.ErrDeviceNotFound
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/devices/some-id", nil)
+		req.SetPathValue("id", "some-id")
+		w := httptest.NewRecorder()
+
+		ctrl.DeleteDevice(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
+		}
+		mockUC.deleteDeviceErr = nil
+	})
+
+	t.Run("DeleteDevice InternalError", func(t *testing.T) {
+		mockUC.deleteDeviceErr = errors.New("db failure")
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/devices/some-id", nil)
+		req.SetPathValue("id", "some-id")
+		w := httptest.NewRecorder()
+
+		ctrl.DeleteDevice(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+		mockUC.deleteDeviceErr = nil
+	})
+
+	t.Run("ListStagingDevices InternalError", func(t *testing.T) {
+		mockUC.listStagingErr = errors.New("db failure")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/devices/staging", nil)
+		w := httptest.NewRecorder()
+
+		ctrl.ListStagingDevices(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+		mockUC.listStagingErr = nil
+	})
+
+	t.Run("ApproveStagingDevice InvalidUUID", func(t *testing.T) {
+		mockUC.approveErr = usecase.ErrInvalidUUID
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/staging/bad/approve", nil)
+		req.SetPathValue("id", "bad")
+		w := httptest.NewRecorder()
+
+		ctrl.ApproveStagingDevice(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+		mockUC.approveErr = nil
+	})
+
+	t.Run("ApproveStagingDevice NotFound", func(t *testing.T) {
+		mockUC.approveErr = repository.ErrStagingDeviceNotFound
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/staging/missing/approve", nil)
+		req.SetPathValue("id", "missing")
+		w := httptest.NewRecorder()
+
+		ctrl.ApproveStagingDevice(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
+		}
+		mockUC.approveErr = nil
+	})
+
+	t.Run("ApproveStagingDevice InternalError", func(t *testing.T) {
+		mockUC.approveErr = errors.New("db failure")
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/staging/some-id/approve", nil)
+		req.SetPathValue("id", "some-id")
+		w := httptest.NewRecorder()
+
+		ctrl.ApproveStagingDevice(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+		mockUC.approveErr = nil
+	})
+
+	t.Run("DismissStagingDevice InvalidUUID", func(t *testing.T) {
+		mockUC.dismissErr = usecase.ErrInvalidUUID
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/staging/bad/dismiss", nil)
+		req.SetPathValue("id", "bad")
+		w := httptest.NewRecorder()
+
+		ctrl.DismissStagingDevice(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+		mockUC.dismissErr = nil
+	})
+
+	t.Run("DismissStagingDevice NotFound", func(t *testing.T) {
+		mockUC.dismissErr = repository.ErrStagingDeviceNotFound
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/staging/missing/dismiss", nil)
+		req.SetPathValue("id", "missing")
+		w := httptest.NewRecorder()
+
+		ctrl.DismissStagingDevice(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
+		}
+		mockUC.dismissErr = nil
+	})
+
+	t.Run("DismissStagingDevice InternalError", func(t *testing.T) {
+		mockUC.dismissErr = errors.New("db failure")
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/staging/some-id/dismiss", nil)
+		req.SetPathValue("id", "some-id")
+		w := httptest.NewRecorder()
+
+		ctrl.DismissStagingDevice(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+		mockUC.dismissErr = nil
+	})
+
+	t.Run("ListSubnets InternalError", func(t *testing.T) {
+		mockUC.listSubnetsErr = errors.New("db failure")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/subnets", nil)
+		w := httptest.NewRecorder()
+
+		ctrl.ListSubnets(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+		mockUC.listSubnetsErr = nil
+	})
+
+	t.Run("CreateSubnet InvalidJSON", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/subnets", bytes.NewReader([]byte(`{bad`)))
+		w := httptest.NewRecorder()
+
+		ctrl.CreateSubnet(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("CreateSubnet InternalError", func(t *testing.T) {
+		mockUC.subnetErr = errors.New("db failure")
+		payload := dto.CreateSubnetRequest{Name: "fail", CIDR: "10.0.0.0/24"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/subnets", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+
+		ctrl.CreateSubnet(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+		mockUC.subnetErr = nil
 	})
 }

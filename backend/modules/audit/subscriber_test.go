@@ -75,3 +75,59 @@ func TestAuditSubscriber_HandleEvent(t *testing.T) {
 		t.Errorf("expected audit action 'device.created', got %q", capturedAction)
 	}
 }
+
+type badEventIDEvent struct {
+	eventbus.BaseEvent
+}
+
+func (e badEventIDEvent) EventID() string { return "not-a-uuid" }
+
+func TestAuditSubscriber_HandleEvent_InvalidEventID(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	db := &mockDBTX{
+		onQueryRow: func(_ string, _ []any) {
+			defer wg.Done()
+		},
+	}
+
+	subscriber := audit.NewSubscriber(db)
+	event := badEventIDEvent{
+		BaseEvent: eventbus.NewBaseEvent("test.invalid.id", map[string]string{"key": "val"}),
+	}
+
+	err := subscriber.HandleEvent(context.Background(), event)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wg.Wait()
+}
+
+type unmarshalablePayloadEvent struct {
+	eventbus.BaseEvent
+}
+
+func (e unmarshalablePayloadEvent) Payload() any { return make(chan int) }
+
+func TestAuditSubscriber_HandleEvent_UnmarshalablePayload(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	db := &mockDBTX{
+		onQueryRow: func(_ string, _ []any) {
+			defer wg.Done()
+		},
+	}
+
+	subscriber := audit.NewSubscriber(db)
+	event := unmarshalablePayloadEvent{
+		BaseEvent: eventbus.NewBaseEvent("test.bad.payload", nil),
+	}
+
+	err := subscriber.HandleEvent(context.Background(), event)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	wg.Wait()
+}
