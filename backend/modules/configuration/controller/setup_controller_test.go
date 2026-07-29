@@ -149,3 +149,55 @@ func TestSetupController_OnboardInternalError(t *testing.T) {
 		t.Error("internal error details should not leak to client")
 	}
 }
+
+func TestSetupController_GetStatus_InternalError(t *testing.T) {
+	uc := &mockSetupUseCase{
+		statusErr: errors.New("database unreachable"),
+	}
+	ctrl := controller.NewSetupController(uc)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/setup/status", nil)
+
+	ctrl.GetStatus(w, r)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
+func TestSetupController_Onboard_InvalidJSON(t *testing.T) {
+	uc := &mockSetupUseCase{}
+	ctrl := controller.NewSetupController(uc)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/setup/onboard", bytes.NewReader([]byte(`{invalid`)))
+
+	ctrl.Onboard(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestSetupController_Onboard_ValidationFailure(t *testing.T) {
+	uc := &mockSetupUseCase{}
+	ctrl := controller.NewSetupController(uc)
+
+	reqPayload := dto.OnboardRequest{
+		AdminUsername: "",
+		AdminEmail:    "",
+		AdminPassword: "",
+		AdminFullName: "",
+	}
+	body, _ := json.Marshal(reqPayload)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/setup/onboard", bytes.NewReader(body))
+
+	ctrl.Onboard(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
