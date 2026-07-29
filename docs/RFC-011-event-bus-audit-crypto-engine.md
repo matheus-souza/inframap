@@ -90,5 +90,5 @@ type EventBus interface {
 # Implementation Seams & Verification Criteria
 
 1. **Seam 1 (`crypto` test)**: Unit tests for `Encrypt()` and `Decrypt()`, verifying invalid ciphertext detection and wrong key rejection.
-2. **Seam 2 (`eventbus` test)**: Concurrency tests for `Publish()`, `Subscribe()`, worker pool dispatch, backpressure, and panic recovery.
-3. **Seam 3 (`audit` test)**: Integration test asserting published `DomainEvent` is asynchronously stored in PostgreSQL `audit_logs`.
+2. **Seam 2 (`eventbus` test)**: Concurrency tests for `Publish()`, `Subscribe()`, worker pool dispatch, backpressure, and panic recovery. Async handler tests MUST use buffered `chan string` + `select`/`time.After(5s)` — never unbounded `sync.WaitGroup.Wait()` or `time.Sleep` (see LESSONS_LEARNED #26).
+3. **Seam 3 (`audit` test)**: Integration test asserting published `DomainEvent` is asynchronously stored in PostgreSQL `audit_logs`. Synchronous `HandleEvent` tests assert fallback values (non-nil UUID for invalid IDs, `{}` for unmarshalable payloads).
