@@ -3,8 +3,8 @@ package usecase_test
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/db"
@@ -166,16 +166,9 @@ func TestSetupUseCase_Onboard_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var capturedType string
-	wg.Add(1)
-
+	ch := make(chan string, 1)
 	_ = bus.Subscribe("system.onboarded", func(_ context.Context, event eventbus.DomainEvent) error {
-		mu.Lock()
-		capturedType = event.EventType()
-		mu.Unlock()
-		wg.Done()
+		ch <- event.EventType()
 		return nil
 	})
 
@@ -193,12 +186,13 @@ func TestSetupUseCase_Onboard_WithEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wg.Wait()
-
-	mu.Lock()
-	defer mu.Unlock()
-	if capturedType != "system.onboarded" {
-		t.Errorf("expected system.onboarded event, got %s", capturedType)
+	select {
+	case got := <-ch:
+		if got != "system.onboarded" {
+			t.Errorf("expected system.onboarded event, got %s", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for system.onboarded event")
 	}
 }
 

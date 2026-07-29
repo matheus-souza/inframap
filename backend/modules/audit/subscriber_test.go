@@ -2,9 +2,10 @@ package audit_test
 
 import (
 	"context"
-	"sync"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
@@ -37,16 +38,13 @@ func (m mockRow) Scan(_ ...any) error {
 }
 
 func TestAuditSubscriber_HandleEvent(t *testing.T) {
-	var wg sync.WaitGroup
-	var capturedAction string
-	wg.Add(1)
+	ch := make(chan string, 1)
 
 	db := &mockDBTX{
 		onQueryRow: func(_ string, args []any) {
-			defer wg.Done()
 			if len(args) >= 4 {
 				if action, ok := args[3].(string); ok {
-					capturedAction = action
+					ch <- action
 				}
 			}
 		},
@@ -69,10 +67,13 @@ func TestAuditSubscriber_HandleEvent(t *testing.T) {
 		t.Fatalf("failed to publish event: %v", err)
 	}
 
-	wg.Wait()
-
-	if capturedAction != "device.created" {
-		t.Errorf("expected audit action 'device.created', got %q", capturedAction)
+	select {
+	case action := <-ch:
+		if action != "device.created" {
+			t.Errorf("expected audit action 'device.created', got %q", action)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for audit event")
 	}
 }
 
@@ -83,12 +84,15 @@ type badEventIDEvent struct {
 func (e badEventIDEvent) EventID() string { return "not-a-uuid" }
 
 func TestAuditSubscriber_HandleEvent_InvalidEventID(t *testing.T) {
-	var wg sync.WaitGroup
-	wg.Add(1)
+	var capturedID uuid.UUID
 
 	db := &mockDBTX{
-		onQueryRow: func(_ string, _ []any) {
-			defer wg.Done()
+		onQueryRow: func(_ string, args []any) {
+			if len(args) > 0 {
+				if id, ok := args[0].(uuid.UUID); ok {
+					capturedID = id
+				}
+			}
 		},
 	}
 
@@ -101,7 +105,10 @@ func TestAuditSubscriber_HandleEvent_InvalidEventID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	wg.Wait()
+
+	if capturedID == uuid.Nil {
+		t.Error("expected fallback UUID to be non-nil when EventID is unparseable")
+	}
 }
 
 type unmarshalablePayloadEvent struct {
@@ -111,12 +118,15 @@ type unmarshalablePayloadEvent struct {
 func (e unmarshalablePayloadEvent) Payload() any { return make(chan int) }
 
 func TestAuditSubscriber_HandleEvent_UnmarshalablePayload(t *testing.T) {
-	var wg sync.WaitGroup
-	wg.Add(1)
+	var capturedChanges []byte
 
 	db := &mockDBTX{
-		onQueryRow: func(_ string, _ []any) {
-			defer wg.Done()
+		onQueryRow: func(_ string, args []any) {
+			if len(args) > 6 {
+				if changes, ok := args[6].([]byte); ok {
+					capturedChanges = changes
+				}
+			}
 		},
 	}
 
@@ -129,5 +139,8 @@ func TestAuditSubscriber_HandleEvent_UnmarshalablePayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	wg.Wait()
+
+	if string(capturedChanges) != "{}" {
+		t.Errorf("expected fallback changes '{}', got %q", string(capturedChanges))
+	}
 }

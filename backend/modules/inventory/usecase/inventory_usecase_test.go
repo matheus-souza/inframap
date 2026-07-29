@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
-	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +23,13 @@ type mockInventoryRepository struct {
 	staging  map[uuid.UUID]*db.DeviceStaging
 	subnets  map[uuid.UUID]*db.Subnet
 	errToRet error
+
+	lastListDevicesLimit  int32
+	lastListDevicesOffset int32
+
+	lastListStagingStatus string
+	lastListStagingLimit  int32
+	lastListStagingOffset int32
 }
 
 func newMockInventoryRepository() *mockInventoryRepository {
@@ -67,7 +73,9 @@ func (m *mockInventoryRepository) GetDeviceByID(_ context.Context, id uuid.UUID,
 	return d, nil
 }
 
-func (m *mockInventoryRepository) ListDevices(_ context.Context, _, _ string, _, _ int32, _ bool) ([]db.Device, int64, error) {
+func (m *mockInventoryRepository) ListDevices(_ context.Context, _, _ string, limit, offset int32, _ bool) ([]db.Device, int64, error) {
+	m.lastListDevicesLimit = limit
+	m.lastListDevicesOffset = offset
 	if m.errToRet != nil {
 		return nil, 0, m.errToRet
 	}
@@ -131,7 +139,10 @@ func (m *mockInventoryRepository) GetStagingDeviceByID(_ context.Context, id uui
 	return st, nil
 }
 
-func (m *mockInventoryRepository) ListStagingDevices(_ context.Context, _ string, _, _ int32) ([]db.DeviceStaging, int64, error) {
+func (m *mockInventoryRepository) ListStagingDevices(_ context.Context, status string, limit, offset int32) ([]db.DeviceStaging, int64, error) {
+	m.lastListStagingStatus = status
+	m.lastListStagingLimit = limit
+	m.lastListStagingOffset = offset
 	if m.errToRet != nil {
 		return nil, 0, m.errToRet
 	}
@@ -388,6 +399,18 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 	})
 }
 
+func waitForEvent(t *testing.T, ch <-chan string, expectedType string) {
+	t.Helper()
+	select {
+	case got := <-ch:
+		if got != expectedType {
+			t.Errorf("expected %s event, got %s", expectedType, got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s event", expectedType)
+	}
+}
+
 func TestCreateDevice_WithIPAndMAC(t *testing.T) {
 	repo := newMockInventoryRepository()
 	uc := usecase.NewDefaultInventoryUseCase(repo, nil, nil)
@@ -419,35 +442,20 @@ func TestCreateDevice_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var capturedType string
-	wg.Add(1)
-
+	ch := make(chan string, 1)
 	_ = bus.Subscribe("device.created", func(_ context.Context, event eventbus.DomainEvent) error {
-		mu.Lock()
-		capturedType = event.EventType()
-		mu.Unlock()
-		wg.Done()
+		ch <- event.EventType()
 		return nil
 	})
 
-	logger := slog.Default()
-	uc := usecase.NewDefaultInventoryUseCase(repo, bus, logger)
+	uc := usecase.NewDefaultInventoryUseCase(repo, bus, slog.Default())
 
-	req := dto.CreateDeviceRequest{Hostname: "evt-server", DeviceType: "server"}
-	_, err := uc.CreateDevice(context.Background(), req)
+	_, err := uc.CreateDevice(context.Background(), dto.CreateDeviceRequest{Hostname: "evt-server", DeviceType: "server"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wg.Wait()
-
-	mu.Lock()
-	defer mu.Unlock()
-	if capturedType != "device.created" {
-		t.Errorf("expected device.created event, got %s", capturedType)
-	}
+	waitForEvent(t, ch, "device.created")
 }
 
 func TestCreateDevice_RepoError(t *testing.T) {
@@ -466,39 +474,28 @@ func TestUpdateDevice_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var capturedType string
-
-	_ = bus.Subscribe("device.created", func(_ context.Context, _ eventbus.DomainEvent) error {
+	ch := make(chan string, 2)
+	_ = bus.Subscribe("device.created", func(_ context.Context, event eventbus.DomainEvent) error {
+		ch <- event.EventType()
 		return nil
 	})
-
-	wg.Add(1)
 	_ = bus.Subscribe("device.updated", func(_ context.Context, event eventbus.DomainEvent) error {
-		mu.Lock()
-		capturedType = event.EventType()
-		mu.Unlock()
-		wg.Done()
+		ch <- event.EventType()
 		return nil
 	})
 
 	uc := usecase.NewDefaultInventoryUseCase(repo, bus, slog.Default())
 
 	created, _ := uc.CreateDevice(context.Background(), dto.CreateDeviceRequest{Hostname: "upd-test", DeviceType: "server"})
+	waitForEvent(t, ch, "device.created")
+
 	newName := "upd-test-renamed"
 	_, err := uc.UpdateDevice(context.Background(), created.ID, dto.UpdateDeviceRequest{Hostname: &newName})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wg.Wait()
-
-	mu.Lock()
-	defer mu.Unlock()
-	if capturedType != "device.updated" {
-		t.Errorf("expected device.updated event, got %s", capturedType)
-	}
+	waitForEvent(t, ch, "device.updated")
 }
 
 func TestSoftDeleteDevice_WithEventBus(t *testing.T) {
@@ -506,16 +503,9 @@ func TestSoftDeleteDevice_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var capturedType string
-
-	wg.Add(1)
+	ch := make(chan string, 1)
 	_ = bus.Subscribe("device.deleted", func(_ context.Context, event eventbus.DomainEvent) error {
-		mu.Lock()
-		capturedType = event.EventType()
-		mu.Unlock()
-		wg.Done()
+		ch <- event.EventType()
 		return nil
 	})
 
@@ -527,13 +517,7 @@ func TestSoftDeleteDevice_WithEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wg.Wait()
-
-	mu.Lock()
-	defer mu.Unlock()
-	if capturedType != "device.deleted" {
-		t.Errorf("expected device.deleted event, got %s", capturedType)
-	}
+	waitForEvent(t, ch, "device.deleted")
 }
 
 func TestSoftDeleteDevice_InvalidUUID(t *testing.T) {
@@ -599,10 +583,22 @@ func TestListDevices_DefaultsPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if repo.lastListDevicesLimit != 50 {
+		t.Errorf("expected limit normalized to 50, got %d", repo.lastListDevicesLimit)
+	}
+	if repo.lastListDevicesOffset != 0 {
+		t.Errorf("expected offset 0, got %d", repo.lastListDevicesOffset)
+	}
 
 	_, _, err = uc.ListDevices(context.Background(), "", "", -1, 200, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if repo.lastListDevicesLimit != 50 {
+		t.Errorf("expected limit clamped to 50 for perPage>100, got %d", repo.lastListDevicesLimit)
+	}
+	if repo.lastListDevicesOffset != 0 {
+		t.Errorf("expected offset 0 for negative page, got %d", repo.lastListDevicesOffset)
 	}
 }
 
@@ -696,10 +692,25 @@ func TestListStagingDevices_DefaultsPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if repo.lastListStagingStatus != "pending" {
+		t.Errorf("expected status normalized to 'pending', got %q", repo.lastListStagingStatus)
+	}
+	if repo.lastListStagingLimit != 50 {
+		t.Errorf("expected limit normalized to 50, got %d", repo.lastListStagingLimit)
+	}
+	if repo.lastListStagingOffset != 0 {
+		t.Errorf("expected offset 0, got %d", repo.lastListStagingOffset)
+	}
 
 	_, _, err = uc.ListStagingDevices(context.Background(), "", -1, 200)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if repo.lastListStagingLimit != 50 {
+		t.Errorf("expected limit clamped to 50 for perPage>100, got %d", repo.lastListStagingLimit)
+	}
+	if repo.lastListStagingOffset != 0 {
+		t.Errorf("expected offset 0 for negative page, got %d", repo.lastListStagingOffset)
 	}
 }
 
@@ -754,20 +765,13 @@ func TestApproveStagingDevice_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var capturedType string
-
-	_ = bus.Subscribe("device.created", func(_ context.Context, _ eventbus.DomainEvent) error {
+	ch := make(chan string, 2)
+	_ = bus.Subscribe("device.created", func(_ context.Context, event eventbus.DomainEvent) error {
+		ch <- event.EventType()
 		return nil
 	})
-
-	wg.Add(1)
 	_ = bus.Subscribe("device.approved", func(_ context.Context, event eventbus.DomainEvent) error {
-		mu.Lock()
-		capturedType = event.EventType()
-		mu.Unlock()
-		wg.Done()
+		ch <- event.EventType()
 		return nil
 	})
 
@@ -786,13 +790,8 @@ func TestApproveStagingDevice_WithEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wg.Wait()
-
-	mu.Lock()
-	defer mu.Unlock()
-	if capturedType != "device.approved" {
-		t.Errorf("expected device.approved event, got %s", capturedType)
-	}
+	waitForEvent(t, ch, "device.created")
+	waitForEvent(t, ch, "device.approved")
 }
 
 func TestDismissStagingDevice_InvalidUUID(t *testing.T) {
@@ -816,16 +815,9 @@ func TestDismissStagingDevice_WithEventBus(t *testing.T) {
 	bus := eventbus.NewInMemoryEventBus(1, 10)
 	defer func() { _ = bus.Close() }()
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var capturedType string
-
-	wg.Add(1)
+	ch := make(chan string, 1)
 	_ = bus.Subscribe("device.dismissed", func(_ context.Context, event eventbus.DomainEvent) error {
-		mu.Lock()
-		capturedType = event.EventType()
-		mu.Unlock()
-		wg.Done()
+		ch <- event.EventType()
 		return nil
 	})
 
@@ -843,13 +835,7 @@ func TestDismissStagingDevice_WithEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wg.Wait()
-
-	mu.Lock()
-	defer mu.Unlock()
-	if capturedType != "device.dismissed" {
-		t.Errorf("expected device.dismissed event, got %s", capturedType)
-	}
+	waitForEvent(t, ch, "device.dismissed")
 }
 
 func TestCreateSubnet_WithAllOptionalFields(t *testing.T) {
