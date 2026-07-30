@@ -43,7 +43,12 @@ ignore:
   - "frontend/src/commonMain/kotlin/**/designsystem/**"
   - "frontend/src/commonMain/kotlin/**/data/dto/**"
   - "frontend/src/commonMain/kotlin/**/ui/app/**"
+  - "frontend/src/commonMain/kotlin/**/ui/splash/SplashScreen.kt"
+  - "frontend/src/commonMain/kotlin/**/ui/login/LoginScreen.kt"
+  - "frontend/src/commonMain/kotlin/**/ui/onboarding/OnboardingScreen.kt"
+  - "frontend/src/commonMain/kotlin/**/ui/dashboard/DashboardScreen.kt"
   - "frontend/src/commonMain/kotlin/**/ui/**/*Screen.kt"
+  - "frontend/src/commonMain/kotlin/**/ui/*/*Screen.kt"
   - "frontend/src/wasmJsMain/kotlin/**/data/sse/**"
 
 comment:
