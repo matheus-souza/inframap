@@ -1,19 +1,20 @@
 #!/bin/sh
 # InfraMap — Git Pre-Push Hook
-# Runs local linting and unit tests before pushing to prevent CI failures.
+# Runs complete local quality gates (linting, tests, and 85%+ coverage verification for both Backend & Frontend)
+# before pushing to prevent CI/Codecov failures.
 
 echo "=========================================="
 echo "🔍 Running Pre-Push Quality Gate Checks..."
 echo "=========================================="
 
-# Run lint and test
-make lint test
+# Run full validation pipeline: backend & frontend linting, tests, and coverage verification
+make verify
 
 STATUS=$?
 if [ $STATUS -ne 0 ]; then
   echo ""
   echo "❌ Push blocked! Pre-push quality gate checks failed."
-  echo "👉 Please fix the lint or test issues above before pushing."
+  echo "👉 Please fix the lint, test, or coverage issues (minimum 85%) before pushing."
   exit 1
 fi
 
