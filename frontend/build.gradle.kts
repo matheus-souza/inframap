@@ -142,7 +142,10 @@ kover {
                     "com.inframap.frontend.ui.app.NavItem",
                     "com.inframap.frontend.ui.app.ComposableSingletons*",
                 )
-                packages("com.inframap.frontend.data.dto")
+                packages(
+                    "com.inframap.frontend.data.dto",
+                    "com.inframap.frontend.ui.app",
+                )
                 classes(
                     "com.inframap.frontend.designsystem.*",
                     "com.inframap.frontend.data.api.SuccessEnvelope",

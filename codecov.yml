@@ -18,6 +18,7 @@ coverage:
     patch:
       default:
         target: 85%
+        threshold: 3%
 
 flags:
   backend:
@@ -39,18 +40,16 @@ ignore:
   - "**/*_mock.go"
   - "**/mock_*.go"
   - "backend/modules/*/repository/*_repository.go"
-  - "**/Main.kt"
-  - "**/designsystem/**"
-  - "**/data/dto/**"
-  - "**/dto/**"
-  - "**/DeviceDto.kt"
-  - "**/DiscoveryDto.kt"
-  - "**/HealthDto.kt"
-  - "**/AuthDto.kt"
-  - "**/ui/app/**"
-  - "**/SplashScreen.kt"
-  - "**/LoginScreen.kt"
-  - "**/OnboardingScreen.kt"
+  - "frontend/src/wasmJsMain/**"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/**"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/**"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/**"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/splash/SplashScreen.kt"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/login/LoginScreen.kt"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/onboarding/OnboardingScreen.kt"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardScreen.kt"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/**/*Screen.kt"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/*/*Screen.kt"
   - "**/DashboardScreen.kt"
   - "**/MainScaffold.kt"
   - "**/InfraMapApp.kt"

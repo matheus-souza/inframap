@@ -301,6 +301,20 @@ class DashboardViewModelTest {
         }
 
     @Test
+    fun nullSseClientAndZeroIntervalDoNotCrash() =
+        runTest {
+            val client = createClient(defaultMockHandler)
+            val vm = DashboardViewModel(client, sseClient = null, scope = this, autoRefreshIntervalMs = 0L)
+            val stateDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            stateDeferred.await()
+
+            vm.stopAutoRefresh()
+            vm.stopSseListening()
+            assertFalse(vm.state.value.isLoading)
+        }
+
+    @Test
     fun sseEventsTriggerMetricsReload() =
         runTest {
             val fakeSse = FakeSSEClient()
