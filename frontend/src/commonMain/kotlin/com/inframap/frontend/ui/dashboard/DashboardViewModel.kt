@@ -41,15 +41,19 @@ class DashboardViewModel(
 
     fun loadData() {
         _state.update { it.copy(isLoading = true, errorMessage = null) }
+        triggerFetchMetrics()
+    }
+
+    fun refresh() {
+        loadData()
+    }
+
+    private fun triggerFetchMetrics() {
         fetchMetricsJob?.cancel()
         fetchMetricsJob =
             scope.launch {
                 fetchMetrics()
             }
-    }
-
-    fun refresh() {
-        loadData()
     }
 
     fun stopAutoRefresh() {
@@ -178,7 +182,7 @@ class DashboardViewModel(
                             is SSEEvent.TopologyUpdated,
                             is SSEEvent.DiscoveryProgress,
                             -> {
-                                fetchMetrics()
+                                triggerFetchMetrics()
                             }
                             is SSEEvent.Disconnected -> {
                                 delay(5000L)

@@ -48,8 +48,6 @@ ignore:
   - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/login/LoginScreen.kt"
   - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/onboarding/OnboardingScreen.kt"
   - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardScreen.kt"
-  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/**/*Screen.kt"
-  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/*/*Screen.kt"
   - "**/DashboardScreen.kt"
   - "**/MainScaffold.kt"
   - "**/InfraMapApp.kt"
