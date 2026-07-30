@@ -54,6 +54,15 @@ import com.inframap.frontend.ui.devices.DeviceListViewModel
 import com.inframap.frontend.ui.devices.EditDeviceActions
 import com.inframap.frontend.ui.devices.EditDeviceScreen
 import com.inframap.frontend.ui.devices.EditDeviceViewModel
+import com.inframap.frontend.ui.staging.StagingActions
+import com.inframap.frontend.ui.staging.StagingScreen
+import com.inframap.frontend.ui.staging.StagingViewModel
+import com.inframap.frontend.ui.subnets.CreateSubnetActions
+import com.inframap.frontend.ui.subnets.CreateSubnetScreen
+import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
+import com.inframap.frontend.ui.subnets.SubnetsActions
+import com.inframap.frontend.ui.subnets.SubnetsScreen
+import com.inframap.frontend.ui.subnets.SubnetsViewModel
 
 data class NavItem(
     val label: String,
@@ -202,8 +211,9 @@ private fun RouteContent(
                 navigator = navigator,
             )
 
-        Route.Staging -> PlaceholderScreen("Staging")
-        Route.Subnets -> PlaceholderScreen("Subnets")
+        Route.Staging -> StagingRoute(apiClient = apiClient)
+        Route.Subnets -> SubnetsRoute(apiClient = apiClient, navigator = navigator)
+        Route.CreateSubnet -> CreateSubnetRoute(apiClient = apiClient, navigator = navigator)
         Route.Topology -> PlaceholderScreen("Topology")
         else -> PlaceholderScreen("")
     }
@@ -354,6 +364,86 @@ private fun EditDeviceRoute(
         )
 
     EditDeviceScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun StagingRoute(apiClient: ApiClient) {
+    val scope = rememberCoroutineScope()
+    val viewModel = remember(apiClient) { StagingViewModel(apiClient, scope) }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+    val actions =
+        StagingActions(
+            onPageChanged = viewModel::loadStagingDevices,
+            onApproveClicked = viewModel::approveDevice,
+            onDismissClicked = viewModel::confirmDismissDevice,
+            onConfirmDismiss = viewModel::dismissDevice,
+            onCancelDismiss = viewModel::cancelDismissDevice,
+            onDismissActionError = viewModel::dismissActionError,
+            onDismissToast = viewModel::dismissToast,
+            onRetryClicked = { viewModel.loadStagingDevices() },
+        )
+    StagingScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun SubnetsRoute(
+    apiClient: ApiClient,
+    navigator: Navigator,
+) {
+    val scope = rememberCoroutineScope()
+    val viewModel = remember(apiClient) { SubnetsViewModel(apiClient, scope) }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+    val actions =
+        SubnetsActions(
+            onCreateSubnetClicked = { navigator.navigateTo(Route.CreateSubnet) },
+            onDismissToast = viewModel::dismissToast,
+            onRetryClicked = viewModel::loadSubnets,
+        )
+    SubnetsScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun CreateSubnetRoute(
+    apiClient: ApiClient,
+    navigator: Navigator,
+) {
+    val scope = rememberCoroutineScope()
+    val viewModel = remember(apiClient) { CreateSubnetViewModel(apiClient, scope) }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+    val actions =
+        CreateSubnetActions(
+            onNameChanged = viewModel::onNameChanged,
+            onCidrChanged = viewModel::onCidrChanged,
+            onVlanIdChanged = viewModel::onVlanIdChanged,
+            onGatewayIpChanged = viewModel::onGatewayIpChanged,
+            onDescriptionChanged = viewModel::onDescriptionChanged,
+            onDiscoveryEnabledChanged = viewModel::onDiscoveryEnabledChanged,
+            onSubmitClicked = {
+                viewModel.createSubnet {
+                    navigator.navigateTo(Route.Subnets)
+                }
+            },
+            onCancelClicked = { navigator.navigateTo(Route.Subnets) },
+        )
+    CreateSubnetScreen(
         state = state,
         actions = actions,
     )

@@ -52,6 +52,11 @@ class ApiClient(
             }
         }
 
+    suspend inline fun <reified T> post(path: String): ApiResult<T> =
+        safeCall {
+            client.post("$baseUrl$path")
+        }
+
     suspend inline fun <reified T, reified B> put(
         path: String,
         body: B,

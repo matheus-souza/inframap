@@ -25,5 +25,7 @@ sealed interface Route {
 
     data object Subnets : Route
 
+    data object CreateSubnet : Route
+
     data object Topology : Route
 }
