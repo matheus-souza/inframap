@@ -52,9 +52,12 @@ data class StagingDeviceDto(
     val hostname: String,
     @SerialName("ip_address") val ipAddress: String? = null,
     @SerialName("mac_address") val macAddress: String? = null,
+    val manufacturer: String? = null,
+    val model: String? = null,
     @SerialName("device_type") val deviceType: String,
-    @SerialName("source_type") val sourceType: String? = null,
-    @SerialName("discovered_at") val discoveredAt: String? = null,
+    @SerialName("discovery_source_id") val discoverySourceId: String? = null,
+    val status: String = "pending",
+    @SerialName("created_at") val createdAt: String? = null,
 )
 
 @Serializable
@@ -63,4 +66,6 @@ data class StagingListResponse(
     val total: Long = 0,
     val page: Int = 1,
     @SerialName("per_page") val perPage: Int = 50,
-)
+) {
+    val devices: List<StagingDeviceDto> get() = items
+}

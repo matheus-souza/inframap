@@ -8,10 +8,10 @@ data class SubnetDto(
     val id: String,
     val name: String,
     val cidr: String,
-    val vlan: Int? = null,
-    val gateway: String? = null,
+    @SerialName("vlan_id") val vlanId: Int? = null,
+    @SerialName("gateway_ip") val gatewayIp: String? = null,
     val description: String? = null,
-    @SerialName("auto_discover") val autoDiscover: Boolean = false,
+    @SerialName("discovery_enabled") val discoveryEnabled: Boolean = false,
     @SerialName("created_at") val createdAt: String? = null,
 )
 
@@ -19,8 +19,16 @@ data class SubnetDto(
 data class CreateSubnetRequest(
     val name: String,
     val cidr: String,
-    val vlan: Int? = null,
-    val gateway: String? = null,
+    @SerialName("vlan_id") val vlanId: Int? = null,
+    @SerialName("gateway_ip") val gatewayIp: String? = null,
     val description: String? = null,
-    @SerialName("auto_discover") val autoDiscover: Boolean = false,
+    @SerialName("discovery_enabled") val discoveryEnabled: Boolean = false,
 )
+
+@Serializable
+data class SubnetListResponse(
+    @SerialName("items") val items: List<SubnetDto> = emptyList(),
+    val total: Long = 0,
+) {
+    val subnets: List<SubnetDto> get() = items
+}
