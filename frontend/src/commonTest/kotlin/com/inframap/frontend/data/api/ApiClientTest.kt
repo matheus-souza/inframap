@@ -247,4 +247,50 @@ class ApiClientTest {
 
             assertIs<ApiResult.Success<Map<String, Boolean>>>(result)
         }
+
+    @Test
+    fun postWithoutBodyReturnsSuccess() =
+        runTest {
+            var capturedMethod = ""
+            var capturedPath = ""
+            val json =
+                """
+                {"data":{"message":"ok"},"meta":{"request_id":"req-post-nobody"}}
+                """.trimIndent()
+            val mockEngine =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler { request ->
+                            capturedMethod = request.method.value
+                            capturedPath = request.url.encodedPath
+                            respond(
+                                content = json,
+                                status = HttpStatusCode.OK,
+                                headers =
+                                    headersOf(
+                                        HttpHeaders.ContentType,
+                                        ContentType.Application.Json.toString(),
+                                    ),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(
+                            Json {
+                                ignoreUnknownKeys = true
+                                isLenient = true
+                            },
+                        )
+                    }
+                }
+            val client = ApiClient("http://localhost", mockEngine)
+
+            val result = client.post<Map<String, String>>("/api/v1/devices/staging/s1/approve")
+
+            assertIs<ApiResult.Success<Map<String, String>>>(result)
+            assertEquals("POST", capturedMethod)
+            assertEquals("/api/v1/devices/staging/s1/approve", capturedPath)
+            assertEquals("ok", result.data["message"])
+            assertEquals("req-post-nobody", result.requestId)
+        }
 }
