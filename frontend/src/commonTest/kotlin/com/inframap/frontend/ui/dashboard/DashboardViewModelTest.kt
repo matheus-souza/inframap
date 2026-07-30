@@ -36,8 +36,12 @@ import kotlin.test.assertTrue
 
 class FakeSSEClient : SSEClient {
     val events = MutableSharedFlow<SSEEvent>()
+    var connectCount = 0
 
-    override fun connect(url: String): SharedFlow<SSEEvent> = events.asSharedFlow()
+    override fun connect(url: String): SharedFlow<SSEEvent> {
+        connectCount++
+        return events.asSharedFlow()
+    }
 
     override fun disconnect() {}
 }
@@ -286,14 +290,14 @@ class DashboardViewModelTest {
 
             val vm = DashboardViewModel(client, scope = this, autoRefreshIntervalMs = 1000L)
             val firstStateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
+            runCurrent()
             firstStateDeferred.await()
             assertEquals(true, vm.state.value.isSystemHealthy)
 
             isHealthyResponse = false
             val unhealthyDeferred = async { vm.state.first { it.isSystemHealthy == false } }
             advanceTimeBy(1001L)
-            advanceUntilIdle()
+            runCurrent()
 
             val state = unhealthyDeferred.await()
             vm.stopAutoRefresh()
@@ -390,10 +394,12 @@ class DashboardViewModelTest {
             runCurrent()
             firstStateDeferred.await()
 
+            assertEquals(1, fakeSse.connectCount)
             fakeSse.events.emit(SSEEvent.Disconnected())
             advanceTimeBy(5001L)
             runCurrent()
 
+            assertEquals(2, fakeSse.connectCount)
             vm.stopSseListening()
         }
 

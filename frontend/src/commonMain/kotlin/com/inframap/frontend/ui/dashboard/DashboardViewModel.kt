@@ -182,6 +182,7 @@ class DashboardViewModel(
                             }
                             is SSEEvent.Disconnected -> {
                                 delay(5000L)
+                                startSseListening()
                             }
                             else -> Unit
                         }
