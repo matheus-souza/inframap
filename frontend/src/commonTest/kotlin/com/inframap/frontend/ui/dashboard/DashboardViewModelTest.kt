@@ -1,6 +1,11 @@
 package com.inframap.frontend.ui.dashboard
 
 import com.inframap.frontend.data.api.ApiClient
+import com.inframap.frontend.data.dto.DeviceDto
+import com.inframap.frontend.data.dto.DeviceListResponse
+import com.inframap.frontend.data.dto.DiscoverySourceDto
+import com.inframap.frontend.data.dto.StagingDeviceDto
+import com.inframap.frontend.data.dto.StagingListResponse
 import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.data.sse.SSEEvent
 import io.ktor.client.HttpClient
@@ -205,7 +210,7 @@ class DashboardViewModelTest {
         }
 
     @Test
-    fun sseEventTriggersMetricsReload() =
+    fun sseEventsTriggerMetricsReload() =
         runTest {
             val fakeSse = FakeSSEClient()
             var activeDevicesCount = 10L
@@ -233,14 +238,39 @@ class DashboardViewModelTest {
             val firstStateDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
             firstStateDeferred.await()
-            assertEquals(10L, vm.state.value.totalActiveDevices)
 
+            // Test DeviceCreated
             activeDevicesCount = 11L
-            val sseStateDeferred = async { vm.state.first { it.totalActiveDevices == 11L } }
-            fakeSse.events.emit(SSEEvent.DeviceCreated(id = "evt1", data = "{}"))
+            var sseStateDeferred = async { vm.state.first { it.totalActiveDevices == 11L } }
+            fakeSse.events.emit(SSEEvent.DeviceCreated(id = "e1", data = "{}"))
             advanceUntilIdle()
-
             assertEquals(11L, sseStateDeferred.await().totalActiveDevices)
+
+            // Test DeviceUpdated
+            activeDevicesCount = 12L
+            sseStateDeferred = async { vm.state.first { it.totalActiveDevices == 12L } }
+            fakeSse.events.emit(SSEEvent.DeviceUpdated(id = "e2", data = "{}"))
+            advanceUntilIdle()
+            assertEquals(12L, sseStateDeferred.await().totalActiveDevices)
+
+            // Test TopologyUpdated
+            activeDevicesCount = 13L
+            sseStateDeferred = async { vm.state.first { it.totalActiveDevices == 13L } }
+            fakeSse.events.emit(SSEEvent.TopologyUpdated(id = "e3", data = "{}"))
+            advanceUntilIdle()
+            assertEquals(13L, sseStateDeferred.await().totalActiveDevices)
+
+            // Test DiscoveryProgress
+            activeDevicesCount = 14L
+            sseStateDeferred = async { vm.state.first { it.totalActiveDevices == 14L } }
+            fakeSse.events.emit(SSEEvent.DiscoveryProgress(id = "e4", data = "{}"))
+            advanceUntilIdle()
+            assertEquals(14L, sseStateDeferred.await().totalActiveDevices)
+
+            // Test SystemNotification (ignored event)
+            fakeSse.events.emit(SSEEvent.SystemNotification(id = "e5", data = "{}"))
+            runCurrent()
+
             vm.stopSseListening()
         }
 
@@ -262,6 +292,31 @@ class DashboardViewModelTest {
         }
 
     @Test
+    fun fetchHealthErrorDoesNotCrashOrMutateHealthyState() =
+        runTest {
+            var healthFails = false
+            val client =
+                createClient { path ->
+                    if (path.endsWith("/health") && healthFails) {
+                        HttpStatusCode.InternalServerError to """{"error":{"message":"Health check failed"}}"""
+                    } else {
+                        defaultMockHandler(path)
+                    }
+                }
+
+            val vm = DashboardViewModel(client, scope = this, autoRefreshIntervalMs = 0L)
+            val firstStateDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            firstStateDeferred.await()
+            assertEquals(true, vm.state.value.isSystemHealthy)
+
+            healthFails = true
+            vm.fetchHealth()
+            advanceUntilIdle()
+            assertEquals(true, vm.state.value.isSystemHealthy)
+        }
+
+    @Test
     fun clearDisposesAllBackgroundJobs() =
         runTest {
             val fakeSse = FakeSSEClient()
@@ -275,4 +330,22 @@ class DashboardViewModelTest {
             vm.clear()
             advanceUntilIdle()
         }
+
+    @Test
+    fun dtoGettersAndDefaultsWorkCorrectly() {
+        val device = DeviceDto(id = "d1", hostname = "router-01", deviceType = "router", status = "active")
+        val deviceList = DeviceListResponse(items = listOf(device))
+        assertEquals(1, deviceList.devices.size)
+        assertEquals("d1", deviceList.devices.first().id)
+
+        val stagingDevice = StagingDeviceDto(id = "s1", hostname = "switch-01", deviceType = "switch")
+        val stagingList = StagingListResponse(items = listOf(stagingDevice))
+        assertEquals(1, stagingList.items.size)
+
+        val source = DiscoverySourceDto(id = "src1", name = "Subnet 1", sourceType = "snmp", enabled = true)
+        assertEquals("src1", source.id)
+        assertEquals("Subnet 1", source.name)
+        assertEquals("snmp", source.sourceType)
+        assertTrue(source.enabled)
+    }
 }
