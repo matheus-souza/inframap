@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -251,7 +252,7 @@ class DashboardViewModelTest {
             val vm = DashboardViewModel(client, sseClient = fakeSse, scope = this, autoRefreshIntervalMs = 1000L)
 
             val firstStateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
+            runCurrent()
             firstStateDeferred.await()
 
             vm.clear()
