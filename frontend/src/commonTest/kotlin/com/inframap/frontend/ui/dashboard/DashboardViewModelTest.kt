@@ -332,11 +332,31 @@ class DashboardViewModelTest {
         }
 
     @Test
+    fun dashboardUiStatePropertiesAndCopyWorkCorrectly() {
+        val state = DashboardUiState()
+        assertEquals(0L, state.totalActiveDevices)
+        assertEquals(0L, state.totalStagedDevices)
+        assertNull(state.isSystemHealthy)
+        assertEquals("", state.systemVersion)
+        assertEquals(0L, state.totalDiscoverySources)
+        assertTrue(state.isLoading)
+        assertNull(state.errorMessage)
+
+        val copied = state.copy(totalActiveDevices = 5L, isSystemHealthy = false, errorMessage = "err")
+        assertEquals(5L, copied.totalActiveDevices)
+        assertFalse(copied.isSystemHealthy!!)
+        assertEquals("err", copied.errorMessage)
+    }
+
+    @Test
     fun dtoGettersAndDefaultsWorkCorrectly() {
         val device = DeviceDto(id = "d1", hostname = "router-01", deviceType = "router", status = "active")
         val deviceList = DeviceListResponse(items = listOf(device))
         assertEquals(1, deviceList.devices.size)
         assertEquals("d1", deviceList.devices.first().id)
+
+        val defaultDeviceList = DeviceListResponse()
+        assertEquals(0, defaultDeviceList.devices.size)
 
         val stagingDevice = StagingDeviceDto(id = "s1", hostname = "switch-01", deviceType = "switch")
         val stagingList = StagingListResponse(items = listOf(stagingDevice))
