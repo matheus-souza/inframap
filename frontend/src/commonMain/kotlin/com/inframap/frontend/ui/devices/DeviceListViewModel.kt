@@ -102,7 +102,7 @@ class DeviceListViewModel(
                                 deviceToDelete = null,
                                 isDeleting = false,
                                 deleteErrorMessage = null,
-                                toastMessage = "Device '${device.hostname}' deleted successfully.",
+                                toastMessage = "Dispositivo '${device.hostname}' excluído com sucesso.",
                             )
                         }
                         loadDevices(_state.value.page)
