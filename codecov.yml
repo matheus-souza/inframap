@@ -66,6 +66,8 @@ ignore:
   - "**/MainScaffold.kt"
   - "**/InfraMapApp.kt"
   - "**/BrowserSSEClient.kt"
+  - "**/*Contracts.kt"
+  - "**/Route.kt"
 
 comment:
   layout: "reach, diff, flags, files"

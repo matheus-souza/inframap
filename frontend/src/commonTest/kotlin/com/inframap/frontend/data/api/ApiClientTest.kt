@@ -247,4 +247,20 @@ class ApiClientTest {
 
             assertIs<ApiResult.Success<Map<String, Boolean>>>(result)
         }
+
+    @Test
+    fun postWithoutBodyReturnsSuccess() =
+        runTest {
+            val json =
+                """
+                {"data":{"message":"ok"},"meta":{"request_id":"req-post-nobody"}}
+                """.trimIndent()
+            val client = ApiClient("http://localhost", mockClient(responseBody = json))
+
+            val result = client.post<Map<String, String>>("/api/v1/devices/staging/s1/approve")
+
+            assertIs<ApiResult.Success<Map<String, String>>>(result)
+            assertEquals("ok", result.data["message"])
+            assertEquals("req-post-nobody", result.requestId)
+        }
 }
