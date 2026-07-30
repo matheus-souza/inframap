@@ -33,6 +33,11 @@ data class FieldError(
     val issue: String,
 )
 
+@Serializable
+data class MessageResponse(
+    val message: String = "",
+)
+
 sealed class ApiResult<out T> {
     data class Success<T>(
         val data: T,

@@ -11,6 +11,16 @@ sealed interface Route {
 
     data object Devices : Route
 
+    data class DeviceDetail(
+        val id: String,
+    ) : Route
+
+    data object CreateDevice : Route
+
+    data class EditDevice(
+        val id: String,
+    ) : Route
+
     data object Staging : Route
 
     data object Subnets : Route
