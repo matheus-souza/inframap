@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.HealthDto
+import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
@@ -25,7 +26,10 @@ import com.inframap.frontend.ui.splash.SplashScreen
 import com.inframap.frontend.ui.splash.SplashViewModel
 
 @Composable
-fun InfraMapApp(apiClient: ApiClient) {
+fun InfraMapApp(
+    apiClient: ApiClient,
+    sseClient: SSEClient? = null,
+) {
     val navigator = remember { Navigator() }
     val currentRoute by navigator.currentRoute.collectAsState()
     var isHealthy by remember { mutableStateOf<Boolean?>(null) }
@@ -40,7 +44,14 @@ fun InfraMapApp(apiClient: ApiClient) {
             Route.Splash -> SplashRoute(apiClient, navigator)
             Route.Login -> LoginRoute(apiClient, navigator)
             Route.Onboarding -> OnboardingRoute(apiClient, navigator)
-            else -> MainScaffold(currentRoute, navigator, isHealthy)
+            else ->
+                MainScaffold(
+                    currentRoute = currentRoute,
+                    navigator = navigator,
+                    isHealthy = isHealthy,
+                    apiClient = apiClient,
+                    sseClient = sseClient,
+                )
         }
     }
 }

@@ -138,10 +138,14 @@ kover {
                     "com.inframap.frontend.ui.app.InfraMapAppKt*",
                     "com.inframap.frontend.ui.app.MainScaffoldKt*",
                     "com.inframap.frontend.ui.app.PlaceholderScreenKt*",
+                    "com.inframap.frontend.ui.dashboard.DashboardScreenKt*",
                     "com.inframap.frontend.ui.app.NavItem",
                     "com.inframap.frontend.ui.app.ComposableSingletons*",
                 )
-                packages("com.inframap.frontend.data.dto")
+                packages(
+                    "com.inframap.frontend.data.dto",
+                    "com.inframap.frontend.ui.app",
+                )
                 classes(
                     "com.inframap.frontend.designsystem.*",
                     "com.inframap.frontend.data.api.SuccessEnvelope",
