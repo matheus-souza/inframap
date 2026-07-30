@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,6 +42,18 @@ import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
 import com.inframap.frontend.ui.dashboard.DashboardScreen
 import com.inframap.frontend.ui.dashboard.DashboardViewModel
+import com.inframap.frontend.ui.devices.CreateDeviceActions
+import com.inframap.frontend.ui.devices.CreateDeviceScreen
+import com.inframap.frontend.ui.devices.CreateDeviceViewModel
+import com.inframap.frontend.ui.devices.DeviceDetailActions
+import com.inframap.frontend.ui.devices.DeviceDetailScreen
+import com.inframap.frontend.ui.devices.DeviceDetailViewModel
+import com.inframap.frontend.ui.devices.DeviceListActions
+import com.inframap.frontend.ui.devices.DeviceListScreen
+import com.inframap.frontend.ui.devices.DeviceListViewModel
+import com.inframap.frontend.ui.devices.EditDeviceActions
+import com.inframap.frontend.ui.devices.EditDeviceScreen
+import com.inframap.frontend.ui.devices.EditDeviceViewModel
 
 data class NavItem(
     val label: String,
@@ -85,6 +96,7 @@ fun MainScaffold(
             ) {
                 RouteContent(
                     currentRoute = currentRoute,
+                    navigator = navigator,
                     apiClient = apiClient,
                     sseClient = sseClient,
                 )
@@ -137,10 +149,21 @@ private fun AppNavRail(
         modifier = Modifier.fillMaxHeight(),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
+        androidx.compose.foundation.layout
+            .Spacer(modifier = Modifier.padding(top = 8.dp))
         navItems.forEach { item ->
+            val isSelected =
+                when (currentRoute) {
+                    Route.Devices,
+                    is Route.DeviceDetail,
+                    Route.CreateDevice,
+                    is Route.EditDevice,
+                    -> item.route == Route.Devices
+
+                    else -> currentRoute == item.route
+                }
             NavigationRailItem(
-                selected = currentRoute == item.route,
+                selected = isSelected,
                 onClick = { navigator.navigateTo(item.route) },
                 icon = {},
                 label = {
@@ -157,12 +180,28 @@ private fun AppNavRail(
 @Composable
 private fun RouteContent(
     currentRoute: Route,
+    navigator: Navigator,
     apiClient: ApiClient,
     sseClient: SSEClient? = null,
 ) {
     when (currentRoute) {
         Route.Dashboard -> DashboardRoute(apiClient = apiClient, sseClient = sseClient)
-        Route.Devices -> PlaceholderScreen("Devices")
+        Route.Devices -> DeviceListRoute(apiClient = apiClient, navigator = navigator)
+        is Route.DeviceDetail ->
+            DeviceDetailRoute(
+                deviceId = currentRoute.id,
+                apiClient = apiClient,
+                navigator = navigator,
+            )
+
+        Route.CreateDevice -> CreateDeviceRoute(apiClient = apiClient, navigator = navigator)
+        is Route.EditDevice ->
+            EditDeviceRoute(
+                deviceId = currentRoute.id,
+                apiClient = apiClient,
+                navigator = navigator,
+            )
+
         Route.Staging -> PlaceholderScreen("Staging")
         Route.Subnets -> PlaceholderScreen("Subnets")
         Route.Topology -> PlaceholderScreen("Topology")
@@ -184,5 +223,138 @@ private fun DashboardRoute(
     DashboardScreen(
         state = state,
         onRefresh = viewModel::refresh,
+    )
+}
+
+@Composable
+private fun DeviceListRoute(
+    apiClient: ApiClient,
+    navigator: Navigator,
+) {
+    val scope = rememberCoroutineScope()
+    val viewModel = remember(apiClient) { DeviceListViewModel(apiClient, scope) }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+    val actions =
+        DeviceListActions(
+            onSearchQueryChanged = viewModel::onSearchQueryChanged,
+            onPageChanged = viewModel::loadDevices,
+            onCreateDeviceClicked = { navigator.navigateTo(Route.CreateDevice) },
+            onDeviceClicked = { id -> navigator.navigateTo(Route.DeviceDetail(id)) },
+            onEditDeviceClicked = { id -> navigator.navigateTo(Route.EditDevice(id)) },
+            onDeleteDeviceClicked = viewModel::confirmDeleteDevice,
+            onConfirmDelete = viewModel::deleteDevice,
+            onCancelDelete = viewModel::cancelDeleteDevice,
+            onDismissDeleteError = viewModel::dismissDeleteError,
+            onDismissToast = viewModel::dismissToast,
+            onRetryClicked = { viewModel.loadDevices() },
+        )
+    DeviceListScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun DeviceDetailRoute(
+    deviceId: String,
+    apiClient: ApiClient,
+    navigator: Navigator,
+) {
+    val scope = rememberCoroutineScope()
+    val viewModel = remember(deviceId, apiClient) { DeviceDetailViewModel(deviceId, apiClient, scope) }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+    val actions =
+        DeviceDetailActions(
+            onBackClicked = { navigator.navigateTo(Route.Devices) },
+            onEditClicked = { id -> navigator.navigateTo(Route.EditDevice(id)) },
+            onDeleteClicked = viewModel::openDeleteDialog,
+            onConfirmDelete = {
+                viewModel.deleteDevice { navigator.navigateTo(Route.Devices) }
+            },
+            onCancelDelete = viewModel::closeDeleteDialog,
+            onRetryClicked = viewModel::loadDevice,
+        )
+    DeviceDetailScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun CreateDeviceRoute(
+    apiClient: ApiClient,
+    navigator: Navigator,
+) {
+    val scope = rememberCoroutineScope()
+    val viewModel = remember(apiClient) { CreateDeviceViewModel(apiClient, scope) }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+
+    DisposableEffect(state.createdDeviceId) {
+        if (state.createdDeviceId != null) {
+            navigator.navigateTo(Route.DeviceDetail(state.createdDeviceId!!))
+        }
+        onDispose {}
+    }
+
+    val actions =
+        CreateDeviceActions(
+            onHostnameChanged = viewModel::onHostnameChanged,
+            onIpAddressChanged = viewModel::onIpAddressChanged,
+            onMacAddressChanged = viewModel::onMacAddressChanged,
+            onDeviceTypeChanged = viewModel::onDeviceTypeChanged,
+            onSubmitClicked = viewModel::createDevice,
+            onCancelClicked = { navigator.navigateTo(Route.Devices) },
+        )
+
+    CreateDeviceScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun EditDeviceRoute(
+    deviceId: String,
+    apiClient: ApiClient,
+    navigator: Navigator,
+) {
+    val scope = rememberCoroutineScope()
+    val viewModel = remember(deviceId, apiClient) { EditDeviceViewModel(deviceId, apiClient, scope) }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+
+    DisposableEffect(state.isSuccess) {
+        if (state.isSuccess) {
+            navigator.navigateTo(Route.DeviceDetail(deviceId))
+        }
+        onDispose {}
+    }
+
+    val actions =
+        EditDeviceActions(
+            onHostnameChanged = viewModel::onHostnameChanged,
+            onIpAddressChanged = viewModel::onIpAddressChanged,
+            onMacAddressChanged = viewModel::onMacAddressChanged,
+            onDeviceTypeChanged = viewModel::onDeviceTypeChanged,
+            onStatusChanged = viewModel::onStatusChanged,
+            onSubmitClicked = viewModel::updateDevice,
+            onCancelClicked = { navigator.navigateTo(Route.DeviceDetail(deviceId)) },
+            onRetryClicked = viewModel::loadDevice,
+        )
+
+    EditDeviceScreen(
+        state = state,
+        actions = actions,
     )
 }

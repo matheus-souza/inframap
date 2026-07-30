@@ -139,6 +139,7 @@ kover {
                     "com.inframap.frontend.ui.app.MainScaffoldKt*",
                     "com.inframap.frontend.ui.app.PlaceholderScreenKt*",
                     "com.inframap.frontend.ui.dashboard.DashboardScreenKt*",
+                    "com.inframap.frontend.ui.devices.*ScreenKt*",
                     "com.inframap.frontend.ui.app.NavItem",
                     "com.inframap.frontend.ui.app.ComposableSingletons*",
                 )
