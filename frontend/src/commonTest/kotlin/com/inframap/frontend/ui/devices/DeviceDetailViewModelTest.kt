@@ -74,6 +74,7 @@ class DeviceDetailViewModelTest {
             assertNull(state.errorMessage)
             assertEquals("router-01", state.device?.hostname)
             assertEquals("192.168.1.1", state.device?.ipAddress)
+            vm.clear()
         }
 
     @Test
@@ -92,6 +93,7 @@ class DeviceDetailViewModelTest {
 
             assertFalse(state.isLoading)
             assertEquals("Device not found", state.errorMessage)
+            vm.clear()
         }
 
     @Test
@@ -108,6 +110,7 @@ class DeviceDetailViewModelTest {
 
             assertFalse(state.isLoading)
             assertEquals("Network error. Failed to reach server.", state.errorMessage)
+            vm.clear()
         }
 
     @Test
@@ -152,6 +155,7 @@ class DeviceDetailViewModelTest {
             val state = stateDeferred.await()
             assertEquals("Deletion locked", state.errorMessage)
             assertFalse(state.isDeleting)
+            vm.clear()
         }
 
     @Test
@@ -182,6 +186,7 @@ class DeviceDetailViewModelTest {
             val state = stateDeferred.await()
             assertEquals("Network error. Failed to delete device.", state.errorMessage)
             assertFalse(state.isDeleting)
+            vm.clear()
         }
 
     @Test
