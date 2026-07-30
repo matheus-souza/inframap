@@ -242,4 +242,19 @@ class DashboardViewModelTest {
             assertEquals(11L, sseStateDeferred.await().totalActiveDevices)
             vm.stopSseListening()
         }
+
+    @Test
+    fun clearDisposesAllBackgroundJobs() =
+        runTest {
+            val fakeSse = FakeSSEClient()
+            val client = createClient(defaultMockHandler)
+            val vm = DashboardViewModel(client, sseClient = fakeSse, scope = this, autoRefreshIntervalMs = 1000L)
+
+            val firstStateDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            firstStateDeferred.await()
+
+            vm.clear()
+            advanceUntilIdle()
+        }
 }

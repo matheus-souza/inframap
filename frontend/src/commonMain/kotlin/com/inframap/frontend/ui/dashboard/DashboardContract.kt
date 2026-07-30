@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:filename", "MatchingDeclarationName")
+
 package com.inframap.frontend.ui.dashboard
 
 data class DashboardUiState(
@@ -9,9 +11,3 @@ data class DashboardUiState(
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
 )
-
-sealed class DashboardEffect {
-    data class ShowToast(
-        val message: String,
-    ) : DashboardEffect()
-}

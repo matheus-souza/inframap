@@ -10,13 +10,12 @@ import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.data.sse.SSEEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -30,9 +29,7 @@ class DashboardViewModel(
     private val _state = MutableStateFlow(DashboardUiState())
     val state: StateFlow<DashboardUiState> = _state.asStateFlow()
 
-    private val _effects = Channel<DashboardEffect>(Channel.BUFFERED)
-    val effects: Flow<DashboardEffect> = _effects.receiveAsFlow()
-
+    private var fetchMetricsJob: Job? = null
     private var autoRefreshJob: Job? = null
     private var sseJob: Job? = null
 
@@ -44,9 +41,11 @@ class DashboardViewModel(
 
     fun loadData() {
         _state.update { it.copy(isLoading = true, errorMessage = null) }
-        scope.launch {
-            fetchMetrics()
-        }
+        fetchMetricsJob?.cancel()
+        fetchMetricsJob =
+            scope.launch {
+                fetchMetrics()
+            }
     }
 
     fun refresh() {
@@ -64,71 +63,79 @@ class DashboardViewModel(
     }
 
     fun clear() {
+        fetchMetricsJob?.cancel()
+        fetchMetricsJob = null
         stopAutoRefresh()
         stopSseListening()
     }
 
-    private suspend fun fetchMetrics() {
-        val devicesResult = apiClient.get<DeviceListResponse>("/api/v1/devices")
-        val stagingResult = apiClient.get<StagingListResponse>("/api/v1/devices/staging")
-        val healthResult = apiClient.get<HealthDto>("/api/v1/health")
-        val sourcesResult = apiClient.get<DiscoveryListResponse>("/api/v1/discovery/sources")
+    private suspend fun fetchMetrics() =
+        coroutineScope {
+            val devicesDeferred = async { apiClient.get<DeviceListResponse>("/api/v1/devices") }
+            val stagingDeferred = async { apiClient.get<StagingListResponse>("/api/v1/devices/staging") }
+            val healthDeferred = async { apiClient.get<HealthDto>("/api/v1/health") }
+            val sourcesDeferred = async { apiClient.get<DiscoveryListResponse>("/api/v1/discovery/sources") }
 
-        val hasError =
-            devicesResult is ApiResult.Error ||
-                stagingResult is ApiResult.Error ||
-                healthResult is ApiResult.Error ||
-                sourcesResult is ApiResult.Error
+            val devicesResult = devicesDeferred.await()
+            val stagingResult = stagingDeferred.await()
+            val healthResult = healthDeferred.await()
+            val sourcesResult = sourcesDeferred.await()
 
-        val hasNetworkError =
-            devicesResult is ApiResult.NetworkError ||
-                stagingResult is ApiResult.NetworkError ||
-                healthResult is ApiResult.NetworkError ||
-                sourcesResult is ApiResult.NetworkError
+            val hasError =
+                devicesResult is ApiResult.Error ||
+                    stagingResult is ApiResult.Error ||
+                    healthResult is ApiResult.Error ||
+                    sourcesResult is ApiResult.Error
 
-        if (hasNetworkError) {
+            val hasNetworkError =
+                devicesResult is ApiResult.NetworkError ||
+                    stagingResult is ApiResult.NetworkError ||
+                    healthResult is ApiResult.NetworkError ||
+                    sourcesResult is ApiResult.NetworkError
+
+            if (hasNetworkError) {
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Network error. Failed to reach server.",
+                    )
+                }
+                return@coroutineScope
+            }
+
+            if (hasError) {
+                val errorMsg =
+                    listOf(devicesResult, stagingResult, healthResult, sourcesResult)
+                        .filterIsInstance<ApiResult.Error>()
+                        .firstOrNull()
+                        ?.message ?: "Failed to load dashboard metrics"
+
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = errorMsg,
+                    )
+                }
+                return@coroutineScope
+            }
+
+            val activeTotal = (devicesResult as? ApiResult.Success)?.data?.total ?: 0L
+            val stagedTotal = (stagingResult as? ApiResult.Success)?.data?.total ?: 0L
+            val healthData = (healthResult as? ApiResult.Success)?.data
+            val sourcesTotal = (sourcesResult as? ApiResult.Success)?.data?.total ?: 0L
+
             _state.update {
                 it.copy(
+                    totalActiveDevices = activeTotal,
+                    totalStagedDevices = stagedTotal,
+                    isSystemHealthy = healthData?.status == "ok",
+                    systemVersion = healthData?.version ?: "",
+                    totalDiscoverySources = sourcesTotal,
                     isLoading = false,
-                    errorMessage = "Network error. Failed to reach server.",
+                    errorMessage = null,
                 )
             }
-            return
         }
-
-        if (hasError) {
-            val errorMsg =
-                listOf(devicesResult, stagingResult, healthResult, sourcesResult)
-                    .filterIsInstance<ApiResult.Error>()
-                    .firstOrNull()
-                    ?.message ?: "Failed to load dashboard metrics"
-
-            _state.update {
-                it.copy(
-                    isLoading = false,
-                    errorMessage = errorMsg,
-                )
-            }
-            return
-        }
-
-        val activeTotal = (devicesResult as? ApiResult.Success)?.data?.total ?: 0L
-        val stagedTotal = (stagingResult as? ApiResult.Success)?.data?.total ?: 0L
-        val healthData = (healthResult as? ApiResult.Success)?.data
-        val sourcesTotal = (sourcesResult as? ApiResult.Success)?.data?.total ?: 0L
-
-        _state.update {
-            it.copy(
-                totalActiveDevices = activeTotal,
-                totalStagedDevices = stagedTotal,
-                isSystemHealthy = healthData?.status == "ok",
-                systemVersion = healthData?.version ?: "",
-                totalDiscoverySources = sourcesTotal,
-                isLoading = false,
-                errorMessage = null,
-            )
-        }
-    }
 
     private fun startAutoRefresh() {
         if (autoRefreshIntervalMs <= 0) return
