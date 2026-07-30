@@ -24,16 +24,24 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.data.api.ApiClient
+import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.designsystem.InfraMapGreen
 import com.inframap.frontend.designsystem.InfraMapRed
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
+import com.inframap.frontend.ui.dashboard.DashboardScreen
+import com.inframap.frontend.ui.dashboard.DashboardViewModel
 
 data class NavItem(
     val label: String,
@@ -54,6 +62,8 @@ fun MainScaffold(
     currentRoute: Route,
     navigator: Navigator,
     isHealthy: Boolean?,
+    apiClient: ApiClient,
+    sseClient: SSEClient? = null,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         AppTopBar(isHealthy = isHealthy)
@@ -72,7 +82,11 @@ fun MainScaffold(
                         .fillMaxHeight()
                         .padding(16.dp),
             ) {
-                RouteContent(currentRoute = currentRoute)
+                RouteContent(
+                    currentRoute = currentRoute,
+                    apiClient = apiClient,
+                    sseClient = sseClient,
+                )
             }
         }
     }
@@ -140,13 +154,31 @@ private fun AppNavRail(
 }
 
 @Composable
-private fun RouteContent(currentRoute: Route) {
+private fun RouteContent(
+    currentRoute: Route,
+    apiClient: ApiClient,
+    sseClient: SSEClient? = null,
+) {
     when (currentRoute) {
-        Route.Dashboard -> PlaceholderScreen("Dashboard")
+        Route.Dashboard -> DashboardRoute(apiClient = apiClient, sseClient = sseClient)
         Route.Devices -> PlaceholderScreen("Devices")
         Route.Staging -> PlaceholderScreen("Staging")
         Route.Subnets -> PlaceholderScreen("Subnets")
         Route.Topology -> PlaceholderScreen("Topology")
         else -> PlaceholderScreen("")
     }
+}
+
+@Composable
+private fun DashboardRoute(
+    apiClient: ApiClient,
+    sseClient: SSEClient? = null,
+) {
+    val scope = rememberCoroutineScope()
+    val viewModel = remember(apiClient, sseClient) { DashboardViewModel(apiClient, sseClient, scope) }
+    val state by viewModel.state.collectAsState()
+    DashboardScreen(
+        state = state,
+        onRefresh = viewModel::refresh,
+    )
 }
