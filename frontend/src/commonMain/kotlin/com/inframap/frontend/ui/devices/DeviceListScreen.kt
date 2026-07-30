@@ -73,11 +73,17 @@ fun DeviceListScreen(
         }
 
         if (state.deviceToDelete != null) {
+            val confirmMessage =
+                if (state.deleteErrorMessage != null) {
+                    "Erro ao excluir: ${state.deleteErrorMessage}\n\n" +
+                        "Tem certeza que deseja tentar novamente?"
+                } else {
+                    "Tem certeza que deseja excluir o dispositivo '${state.deviceToDelete.hostname}'? " +
+                        "Esta ação marca o dispositivo como excluído."
+                }
             InfraMapConfirmDialog(
                 title = "Excluir Dispositivo",
-                message =
-                    "Tem certeza que deseja excluir o dispositivo '${state.deviceToDelete.hostname}'? " +
-                        "Esta ação marca o dispositivo como excluído.",
+                message = confirmMessage,
                 confirmText = if (state.isDeleting) "Excluindo..." else "Excluir",
                 dismissText = "Cancelar",
                 onConfirm = actions.onConfirmDelete,

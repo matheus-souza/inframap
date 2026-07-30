@@ -14,6 +14,7 @@ data class DeviceListUiState(
     val errorMessage: String? = null,
     val deviceToDelete: DeviceDto? = null,
     val isDeleting: Boolean = false,
+    val deleteErrorMessage: String? = null,
     val toastMessage: String? = null,
 )
 
@@ -26,6 +27,8 @@ data class DeviceListActions(
     val onDeleteDeviceClicked: (DeviceDto) -> Unit,
     val onConfirmDelete: () -> Unit,
     val onCancelDelete: () -> Unit,
+    val onDismissDeleteError: () -> Unit,
+    val onDismissToast: () -> Unit,
     val onRetryClicked: () -> Unit,
 )
 
@@ -50,11 +53,10 @@ data class CreateDeviceUiState(
     val hostname: String = "",
     val ipAddress: String = "",
     val macAddress: String = "",
-    val deviceType: String = "router",
-    val isLoading: Boolean = false,
+    val deviceType: String = "",
     val isSubmitting: Boolean = false,
-    val errorMessage: String? = null,
     val validationErrors: Map<String, String> = emptyMap(),
+    val errorMessage: String? = null,
     val createdDeviceId: String? = null,
 )
 
@@ -68,16 +70,16 @@ data class CreateDeviceActions(
 )
 
 data class EditDeviceUiState(
-    val deviceId: String = "",
+    val deviceId: String,
     val hostname: String = "",
     val ipAddress: String = "",
     val macAddress: String = "",
-    val deviceType: String = "router",
+    val deviceType: String = "",
     val status: String = "active",
     val isLoading: Boolean = true,
     val isSubmitting: Boolean = false,
-    val errorMessage: String? = null,
     val validationErrors: Map<String, String> = emptyMap(),
+    val errorMessage: String? = null,
     val isSuccess: Boolean = false,
 )
 

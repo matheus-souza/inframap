@@ -29,16 +29,15 @@ class DeviceListViewModel(
 
     fun loadDevices(page: Int = 1) {
         _state.update { it.copy(isLoading = true, errorMessage = null, page = page) }
+        val params = mutableMapOf("page" to page.toString(), "per_page" to "50")
+        if (_state.value.searchQuery.isNotBlank()) {
+            params["search"] = _state.value.searchQuery.trim()
+        }
+
         fetchJob?.cancel()
         fetchJob =
             scope.launch {
-                when (
-                    val result =
-                        apiClient.get<DeviceListResponse>(
-                            "/api/v1/devices",
-                            mapOf("page" to page.toString(), "per_page" to "50"),
-                        )
-                ) {
+                when (val result = apiClient.get<DeviceListResponse>("/api/v1/devices", params)) {
                     is ApiResult.Success -> {
                         _state.update {
                             it.copy(
@@ -73,21 +72,26 @@ class DeviceListViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _state.update { it.copy(searchQuery = query) }
+        loadDevices(page = 1)
     }
 
     fun confirmDeleteDevice(device: DeviceDto) {
-        _state.update { it.copy(deviceToDelete = device) }
+        _state.update { it.copy(deviceToDelete = device, deleteErrorMessage = null) }
     }
 
     fun cancelDeleteDevice() {
-        _state.update { it.copy(deviceToDelete = null) }
+        _state.update { it.copy(deviceToDelete = null, deleteErrorMessage = null) }
+    }
+
+    fun dismissDeleteError() {
+        _state.update { it.copy(deleteErrorMessage = null) }
     }
 
     fun deleteDevice() {
         if (_state.value.isDeleting) return
         val device = _state.value.deviceToDelete ?: return
 
-        _state.update { it.copy(isDeleting = true) }
+        _state.update { it.copy(isDeleting = true, deleteErrorMessage = null) }
         deleteJob?.cancel()
         deleteJob =
             scope.launch {
@@ -97,6 +101,7 @@ class DeviceListViewModel(
                             it.copy(
                                 deviceToDelete = null,
                                 isDeleting = false,
+                                deleteErrorMessage = null,
                                 toastMessage = "Device '${device.hostname}' deleted successfully.",
                             )
                         }
@@ -106,7 +111,7 @@ class DeviceListViewModel(
                         _state.update {
                             it.copy(
                                 isDeleting = false,
-                                errorMessage = result.message.ifEmpty { "Failed to delete device" },
+                                deleteErrorMessage = result.message.ifEmpty { "Failed to delete device" },
                             )
                         }
                     }
@@ -114,7 +119,7 @@ class DeviceListViewModel(
                         _state.update {
                             it.copy(
                                 isDeleting = false,
-                                errorMessage = "Network error. Failed to delete device.",
+                                deleteErrorMessage = "Network error. Failed to delete device.",
                             )
                         }
                     }

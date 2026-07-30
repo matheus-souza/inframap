@@ -202,13 +202,17 @@ class DeviceListViewModelTest {
             val device = DeviceDto(id = "d1", hostname = "router-01", deviceType = "router", status = "active")
             vm.confirmDeleteDevice(device)
 
-            val stateDeferred = async { vm.state.first { it.errorMessage != null } }
+            val stateDeferred = async { vm.state.first { it.deleteErrorMessage != null } }
             vm.deleteDevice()
             advanceUntilIdle()
 
             val state = stateDeferred.await()
-            assertEquals("Cannot delete active router", state.errorMessage)
+            assertEquals("Cannot delete active router", state.deleteErrorMessage)
             assertFalse(state.isDeleting)
+            assertNull(state.errorMessage)
+
+            vm.dismissDeleteError()
+            assertNull(vm.state.value.deleteErrorMessage)
         }
 
     @Test
@@ -235,13 +239,14 @@ class DeviceListViewModelTest {
             val device = DeviceDto(id = "d1", hostname = "router-01", deviceType = "router", status = "active")
             vm.confirmDeleteDevice(device)
 
-            val stateDeferred = async { vm.state.first { it.errorMessage != null } }
+            val stateDeferred = async { vm.state.first { it.deleteErrorMessage != null } }
             vm.deleteDevice()
             advanceUntilIdle()
 
             val state = stateDeferred.await()
-            assertEquals("Network error. Failed to delete device.", state.errorMessage)
+            assertEquals("Network error. Failed to delete device.", state.deleteErrorMessage)
             assertFalse(state.isDeleting)
+            assertNull(state.errorMessage)
         }
 
     @Test

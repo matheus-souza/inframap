@@ -247,6 +247,8 @@ private fun DeviceListRoute(
             onDeleteDeviceClicked = viewModel::confirmDeleteDevice,
             onConfirmDelete = viewModel::deleteDevice,
             onCancelDelete = viewModel::cancelDeleteDevice,
+            onDismissDeleteError = viewModel::dismissDeleteError,
+            onDismissToast = viewModel::dismissToast,
             onRetryClicked = { viewModel.loadDevices() },
         )
     DeviceListScreen(
