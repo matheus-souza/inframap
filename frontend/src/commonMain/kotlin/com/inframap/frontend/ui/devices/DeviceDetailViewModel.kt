@@ -21,6 +21,7 @@ class DeviceDetailViewModel(
     val state: StateFlow<DeviceDetailUiState> = _state.asStateFlow()
 
     private var fetchJob: Job? = null
+    private var deleteJob: Job? = null
 
     init {
         loadDevice()
@@ -70,35 +71,41 @@ class DeviceDetailViewModel(
     }
 
     fun deleteDevice(onSuccess: () -> Unit) {
+        if (_state.value.isDeleting) return
+
         _state.update { it.copy(isDeleting = true) }
-        scope.launch {
-            when (val result = apiClient.delete<MessageResponse>("/api/v1/devices/$deviceId")) {
-                is ApiResult.Success -> {
-                    _state.update { it.copy(isDeleting = false, showDeleteDialog = false) }
-                    onSuccess()
-                }
-                is ApiResult.Error -> {
-                    _state.update {
-                        it.copy(
-                            isDeleting = false,
-                            errorMessage = result.message.ifEmpty { "Failed to delete device" },
-                        )
+        deleteJob?.cancel()
+        deleteJob =
+            scope.launch {
+                when (val result = apiClient.delete<MessageResponse>("/api/v1/devices/$deviceId")) {
+                    is ApiResult.Success -> {
+                        _state.update { it.copy(isDeleting = false, showDeleteDialog = false) }
+                        onSuccess()
                     }
-                }
-                is ApiResult.NetworkError -> {
-                    _state.update {
-                        it.copy(
-                            isDeleting = false,
-                            errorMessage = "Network error. Failed to delete device.",
-                        )
+                    is ApiResult.Error -> {
+                        _state.update {
+                            it.copy(
+                                isDeleting = false,
+                                errorMessage = result.message.ifEmpty { "Failed to delete device" },
+                            )
+                        }
+                    }
+                    is ApiResult.NetworkError -> {
+                        _state.update {
+                            it.copy(
+                                isDeleting = false,
+                                errorMessage = "Network error. Failed to delete device.",
+                            )
+                        }
                     }
                 }
             }
-        }
     }
 
     fun clear() {
         fetchJob?.cancel()
+        deleteJob?.cancel()
         fetchJob = null
+        deleteJob = null
     }
 }

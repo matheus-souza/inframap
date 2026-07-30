@@ -21,6 +21,7 @@ class EditDeviceViewModel(
     val state: StateFlow<EditDeviceUiState> = _state.asStateFlow()
 
     private var fetchJob: Job? = null
+    private var submitJob: Job? = null
 
     init {
         loadDevice()
@@ -111,6 +112,8 @@ class EditDeviceViewModel(
     }
 
     fun updateDevice() {
+        if (_state.value.isSubmitting) return
+
         val current = _state.value
         val errors = mutableMapOf<String, String>()
 
@@ -123,7 +126,7 @@ class EditDeviceViewModel(
             return
         }
 
-        _state.update { it.copy(isSubmitting = true, errorMessage = null) }
+        _state.update { it.copy(isSubmitting = true, isSuccess = false, errorMessage = null) }
 
         val request =
             UpdateDeviceRequest(
@@ -134,39 +137,44 @@ class EditDeviceViewModel(
                 status = current.status.trim().ifEmpty { null },
             )
 
-        scope.launch {
-            when (val result = apiClient.put<DeviceDto, UpdateDeviceRequest>("/api/v1/devices/$deviceId", request)) {
-                is ApiResult.Success -> {
-                    _state.update {
-                        it.copy(
-                            isSubmitting = false,
-                            isSuccess = true,
-                            errorMessage = null,
-                        )
+        submitJob?.cancel()
+        submitJob =
+            scope.launch {
+                val url = "/api/v1/devices/$deviceId"
+                when (val result = apiClient.put<DeviceDto, UpdateDeviceRequest>(url, request)) {
+                    is ApiResult.Success -> {
+                        _state.update {
+                            it.copy(
+                                isSubmitting = false,
+                                isSuccess = true,
+                                errorMessage = null,
+                            )
+                        }
                     }
-                }
-                is ApiResult.Error -> {
-                    _state.update {
-                        it.copy(
-                            isSubmitting = false,
-                            errorMessage = result.message.ifEmpty { "Failed to update device" },
-                        )
+                    is ApiResult.Error -> {
+                        _state.update {
+                            it.copy(
+                                isSubmitting = false,
+                                errorMessage = result.message.ifEmpty { "Failed to update device" },
+                            )
+                        }
                     }
-                }
-                is ApiResult.NetworkError -> {
-                    _state.update {
-                        it.copy(
-                            isSubmitting = false,
-                            errorMessage = "Network error. Failed to update device.",
-                        )
+                    is ApiResult.NetworkError -> {
+                        _state.update {
+                            it.copy(
+                                isSubmitting = false,
+                                errorMessage = "Network error. Failed to update device.",
+                            )
+                        }
                     }
                 }
             }
-        }
     }
 
     fun clear() {
         fetchJob?.cancel()
+        submitJob?.cancel()
         fetchJob = null
+        submitJob = null
     }
 }
