@@ -60,6 +60,7 @@ class DashboardViewModel(
     fun stopSseListening() {
         sseJob?.cancel()
         sseJob = null
+        sseClient?.disconnect()
     }
 
     fun clear() {
@@ -166,16 +167,21 @@ class DashboardViewModel(
         sseJob?.cancel()
         sseJob =
             scope.launch {
-                client.connect("/api/v1/events").collect { event ->
-                    when (event) {
-                        is SSEEvent.DeviceCreated,
-                        is SSEEvent.DeviceUpdated,
-                        is SSEEvent.TopologyUpdated,
-                        is SSEEvent.DiscoveryProgress,
-                        -> {
-                            fetchMetrics()
+                while (isActive) {
+                    client.connect("/api/v1/events").collect { event ->
+                        when (event) {
+                            is SSEEvent.DeviceCreated,
+                            is SSEEvent.DeviceUpdated,
+                            is SSEEvent.TopologyUpdated,
+                            is SSEEvent.DiscoveryProgress,
+                            -> {
+                                fetchMetrics()
+                            }
+                            is SSEEvent.Disconnected -> {
+                                delay(5000L)
+                            }
+                            else -> Unit
                         }
-                        else -> Unit
                     }
                 }
             }

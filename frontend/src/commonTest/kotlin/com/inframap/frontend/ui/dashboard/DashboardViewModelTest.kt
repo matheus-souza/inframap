@@ -245,6 +245,23 @@ class DashboardViewModelTest {
         }
 
     @Test
+    fun disconnectedSseEventHandlesReconnection() =
+        runTest {
+            val fakeSse = FakeSSEClient()
+            val client = createClient(defaultMockHandler)
+            val vm = DashboardViewModel(client, sseClient = fakeSse, scope = this, autoRefreshIntervalMs = 0L)
+
+            val firstStateDeferred = async { vm.state.first { !it.isLoading } }
+            runCurrent()
+            firstStateDeferred.await()
+
+            fakeSse.events.emit(SSEEvent.Disconnected())
+            runCurrent()
+
+            vm.stopSseListening()
+        }
+
+    @Test
     fun clearDisposesAllBackgroundJobs() =
         runTest {
             val fakeSse = FakeSSEClient()

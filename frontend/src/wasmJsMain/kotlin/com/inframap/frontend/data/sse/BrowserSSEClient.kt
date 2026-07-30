@@ -57,6 +57,7 @@ class BrowserSSEClient(
                     scope.launch { eventFlow.emit(SSEEvent.Connected()) }
                 },
                 onError = {
+                    disconnect()
                     scope.launch { eventFlow.emit(SSEEvent.Disconnected()) }
                 },
                 onEvent = { id, type, data ->
