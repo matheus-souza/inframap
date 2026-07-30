@@ -70,6 +70,7 @@ class DashboardViewModel(
         stopSseListening()
     }
 
+    @Suppress("LongMethod")
     private suspend fun fetchMetrics() =
         coroutineScope {
             val devicesDeferred = async { apiClient.get<DeviceListResponse>("/api/v1/devices") }
@@ -109,7 +110,9 @@ class DashboardViewModel(
                     listOf(devicesResult, stagingResult, healthResult, sourcesResult)
                         .filterIsInstance<ApiResult.Error>()
                         .firstOrNull()
-                        ?.message ?: "Failed to load dashboard metrics"
+                        ?.message
+                        ?.ifEmpty { null }
+                        ?: "Failed to load dashboard metrics"
 
                 _state.update {
                     it.copy(

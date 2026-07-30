@@ -107,7 +107,7 @@ class DashboardViewModelTest {
         }
 
     @Test
-    fun loadDataHandlesApiError() =
+    fun loadDataHandlesApiErrorOnDevices() =
         runTest {
             val client =
                 createClient { path ->
@@ -129,18 +129,109 @@ class DashboardViewModelTest {
         }
 
     @Test
-    fun loadDataHandlesNetworkError() =
+    fun loadDataHandlesApiErrorOnStaging() =
         runTest {
-            val engine = MockEngine { throw RuntimeException("Network error") }
+            val client =
+                createClient { path ->
+                    if (path.endsWith("/devices/staging")) {
+                        HttpStatusCode.InternalServerError to
+                            """{"error":{"code":"STAGING_ERROR","message":"Staging DB error"},"meta":{"request_id":"r2"}}"""
+                    } else {
+                        defaultMockHandler(path)
+                    }
+                }
+
+            val vm = DashboardViewModel(client, scope = this, autoRefreshIntervalMs = 0L)
+            val stateDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            val state = stateDeferred.await()
+
+            assertFalse(state.isLoading)
+            assertEquals("Staging DB error", state.errorMessage)
+        }
+
+    @Test
+    fun loadDataHandlesApiErrorOnHealth() =
+        runTest {
+            val client =
+                createClient { path ->
+                    if (path.endsWith("/health")) {
+                        HttpStatusCode.ServiceUnavailable to
+                            """{"error":{"code":"UNHEALTHY","message":"Service down"},"meta":{"request_id":"r3"}}"""
+                    } else {
+                        defaultMockHandler(path)
+                    }
+                }
+
+            val vm = DashboardViewModel(client, scope = this, autoRefreshIntervalMs = 0L)
+            val stateDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            val state = stateDeferred.await()
+
+            assertFalse(state.isLoading)
+            assertEquals("Service down", state.errorMessage)
+        }
+
+    @Test
+    fun loadDataHandlesApiErrorOnSources() =
+        runTest {
+            val client =
+                createClient { path ->
+                    if (path.endsWith("/sources")) {
+                        HttpStatusCode.InternalServerError to
+                            """{"error":{"code":"SOURCES_ERROR","message":"Sources DB error"},"meta":{"request_id":"r4"}}"""
+                    } else {
+                        defaultMockHandler(path)
+                    }
+                }
+
+            val vm = DashboardViewModel(client, scope = this, autoRefreshIntervalMs = 0L)
+            val stateDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            val state = stateDeferred.await()
+
+            assertFalse(state.isLoading)
+            assertEquals("Sources DB error", state.errorMessage)
+        }
+
+    @Test
+    fun loadDataHandlesApiErrorWithoutMessageFallback() =
+        runTest {
+            val client =
+                createClient { path ->
+                    if (path.endsWith("/devices")) {
+                        HttpStatusCode.InternalServerError to
+                            """{"error":{"code":"UNKNOWN","message":""},"meta":{"request_id":"r1"}}"""
+                    } else {
+                        defaultMockHandler(path)
+                    }
+                }
+
+            val vm = DashboardViewModel(client, scope = this, autoRefreshIntervalMs = 0L)
+            val stateDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            val state = stateDeferred.await()
+
+            assertFalse(state.isLoading)
+            assertEquals("Failed to load dashboard metrics", state.errorMessage)
+        }
+
+    @Test
+    fun loadDataHandlesNetworkErrorOnStaging() =
+        runTest {
+            val engine =
+                MockEngine { request ->
+                    if (request.url.encodedPath.endsWith("/devices/staging")) {
+                        throw RuntimeException("Staging socket error")
+                    } else {
+                        val (status, body) = defaultMockHandler(request.url.encodedPath)
+                        respond(body, status, jsonHeaders)
+                    }
+                }
             val httpClient =
                 HttpClient(engine) {
                     install(ContentNegotiation) {
-                        json(
-                            Json {
-                                ignoreUnknownKeys = true
-                                isLenient = true
-                            },
-                        )
+                        json(Json { ignoreUnknownKeys = true })
                     }
                 }
             val client = ApiClient(baseUrl = "", httpClient = httpClient)
@@ -286,6 +377,7 @@ class DashboardViewModelTest {
             firstStateDeferred.await()
 
             fakeSse.events.emit(SSEEvent.Disconnected())
+            advanceTimeBy(5001L)
             runCurrent()
 
             vm.stopSseListening()
