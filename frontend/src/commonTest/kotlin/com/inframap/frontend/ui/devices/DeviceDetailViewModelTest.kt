@@ -111,6 +111,25 @@ class DeviceDetailViewModelTest {
         }
 
     @Test
+    fun deleteDeviceIgnoresReentrantCallsWhenDeleting() =
+        runTest {
+            val client = createClient(defaultMockHandler)
+            val vm = DeviceDetailViewModel("d1", client, scope = this)
+            val loadDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            loadDeferred.await()
+
+            vm.deleteDevice {}
+            assertTrue(vm.state.value.isDeleting)
+
+            vm.deleteDevice {}
+            assertTrue(vm.state.value.isDeleting)
+
+            advanceUntilIdle()
+            vm.clear()
+        }
+
+    @Test
     fun deleteDeviceHandlesApiError() =
         runTest {
             val client =

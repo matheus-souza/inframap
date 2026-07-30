@@ -132,6 +132,28 @@ class DeviceListViewModelTest {
         }
 
     @Test
+    fun deleteDeviceIgnoresReentrantCallsWhenDeleting() =
+        runTest {
+            val client = createClient(defaultMockHandler)
+            val vm = DeviceListViewModel(client, scope = this)
+            val loadDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            loadDeferred.await()
+
+            val device = DeviceDto(id = "d1", hostname = "router-01", deviceType = "router", status = "active")
+            vm.confirmDeleteDevice(device)
+
+            vm.deleteDevice()
+            assertTrue(vm.state.value.isDeleting)
+
+            vm.deleteDevice()
+            assertTrue(vm.state.value.isDeleting)
+
+            advanceUntilIdle()
+            vm.clear()
+        }
+
+    @Test
     fun deleteDeviceWorkflowCompletesSuccessfully() =
         runTest {
             val client = createClient(defaultMockHandler)

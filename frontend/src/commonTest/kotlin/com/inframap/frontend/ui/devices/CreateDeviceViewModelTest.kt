@@ -97,6 +97,28 @@ class CreateDeviceViewModelTest {
         }
 
     @Test
+    fun createDeviceIgnoresReentrantCallsWhenSubmitting() =
+        runTest {
+            val client =
+                createClient {
+                    HttpStatusCode.Created to
+                        """{"data":{"id":"d100","hostname":"switch-core","device_type":"switch","status":"active"},"meta":{"request_id":"r1"}}"""
+                }
+            val vm = CreateDeviceViewModel(client, scope = this)
+            vm.onHostnameChanged("switch-core")
+            vm.onDeviceTypeChanged("switch")
+
+            vm.createDevice()
+            assertTrue(vm.state.value.isSubmitting)
+
+            vm.createDevice()
+            assertTrue(vm.state.value.isSubmitting)
+
+            advanceUntilIdle()
+            vm.clear()
+        }
+
+    @Test
     fun createDeviceSucceedsWithValidPayload() =
         runTest {
             val client =

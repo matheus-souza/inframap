@@ -112,6 +112,25 @@ class EditDeviceViewModelTest {
         }
 
     @Test
+    fun updateDeviceIgnoresReentrantCallsWhenSubmitting() =
+        runTest {
+            val client = createClient(defaultMockHandler)
+            val vm = EditDeviceViewModel("d1", client, scope = this)
+            val loadDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            loadDeferred.await()
+
+            vm.updateDevice()
+            assertTrue(vm.state.value.isSubmitting)
+
+            vm.updateDevice()
+            assertTrue(vm.state.value.isSubmitting)
+
+            advanceUntilIdle()
+            vm.clear()
+        }
+
+    @Test
     fun updateDeviceValidatesAndSucceeds() =
         runTest {
             val client = createClient(defaultMockHandler)
