@@ -1,12 +1,13 @@
 @file:OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
 
 plugins {
-    kotlin("multiplatform") version "2.1.21"
-    id("org.jetbrains.compose") version "1.8.1"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.1.21"
-    kotlin("plugin.serialization") version "2.1.21"
-    id("io.gitlab.arturbosch.detekt") version "1.23.8"
-    id("org.jetbrains.kotlinx.kover") version "0.9.1"
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.compose)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.kover)
+    alias(libs.plugins.benManes.versions)
 }
 
 group = "com.inframap"
@@ -45,32 +46,32 @@ kotlin {
                 implementation(compose.ui)
                 implementation(compose.components.resources)
 
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+                implementation(libs.coroutines.core)
+                implementation(libs.serialization.json)
 
-                implementation("io.ktor:ktor-client-core:3.1.3")
-                implementation("io.ktor:ktor-client-content-negotiation:3.1.3")
-                implementation("io.ktor:ktor-serialization-kotlinx-json:3.1.3")
+                implementation(libs.ktor.client.core)
+                implementation(libs.ktor.client.content.negotiation)
+                implementation(libs.ktor.client.json)
 
-                implementation(project.dependencies.platform("io.insert-koin:koin-bom:4.1.1"))
-                implementation("io.insert-koin:koin-core")
-                implementation("io.insert-koin:koin-compose")
-                implementation("io.insert-koin:koin-compose-viewmodel")
+                implementation(project.dependencies.platform(libs.koin.bom))
+                implementation(libs.koin.core)
+                implementation(libs.koin.compose)
+                implementation(libs.koin.compose.viewmodel)
             }
         }
 
         val commonTest by getting {
             dependencies {
-                implementation(kotlin("test"))
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
-                implementation("io.ktor:ktor-client-mock:3.1.3")
-                implementation("io.insert-koin:koin-test")
+                implementation(libs.kotlin.test)
+                implementation(libs.coroutines.test)
+                implementation(libs.ktor.client.mock)
+                implementation(libs.koin.test)
             }
         }
 
         val wasmJsMain by getting {
             dependencies {
-                implementation("io.ktor:ktor-client-js:3.1.3")
+                implementation(libs.ktor.client.js)
             }
         }
 
@@ -78,13 +79,13 @@ kotlin {
 
         val jvmMain by getting {
             dependencies {
-                implementation("io.ktor:ktor-client-cio:3.1.3")
+                implementation(libs.ktor.client.cio)
             }
         }
 
         val jvmTest by getting {
             dependencies {
-                implementation(kotlin("test-junit5"))
+                implementation(libs.kotlin.test.junit5)
                 implementation(compose.desktop.uiTestJUnit4)
                 implementation(compose.desktop.currentOs)
             }
@@ -96,12 +97,10 @@ compose.resources {
     generateResClass = never
 }
 
-val ktlintVersion = "1.5.0"
-
 val ktlintCli: Configuration by configurations.creating
 
 dependencies {
-    ktlintCli("com.pinterest.ktlint:ktlint-cli:$ktlintVersion")
+    ktlintCli(libs.ktlint.cli)
 }
 
 tasks.register<JavaExec>("ktlintCheck") {
@@ -137,6 +136,19 @@ detekt {
             "src/jvmMain/kotlin",
         ),
     )
+}
+
+fun isNonStable(version: String): Boolean {
+    val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { version.uppercase().contains(it) }
+    val regex = "^[0-9,.v-]+(-r)?$".toRegex()
+    val isStable = stableKeyword || regex.matches(version)
+    return !isStable
+}
+
+tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask> {
+    rejectVersionIf {
+        isNonStable(candidate.version) && !isNonStable(currentVersion)
+    }
 }
 
 kover {
