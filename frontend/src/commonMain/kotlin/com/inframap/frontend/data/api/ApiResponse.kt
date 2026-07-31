@@ -55,3 +55,10 @@ sealed class ApiResult<out T> {
         val throwable: Throwable,
     ) : ApiResult<Nothing>()
 }
+
+inline fun <T, R> ApiResult<T>.map(transform: (T) -> R): ApiResult<R> =
+    when (this) {
+        is ApiResult.Success -> ApiResult.Success(transform(data), requestId)
+        is ApiResult.Error -> this
+        is ApiResult.NetworkError -> this
+    }
