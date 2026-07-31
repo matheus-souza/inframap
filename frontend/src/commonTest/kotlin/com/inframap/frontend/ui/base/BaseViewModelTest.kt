@@ -76,6 +76,24 @@ class BaseViewModelTest {
         }
 
     @Test
+    fun launchJobCancelsPreviousJobWithSameKey() =
+        runTest {
+            val testDispatcher = StandardTestDispatcher(testScheduler)
+            val scope = TestScope(testDispatcher)
+            val vm = TestViewModel(scope)
+
+            vm.startJob("job1", 100L)
+            // Launch second job with same key before first finishes
+            vm.startJob("job1", 100L)
+
+            testDispatcher.scheduler.advanceTimeBy(150L)
+            testDispatcher.scheduler.runCurrent()
+
+            assertEquals("Job completed", vm.state.value.text)
+            vm.clear()
+        }
+
+    @Test
     fun mapErrorReturnsNetworkErrorOnNetworkErrorResult() =
         runTest {
             val vm = TestViewModel(this)
@@ -104,6 +122,18 @@ class BaseViewModelTest {
         runTest {
             val vm = TestViewModel(this)
             val result = ApiResult.Error(code = "INTERNAL", message = "", requestId = "123", httpStatus = 500)
+            val uiText = vm.testMapError(result)
+
+            assertIs<UiText.Resource>(uiText)
+            assertEquals(Res.string.error_generic, uiText.resId)
+            vm.clear()
+        }
+
+    @Test
+    fun mapErrorReturnsFallbackOnApiSuccessResult() =
+        runTest {
+            val vm = TestViewModel(this)
+            val result = ApiResult.Success(data = Unit, requestId = "req-123")
             val uiText = vm.testMapError(result)
 
             assertIs<UiText.Resource>(uiText)
