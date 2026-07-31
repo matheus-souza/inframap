@@ -1,0 +1,56 @@
+<resources>
+    <!-- Common -->
+    <string name="error_network">Erro de rede. Não foi possível conectar ao servidor.</string>
+    <string name="error_generic">Ocorreu um erro inesperado.</string>
+    <string name="loading">Carregando...</string>
+    
+    <!-- Dashboard -->
+    <string name="dashboard_title">Dashboard</string>
+    <string name="dashboard_error_load">Falha ao carregar métricas do dashboard.</string>
+    
+    <!-- Devices -->
+    <string name="devices_title">Dispositivos</string>
+    <string name="devices_error_load">Falha ao carregar dispositivos.</string>
+    <string name="devices_error_delete">Falha ao excluir dispositivo.</string>
+    <string name="devices_delete_success">Dispositivo '%s' excluído com sucesso.</string>
+    <string name="devices_error_load_detail">Falha ao carregar detalhes do dispositivo.</string>
+    <string name="devices_error_create">Falha ao criar dispositivo.</string>
+    <string name="devices_error_update">Falha ao atualizar dispositivo.</string>
+    
+    <!-- Validation -->
+    <string name="validation_hostname_required">Nome do host é obrigatório.</string>
+    <string name="validation_device_type_required">Tipo de dispositivo é obrigatório.</string>
+    <string name="validation_hostname_empty">Nome do host não pode ser vazio.</string>
+    
+    <!-- Staging -->
+    <string name="staging_title">Staging</string>
+    <string name="staging_error_load">Falha ao carregar dispositivos em staging.</string>
+    <string name="staging_approve_success">Dispositivo '%s' aprovado com sucesso.</string>
+    <string name="staging_dismiss_success">Dispositivo '%s' descartado com sucesso.</string>
+    <string name="staging_error_approve">Falha ao aprovar dispositivo.</string>
+    <string name="staging_error_dismiss">Falha ao descartar dispositivo.</string>
+    
+    <!-- Subnets -->
+    <string name="subnets_title">Sub-redes</string>
+    <string name="subnets_error_load">Falha ao carregar sub-redes.</string>
+    <string name="subnets_error_create">Falha ao criar sub-rede.</string>
+    <string name="validation_subnet_name_required">Nome da sub-rede é obrigatório.</string>
+    <string name="validation_cidr_required">CIDR é obrigatório.</string>
+    <string name="validation_cidr_invalid">Formato de CIDR inválido (ex: 192.168.1.0/24).</string>
+    <string name="validation_vlan_invalid">VLAN ID deve ser um número entre 1 e 4094.</string>
+    <string name="validation_gateway_invalid">Endereço IP de Gateway inválido.</string>
+    
+    <!-- Auth -->
+    <string name="login_title">Login</string>
+    <string name="login_error_credentials">Usuário e senha são obrigatórios.</string>
+    <string name="login_error_rate_limit">Muitas tentativas. Aguarde antes de tentar novamente.</string>
+    <string name="login_error_network">Erro de rede. Verifique sua conexão.</string>
+    
+    <!-- Onboarding -->
+    <string name="onboarding_title">Configuração Inicial</string>
+    <string name="validation_username_min">Usuário deve ter pelo menos 3 caracteres.</string>
+    <string name="validation_email_invalid">E-mail deve conter @.</string>
+    <string name="validation_password_min">Senha deve ter pelo menos 12 caracteres.</string>
+    <string name="validation_password_mismatch">As senhas não conferem.</string>
+    <string name="onboarding_error_generic">Falha na configuração inicial.</string>
+</resources>
