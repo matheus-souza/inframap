@@ -177,7 +177,9 @@ class DeviceDetailViewModelTest {
             val client = ApiClient(baseUrl = "", httpClient = httpClient)
 
             val vm = DeviceDetailViewModel("d1", client, scope = this)
+            val loadDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
+            loadDeferred.await()
 
             val stateDeferred = async { vm.state.first { it.errorMessage != null } }
             vm.deleteDevice {}
