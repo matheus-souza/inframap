@@ -1,0 +1,56 @@
+<resources>
+    <!-- Common -->
+    <string name="error_network">Network error. Failed to connect to server.</string>
+    <string name="error_generic">An unexpected error occurred.</string>
+    <string name="loading">Loading...</string>
+    
+    <!-- Dashboard -->
+    <string name="dashboard_title">Dashboard</string>
+    <string name="dashboard_error_load">Failed to load dashboard metrics.</string>
+    
+    <!-- Devices -->
+    <string name="devices_title">Devices</string>
+    <string name="devices_error_load">Failed to load devices.</string>
+    <string name="devices_error_delete">Failed to delete device.</string>
+    <string name="devices_delete_success">Device '%1$s' successfully deleted.</string>
+    <string name="devices_error_load_detail">Failed to load device details.</string>
+    <string name="devices_error_create">Failed to create device.</string>
+    <string name="devices_error_update">Failed to update device.</string>
+    
+    <!-- Validation -->
+    <string name="validation_hostname_required">Hostname is required.</string>
+    <string name="validation_device_type_required">Device type is required.</string>
+    <string name="validation_hostname_empty">Hostname cannot be empty.</string>
+    
+    <!-- Staging -->
+    <string name="staging_title">Staging</string>
+    <string name="staging_error_load">Failed to load staging devices.</string>
+    <string name="staging_approve_success">Device '%1$s' successfully approved.</string>
+    <string name="staging_dismiss_success">Device '%1$s' successfully dismissed.</string>
+    <string name="staging_error_approve">Failed to approve device.</string>
+    <string name="staging_error_dismiss">Failed to dismiss device.</string>
+    
+    <!-- Subnets -->
+    <string name="subnets_title">Subnets</string>
+    <string name="subnets_error_load">Failed to load subnets.</string>
+    <string name="subnets_error_create">Failed to create subnet.</string>
+    <string name="validation_subnet_name_required">Subnet name is required.</string>
+    <string name="validation_cidr_required">CIDR is required.</string>
+    <string name="validation_cidr_invalid">Invalid CIDR format (ex: 192.168.1.0/24).</string>
+    <string name="validation_vlan_invalid">VLAN ID must be a number between 1 and 4094.</string>
+    <string name="validation_gateway_invalid">Invalid Gateway IP address.</string>
+    
+    <!-- Auth -->
+    <string name="login_title">Login</string>
+    <string name="login_error_credentials">Username and password are required.</string>
+    <string name="login_error_rate_limit">Too many attempts. Please wait before trying again.</string>
+    <string name="login_error_network">Network error. Check your connection.</string>
+    
+    <!-- Onboarding -->
+    <string name="onboarding_title">Initial Setup</string>
+    <string name="validation_username_min">Username must be at least 3 characters.</string>
+    <string name="validation_email_invalid">Email must contain @.</string>
+    <string name="validation_password_min">Password must be at least 12 characters.</string>
+    <string name="validation_password_mismatch">Passwords do not match.</string>
+    <string name="onboarding_error_generic">Initial setup failed.</string>
+</resources>

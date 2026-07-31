@@ -12,6 +12,12 @@ plugins {
 group = "com.inframap"
 version = "0.1.0-SNAPSHOT"
 
+compose.resources {
+    publicResClass = true
+    packageOfResClass = "com.inframap.frontend.generated.resources"
+    generateResClass = always
+}
+
 kotlin {
     wasmJs {
         browser {
@@ -37,6 +43,7 @@ kotlin {
                 implementation(compose.foundation)
                 implementation(compose.material3)
                 implementation(compose.ui)
+                implementation(compose.components.resources)
 
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
@@ -148,6 +155,7 @@ kover {
                 packages(
                     "com.inframap.frontend.data.dto",
                     "com.inframap.frontend.ui.app",
+                    "com.inframap.frontend.generated",
                 )
                 classes(
                     "com.inframap.frontend.designsystem.*",
