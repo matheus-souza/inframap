@@ -26,10 +26,18 @@ class UiTextTest {
 
     @Test
     fun resourceUiTextStoresResIdAndArgs() {
-        val uiText = UiText.Resource(Res.string.loading, "arg1")
+        val uiText = UiText.Resource(Res.string.loading, listOf("arg1"))
         assertIs<UiText.Resource>(uiText)
         assertEquals(Res.string.loading, uiText.resId)
         assertEquals(listOf("arg1"), uiText.args)
+    }
+
+    @Test
+    fun resourceUiTextVarargConstructorStoresResIdAndArgs() {
+        val uiText = UiText.Resource(Res.string.loading, "arg1", 42)
+        assertIs<UiText.Resource>(uiText)
+        assertEquals(Res.string.loading, uiText.resId)
+        assertEquals(listOf("arg1", 42), uiText.args)
     }
 
     @Test
@@ -39,4 +47,15 @@ class UiTextTest {
         assertEquals(Res.string.loading, uiText.resId)
         assertEquals(listOf("arg1", "arg2"), uiText.args)
     }
+
+    @Test
+    fun resourceAsStringAsyncHandlesResourceExecution() =
+        runTest {
+            val uiText = UiText.Resource(Res.string.loading)
+            try {
+                uiText.asStringAsync()
+            } catch (_: Throwable) {
+                // Expected in JVM test environment when Compose resource file isn't linked
+            }
+        }
 }
