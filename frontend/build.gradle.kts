@@ -93,10 +93,6 @@ kotlin {
     }
 }
 
-compose.resources {
-    generateResClass = never
-}
-
 val ktlintCli: Configuration by configurations.creating
 
 dependencies {
