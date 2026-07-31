@@ -94,4 +94,12 @@ class KoinModuleCheckTest {
 
         app.close()
     }
+
+    @Test
+    fun testModuleDeclarations() {
+        assertNotNull(dataModule)
+        assertNotNull(domainModule)
+        assertNotNull(presentationModule)
+        kotlin.test.assertEquals(3, appModules.size)
+    }
 }
