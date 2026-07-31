@@ -51,6 +51,11 @@ kotlin {
                 implementation("io.ktor:ktor-client-core:3.1.3")
                 implementation("io.ktor:ktor-client-content-negotiation:3.1.3")
                 implementation("io.ktor:ktor-serialization-kotlinx-json:3.1.3")
+
+                implementation(project.dependencies.platform("io.insert-koin:koin-bom:4.1.1"))
+                implementation("io.insert-koin:koin-core")
+                implementation("io.insert-koin:koin-compose")
+                implementation("io.insert-koin:koin-compose-viewmodel")
             }
         }
 
@@ -59,6 +64,7 @@ kotlin {
                 implementation(kotlin("test"))
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
                 implementation("io.ktor:ktor-client-mock:3.1.3")
+                implementation("io.insert-koin:koin-test")
             }
         }
 
