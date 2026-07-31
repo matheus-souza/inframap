@@ -12,7 +12,7 @@
     <string name="devices_title">Dispositivos</string>
     <string name="devices_error_load">Falha ao carregar dispositivos.</string>
     <string name="devices_error_delete">Falha ao excluir dispositivo.</string>
-    <string name="devices_delete_success">Dispositivo '%s' excluído com sucesso.</string>
+    <string name="devices_delete_success">Dispositivo '%1$s' excluído com sucesso.</string>
     <string name="devices_error_load_detail">Falha ao carregar detalhes do dispositivo.</string>
     <string name="devices_error_create">Falha ao criar dispositivo.</string>
     <string name="devices_error_update">Falha ao atualizar dispositivo.</string>
@@ -25,8 +25,8 @@
     <!-- Staging -->
     <string name="staging_title">Staging</string>
     <string name="staging_error_load">Falha ao carregar dispositivos em staging.</string>
-    <string name="staging_approve_success">Dispositivo '%s' aprovado com sucesso.</string>
-    <string name="staging_dismiss_success">Dispositivo '%s' descartado com sucesso.</string>
+    <string name="staging_approve_success">Dispositivo '%1$s' aprovado com sucesso.</string>
+    <string name="staging_dismiss_success">Dispositivo '%1$s' descartado com sucesso.</string>
     <string name="staging_error_approve">Falha ao aprovar dispositivo.</string>
     <string name="staging_error_dismiss">Falha ao descartar dispositivo.</string>
     

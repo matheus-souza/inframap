@@ -32,6 +32,10 @@ private class TestListViewModel(
     fun setTotalItems(total: Long) {
         updateState { copy(totalItems = total) }
     }
+
+    fun setLoading(loading: Boolean) {
+        updateState { copy(isLoading = loading) }
+    }
 }
 
 class BaseListViewModelTest {
@@ -86,6 +90,25 @@ class BaseListViewModelTest {
             assertEquals(1, vm.lastLoadedPage)
 
             // At page 1, previousPage should be no-op
+            vm.previousPage()
+            assertEquals(1, vm.lastLoadedPage)
+            vm.clear()
+        }
+
+    @Test
+    fun navigationMethodsAreNoOpWhenLoading() =
+        runTest {
+            val vm = TestListViewModel(this, defaultPerPage = 10)
+            vm.loadPage(1)
+            vm.setTotalItems(30)
+            vm.setLoading(true)
+
+            vm.refresh()
+            assertEquals(1, vm.lastLoadedPage)
+
+            vm.nextPage()
+            assertEquals(1, vm.lastLoadedPage)
+
             vm.previousPage()
             assertEquals(1, vm.lastLoadedPage)
             vm.clear()

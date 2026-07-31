@@ -20,9 +20,13 @@ abstract class BaseListViewModel<S : Paginated>(
         perPage: Int = defaultPerPage,
     )
 
-    fun refresh() = loadPage(currentState.currentPage)
+    fun refresh() {
+        if (currentState.isLoading) return
+        loadPage(currentState.currentPage)
+    }
 
     fun nextPage() {
+        if (currentState.isLoading) return
         val totalPages = (currentState.totalItems + defaultPerPage - 1) / defaultPerPage
         if (currentState.currentPage < totalPages.toInt()) {
             loadPage(currentState.currentPage + 1)
@@ -30,6 +34,7 @@ abstract class BaseListViewModel<S : Paginated>(
     }
 
     fun previousPage() {
+        if (currentState.isLoading) return
         if (currentState.currentPage > 1) {
             loadPage(currentState.currentPage - 1)
         }

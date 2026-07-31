@@ -12,7 +12,7 @@
     <string name="devices_title">Devices</string>
     <string name="devices_error_load">Failed to load devices.</string>
     <string name="devices_error_delete">Failed to delete device.</string>
-    <string name="devices_delete_success">Device '%s' successfully deleted.</string>
+    <string name="devices_delete_success">Device '%1$s' successfully deleted.</string>
     <string name="devices_error_load_detail">Failed to load device details.</string>
     <string name="devices_error_create">Failed to create device.</string>
     <string name="devices_error_update">Failed to update device.</string>
@@ -25,8 +25,8 @@
     <!-- Staging -->
     <string name="staging_title">Staging</string>
     <string name="staging_error_load">Failed to load staging devices.</string>
-    <string name="staging_approve_success">Device '%s' successfully approved.</string>
-    <string name="staging_dismiss_success">Device '%s' successfully dismissed.</string>
+    <string name="staging_approve_success">Device '%1$s' successfully approved.</string>
+    <string name="staging_dismiss_success">Device '%1$s' successfully dismissed.</string>
     <string name="staging_error_approve">Failed to approve device.</string>
     <string name="staging_error_dismiss">Failed to dismiss device.</string>
     
