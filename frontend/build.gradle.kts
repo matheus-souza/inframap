@@ -155,6 +155,7 @@ kover {
                 packages(
                     "com.inframap.frontend.data.dto",
                     "com.inframap.frontend.ui.app",
+                    "com.inframap.frontend.generated",
                 )
                 classes(
                     "com.inframap.frontend.designsystem.*",

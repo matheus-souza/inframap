@@ -41,6 +41,8 @@ ignore:
   - "**/mock_*.go"
   - "backend/modules/*/repository/*_repository.go"
   - "frontend/src/wasmJsMain/**"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/generated/**"
+  - "**/generated/**"
   - "frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/**"
   - "frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/**"
   - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/**"
