@@ -68,12 +68,14 @@ class CreateSubnetUseCaseTest {
         runTest {
             val repo = FakeSubnetRepository()
             val useCase = CreateSubnetUseCase(repo)
-            val request = CreateSubnetRequest(name = "LAN", cidr = "invalid-cidr")
 
-            val result = useCase(request)
+            val invalidTextResult = useCase(CreateSubnetRequest(name = "LAN", cidr = "invalid-cidr"))
+            assertIs<ApiResult.Error>(invalidTextResult)
+            assertEquals("INVALID_CIDR", (invalidTextResult as ApiResult.Error).code)
 
-            assertIs<ApiResult.Error>(result)
-            assertEquals("INVALID_CIDR", (result as ApiResult.Error).code)
+            val invalidOctetResult = useCase(CreateSubnetRequest(name = "LAN", cidr = "999.168.1.0/24"))
+            assertIs<ApiResult.Error>(invalidOctetResult)
+            assertEquals("INVALID_CIDR", (invalidOctetResult as ApiResult.Error).code)
         }
 
     @Test
