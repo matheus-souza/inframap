@@ -2,6 +2,7 @@ package com.inframap.frontend.data.repository
 
 import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.api.map
 import com.inframap.frontend.data.dto.CreateDeviceRequest
 import com.inframap.frontend.data.dto.DeviceDto
 import com.inframap.frontend.data.dto.DeviceListResponse
@@ -23,43 +24,26 @@ class DeviceRepositoryImpl(
         if (search.isNotBlank()) {
             params["search"] = search.trim()
         }
-        val result = apiClient.get<DeviceListResponse>("/api/v1/devices", params)
-        return when (result) {
-            is ApiResult.Success -> ApiResult.Success(DeviceMapper.toPaginatedList(result.data), result.requestId)
-            is ApiResult.Error -> ApiResult.Error(result.code, result.message, result.requestId, result.httpStatus)
-            is ApiResult.NetworkError -> ApiResult.NetworkError(result.throwable)
+        return apiClient.get<DeviceListResponse>("/api/v1/devices", params).map {
+            DeviceMapper.toPaginatedList(it)
         }
     }
 
-    override suspend fun getDeviceById(id: String): ApiResult<Device> {
-        val result = apiClient.get<DeviceDto>("/api/v1/devices/$id")
-        return when (result) {
-            is ApiResult.Success -> ApiResult.Success(DeviceMapper.toDomain(result.data), result.requestId)
-            is ApiResult.Error -> ApiResult.Error(result.code, result.message, result.requestId, result.httpStatus)
-            is ApiResult.NetworkError -> ApiResult.NetworkError(result.throwable)
-        }
-    }
+    override suspend fun getDeviceById(id: String): ApiResult<Device> =
+        apiClient.get<DeviceDto>("/api/v1/devices/$id").map { DeviceMapper.toDomain(it) }
 
-    override suspend fun createDevice(request: CreateDeviceRequest): ApiResult<Device> {
-        val result = apiClient.post<DeviceDto, CreateDeviceRequest>("/api/v1/devices", request)
-        return when (result) {
-            is ApiResult.Success -> ApiResult.Success(DeviceMapper.toDomain(result.data), result.requestId)
-            is ApiResult.Error -> ApiResult.Error(result.code, result.message, result.requestId, result.httpStatus)
-            is ApiResult.NetworkError -> ApiResult.NetworkError(result.throwable)
+    override suspend fun createDevice(request: CreateDeviceRequest): ApiResult<Device> =
+        apiClient.post<DeviceDto, CreateDeviceRequest>("/api/v1/devices", request).map {
+            DeviceMapper.toDomain(it)
         }
-    }
 
     override suspend fun updateDevice(
         id: String,
         request: UpdateDeviceRequest,
-    ): ApiResult<Device> {
-        val result = apiClient.put<DeviceDto, UpdateDeviceRequest>("/api/v1/devices/$id", request)
-        return when (result) {
-            is ApiResult.Success -> ApiResult.Success(DeviceMapper.toDomain(result.data), result.requestId)
-            is ApiResult.Error -> ApiResult.Error(result.code, result.message, result.requestId, result.httpStatus)
-            is ApiResult.NetworkError -> ApiResult.NetworkError(result.throwable)
+    ): ApiResult<Device> =
+        apiClient.put<DeviceDto, UpdateDeviceRequest>("/api/v1/devices/$id", request).map {
+            DeviceMapper.toDomain(it)
         }
-    }
 
     override suspend fun deleteDevice(id: String): ApiResult<Unit> = apiClient.delete("/api/v1/devices/$id")
 }

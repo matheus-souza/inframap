@@ -2,6 +2,7 @@ package com.inframap.frontend.data.repository
 
 import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.api.map
 import com.inframap.frontend.data.dto.DeviceDto
 import com.inframap.frontend.data.dto.StagingListResponse
 import com.inframap.frontend.data.mapper.DeviceMapper
@@ -19,22 +20,13 @@ class StagingRepositoryImpl(
         perPage: Int,
     ): ApiResult<PaginatedList<StagingDevice>> {
         val params = mapOf("page" to page.toString(), "per_page" to perPage.toString())
-        val result = apiClient.get<StagingListResponse>("/api/v1/devices/staging", params)
-        return when (result) {
-            is ApiResult.Success -> ApiResult.Success(StagingMapper.toPaginatedList(result.data), result.requestId)
-            is ApiResult.Error -> ApiResult.Error(result.code, result.message, result.requestId, result.httpStatus)
-            is ApiResult.NetworkError -> ApiResult.NetworkError(result.throwable)
+        return apiClient.get<StagingListResponse>("/api/v1/devices/staging", params).map {
+            StagingMapper.toPaginatedList(it)
         }
     }
 
-    override suspend fun approveDevice(id: String): ApiResult<Device> {
-        val result = apiClient.post<DeviceDto>("/api/v1/devices/staging/$id/approve")
-        return when (result) {
-            is ApiResult.Success -> ApiResult.Success(DeviceMapper.toDomain(result.data), result.requestId)
-            is ApiResult.Error -> ApiResult.Error(result.code, result.message, result.requestId, result.httpStatus)
-            is ApiResult.NetworkError -> ApiResult.NetworkError(result.throwable)
-        }
-    }
+    override suspend fun approveDevice(id: String): ApiResult<Device> =
+        apiClient.post<DeviceDto>("/api/v1/devices/staging/$id/approve").map { DeviceMapper.toDomain(it) }
 
     override suspend fun dismissDevice(id: String): ApiResult<Unit> =
         apiClient.post(
