@@ -1,4 +1,4 @@
-package com.inframap.frontend.generated.resources
+package com.inframap.frontend.designsystem.resources
 
 import org.jetbrains.compose.resources.InternalResourceApi
 import org.jetbrains.compose.resources.ResourceItem

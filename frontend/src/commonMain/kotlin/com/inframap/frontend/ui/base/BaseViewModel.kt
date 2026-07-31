@@ -1,7 +1,7 @@
 package com.inframap.frontend.ui.base
 
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
