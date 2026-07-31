@@ -70,6 +70,7 @@ ignore:
   - "**/BrowserSSEClient.kt"
   - "**/*Contracts.kt"
   - "**/Route.kt"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/di/**"
 
 comment:
   layout: "reach, diff, flags, files"
