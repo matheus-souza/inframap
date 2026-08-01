@@ -1,72 +1,64 @@
 package com.inframap.frontend.ui.subnets
 
-import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.SubnetListResponse
+import com.inframap.frontend.designsystem.resources.Res
+import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
+import com.inframap.frontend.ui.base.BaseListViewModel
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 class SubnetsViewModel(
-    private val apiClient: ApiClient,
-    private val scope: CoroutineScope,
-) {
-    private val _state = MutableStateFlow(SubnetsUiState())
-    val state: StateFlow<SubnetsUiState> = _state.asStateFlow()
-
-    private var fetchJob: Job? = null
-
+    private val getSubnetsUseCase: GetSubnetsUseCase,
+    scope: CoroutineScope? = null,
+) : BaseListViewModel<SubnetsUiState>(SubnetsUiState(), scope = scope) {
     init {
-        loadSubnets()
+        loadPage(1)
     }
 
-    fun loadSubnets() {
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
+    override fun loadPage(
+        page: Int,
+        perPage: Int,
+    ) {
+        updateState { it.copy(isLoading = true, errorMessage = null) }
 
-        fetchJob?.cancel()
-        fetchJob =
-            scope.launch {
-                when (val result = apiClient.get<SubnetListResponse>("/api/v1/subnets")) {
-                    is ApiResult.Success -> {
-                        _state.update {
-                            it.copy(
-                                subnets = result.data.subnets,
-                                total = result.data.total,
-                                isLoading = false,
-                                errorMessage = null,
-                            )
-                        }
+        launchJob("fetch") {
+            when (val result = getSubnetsUseCase()) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            subnets = result.data.items,
+                            totalItems = result.data.total,
+                            currentPage = result.data.page,
+                            isLoading = false,
+                            errorMessage = null,
+                        )
                     }
-                    is ApiResult.Error -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = result.message.ifEmpty { "Falha ao carregar subredes" },
-                            )
-                        }
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.subnets_error_load)),
+                        )
                     }
-                    is ApiResult.NetworkError -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = "Erro de rede. Não foi possível conectar ao servidor.",
-                            )
-                        }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.subnets_error_load)),
+                        )
                     }
                 }
             }
+        }
+    }
+
+    fun loadSubnets() {
+        loadPage(1)
     }
 
     fun dismissToast() {
-        _state.update { it.copy(toastMessage = null) }
-    }
-
-    fun clear() {
-        fetchJob?.cancel()
-        fetchJob = null
+        updateState { it.copy(toastMessage = null) }
     }
 }

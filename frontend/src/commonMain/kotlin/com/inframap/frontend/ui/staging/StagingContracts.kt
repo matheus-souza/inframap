@@ -2,26 +2,28 @@
 
 package com.inframap.frontend.ui.staging
 
-import com.inframap.frontend.data.dto.StagingDeviceDto
+import com.inframap.frontend.domain.model.StagingDevice
+import com.inframap.frontend.ui.base.Paginated
+import com.inframap.frontend.ui.util.UiText
 
 data class StagingUiState(
-    val devices: List<StagingDeviceDto> = emptyList(),
-    val total: Long = 0,
-    val page: Int = 1,
+    val devices: List<StagingDevice> = emptyList(),
+    override val totalItems: Long = 0,
+    override val currentPage: Int = 1,
     val perPage: Int = 50,
-    val isLoading: Boolean = true,
-    val errorMessage: String? = null,
-    val deviceToDismiss: StagingDeviceDto? = null,
+    override val isLoading: Boolean = true,
+    override val errorMessage: UiText? = null,
+    val deviceToDismiss: StagingDevice? = null,
     val actionDeviceId: String? = null,
     val isProcessingAction: Boolean = false,
-    val actionErrorMessage: String? = null,
-    val toastMessage: String? = null,
-)
+    val actionErrorMessage: UiText? = null,
+    val toastMessage: UiText? = null,
+) : Paginated
 
 data class StagingActions(
     val onPageChanged: (Int) -> Unit,
-    val onApproveClicked: (StagingDeviceDto) -> Unit,
-    val onDismissClicked: (StagingDeviceDto) -> Unit,
+    val onApproveClicked: (StagingDevice) -> Unit,
+    val onDismissClicked: (StagingDevice) -> Unit,
     val onConfirmDismiss: () -> Unit,
     val onCancelDismiss: () -> Unit,
     val onDismissActionError: () -> Unit,

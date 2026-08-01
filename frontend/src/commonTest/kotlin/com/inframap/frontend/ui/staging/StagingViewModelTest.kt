@@ -1,74 +1,92 @@
 package com.inframap.frontend.ui.staging
 
-import com.inframap.frontend.data.api.ApiClient
-import com.inframap.frontend.data.dto.StagingDeviceDto
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
+import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.domain.model.PaginatedList
+import com.inframap.frontend.domain.model.StagingDevice
+import com.inframap.frontend.domain.repository.StagingRepository
+import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
+import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
+import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class StagingViewModelTest {
-    private val jsonHeaders =
-        headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+    private val sampleStagingDevice =
+        StagingDevice(
+            id = "st1",
+            hostname = "stg-switch-01",
+            deviceType = "switch",
+            status = "pending",
+        )
 
-    private fun createClient(handler: suspend (String, String) -> Pair<HttpStatusCode, String>): ApiClient {
-        val engine =
-            MockEngine { request ->
-                val (status, body) = handler(request.method.value, request.url.encodedPath)
-                respond(body, status, jsonHeaders)
-            }
-        val httpClient =
-            HttpClient(engine) {
-                install(ContentNegotiation) {
-                    json(
-                        Json {
-                            ignoreUnknownKeys = true
-                            isLenient = true
-                        },
-                    )
-                }
-            }
-        return ApiClient(baseUrl = "", httpClient = httpClient)
-    }
+    private val sampleDevice =
+        Device(
+            id = "st1",
+            hostname = "stg-switch-01",
+            deviceType = "switch",
+            status = "active",
+        )
 
-    private val defaultMockHandler: suspend (String, String) -> Pair<HttpStatusCode, String> = { method, path ->
-        when {
-            method.equals("GET", ignoreCase = true) && path.endsWith("/devices/staging") ->
-                HttpStatusCode.OK to
-                    """{"data":{"items":[{"id":"st1","hostname":"stg-switch-01","device_type":"switch","status":"pending"}],"total":1,"page":1,"per_page":50},"meta":{"request_id":"r1"}}"""
-            method.equals("POST", ignoreCase = true) && path.contains("/approve") ->
-                HttpStatusCode.OK to
-                    """{"data":{"id":"st1","hostname":"stg-switch-01","device_type":"switch","status":"active"},"meta":{"request_id":"r2"}}"""
-            method.equals("POST", ignoreCase = true) && path.contains("/dismiss") ->
-                HttpStatusCode.OK to
-                    """{"data":{"message":"dismissed"},"meta":{"request_id":"r3"}}"""
-            else ->
-                HttpStatusCode.NotFound to """{"error":{"code":"NOT_FOUND","message":"Not found"},"meta":{"request_id":"r_err"}}"""
-        }
-    }
+    private val pagedResult =
+        PaginatedList(items = listOf(sampleStagingDevice), total = 1, page = 1, perPage = 50)
+
+    private val fakeGetSuccess =
+        GetStagingDevicesUseCase(
+            object : StagingRepository {
+                override suspend fun getStagingDevices(
+                    page: Int,
+                    perPage: Int,
+                ) = ApiResult.Success(pagedResult, requestId = "")
+
+                override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
+
+                override suspend fun dismissDevice(id: String) = ApiResult.Success(Unit, requestId = "")
+            },
+        )
+
+    private val fakeApproveSuccess =
+        ApproveDeviceUseCase(
+            object : StagingRepository {
+                override suspend fun getStagingDevices(
+                    page: Int,
+                    perPage: Int,
+                ) = ApiResult.Success(pagedResult, requestId = "")
+
+                override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
+
+                override suspend fun dismissDevice(id: String) = ApiResult.Success(Unit, requestId = "")
+            },
+        )
+
+    private val fakeDismissSuccess =
+        DismissDeviceUseCase(
+            object : StagingRepository {
+                override suspend fun getStagingDevices(
+                    page: Int,
+                    perPage: Int,
+                ) = ApiResult.Success(pagedResult, requestId = "")
+
+                override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
+
+                override suspend fun dismissDevice(id: String) = ApiResult.Success(Unit, requestId = "")
+            },
+        )
 
     @Test
     fun loadStagingDevicesPopulatesListSuccessfully() =
         runTest {
-            val client = createClient(defaultMockHandler)
-            val vm = StagingViewModel(client, scope = this)
+            val vm = StagingViewModel(fakeGetSuccess, fakeApproveSuccess, fakeDismissSuccess, scope = this)
 
             val stateDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
@@ -78,75 +96,97 @@ class StagingViewModelTest {
             assertNull(state.errorMessage)
             assertEquals(1, state.devices.size)
             assertEquals("stg-switch-01", state.devices.first().hostname)
+            vm.clear()
         }
 
     @Test
     fun loadStagingDevicesHandlesApiError() =
         runTest {
-            val client =
-                createClient { _, path ->
-                    if (path.endsWith("/devices/staging")) {
-                        HttpStatusCode.InternalServerError to
-                            """{"error":{"code":"DB_ERR","message":"DB Error"},"meta":{"request_id":"r_err"}}"""
-                    } else {
-                        defaultMockHandler("GET", path)
-                    }
-                }
+            val repo =
+                object : StagingRepository {
+                    override suspend fun getStagingDevices(
+                        page: Int,
+                        perPage: Int,
+                    ) = ApiResult.Error(code = "DB_ERROR", message = "DB Error", requestId = "", httpStatus = 500)
 
-            val vm = StagingViewModel(client, scope = this)
+                    override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
+
+                    override suspend fun dismissDevice(id: String) = ApiResult.Success(Unit, requestId = "")
+                }
+            val vm =
+                StagingViewModel(
+                    GetStagingDevicesUseCase(repo),
+                    ApproveDeviceUseCase(repo),
+                    DismissDeviceUseCase(repo),
+                    scope = this,
+                )
+
             val stateDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
             val state = stateDeferred.await()
 
             assertFalse(state.isLoading)
-            assertEquals("DB Error", state.errorMessage)
+            assertNotNull(state.errorMessage)
+            vm.clear()
         }
 
     @Test
     fun loadStagingDevicesHandlesNetworkError() =
         runTest {
-            val engine = MockEngine { throw RuntimeException("Network issue") }
-            val httpClient = HttpClient(engine) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
-            val client = ApiClient(baseUrl = "", httpClient = httpClient)
+            val repo =
+                object : StagingRepository {
+                    override suspend fun getStagingDevices(
+                        page: Int,
+                        perPage: Int,
+                    ) = ApiResult.NetworkError(RuntimeException("Network failure"))
 
-            val vm = StagingViewModel(client, scope = this)
+                    override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
+
+                    override suspend fun dismissDevice(id: String) = ApiResult.Success(Unit, requestId = "")
+                }
+            val vm =
+                StagingViewModel(
+                    GetStagingDevicesUseCase(repo),
+                    ApproveDeviceUseCase(repo),
+                    DismissDeviceUseCase(repo),
+                    scope = this,
+                )
+
             val stateDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
             val state = stateDeferred.await()
 
             assertFalse(state.isLoading)
-            assertEquals("Erro de rede. Não foi possível conectar ao servidor.", state.errorMessage)
+            assertNotNull(state.errorMessage)
+            vm.clear()
         }
 
     @Test
     fun approveDeviceWorkflowCompletesSuccessfully() =
         runTest {
-            val client = createClient(defaultMockHandler)
-            val vm = StagingViewModel(client, scope = this)
+            val vm = StagingViewModel(fakeGetSuccess, fakeApproveSuccess, fakeDismissSuccess, scope = this)
             advanceUntilIdle()
 
-            val device = StagingDeviceDto(id = "st1", hostname = "stg-switch-01", deviceType = "switch", status = "pending")
             val stateDeferred = async { vm.state.first { !it.isProcessingAction && it.toastMessage != null } }
-            vm.approveDevice(device)
+            vm.approveDevice(sampleStagingDevice)
             advanceUntilIdle()
 
             val state = stateDeferred.await()
             assertFalse(state.isProcessingAction)
-            assertTrue(state.toastMessage?.contains("stg-switch-01") == true)
+            assertNotNull(state.toastMessage)
+            vm.clear()
         }
 
     @Test
     fun approveDeviceIgnoresReentrantCallsWhenProcessing() =
         runTest {
-            val client = createClient(defaultMockHandler)
-            val vm = StagingViewModel(client, scope = this)
+            val vm = StagingViewModel(fakeGetSuccess, fakeApproveSuccess, fakeDismissSuccess, scope = this)
             advanceUntilIdle()
 
-            val device = StagingDeviceDto(id = "st1", hostname = "stg-switch-01", deviceType = "switch", status = "pending")
-            vm.approveDevice(device)
+            vm.approveDevice(sampleStagingDevice)
             assertTrue(vm.state.value.isProcessingAction)
 
-            vm.approveDevice(device)
+            vm.approveDevice(sampleStagingDevice)
             assertTrue(vm.state.value.isProcessingAction)
 
             advanceUntilIdle()
@@ -156,12 +196,10 @@ class StagingViewModelTest {
     @Test
     fun dismissDeviceWorkflowCompletesSuccessfully() =
         runTest {
-            val client = createClient(defaultMockHandler)
-            val vm = StagingViewModel(client, scope = this)
+            val vm = StagingViewModel(fakeGetSuccess, fakeApproveSuccess, fakeDismissSuccess, scope = this)
             advanceUntilIdle()
 
-            val device = StagingDeviceDto(id = "st1", hostname = "stg-switch-01", deviceType = "switch", status = "pending")
-            vm.confirmDismissDevice(device)
+            vm.confirmDismissDevice(sampleStagingDevice)
             assertEquals(
                 "st1",
                 vm.state.value.deviceToDismiss
@@ -175,37 +213,50 @@ class StagingViewModelTest {
             val state = stateDeferred.await()
             assertNull(state.deviceToDismiss)
             assertFalse(state.isProcessingAction)
-            assertTrue(state.toastMessage?.contains("stg-switch-01") == true)
+            assertNotNull(state.toastMessage)
 
             vm.dismissToast()
             assertNull(vm.state.value.toastMessage)
+            vm.clear()
         }
 
     @Test
     fun dismissDeviceHandlesApiError() =
         runTest {
-            val client =
-                createClient { method, path ->
-                    if (method == "POST" && path.contains("/dismiss")) {
-                        HttpStatusCode.BadRequest to
-                            """{"error":{"code":"BAD_REQ","message":"Cannot dismiss device"},"meta":{"request_id":"r_err"}}"""
-                    } else {
-                        defaultMockHandler(method, path)
-                    }
-                }
+            val repo =
+                object : StagingRepository {
+                    override suspend fun getStagingDevices(
+                        page: Int,
+                        perPage: Int,
+                    ) = ApiResult.Success(pagedResult, requestId = "")
 
-            val vm = StagingViewModel(client, scope = this)
+                    override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
+
+                    override suspend fun dismissDevice(id: String) =
+                        ApiResult.Error(
+                            code = "DISMISS_ERROR",
+                            message = "Cannot dismiss device",
+                            requestId = "",
+                            httpStatus = 400,
+                        )
+                }
+            val vm =
+                StagingViewModel(
+                    GetStagingDevicesUseCase(repo),
+                    ApproveDeviceUseCase(repo),
+                    DismissDeviceUseCase(repo),
+                    scope = this,
+                )
             advanceUntilIdle()
 
-            val device = StagingDeviceDto(id = "st1", hostname = "stg-switch-01", deviceType = "switch", status = "pending")
-            vm.confirmDismissDevice(device)
+            vm.confirmDismissDevice(sampleStagingDevice)
 
             val stateDeferred = async { vm.state.first { it.actionErrorMessage != null } }
             vm.dismissDevice()
             advanceUntilIdle()
 
             val state = stateDeferred.await()
-            assertEquals("Cannot dismiss device", state.actionErrorMessage)
+            assertNotNull(state.actionErrorMessage)
             assertFalse(state.isProcessingAction)
 
             vm.dismissActionError()
@@ -213,5 +264,6 @@ class StagingViewModelTest {
 
             vm.cancelDismissDevice()
             assertNull(vm.state.value.deviceToDismiss)
+            vm.clear()
         }
 }

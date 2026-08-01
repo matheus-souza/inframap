@@ -16,4 +16,9 @@ class GetStagingDevicesUseCase(
 
     override suspend fun invoke(params: Params): ApiResult<PaginatedList<StagingDevice>> =
         stagingRepository.getStagingDevices(page = params.page, perPage = params.perPage)
+
+    suspend operator fun invoke(
+        page: Int = 1,
+        perPage: Int = 10,
+    ): ApiResult<PaginatedList<StagingDevice>> = invoke(Params(page = page, perPage = perPage))
 }

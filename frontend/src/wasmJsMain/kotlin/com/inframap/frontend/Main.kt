@@ -2,8 +2,9 @@ package com.inframap.frontend
 
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.CanvasBasedWindow
-import com.inframap.frontend.data.api.ApiClient
+import com.inframap.frontend.di.appModules
 import com.inframap.frontend.ui.app.InfraMapApp
+import org.koin.compose.KoinApplication
 
 @JsFun("function() { return window.location.origin; }")
 private external fun getOrigin(): String
@@ -13,9 +14,11 @@ private external fun notifyReady()
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
-    val apiClient = ApiClient(baseUrl = getOrigin())
+    val baseUrl = getOrigin()
     CanvasBasedWindow(canvasElementId = "inframap-canvas", title = "InfraMap") {
-        InfraMapApp(apiClient = apiClient)
+        KoinApplication(application = { modules(appModules(baseUrl)) }) {
+            InfraMapApp()
+        }
     }
     notifyReady()
 }

@@ -1,17 +1,13 @@
 package com.inframap.frontend.ui.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import com.inframap.frontend.data.api.ApiClient
-import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.HealthDto
-import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
@@ -24,46 +20,37 @@ import com.inframap.frontend.ui.onboarding.OnboardingViewModel
 import com.inframap.frontend.ui.splash.SplashEffect
 import com.inframap.frontend.ui.splash.SplashScreen
 import com.inframap.frontend.ui.splash.SplashViewModel
+import org.koin.compose.koinInject
 
 @Composable
-fun InfraMapApp(
-    apiClient: ApiClient,
-    sseClient: SSEClient? = null,
-) {
+fun InfraMapApp() {
     val navigator = remember { Navigator() }
     val currentRoute by navigator.currentRoute.collectAsState()
     var isHealthy by remember { mutableStateOf<Boolean?>(null) }
 
-    LaunchedEffect(Unit) {
-        val result = apiClient.get<HealthDto>("/api/v1/health")
-        isHealthy = result is ApiResult.Success && result.data.status == "ok"
-    }
-
     InfraMapTheme {
         when (currentRoute) {
-            Route.Splash -> SplashRoute(apiClient, navigator)
-            Route.Login -> LoginRoute(apiClient, navigator)
-            Route.Onboarding -> OnboardingRoute(apiClient, navigator)
+            Route.Splash -> SplashRoute(navigator)
+            Route.Login -> LoginRoute(navigator)
+            Route.Onboarding -> OnboardingRoute(navigator)
             else ->
                 MainScaffold(
                     currentRoute = currentRoute,
                     navigator = navigator,
                     isHealthy = isHealthy,
-                    apiClient = apiClient,
-                    sseClient = sseClient,
+                    onHealthChanged = { isHealthy = it },
                 )
         }
     }
 }
 
 @Composable
-private fun SplashRoute(
-    apiClient: ApiClient,
-    navigator: Navigator,
-) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember { SplashViewModel(apiClient, scope) }
+private fun SplashRoute(navigator: Navigator) {
+    val viewModel: SplashViewModel = koinInject()
     SplashScreen()
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
     LaunchedEffect(Unit) {
         viewModel.checkAuthState()
         viewModel.effects.collect { effect ->
@@ -77,13 +64,12 @@ private fun SplashRoute(
 }
 
 @Composable
-private fun LoginRoute(
-    apiClient: ApiClient,
-    navigator: Navigator,
-) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember { LoginViewModel(apiClient, scope) }
+private fun LoginRoute(navigator: Navigator) {
+    val viewModel: LoginViewModel = koinInject()
     val loginState by viewModel.state.collectAsState()
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
     LoginScreen(
         state = loginState,
         onUsernameChanged = viewModel::onUsernameChanged,
@@ -100,13 +86,12 @@ private fun LoginRoute(
 }
 
 @Composable
-private fun OnboardingRoute(
-    apiClient: ApiClient,
-    navigator: Navigator,
-) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember { OnboardingViewModel(apiClient, scope) }
+private fun OnboardingRoute(navigator: Navigator) {
+    val viewModel: OnboardingViewModel = koinInject()
     val onboardingState by viewModel.state.collectAsState()
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
     OnboardingScreen(
         state = onboardingState,
         onUsernameChanged = viewModel::onUsernameChanged,

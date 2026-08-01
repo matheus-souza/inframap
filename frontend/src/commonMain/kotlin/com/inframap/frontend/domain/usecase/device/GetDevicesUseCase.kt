@@ -21,4 +21,10 @@ class GetDevicesUseCase(
             perPage = params.perPage,
             search = params.search,
         )
+
+    suspend operator fun invoke(
+        page: Int = 1,
+        perPage: Int = 10,
+        search: String? = null,
+    ): ApiResult<PaginatedList<Device>> = invoke(Params(page = page, perPage = perPage, search = search ?: ""))
 }

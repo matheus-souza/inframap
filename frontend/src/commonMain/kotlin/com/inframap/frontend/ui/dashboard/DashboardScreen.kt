@@ -48,7 +48,7 @@ fun DashboardScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         if (state.errorMessage != null) {
-            DashboardErrorBanner(errorMessage = state.errorMessage, onRefresh = onRefresh)
+            DashboardErrorBanner(errorMessage = state.errorMessage.asString(), onRefresh = onRefresh)
             Spacer(modifier = Modifier.height(24.dp))
         }
 

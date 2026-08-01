@@ -51,7 +51,7 @@ fun EditDeviceScreen(
 
                 if (state.errorMessage != null) {
                     EditDeviceErrorCard(
-                        errorMessage = state.errorMessage,
+                        errorMessage = state.errorMessage.asString(),
                         onRetryClicked = actions.onRetryClicked,
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -143,7 +143,7 @@ private fun EditDeviceFormFields(
             value = state.hostname,
             onValueChange = actions.onHostnameChanged,
             label = "Hostname *",
-            error = state.validationErrors["hostname"],
+            error = state.validationErrors["hostname"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -153,7 +153,7 @@ private fun EditDeviceFormFields(
             value = state.ipAddress,
             onValueChange = actions.onIpAddressChanged,
             label = "Endereço IP",
-            error = state.validationErrors["ip_address"],
+            error = state.validationErrors["ip_address"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -163,7 +163,7 @@ private fun EditDeviceFormFields(
             value = state.macAddress,
             onValueChange = actions.onMacAddressChanged,
             label = "Endereço MAC",
-            error = state.validationErrors["mac_address"],
+            error = state.validationErrors["mac_address"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -173,7 +173,7 @@ private fun EditDeviceFormFields(
             value = state.deviceType,
             onValueChange = actions.onDeviceTypeChanged,
             label = "Tipo de Dispositivo",
-            error = state.validationErrors["device_type"],
+            error = state.validationErrors["device_type"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -183,7 +183,7 @@ private fun EditDeviceFormFields(
             value = state.status,
             onValueChange = actions.onStatusChanged,
             label = "Status (active, inactive, maintenance)",
-            error = state.validationErrors["status"],
+            error = state.validationErrors["status"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
     }

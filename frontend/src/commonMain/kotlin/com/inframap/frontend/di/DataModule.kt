@@ -13,9 +13,9 @@ import com.inframap.frontend.domain.repository.StagingRepository
 import com.inframap.frontend.domain.repository.SubnetRepository
 import org.koin.dsl.module
 
-val dataModule =
+fun dataModule(baseUrl: String) =
     module {
-        single { ApiClient("http://localhost:8080") }
+        single { ApiClient(baseUrl) }
         single<DeviceRepository> { DeviceRepositoryImpl(get()) }
         single<StagingRepository> { StagingRepositoryImpl(get()) }
         single<SubnetRepository> { SubnetRepositoryImpl(get()) }

@@ -17,7 +17,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.inframap.frontend.data.dto.DeviceDto
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
@@ -28,6 +27,7 @@ import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.InfraMapTablePagination
 import com.inframap.frontend.designsystem.InfraMapTextField
 import com.inframap.frontend.designsystem.TableColumn
+import com.inframap.frontend.domain.model.Device
 import kotlin.math.ceil
 
 @Composable
@@ -43,7 +43,7 @@ fun DeviceListScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             InfraMapCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     InfraMapTextField(
                         value = state.searchQuery,
                         onValueChange = actions.onSearchQueryChanged,
@@ -57,7 +57,7 @@ fun DeviceListScreen(
 
             if (state.errorMessage != null) {
                 DeviceListErrorCard(
-                    errorMessage = state.errorMessage,
+                    errorMessage = state.errorMessage.asString(),
                     onRetryClicked = actions.onRetryClicked,
                 )
             } else if (state.isLoading) {
@@ -75,7 +75,7 @@ fun DeviceListScreen(
         if (state.deviceToDelete != null) {
             val confirmMessage =
                 if (state.deleteErrorMessage != null) {
-                    "Erro ao excluir: ${state.deleteErrorMessage}\n\n" +
+                    "Erro ao excluir: ${state.deleteErrorMessage.asString()}\n\n" +
                         "Tem certeza que deseja tentar novamente?"
                 } else {
                     "Tem certeza que deseja excluir o dispositivo '${state.deviceToDelete.hostname}'? " +
@@ -149,17 +149,7 @@ private fun DeviceListTableCard(
     state: DeviceListUiState,
     actions: DeviceListActions,
 ) {
-    val filteredDevices =
-        if (state.searchQuery.isBlank()) {
-            state.devices
-        } else {
-            state.devices.filter {
-                it.hostname.contains(state.searchQuery, ignoreCase = true) ||
-                    (it.ipAddress?.contains(state.searchQuery, ignoreCase = true) == true)
-            }
-        }
-
-    if (filteredDevices.isEmpty()) {
+    if (state.devices.isEmpty()) {
         InfraMapCard(modifier = Modifier.fillMaxWidth()) {
             Box(
                 modifier = Modifier.fillMaxWidth().padding(32.dp),
@@ -186,7 +176,7 @@ private fun DeviceListTableCard(
             Column(modifier = Modifier.fillMaxSize()) {
                 InfraMapTable(
                     columns = columns,
-                    items = filteredDevices,
+                    items = state.devices,
                     onRowClick = { actions.onDeviceClicked(it.id) },
                     modifier = Modifier.weight(1f),
                 ) { colIndex, item ->
@@ -194,9 +184,9 @@ private fun DeviceListTableCard(
                 }
 
                 val totalPages =
-                    maxOf(1, ceil(state.total.toDouble() / state.perPage.toDouble()).toInt())
+                    maxOf(1, ceil(state.totalItems.toDouble() / state.perPage.toDouble()).toInt())
                 InfraMapTablePagination(
-                    currentPage = state.page,
+                    currentPage = state.currentPage,
                     totalPages = totalPages,
                     onPageChange = actions.onPageChanged,
                 )
@@ -208,7 +198,7 @@ private fun DeviceListTableCard(
 @Composable
 private fun DeviceTableRowCell(
     colIndex: Int,
-    item: DeviceDto,
+    item: Device,
     actions: DeviceListActions,
 ) {
     when (colIndex) {

@@ -1,78 +1,71 @@
 package com.inframap.frontend.ui.staging
 
-import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.api.MessageResponse
-import com.inframap.frontend.data.dto.DeviceDto
-import com.inframap.frontend.data.dto.StagingDeviceDto
-import com.inframap.frontend.data.dto.StagingListResponse
+import com.inframap.frontend.designsystem.resources.Res
+import com.inframap.frontend.domain.model.StagingDevice
+import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
+import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
+import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
+import com.inframap.frontend.ui.base.BaseListViewModel
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 class StagingViewModel(
-    private val apiClient: ApiClient,
-    private val scope: CoroutineScope,
-) {
-    private val _state = MutableStateFlow(StagingUiState())
-    val state: StateFlow<StagingUiState> = _state.asStateFlow()
-
-    private var fetchJob: Job? = null
-    private var approveJob: Job? = null
-    private var dismissJob: Job? = null
-
+    private val getStagingDevicesUseCase: GetStagingDevicesUseCase,
+    private val approveDeviceUseCase: ApproveDeviceUseCase,
+    private val dismissDeviceUseCase: DismissDeviceUseCase,
+    scope: CoroutineScope? = null,
+) : BaseListViewModel<StagingUiState>(StagingUiState(), scope = scope) {
     init {
-        loadStagingDevices()
+        loadPage(1)
     }
 
-    fun loadStagingDevices(page: Int = 1) {
-        _state.update { it.copy(isLoading = true, errorMessage = null, page = page) }
-        val params = mapOf("page" to page.toString(), "per_page" to "50")
+    override fun loadPage(
+        page: Int,
+        perPage: Int,
+    ) {
+        if (state.value.isLoading && page != 1 && state.value.devices.isNotEmpty()) return
 
-        fetchJob?.cancel()
-        fetchJob =
-            scope.launch {
-                when (val result = apiClient.get<StagingListResponse>("/api/v1/devices/staging", params)) {
-                    is ApiResult.Success -> {
-                        _state.update {
-                            it.copy(
-                                devices = result.data.devices,
-                                total = result.data.total,
-                                page = result.data.page,
-                                perPage = result.data.perPage,
-                                isLoading = false,
-                                errorMessage = null,
-                            )
-                        }
+        updateState { it.copy(isLoading = true, errorMessage = null, currentPage = page) }
+
+        launchJob("fetch") {
+            when (val result = getStagingDevicesUseCase(page = page, perPage = perPage)) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            devices = result.data.items,
+                            totalItems = result.data.total,
+                            currentPage = result.data.page,
+                            perPage = result.data.perPage,
+                            isLoading = false,
+                            errorMessage = null,
+                        )
                     }
-                    is ApiResult.Error -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = result.message.ifEmpty { "Falha ao carregar dispositivos em staging" },
-                            )
-                        }
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.staging_error_load)),
+                        )
                     }
-                    is ApiResult.NetworkError -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = "Erro de rede. Não foi possível conectar ao servidor.",
-                            )
-                        }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.staging_error_load)),
+                        )
                     }
                 }
             }
+        }
     }
 
-    fun approveDevice(device: StagingDeviceDto) {
-        if (_state.value.isProcessingAction) return
+    fun approveDevice(device: StagingDevice) {
+        if (state.value.isProcessingAction) return
 
-        _state.update {
+        updateState {
             it.copy(
                 isProcessingAction = true,
                 actionDeviceId = device.id,
@@ -80,56 +73,54 @@ class StagingViewModel(
             )
         }
 
-        approveJob?.cancel()
-        approveJob =
-            scope.launch {
-                when (val result = apiClient.post<DeviceDto>("/api/v1/devices/staging/${device.id}/approve")) {
-                    is ApiResult.Success -> {
-                        _state.update {
-                            it.copy(
-                                isProcessingAction = false,
-                                actionDeviceId = null,
-                                actionErrorMessage = null,
-                                toastMessage = "Dispositivo '${device.hostname}' aprovado com sucesso.",
-                            )
-                        }
-                        loadStagingDevices(_state.value.page)
+        launchJob("approve") {
+            when (val result = approveDeviceUseCase(device.id)) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            isProcessingAction = false,
+                            actionDeviceId = null,
+                            actionErrorMessage = null,
+                            toastMessage = UiText.Resource(Res.string.staging_approve_success, listOf(device.hostname)),
+                        )
                     }
-                    is ApiResult.Error -> {
-                        _state.update {
-                            it.copy(
-                                isProcessingAction = false,
-                                actionDeviceId = null,
-                                actionErrorMessage = result.message.ifEmpty { "Falha ao aprovar dispositivo" },
-                            )
-                        }
+                    loadPage(state.value.currentPage)
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isProcessingAction = false,
+                            actionDeviceId = null,
+                            actionErrorMessage = mapError(result, UiText.Resource(Res.string.staging_error_approve)),
+                        )
                     }
-                    is ApiResult.NetworkError -> {
-                        _state.update {
-                            it.copy(
-                                isProcessingAction = false,
-                                actionDeviceId = null,
-                                actionErrorMessage = "Erro de rede. Não foi possível aprovar o dispositivo.",
-                            )
-                        }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isProcessingAction = false,
+                            actionDeviceId = null,
+                            actionErrorMessage = mapError(result, UiText.Resource(Res.string.staging_error_approve)),
+                        )
                     }
                 }
             }
+        }
     }
 
-    fun confirmDismissDevice(device: StagingDeviceDto) {
-        _state.update { it.copy(deviceToDismiss = device, actionErrorMessage = null) }
+    fun confirmDismissDevice(device: StagingDevice) {
+        updateState { it.copy(deviceToDismiss = device, actionErrorMessage = null) }
     }
 
     fun cancelDismissDevice() {
-        _state.update { it.copy(deviceToDismiss = null, actionErrorMessage = null) }
+        updateState { it.copy(deviceToDismiss = null, actionErrorMessage = null) }
     }
 
     fun dismissDevice() {
-        if (_state.value.isProcessingAction) return
-        val device = _state.value.deviceToDismiss ?: return
+        if (state.value.isProcessingAction) return
+        val device = state.value.deviceToDismiss ?: return
 
-        _state.update {
+        updateState {
             it.copy(
                 isProcessingAction = true,
                 actionDeviceId = device.id,
@@ -137,58 +128,47 @@ class StagingViewModel(
             )
         }
 
-        dismissJob?.cancel()
-        dismissJob =
-            scope.launch {
-                when (val result = apiClient.post<MessageResponse>("/api/v1/devices/staging/${device.id}/dismiss")) {
-                    is ApiResult.Success -> {
-                        _state.update {
-                            it.copy(
-                                deviceToDismiss = null,
-                                isProcessingAction = false,
-                                actionDeviceId = null,
-                                actionErrorMessage = null,
-                                toastMessage = "Dispositivo '${device.hostname}' descartado com sucesso.",
-                            )
-                        }
-                        loadStagingDevices(_state.value.page)
+        launchJob("dismiss") {
+            when (val result = dismissDeviceUseCase(device.id)) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            deviceToDismiss = null,
+                            isProcessingAction = false,
+                            actionDeviceId = null,
+                            actionErrorMessage = null,
+                            toastMessage = UiText.Resource(Res.string.staging_dismiss_success, listOf(device.hostname)),
+                        )
                     }
-                    is ApiResult.Error -> {
-                        _state.update {
-                            it.copy(
-                                isProcessingAction = false,
-                                actionDeviceId = null,
-                                actionErrorMessage = result.message.ifEmpty { "Falha ao descartar dispositivo" },
-                            )
-                        }
+                    loadPage(state.value.currentPage)
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isProcessingAction = false,
+                            actionDeviceId = null,
+                            actionErrorMessage = mapError(result, UiText.Resource(Res.string.staging_error_dismiss)),
+                        )
                     }
-                    is ApiResult.NetworkError -> {
-                        _state.update {
-                            it.copy(
-                                isProcessingAction = false,
-                                actionDeviceId = null,
-                                actionErrorMessage = "Erro de rede. Não foi possível descartar o dispositivo.",
-                            )
-                        }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isProcessingAction = false,
+                            actionDeviceId = null,
+                            actionErrorMessage = mapError(result, UiText.Resource(Res.string.staging_error_dismiss)),
+                        )
                     }
                 }
             }
+        }
     }
 
     fun dismissActionError() {
-        _state.update { it.copy(actionErrorMessage = null) }
+        updateState { it.copy(actionErrorMessage = null) }
     }
 
     fun dismissToast() {
-        _state.update { it.copy(toastMessage = null) }
-    }
-
-    fun clear() {
-        fetchJob?.cancel()
-        approveJob?.cancel()
-        dismissJob?.cancel()
-        fetchJob = null
-        approveJob = null
-        dismissJob = null
+        updateState { it.copy(toastMessage = null) }
     }
 }

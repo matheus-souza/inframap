@@ -1,8 +1,8 @@
 package com.inframap.frontend.di
 
-val appModules =
+fun appModules(baseUrl: String) =
     listOf(
-        dataModule,
+        dataModule(baseUrl),
         domainModule,
         presentationModule,
     )

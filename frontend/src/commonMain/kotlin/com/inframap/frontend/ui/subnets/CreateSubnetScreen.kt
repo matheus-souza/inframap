@@ -38,7 +38,7 @@ fun CreateSubnetScreen(
                 Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
                     if (state.errorMessage != null) {
                         Text(
-                            text = state.errorMessage,
+                            text = state.errorMessage.asString(),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error,
                         )
@@ -70,7 +70,7 @@ private fun CreateSubnetFormFields(
             value = state.name,
             onValueChange = actions.onNameChanged,
             label = "Nome da Subrede *",
-            error = state.validationErrors["name"],
+            error = state.validationErrors["name"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -80,7 +80,7 @@ private fun CreateSubnetFormFields(
             value = state.cidr,
             onValueChange = actions.onCidrChanged,
             label = "CIDR (ex: 192.168.1.0/24) *",
-            error = state.validationErrors["cidr"],
+            error = state.validationErrors["cidr"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -116,7 +116,7 @@ private fun CreateSubnetVlanGatewayInputs(
             value = state.vlanId,
             onValueChange = actions.onVlanIdChanged,
             label = "VLAN ID (Opcional)",
-            error = state.validationErrors["vlan_id"],
+            error = state.validationErrors["vlan_id"]?.asString(),
             modifier = Modifier.weight(1f),
         )
 
@@ -126,7 +126,7 @@ private fun CreateSubnetVlanGatewayInputs(
             value = state.gatewayIp,
             onValueChange = actions.onGatewayIpChanged,
             label = "Gateway IP (Opcional)",
-            error = state.validationErrors["gateway_ip"],
+            error = state.validationErrors["gateway_ip"]?.asString(),
             modifier = Modifier.weight(1f),
         )
     }

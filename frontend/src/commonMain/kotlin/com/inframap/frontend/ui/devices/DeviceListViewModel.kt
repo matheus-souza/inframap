@@ -1,140 +1,124 @@
 package com.inframap.frontend.ui.devices
 
-import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.api.MessageResponse
-import com.inframap.frontend.data.dto.DeviceDto
-import com.inframap.frontend.data.dto.DeviceListResponse
+import com.inframap.frontend.designsystem.resources.Res
+import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.domain.usecase.device.DeleteDeviceUseCase
+import com.inframap.frontend.domain.usecase.device.GetDevicesUseCase
+import com.inframap.frontend.ui.base.BaseListViewModel
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 class DeviceListViewModel(
-    private val apiClient: ApiClient,
-    private val scope: CoroutineScope,
-) {
-    private val _state = MutableStateFlow(DeviceListUiState())
-    val state: StateFlow<DeviceListUiState> = _state.asStateFlow()
-
-    private var fetchJob: Job? = null
-    private var deleteJob: Job? = null
-
+    private val getDevicesUseCase: GetDevicesUseCase,
+    private val deleteDeviceUseCase: DeleteDeviceUseCase,
+    scope: CoroutineScope? = null,
+) : BaseListViewModel<DeviceListUiState>(DeviceListUiState(), scope = scope) {
     init {
-        loadDevices()
+        loadPage(1)
     }
 
-    fun loadDevices(page: Int = 1) {
-        _state.update { it.copy(isLoading = true, errorMessage = null, page = page) }
-        val params = mutableMapOf("page" to page.toString(), "per_page" to "50")
-        if (_state.value.searchQuery.isNotBlank()) {
-            params["search"] = _state.value.searchQuery.trim()
-        }
+    override fun loadPage(
+        page: Int,
+        perPage: Int,
+    ) {
+        if (state.value.isLoading && page != 1 && state.value.devices.isNotEmpty()) return
 
-        fetchJob?.cancel()
-        fetchJob =
-            scope.launch {
-                when (val result = apiClient.get<DeviceListResponse>("/api/v1/devices", params)) {
-                    is ApiResult.Success -> {
-                        _state.update {
-                            it.copy(
-                                devices = result.data.devices,
-                                total = result.data.total,
-                                page = result.data.page,
-                                perPage = result.data.perPage,
-                                isLoading = false,
-                                errorMessage = null,
-                            )
-                        }
+        updateState { it.copy(isLoading = true, errorMessage = null, currentPage = page) }
+
+        launchJob("fetch") {
+            val query = state.value.searchQuery.takeIf { it.isNotBlank() }
+            val params = GetDevicesUseCase.Params(page = page, perPage = perPage, search = query ?: "")
+            when (val result = getDevicesUseCase(params)) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            devices = result.data.items,
+                            totalItems = result.data.total,
+                            currentPage = result.data.page,
+                            perPage = result.data.perPage,
+                            isLoading = false,
+                            errorMessage = null,
+                        )
                     }
-                    is ApiResult.Error -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = result.message.ifEmpty { "Failed to load devices" },
-                            )
-                        }
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_load)),
+                        )
                     }
-                    is ApiResult.NetworkError -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = "Network error. Failed to reach server.",
-                            )
-                        }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_load)),
+                        )
                     }
                 }
             }
+        }
     }
 
     fun onSearchQueryChanged(query: String) {
-        _state.update { it.copy(searchQuery = query) }
-        loadDevices(page = 1)
+        updateState { it.copy(searchQuery = query) }
+        loadPage(1)
     }
 
-    fun confirmDeleteDevice(device: DeviceDto) {
-        _state.update { it.copy(deviceToDelete = device, deleteErrorMessage = null) }
+    fun confirmDeleteDevice(device: Device) {
+        updateState { it.copy(deviceToDelete = device, deleteErrorMessage = null) }
     }
 
     fun cancelDeleteDevice() {
-        _state.update { it.copy(deviceToDelete = null, deleteErrorMessage = null) }
+        updateState { it.copy(deviceToDelete = null, deleteErrorMessage = null) }
     }
 
     fun dismissDeleteError() {
-        _state.update { it.copy(deleteErrorMessage = null) }
+        updateState { it.copy(deleteErrorMessage = null) }
     }
 
     fun deleteDevice() {
-        if (_state.value.isDeleting) return
-        val device = _state.value.deviceToDelete ?: return
+        if (state.value.isDeleting) return
+        val device = state.value.deviceToDelete ?: return
 
-        _state.update { it.copy(isDeleting = true, deleteErrorMessage = null) }
-        deleteJob?.cancel()
-        deleteJob =
-            scope.launch {
-                when (val result = apiClient.delete<MessageResponse>("/api/v1/devices/${device.id}")) {
-                    is ApiResult.Success -> {
-                        _state.update {
-                            it.copy(
-                                deviceToDelete = null,
-                                isDeleting = false,
-                                deleteErrorMessage = null,
-                                toastMessage = "Dispositivo '${device.hostname}' excluído com sucesso.",
-                            )
-                        }
-                        loadDevices(_state.value.page)
+        updateState { it.copy(isDeleting = true, deleteErrorMessage = null) }
+
+        launchJob("delete") {
+            when (val result = deleteDeviceUseCase(device.id)) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            deviceToDelete = null,
+                            isDeleting = false,
+                            deleteErrorMessage = null,
+                            toastMessage = UiText.Resource(Res.string.devices_delete_success, listOf(device.hostname)),
+                        )
                     }
-                    is ApiResult.Error -> {
-                        _state.update {
-                            it.copy(
-                                isDeleting = false,
-                                deleteErrorMessage = result.message.ifEmpty { "Failed to delete device" },
-                            )
-                        }
+                    loadPage(state.value.currentPage)
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isDeleting = false,
+                            deleteErrorMessage = mapError(result, UiText.Resource(Res.string.devices_error_delete)),
+                        )
                     }
-                    is ApiResult.NetworkError -> {
-                        _state.update {
-                            it.copy(
-                                isDeleting = false,
-                                deleteErrorMessage = "Network error. Failed to delete device.",
-                            )
-                        }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isDeleting = false,
+                            deleteErrorMessage = mapError(result, UiText.Resource(Res.string.devices_error_delete)),
+                        )
                     }
                 }
             }
+        }
     }
 
     fun dismissToast() {
-        _state.update { it.copy(toastMessage = null) }
-    }
-
-    fun clear() {
-        fetchJob?.cancel()
-        deleteJob?.cancel()
-        fetchJob = null
-        deleteJob = null
+        updateState { it.copy(toastMessage = null) }
     }
 }

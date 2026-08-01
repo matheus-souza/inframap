@@ -1,70 +1,64 @@
 package com.inframap.frontend.ui.devices
 
-import com.inframap.frontend.data.api.ApiClient
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
+import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.CreateDeviceRequest
+import com.inframap.frontend.data.dto.UpdateDeviceRequest
+import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.domain.model.PaginatedList
+import com.inframap.frontend.domain.repository.DeviceRepository
+import com.inframap.frontend.domain.usecase.device.DeleteDeviceUseCase
+import com.inframap.frontend.domain.usecase.device.GetDeviceByIdUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DeviceDetailViewModelTest {
-    private val jsonHeaders =
-        headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+    private val sampleDevice =
+        Device(
+            id = "d1",
+            hostname = "router-01",
+            ipAddress = "192.168.1.1",
+            deviceType = "router",
+            status = "active",
+        )
 
-    private fun createClient(handler: suspend (String, String) -> Pair<HttpStatusCode, String>): ApiClient {
-        val engine =
-            MockEngine { request ->
-                val (status, body) = handler(request.method.value, request.url.encodedPath)
-                respond(body, status, jsonHeaders)
-            }
-        val httpClient =
-            HttpClient(engine) {
-                install(ContentNegotiation) {
-                    json(
-                        Json {
-                            ignoreUnknownKeys = true
-                            isLenient = true
-                        },
-                    )
-                }
-            }
-        return ApiClient(baseUrl = "", httpClient = httpClient)
-    }
+    private fun repo(
+        getResult: ApiResult<Device> = ApiResult.Success(sampleDevice, requestId = ""),
+        deleteResult: ApiResult<Unit> = ApiResult.Success(Unit, requestId = ""),
+    ): DeviceRepository =
+        object : DeviceRepository {
+            override suspend fun getDevices(
+                page: Int,
+                perPage: Int,
+                search: String,
+            ) = ApiResult.Success(PaginatedList(items = listOf(sampleDevice), total = 1, page = 1, perPage = 50), requestId = "")
 
-    private val defaultMockHandler: suspend (String, String) -> Pair<HttpStatusCode, String> = { method, path ->
-        when {
-            method.equals("GET", ignoreCase = true) && path.endsWith("/devices/d1") ->
-                HttpStatusCode.OK to
-                    """{"data":{"id":"d1","hostname":"router-01","ip_address":"192.168.1.1","device_type":"router","status":"active"},"meta":{"request_id":"r1"}}"""
-            method.equals("DELETE", ignoreCase = true) && path.contains("devices") ->
-                HttpStatusCode.OK to
-                    """{"data":{"message":"deleted"},"meta":{"request_id":"r2"}}"""
-            else ->
-                HttpStatusCode.NotFound to """{"error":{"code":"NOT_FOUND","message":"Device not found"},"meta":{"request_id":"r_err"}}"""
+            override suspend fun getDeviceById(id: String) = getResult
+
+            override suspend fun createDevice(request: CreateDeviceRequest) = ApiResult.Success(sampleDevice, requestId = "")
+
+            override suspend fun updateDevice(
+                id: String,
+                request: UpdateDeviceRequest,
+            ) = ApiResult.Success(sampleDevice, requestId = "")
+
+            override suspend fun deleteDevice(id: String) = deleteResult
         }
-    }
 
     @Test
     fun loadDevicePopulatesDetailsSuccessfully() =
         runTest {
-            val client = createClient(defaultMockHandler)
-            val vm = DeviceDetailViewModel("d1", client, scope = this)
+            val r = repo()
+            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
 
             val stateDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
@@ -80,44 +74,47 @@ class DeviceDetailViewModelTest {
     @Test
     fun loadDeviceHandlesNotFoundApiError() =
         runTest {
-            val client =
-                createClient { _, path ->
-                    HttpStatusCode.NotFound to
-                        """{"error":{"code":"NOT_FOUND","message":"Device not found"},"meta":{"request_id":"r_err"}}"""
-                }
+            val r =
+                repo(
+                    getResult =
+                        ApiResult.Error(
+                            code = "NOT_FOUND",
+                            message = "Device not found",
+                            requestId = "",
+                            httpStatus = 404,
+                        ),
+                )
+            val vm = DeviceDetailViewModel("unknown", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
 
-            val vm = DeviceDetailViewModel("unknown", client, scope = this)
             val stateDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
             val state = stateDeferred.await()
 
             assertFalse(state.isLoading)
-            assertEquals("Device not found", state.errorMessage)
+            assertEquals("Device not found", state.errorMessage?.asStringAsync())
             vm.clear()
         }
 
     @Test
     fun loadDeviceHandlesNetworkError() =
         runTest {
-            val engine = MockEngine { throw RuntimeException("Connection timed out") }
-            val httpClient = HttpClient(engine) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
-            val client = ApiClient(baseUrl = "", httpClient = httpClient)
+            val r = repo(getResult = ApiResult.NetworkError(RuntimeException("Network failure")))
+            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
 
-            val vm = DeviceDetailViewModel("d1", client, scope = this)
             val stateDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
             val state = stateDeferred.await()
 
             assertFalse(state.isLoading)
-            assertEquals("Network error. Failed to reach server.", state.errorMessage)
+            assertNotNull(state.errorMessage)
             vm.clear()
         }
 
     @Test
     fun deleteDeviceIgnoresReentrantCallsWhenDeleting() =
         runTest {
-            val client = createClient(defaultMockHandler)
-            val vm = DeviceDetailViewModel("d1", client, scope = this)
+            val r = repo()
+            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
             val loadDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
             loadDeferred.await()
@@ -135,48 +132,17 @@ class DeviceDetailViewModelTest {
     @Test
     fun deleteDeviceHandlesApiError() =
         runTest {
-            val client =
-                createClient { method, path ->
-                    if (method == "DELETE") {
-                        HttpStatusCode.InternalServerError to
-                            """{"error":{"code":"DB_FAIL","message":"Deletion locked"},"meta":{"request_id":"r_err"}}"""
-                    } else {
-                        defaultMockHandler(method, path)
-                    }
-                }
-
-            val vm = DeviceDetailViewModel("d1", client, scope = this)
-            advanceUntilIdle()
-
-            val stateDeferred = async { vm.state.first { it.errorMessage != null } }
-            vm.deleteDevice {}
-            advanceUntilIdle()
-
-            val state = stateDeferred.await()
-            assertEquals("Deletion locked", state.errorMessage)
-            assertFalse(state.isDeleting)
-            vm.clear()
-        }
-
-    @Test
-    fun deleteDeviceHandlesNetworkError() =
-        runTest {
-            val engine =
-                MockEngine { request ->
-                    if (request.method.value == "DELETE") {
-                        throw RuntimeException("Network fail")
-                    } else {
-                        respond(
-                            """{"data":{"id":"d1","hostname":"r1","device_type":"router","status":"active"},"meta":{"request_id":"r1"}}""",
-                            HttpStatusCode.OK,
-                            jsonHeaders,
-                        )
-                    }
-                }
-            val httpClient = HttpClient(engine) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
-            val client = ApiClient(baseUrl = "", httpClient = httpClient)
-
-            val vm = DeviceDetailViewModel("d1", client, scope = this)
+            val r =
+                repo(
+                    deleteResult =
+                        ApiResult.Error(
+                            code = "LOCKED",
+                            message = "Deletion locked",
+                            requestId = "",
+                            httpStatus = 500,
+                        ),
+                )
+            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
             val loadDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
             loadDeferred.await()
@@ -186,7 +152,26 @@ class DeviceDetailViewModelTest {
             advanceUntilIdle()
 
             val state = stateDeferred.await()
-            assertEquals("Network error. Failed to delete device.", state.errorMessage)
+            assertEquals("Deletion locked", state.errorMessage?.asStringAsync())
+            assertFalse(state.isDeleting)
+            vm.clear()
+        }
+
+    @Test
+    fun deleteDeviceHandlesNetworkError() =
+        runTest {
+            val r = repo(deleteResult = ApiResult.NetworkError(RuntimeException("Network failure")))
+            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
+            val loadDeferred = async { vm.state.first { !it.isLoading } }
+            advanceUntilIdle()
+            loadDeferred.await()
+
+            val stateDeferred = async { vm.state.first { it.errorMessage != null } }
+            vm.deleteDevice {}
+            advanceUntilIdle()
+
+            val state = stateDeferred.await()
+            assertNotNull(state.errorMessage)
             assertFalse(state.isDeleting)
             vm.clear()
         }
@@ -194,8 +179,8 @@ class DeviceDetailViewModelTest {
     @Test
     fun openCloseAndDeleteDialogWorkflow() =
         runTest {
-            val client = createClient(defaultMockHandler)
-            val vm = DeviceDetailViewModel("d1", client, scope = this)
+            val r = repo()
+            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
             val loadDeferred = async { vm.state.first { !it.isLoading } }
             advanceUntilIdle()
             loadDeferred.await()

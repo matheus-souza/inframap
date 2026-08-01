@@ -1,73 +1,62 @@
 package com.inframap.frontend.ui.devices
 
-import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.DeviceDto
-import com.inframap.frontend.data.dto.UpdateDeviceRequest
+import com.inframap.frontend.designsystem.resources.Res
+import com.inframap.frontend.domain.usecase.device.GetDeviceByIdUseCase
+import com.inframap.frontend.domain.usecase.device.UpdateDeviceUseCase
+import com.inframap.frontend.ui.base.BaseViewModel
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 class EditDeviceViewModel(
     private val deviceId: String,
-    private val apiClient: ApiClient,
-    private val scope: CoroutineScope,
-) {
-    private val _state = MutableStateFlow(EditDeviceUiState(deviceId = deviceId))
-    val state: StateFlow<EditDeviceUiState> = _state.asStateFlow()
-
-    private var fetchJob: Job? = null
-    private var submitJob: Job? = null
-
+    private val getDeviceByIdUseCase: GetDeviceByIdUseCase,
+    private val updateDeviceUseCase: UpdateDeviceUseCase,
+    scope: CoroutineScope? = null,
+) : BaseViewModel<EditDeviceUiState>(EditDeviceUiState(deviceId = deviceId), scope) {
     init {
         loadDevice()
     }
 
     fun loadDevice() {
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
-        fetchJob?.cancel()
-        fetchJob =
-            scope.launch {
-                when (val result = apiClient.get<DeviceDto>("/api/v1/devices/$deviceId")) {
-                    is ApiResult.Success -> {
-                        _state.update {
-                            it.copy(
-                                hostname = result.data.hostname,
-                                ipAddress = result.data.ipAddress ?: "",
-                                macAddress = result.data.macAddress ?: "",
-                                deviceType = result.data.deviceType,
-                                status = result.data.status,
-                                isLoading = false,
-                                errorMessage = null,
-                            )
-                        }
+        updateState { it.copy(isLoading = true, errorMessage = null) }
+        launchJob("fetch") {
+            when (val result = getDeviceByIdUseCase(deviceId)) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            hostname = result.data.hostname,
+                            ipAddress = result.data.ipAddress ?: "",
+                            macAddress = result.data.macAddress ?: "",
+                            deviceType = result.data.deviceType,
+                            status = result.data.status,
+                            isLoading = false,
+                            errorMessage = null,
+                        )
                     }
-                    is ApiResult.Error -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = result.message.ifEmpty { "Failed to load device details" },
-                            )
-                        }
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_load_detail)),
+                        )
                     }
-                    is ApiResult.NetworkError -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage = "Network error. Failed to reach server.",
-                            )
-                        }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_load_detail)),
+                        )
                     }
                 }
             }
+        }
     }
 
     fun onHostnameChanged(hostname: String) {
-        _state.update {
+        updateState {
             it.copy(
                 hostname = hostname,
                 validationErrors = it.validationErrors - "hostname",
@@ -76,7 +65,7 @@ class EditDeviceViewModel(
     }
 
     fun onIpAddressChanged(ipAddress: String) {
-        _state.update {
+        updateState {
             it.copy(
                 ipAddress = ipAddress,
                 validationErrors = it.validationErrors - "ip_address",
@@ -85,7 +74,7 @@ class EditDeviceViewModel(
     }
 
     fun onMacAddressChanged(macAddress: String) {
-        _state.update {
+        updateState {
             it.copy(
                 macAddress = macAddress,
                 validationErrors = it.validationErrors - "mac_address",
@@ -94,7 +83,7 @@ class EditDeviceViewModel(
     }
 
     fun onDeviceTypeChanged(deviceType: String) {
-        _state.update {
+        updateState {
             it.copy(
                 deviceType = deviceType,
                 validationErrors = it.validationErrors - "device_type",
@@ -103,7 +92,7 @@ class EditDeviceViewModel(
     }
 
     fun onStatusChanged(status: String) {
-        _state.update {
+        updateState {
             it.copy(
                 status = status,
                 validationErrors = it.validationErrors - "status",
@@ -112,69 +101,60 @@ class EditDeviceViewModel(
     }
 
     fun updateDevice() {
-        if (_state.value.isSubmitting) return
+        if (state.value.isSubmitting) return
 
-        val current = _state.value
-        val errors = mutableMapOf<String, String>()
+        val current = state.value
+        val errors = mutableMapOf<String, UiText>()
 
         if (current.hostname.trim().isEmpty()) {
-            errors["hostname"] = "Hostname cannot be empty"
+            errors["hostname"] = UiText.Resource(Res.string.validation_hostname_empty)
         }
 
         if (errors.isNotEmpty()) {
-            _state.update { it.copy(validationErrors = errors) }
+            updateState { it.copy(validationErrors = errors) }
             return
         }
 
-        _state.update { it.copy(isSubmitting = true, isSuccess = false, errorMessage = null) }
+        updateState { it.copy(isSubmitting = true, isSuccess = false, errorMessage = null) }
 
-        val request =
-            UpdateDeviceRequest(
-                hostname = current.hostname.trim(),
-                ipAddress = current.ipAddress.trim().ifEmpty { null },
-                macAddress = current.macAddress.trim().ifEmpty { null },
-                deviceType = current.deviceType.trim().ifEmpty { null },
-                status = current.status.trim().ifEmpty { null },
-            )
-
-        submitJob?.cancel()
-        submitJob =
-            scope.launch {
-                val url = "/api/v1/devices/$deviceId"
-                when (val result = apiClient.put<DeviceDto, UpdateDeviceRequest>(url, request)) {
-                    is ApiResult.Success -> {
-                        _state.update {
-                            it.copy(
-                                isSubmitting = false,
-                                isSuccess = true,
-                                errorMessage = null,
-                            )
-                        }
+        launchJob("submit") {
+            when (
+                val result =
+                    updateDeviceUseCase(
+                        id = deviceId,
+                        hostname = current.hostname.trim(),
+                        ipAddress = current.ipAddress.trim().ifEmpty { null },
+                        macAddress = current.macAddress.trim().ifEmpty { null },
+                        deviceType = current.deviceType.trim().ifEmpty { null },
+                        status = current.status.trim().ifEmpty { null },
+                    )
+            ) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            isSubmitting = false,
+                            isSuccess = true,
+                            errorMessage = null,
+                        )
                     }
-                    is ApiResult.Error -> {
-                        _state.update {
-                            it.copy(
-                                isSubmitting = false,
-                                errorMessage = result.message.ifEmpty { "Failed to update device" },
-                            )
-                        }
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isSubmitting = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_update)),
+                        )
                     }
-                    is ApiResult.NetworkError -> {
-                        _state.update {
-                            it.copy(
-                                isSubmitting = false,
-                                errorMessage = "Network error. Failed to update device.",
-                            )
-                        }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isSubmitting = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_update)),
+                        )
                     }
                 }
             }
-    }
-
-    fun clear() {
-        fetchJob?.cancel()
-        submitJob?.cancel()
-        fetchJob = null
-        submitJob = null
+        }
     }
 }

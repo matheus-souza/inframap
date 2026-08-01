@@ -2,15 +2,18 @@
 
 package com.inframap.frontend.ui.subnets
 
-import com.inframap.frontend.data.dto.SubnetDto
+import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.ui.base.Paginated
+import com.inframap.frontend.ui.util.UiText
 
 data class SubnetsUiState(
-    val subnets: List<SubnetDto> = emptyList(),
-    val total: Long = 0,
-    val isLoading: Boolean = true,
-    val errorMessage: String? = null,
-    val toastMessage: String? = null,
-)
+    val subnets: List<Subnet> = emptyList(),
+    override val totalItems: Long = 0,
+    override val isLoading: Boolean = true,
+    override val errorMessage: UiText? = null,
+    override val currentPage: Int = 1,
+    val toastMessage: UiText? = null,
+) : Paginated
 
 data class SubnetsActions(
     val onCreateSubnetClicked: () -> Unit,
@@ -26,8 +29,8 @@ data class CreateSubnetUiState(
     val description: String = "",
     val discoveryEnabled: Boolean = true,
     val isSubmitting: Boolean = false,
-    val validationErrors: Map<String, String> = emptyMap(),
-    val errorMessage: String? = null,
+    val validationErrors: Map<String, UiText> = emptyMap(),
+    val errorMessage: UiText? = null,
     val isSuccess: Boolean = false,
 )
 
