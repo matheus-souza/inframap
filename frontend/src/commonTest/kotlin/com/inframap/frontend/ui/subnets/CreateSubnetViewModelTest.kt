@@ -1,21 +1,16 @@
 package com.inframap.frontend.ui.subnets
 
-import com.inframap.frontend.data.api.ApiClient
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
+import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.CreateSubnetRequest
+import com.inframap.frontend.domain.model.PaginatedList
+import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.repository.SubnetRepository
+import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -24,56 +19,42 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateSubnetViewModelTest {
-    private val jsonHeaders =
-        headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+    private val sampleCreatedSubnet =
+        Subnet(
+            id = "sub1",
+            name = "Management",
+            cidr = "192.168.1.0/24",
+            vlanId = 10,
+            gatewayIp = "192.168.1.1",
+            discoveryEnabled = true,
+        )
 
-    private fun createClient(handler: suspend (String, String) -> Pair<HttpStatusCode, String>): ApiClient {
-        val engine =
-            MockEngine { request ->
-                val (status, body) = handler(request.method.value, request.url.encodedPath)
-                respond(body, status, jsonHeaders)
-            }
-        val httpClient =
-            HttpClient(engine) {
-                install(ContentNegotiation) {
-                    json(
-                        Json {
-                            ignoreUnknownKeys = true
-                            isLenient = true
-                        },
-                    )
-                }
-            }
-        return ApiClient(baseUrl = "", httpClient = httpClient)
-    }
+    private val emptyPagedSubnets =
+        PaginatedList(items = emptyList<Subnet>(), total = 0, page = 1, perPage = 50)
 
-    private val defaultMockHandler: suspend (String, String) -> Pair<HttpStatusCode, String> = { method, path ->
-        when {
-            method.equals("POST", ignoreCase = true) && path.endsWith("/subnets") ->
-                HttpStatusCode.Created to
-                    """{"data":{"id":"sub1","name":"Management","cidr":"192.168.1.0/24","vlan_id":10,"gateway_ip":"192.168.1.1","discovery_enabled":true},"meta":{"request_id":"r1"}}"""
-            else ->
-                HttpStatusCode.NotFound to """{"error":{"code":"NOT_FOUND","message":"Not found"},"meta":{"request_id":"r_err"}}"""
+    private fun successRepo(result: Subnet = sampleCreatedSubnet): SubnetRepository =
+        object : SubnetRepository {
+            override suspend fun getSubnets() = ApiResult.Success(emptyPagedSubnets, requestId = "")
+
+            override suspend fun createSubnet(request: CreateSubnetRequest) = ApiResult.Success(result, requestId = "")
         }
-    }
 
     @Test
     fun validationFailsOnEmptyFields() =
         runTest {
-            val client = createClient(defaultMockHandler)
-            val vm = CreateSubnetViewModel(client, scope = this)
+            val vm = CreateSubnetViewModel(CreateSubnetUseCase(successRepo()), scope = this)
 
             assertFalse(vm.validate())
             val errors = vm.state.value.validationErrors
             assertTrue(errors.containsKey("name"))
             assertTrue(errors.containsKey("cidr"))
+            vm.clear()
         }
 
     @Test
     fun validationFailsOnInvalidCidrAndVlan() =
         runTest {
-            val client = createClient(defaultMockHandler)
-            val vm = CreateSubnetViewModel(client, scope = this)
+            val vm = CreateSubnetViewModel(CreateSubnetUseCase(successRepo()), scope = this)
 
             vm.onNameChanged("Servers")
             vm.onCidrChanged("invalid-cidr")
@@ -85,14 +66,14 @@ class CreateSubnetViewModelTest {
             assertTrue(errors.containsKey("cidr"))
             assertTrue(errors.containsKey("vlan_id"))
             assertTrue(errors.containsKey("gateway_ip"))
+            vm.clear()
         }
 
     @Test
     fun createSubnetWorkflowCompletesSuccessfully() =
         runTest {
             var onSuccessCalled = false
-            val client = createClient(defaultMockHandler)
-            val vm = CreateSubnetViewModel(client, scope = this)
+            val vm = CreateSubnetViewModel(CreateSubnetUseCase(successRepo()), scope = this)
 
             vm.onNameChanged("Management")
             vm.onCidrChanged("192.168.1.0/24")
@@ -110,13 +91,13 @@ class CreateSubnetViewModelTest {
             assertFalse(state.isSubmitting)
             assertNull(state.errorMessage)
             assertTrue(onSuccessCalled)
+            vm.clear()
         }
 
     @Test
     fun createSubnetIgnoresReentrantCallsWhenSubmitting() =
         runTest {
-            val client = createClient(defaultMockHandler)
-            val vm = CreateSubnetViewModel(client, scope = this)
+            val vm = CreateSubnetViewModel(CreateSubnetUseCase(successRepo()), scope = this)
             vm.onNameChanged("Management")
             vm.onCidrChanged("192.168.1.0/24")
 
@@ -133,17 +114,19 @@ class CreateSubnetViewModelTest {
     @Test
     fun createSubnetHandlesApiError() =
         runTest {
-            val client =
-                createClient { method, path ->
-                    if (method == "POST" && path.endsWith("/subnets")) {
-                        HttpStatusCode.Conflict to
-                            """{"error":{"code":"CONFLICT","message":"Subnet CIDR already registered"},"meta":{"request_id":"r_err"}}"""
-                    } else {
-                        defaultMockHandler(method, path)
-                    }
-                }
+            val errorRepo =
+                object : SubnetRepository {
+                    override suspend fun getSubnets() = ApiResult.Success(emptyPagedSubnets, requestId = "")
 
-            val vm = CreateSubnetViewModel(client, scope = this)
+                    override suspend fun createSubnet(request: CreateSubnetRequest) =
+                        ApiResult.Error(
+                            code = "DUPLICATE_CIDR",
+                            message = "Subnet CIDR already registered",
+                            requestId = "",
+                            httpStatus = 409,
+                        )
+                }
+            val vm = CreateSubnetViewModel(CreateSubnetUseCase(errorRepo), scope = this)
             vm.onNameChanged("Management")
             vm.onCidrChanged("192.168.1.0/24")
 
@@ -154,6 +137,7 @@ class CreateSubnetViewModelTest {
             val state = stateDeferred.await()
             assertFalse(state.isSubmitting)
             assertFalse(state.isSuccess)
-            assertEquals("Subnet CIDR already registered", state.errorMessage)
+            assertEquals("Subnet CIDR already registered", state.errorMessage?.asStringAsync())
+            vm.clear()
         }
 }

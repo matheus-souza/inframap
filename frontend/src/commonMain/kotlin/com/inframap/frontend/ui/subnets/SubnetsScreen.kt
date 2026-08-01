@@ -16,13 +16,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.inframap.frontend.data.dto.SubnetDto
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.TableColumn
+import com.inframap.frontend.domain.model.Subnet
 
 @Composable
 fun SubnetsScreen(
@@ -38,7 +38,7 @@ fun SubnetsScreen(
 
             if (state.errorMessage != null) {
                 SubnetsErrorCard(
-                    errorMessage = state.errorMessage,
+                    errorMessage = state.errorMessage.asString(),
                     onRetryClicked = actions.onRetryClicked,
                 )
             } else if (state.isLoading) {
@@ -134,7 +134,7 @@ private fun SubnetsTableCard(state: SubnetsUiState) {
 @Composable
 private fun SubnetRowCell(
     colIndex: Int,
-    item: SubnetDto,
+    item: Subnet,
 ) {
     when (colIndex) {
         0 ->

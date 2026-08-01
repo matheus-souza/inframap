@@ -26,16 +26,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.inframap.frontend.data.api.ApiClient
-import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.designsystem.InfraMapGreen
 import com.inframap.frontend.designsystem.InfraMapRed
 import com.inframap.frontend.navigation.Navigator
@@ -63,6 +59,8 @@ import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
 import com.inframap.frontend.ui.subnets.SubnetsActions
 import com.inframap.frontend.ui.subnets.SubnetsScreen
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
+import org.koin.compose.koinInject
+import org.koin.core.parameter.parametersOf
 
 data class NavItem(
     val label: String,
@@ -83,8 +81,6 @@ fun MainScaffold(
     currentRoute: Route,
     navigator: Navigator,
     isHealthy: Boolean?,
-    apiClient: ApiClient,
-    sseClient: SSEClient? = null,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         AppTopBar(isHealthy = isHealthy)
@@ -106,8 +102,6 @@ fun MainScaffold(
                 RouteContent(
                     currentRoute = currentRoute,
                     navigator = navigator,
-                    apiClient = apiClient,
-                    sseClient = sseClient,
                 )
             }
         }
@@ -190,42 +184,34 @@ private fun AppNavRail(
 private fun RouteContent(
     currentRoute: Route,
     navigator: Navigator,
-    apiClient: ApiClient,
-    sseClient: SSEClient? = null,
 ) {
     when (currentRoute) {
-        Route.Dashboard -> DashboardRoute(apiClient = apiClient, sseClient = sseClient)
-        Route.Devices -> DeviceListRoute(apiClient = apiClient, navigator = navigator)
+        Route.Dashboard -> DashboardRoute()
+        Route.Devices -> DeviceListRoute(navigator = navigator)
         is Route.DeviceDetail ->
             DeviceDetailRoute(
                 deviceId = currentRoute.id,
-                apiClient = apiClient,
                 navigator = navigator,
             )
 
-        Route.CreateDevice -> CreateDeviceRoute(apiClient = apiClient, navigator = navigator)
+        Route.CreateDevice -> CreateDeviceRoute(navigator = navigator)
         is Route.EditDevice ->
             EditDeviceRoute(
                 deviceId = currentRoute.id,
-                apiClient = apiClient,
                 navigator = navigator,
             )
 
-        Route.Staging -> StagingRoute(apiClient = apiClient)
-        Route.Subnets -> SubnetsRoute(apiClient = apiClient, navigator = navigator)
-        Route.CreateSubnet -> CreateSubnetRoute(apiClient = apiClient, navigator = navigator)
+        Route.Staging -> StagingRoute()
+        Route.Subnets -> SubnetsRoute(navigator = navigator)
+        Route.CreateSubnet -> CreateSubnetRoute(navigator = navigator)
         Route.Topology -> PlaceholderScreen("Topology")
         else -> PlaceholderScreen("")
     }
 }
 
 @Composable
-private fun DashboardRoute(
-    apiClient: ApiClient,
-    sseClient: SSEClient? = null,
-) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember(apiClient, sseClient) { DashboardViewModel(apiClient, sseClient, scope) }
+private fun DashboardRoute() {
+    val viewModel: DashboardViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -237,12 +223,8 @@ private fun DashboardRoute(
 }
 
 @Composable
-private fun DeviceListRoute(
-    apiClient: ApiClient,
-    navigator: Navigator,
-) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember(apiClient) { DeviceListViewModel(apiClient, scope) }
+private fun DeviceListRoute(navigator: Navigator) {
+    val viewModel: DeviceListViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -250,7 +232,7 @@ private fun DeviceListRoute(
     val actions =
         DeviceListActions(
             onSearchQueryChanged = viewModel::onSearchQueryChanged,
-            onPageChanged = viewModel::loadDevices,
+            onPageChanged = { page -> viewModel.loadPage(page) },
             onCreateDeviceClicked = { navigator.navigateTo(Route.CreateDevice) },
             onDeviceClicked = { id -> navigator.navigateTo(Route.DeviceDetail(id)) },
             onEditDeviceClicked = { id -> navigator.navigateTo(Route.EditDevice(id)) },
@@ -259,7 +241,7 @@ private fun DeviceListRoute(
             onCancelDelete = viewModel::cancelDeleteDevice,
             onDismissDeleteError = viewModel::dismissDeleteError,
             onDismissToast = viewModel::dismissToast,
-            onRetryClicked = { viewModel.loadDevices() },
+            onRetryClicked = { viewModel.loadPage(1) },
         )
     DeviceListScreen(
         state = state,
@@ -270,11 +252,9 @@ private fun DeviceListRoute(
 @Composable
 private fun DeviceDetailRoute(
     deviceId: String,
-    apiClient: ApiClient,
     navigator: Navigator,
 ) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember(deviceId, apiClient) { DeviceDetailViewModel(deviceId, apiClient, scope) }
+    val viewModel: DeviceDetailViewModel = koinInject { parametersOf(deviceId) }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -297,12 +277,8 @@ private fun DeviceDetailRoute(
 }
 
 @Composable
-private fun CreateDeviceRoute(
-    apiClient: ApiClient,
-    navigator: Navigator,
-) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember(apiClient) { CreateDeviceViewModel(apiClient, scope) }
+private fun CreateDeviceRoute(navigator: Navigator) {
+    val viewModel: CreateDeviceViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -334,11 +310,9 @@ private fun CreateDeviceRoute(
 @Composable
 private fun EditDeviceRoute(
     deviceId: String,
-    apiClient: ApiClient,
     navigator: Navigator,
 ) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember(deviceId, apiClient) { EditDeviceViewModel(deviceId, apiClient, scope) }
+    val viewModel: EditDeviceViewModel = koinInject { parametersOf(deviceId) }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -370,23 +344,22 @@ private fun EditDeviceRoute(
 }
 
 @Composable
-private fun StagingRoute(apiClient: ApiClient) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember(apiClient) { StagingViewModel(apiClient, scope) }
+private fun StagingRoute() {
+    val viewModel: StagingViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
     val state by viewModel.state.collectAsState()
     val actions =
         StagingActions(
-            onPageChanged = viewModel::loadStagingDevices,
+            onPageChanged = { page -> viewModel.loadPage(page) },
             onApproveClicked = viewModel::approveDevice,
             onDismissClicked = viewModel::confirmDismissDevice,
             onConfirmDismiss = viewModel::dismissDevice,
             onCancelDismiss = viewModel::cancelDismissDevice,
             onDismissActionError = viewModel::dismissActionError,
             onDismissToast = viewModel::dismissToast,
-            onRetryClicked = { viewModel.loadStagingDevices() },
+            onRetryClicked = { viewModel.loadPage(1) },
         )
     StagingScreen(
         state = state,
@@ -395,12 +368,8 @@ private fun StagingRoute(apiClient: ApiClient) {
 }
 
 @Composable
-private fun SubnetsRoute(
-    apiClient: ApiClient,
-    navigator: Navigator,
-) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember(apiClient) { SubnetsViewModel(apiClient, scope) }
+private fun SubnetsRoute(navigator: Navigator) {
+    val viewModel: SubnetsViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -418,12 +387,8 @@ private fun SubnetsRoute(
 }
 
 @Composable
-private fun CreateSubnetRoute(
-    apiClient: ApiClient,
-    navigator: Navigator,
-) {
-    val scope = rememberCoroutineScope()
-    val viewModel = remember(apiClient) { CreateSubnetViewModel(apiClient, scope) }
+private fun CreateSubnetRoute(navigator: Navigator) {
+    val viewModel: CreateSubnetViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }

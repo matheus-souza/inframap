@@ -56,7 +56,10 @@ fun LoginScreen(
                     value = state.username,
                     onValueChange = onUsernameChanged,
                     label = "Username",
-                    error = if (state.errorMessage != null && state.username.isBlank()) state.errorMessage else null,
+                    error =
+                        state.errorMessage
+                            ?.takeIf { state.username.isBlank() }
+                            ?.asString(),
                     enabled = !state.isLoading,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -66,7 +69,7 @@ fun LoginScreen(
                     value = state.password,
                     onValueChange = onPasswordChanged,
                     label = "Password",
-                    error = state.errorMessage,
+                    error = state.errorMessage?.asString(),
                     enabled = !state.isLoading,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),

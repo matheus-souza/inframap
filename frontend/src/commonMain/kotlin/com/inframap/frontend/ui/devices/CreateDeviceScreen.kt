@@ -45,7 +45,7 @@ fun CreateDeviceScreen(
                 InfraMapCard(modifier = Modifier.fillMaxWidth()) {
                     Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         Text(
-                            text = state.errorMessage,
+                            text = state.errorMessage.asString(),
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium,
                         )
@@ -112,7 +112,7 @@ private fun CreateDeviceFormFields(
             value = state.hostname,
             onValueChange = actions.onHostnameChanged,
             label = "Hostname *",
-            error = state.validationErrors["hostname"],
+            error = state.validationErrors["hostname"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -122,7 +122,7 @@ private fun CreateDeviceFormFields(
             value = state.ipAddress,
             onValueChange = actions.onIpAddressChanged,
             label = "Endereço IP (ex: 192.168.1.1)",
-            error = state.validationErrors["ip_address"],
+            error = state.validationErrors["ip_address"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -132,7 +132,7 @@ private fun CreateDeviceFormFields(
             value = state.macAddress,
             onValueChange = actions.onMacAddressChanged,
             label = "Endereço MAC (ex: 00:11:22:33:44:55)",
-            error = state.validationErrors["mac_address"],
+            error = state.validationErrors["mac_address"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -142,7 +142,7 @@ private fun CreateDeviceFormFields(
             value = state.deviceType,
             onValueChange = actions.onDeviceTypeChanged,
             label = "Tipo de Dispositivo (router, switch, server, firewall...)",
-            error = state.validationErrors["device_type"],
+            error = state.validationErrors["device_type"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
     }

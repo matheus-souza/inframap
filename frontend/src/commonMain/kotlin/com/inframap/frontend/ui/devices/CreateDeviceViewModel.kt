@@ -1,28 +1,18 @@
 package com.inframap.frontend.ui.devices
 
-import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.CreateDeviceRequest
-import com.inframap.frontend.data.dto.DeviceDto
+import com.inframap.frontend.designsystem.resources.Res
+import com.inframap.frontend.domain.usecase.device.CreateDeviceUseCase
+import com.inframap.frontend.ui.base.BaseViewModel
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 class CreateDeviceViewModel(
-    private val apiClient: ApiClient,
-    private val scope: CoroutineScope,
-) {
-    private val _state = MutableStateFlow(CreateDeviceUiState())
-    val state: StateFlow<CreateDeviceUiState> = _state.asStateFlow()
-
-    private var createJob: Job? = null
-
+    private val createDeviceUseCase: CreateDeviceUseCase,
+    scope: CoroutineScope? = null,
+) : BaseViewModel<CreateDeviceUiState>(CreateDeviceUiState(), scope) {
     fun onHostnameChanged(hostname: String) {
-        _state.update {
+        updateState {
             it.copy(
                 hostname = hostname,
                 validationErrors = it.validationErrors - "hostname",
@@ -31,7 +21,7 @@ class CreateDeviceViewModel(
     }
 
     fun onIpAddressChanged(ipAddress: String) {
-        _state.update {
+        updateState {
             it.copy(
                 ipAddress = ipAddress,
                 validationErrors = it.validationErrors - "ip_address",
@@ -40,7 +30,7 @@ class CreateDeviceViewModel(
     }
 
     fun onMacAddressChanged(macAddress: String) {
-        _state.update {
+        updateState {
             it.copy(
                 macAddress = macAddress,
                 validationErrors = it.validationErrors - "mac_address",
@@ -49,7 +39,7 @@ class CreateDeviceViewModel(
     }
 
     fun onDeviceTypeChanged(deviceType: String) {
-        _state.update {
+        updateState {
             it.copy(
                 deviceType = deviceType,
                 validationErrors = it.validationErrors - "device_type",
@@ -58,68 +48,61 @@ class CreateDeviceViewModel(
     }
 
     fun createDevice() {
-        if (_state.value.isSubmitting) return
+        if (state.value.isSubmitting) return
 
-        val current = _state.value
-        val errors = mutableMapOf<String, String>()
+        val current = state.value
+        val errors = mutableMapOf<String, UiText>()
 
         if (current.hostname.trim().isEmpty()) {
-            errors["hostname"] = "Hostname is required"
+            errors["hostname"] = UiText.Resource(Res.string.validation_hostname_required)
         }
         if (current.deviceType.trim().isEmpty()) {
-            errors["device_type"] = "Device type is required"
+            errors["device_type"] = UiText.Resource(Res.string.validation_device_type_required)
         }
 
         if (errors.isNotEmpty()) {
-            _state.update { it.copy(validationErrors = errors) }
+            updateState { it.copy(validationErrors = errors) }
             return
         }
 
-        _state.update { it.copy(isSubmitting = true, errorMessage = null) }
+        updateState { it.copy(isSubmitting = true, errorMessage = null) }
 
-        val request =
-            CreateDeviceRequest(
-                hostname = current.hostname.trim(),
-                ipAddress = current.ipAddress.trim().ifEmpty { null },
-                macAddress = current.macAddress.trim().ifEmpty { null },
-                deviceType = current.deviceType.trim(),
-            )
-
-        createJob?.cancel()
-        createJob =
-            scope.launch {
-                when (val result = apiClient.post<DeviceDto, CreateDeviceRequest>("/api/v1/devices", request)) {
-                    is ApiResult.Success -> {
-                        _state.update {
-                            it.copy(
-                                isSubmitting = false,
-                                createdDeviceId = result.data.id,
-                                errorMessage = null,
-                            )
-                        }
+        launchJob("create") {
+            when (
+                val result =
+                    createDeviceUseCase(
+                        hostname = current.hostname.trim(),
+                        deviceType = current.deviceType.trim(),
+                        ipAddress = current.ipAddress.trim().ifEmpty { null },
+                        macAddress = current.macAddress.trim().ifEmpty { null },
+                    )
+            ) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            isSubmitting = false,
+                            createdDeviceId = result.data.id,
+                            errorMessage = null,
+                        )
                     }
-                    is ApiResult.Error -> {
-                        _state.update {
-                            it.copy(
-                                isSubmitting = false,
-                                errorMessage = result.message.ifEmpty { "Failed to create device" },
-                            )
-                        }
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isSubmitting = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_create)),
+                        )
                     }
-                    is ApiResult.NetworkError -> {
-                        _state.update {
-                            it.copy(
-                                isSubmitting = false,
-                                errorMessage = "Network error. Failed to create device.",
-                            )
-                        }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isSubmitting = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_create)),
+                        )
                     }
                 }
             }
-    }
-
-    fun clear() {
-        createJob?.cancel()
-        createJob = null
+        }
     }
 }

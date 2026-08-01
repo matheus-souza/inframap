@@ -90,7 +90,7 @@ private fun OnboardingFormContent(
         if (state.errorMessage != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = state.errorMessage,
+                text = state.errorMessage.asString(),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
             )

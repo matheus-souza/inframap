@@ -5,6 +5,8 @@ import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,8 +15,11 @@ import kotlinx.coroutines.launch
 
 abstract class BaseViewModel<S>(
     initialState: S,
-    protected val scope: CoroutineScope,
+    scope: CoroutineScope? = null,
 ) {
+    private val ownsScope = scope == null
+    protected val scope: CoroutineScope = scope ?: CoroutineScope(SupervisorJob())
+
     private val _state = MutableStateFlow(initialState)
     val state: StateFlow<S> = _state.asStateFlow()
 
@@ -22,7 +27,7 @@ abstract class BaseViewModel<S>(
 
     private val jobs = mutableMapOf<String, Job?>()
 
-    protected fun updateState(reducer: S.() -> S) {
+    protected fun updateState(reducer: (S) -> S) {
         _state.update(reducer)
     }
 
@@ -62,5 +67,8 @@ abstract class BaseViewModel<S>(
     open fun clear() {
         jobs.values.forEach { it?.cancel() }
         jobs.clear()
+        if (ownsScope) {
+            scope.cancel()
+        }
     }
 }

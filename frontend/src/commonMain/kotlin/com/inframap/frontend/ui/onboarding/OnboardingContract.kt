@@ -1,5 +1,7 @@
 package com.inframap.frontend.ui.onboarding
 
+import com.inframap.frontend.ui.util.UiText
+
 data class OnboardingUiState(
     val username: String = "",
     val email: String = "",
@@ -7,7 +9,7 @@ data class OnboardingUiState(
     val password: String = "",
     val confirmPassword: String = "",
     val isLoading: Boolean = false,
-    val errorMessage: String? = null,
+    val errorMessage: UiText? = null,
 )
 
 sealed class OnboardingEffect {

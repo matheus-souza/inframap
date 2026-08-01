@@ -12,8 +12,8 @@ interface Paginated {
 
 abstract class BaseListViewModel<S : Paginated>(
     initialState: S,
-    scope: CoroutineScope,
     private val defaultPerPage: Int = 50,
+    scope: CoroutineScope? = null,
 ) : BaseViewModel<S>(initialState, scope) {
     abstract fun loadPage(
         page: Int,

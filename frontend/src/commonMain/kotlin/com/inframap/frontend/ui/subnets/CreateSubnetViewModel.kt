@@ -1,136 +1,123 @@
 package com.inframap.frontend.ui.subnets
 
-import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CreateSubnetRequest
-import com.inframap.frontend.data.dto.SubnetDto
+import com.inframap.frontend.designsystem.resources.Res
+import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
+import com.inframap.frontend.ui.base.BaseViewModel
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 class CreateSubnetViewModel(
-    private val apiClient: ApiClient,
-    private val scope: CoroutineScope,
-) {
-    private val _state = MutableStateFlow(CreateSubnetUiState())
-    val state: StateFlow<CreateSubnetUiState> = _state.asStateFlow()
-
-    private var submitJob: Job? = null
-
+    private val createSubnetUseCase: CreateSubnetUseCase,
+    scope: CoroutineScope? = null,
+) : BaseViewModel<CreateSubnetUiState>(CreateSubnetUiState(), scope) {
     fun onNameChanged(name: String) {
-        _state.update { it.copy(name = name, validationErrors = it.validationErrors - "name") }
+        updateState { it.copy(name = name, validationErrors = it.validationErrors - "name") }
     }
 
     fun onCidrChanged(cidr: String) {
-        _state.update { it.copy(cidr = cidr, validationErrors = it.validationErrors - "cidr") }
+        updateState { it.copy(cidr = cidr, validationErrors = it.validationErrors - "cidr") }
     }
 
     fun onVlanIdChanged(vlanId: String) {
-        _state.update { it.copy(vlanId = vlanId, validationErrors = it.validationErrors - "vlan_id") }
+        updateState { it.copy(vlanId = vlanId, validationErrors = it.validationErrors - "vlan_id") }
     }
 
     fun onGatewayIpChanged(gatewayIp: String) {
-        _state.update { it.copy(gatewayIp = gatewayIp, validationErrors = it.validationErrors - "gateway_ip") }
+        updateState { it.copy(gatewayIp = gatewayIp, validationErrors = it.validationErrors - "gateway_ip") }
     }
 
     fun onDescriptionChanged(description: String) {
-        _state.update { it.copy(description = description) }
+        updateState { it.copy(description = description) }
     }
 
     fun onDiscoveryEnabledChanged(enabled: Boolean) {
-        _state.update { it.copy(discoveryEnabled = enabled) }
+        updateState { it.copy(discoveryEnabled = enabled) }
     }
 
     fun validate(): Boolean {
-        val errors = mutableMapOf<String, String>()
-        val name = _state.value.name.trim()
-        val cidr = _state.value.cidr.trim()
-        val vlanIdStr = _state.value.vlanId.trim()
-        val gatewayIp = _state.value.gatewayIp.trim()
+        val errors = mutableMapOf<String, UiText>()
+        val name = state.value.name.trim()
+        val cidr = state.value.cidr.trim()
+        val vlanIdStr = state.value.vlanId.trim()
+        val gatewayIp = state.value.gatewayIp.trim()
 
         if (name.isEmpty()) {
-            errors["name"] = "Nome da subrede é obrigatório"
+            errors["name"] = UiText.Resource(Res.string.validation_subnet_name_required)
         }
 
         if (cidr.isEmpty()) {
-            errors["cidr"] = "CIDR é obrigatório"
+            errors["cidr"] = UiText.Resource(Res.string.validation_cidr_required)
         } else if (!isValidCidr(cidr)) {
-            errors["cidr"] = "Formato de CIDR inválido (ex: 192.168.1.0/24)"
+            errors["cidr"] = UiText.Resource(Res.string.validation_cidr_invalid)
         }
 
         if (vlanIdStr.isNotEmpty()) {
             val vlan = vlanIdStr.toIntOrNull()
             if (vlan == null || vlan < 1 || vlan > 4094) {
-                errors["vlan_id"] = "VLAN ID deve ser um número entre 1 e 4094"
+                errors["vlan_id"] = UiText.Resource(Res.string.validation_vlan_invalid)
             }
         }
 
         if (gatewayIp.isNotEmpty() && !isValidIp(gatewayIp)) {
-            errors["gateway_ip"] = "Endereço IP de Gateway inválido"
+            errors["gateway_ip"] = UiText.Resource(Res.string.validation_gateway_invalid)
         }
 
-        _state.update { it.copy(validationErrors = errors) }
+        updateState { it.copy(validationErrors = errors) }
         return errors.isEmpty()
     }
 
     fun createSubnet(onSuccess: (() -> Unit)? = null) {
-        if (_state.value.isSubmitting) return
+        if (state.value.isSubmitting) return
         if (!validate()) return
 
-        val stateVal = _state.value
-        val request =
-            CreateSubnetRequest(
-                name = stateVal.name.trim(),
-                cidr = stateVal.cidr.trim(),
-                vlanId = stateVal.vlanId.trim().toIntOrNull(),
-                gatewayIp = stateVal.gatewayIp.trim().ifEmpty { null },
-                description = stateVal.description.trim().ifEmpty { null },
-                discoveryEnabled = stateVal.discoveryEnabled,
-            )
+        val stateVal = state.value
 
-        _state.update { it.copy(isSubmitting = true, errorMessage = null, isSuccess = false) }
+        updateState { it.copy(isSubmitting = true, errorMessage = null, isSuccess = false) }
 
-        submitJob?.cancel()
-        submitJob =
-            scope.launch {
-                when (val result = apiClient.post<SubnetDto, CreateSubnetRequest>("/api/v1/subnets", request)) {
-                    is ApiResult.Success -> {
-                        _state.update {
-                            it.copy(
-                                isSubmitting = false,
-                                isSuccess = true,
-                                errorMessage = null,
-                            )
-                        }
-                        onSuccess?.invoke()
+        launchJob("submit") {
+            when (
+                val result =
+                    createSubnetUseCase(
+                        CreateSubnetRequest(
+                            name = stateVal.name.trim(),
+                            cidr = stateVal.cidr.trim(),
+                            vlanId = stateVal.vlanId.trim().toIntOrNull(),
+                            gatewayIp = stateVal.gatewayIp.trim().ifEmpty { null },
+                            description = stateVal.description.trim().ifEmpty { null },
+                            discoveryEnabled = stateVal.discoveryEnabled,
+                        ),
+                    )
+            ) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            isSubmitting = false,
+                            isSuccess = true,
+                            errorMessage = null,
+                        )
                     }
-                    is ApiResult.Error -> {
-                        _state.update {
-                            it.copy(
-                                isSubmitting = false,
-                                errorMessage = result.message.ifEmpty { "Falha ao criar subrede" },
-                            )
-                        }
+                    onSuccess?.invoke()
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isSubmitting = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.subnets_error_create)),
+                        )
                     }
-                    is ApiResult.NetworkError -> {
-                        _state.update {
-                            it.copy(
-                                isSubmitting = false,
-                                errorMessage = "Erro de rede. Não foi possível conectar ao servidor.",
-                            )
-                        }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isSubmitting = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.subnets_error_create)),
+                        )
                     }
                 }
             }
-    }
-
-    fun clear() {
-        submitJob?.cancel()
-        submitJob = null
+        }
     }
 
     private fun isValidCidr(cidr: String): Boolean {

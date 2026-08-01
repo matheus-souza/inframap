@@ -19,4 +19,27 @@ class UpdateDeviceUseCase(
             id = params.id,
             request = params.request,
         )
+
+    @Suppress("LongParameterList")
+    suspend operator fun invoke(
+        id: String,
+        hostname: String? = null,
+        ipAddress: String? = null,
+        macAddress: String? = null,
+        deviceType: String? = null,
+        status: String? = null,
+    ): ApiResult<Device> =
+        invoke(
+            Params(
+                id = id,
+                request =
+                    UpdateDeviceRequest(
+                        hostname = hostname,
+                        ipAddress = ipAddress,
+                        macAddress = macAddress,
+                        deviceType = deviceType,
+                        status = status,
+                    ),
+            ),
+        )
 }

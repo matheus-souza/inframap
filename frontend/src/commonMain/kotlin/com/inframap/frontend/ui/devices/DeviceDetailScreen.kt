@@ -20,13 +20,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.inframap.frontend.data.dto.DeviceDto
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapConfirmDialog
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
+import com.inframap.frontend.domain.model.Device
 
 @Composable
 fun DeviceDetailScreen(
@@ -41,7 +41,7 @@ fun DeviceDetailScreen(
             }
         } else if (state.errorMessage != null) {
             DeviceDetailErrorView(
-                errorMessage = state.errorMessage,
+                errorMessage = state.errorMessage.asString(),
                 onRetryClicked = actions.onRetryClicked,
             )
         } else if (state.device != null) {
@@ -86,7 +86,7 @@ private fun DeviceDetailErrorView(
 
 @Composable
 private fun DeviceDetailContentView(
-    device: DeviceDto,
+    device: Device,
     actions: DeviceDetailActions,
 ) {
     Column(
@@ -119,7 +119,7 @@ private fun DeviceDetailContentView(
 
 @Composable
 private fun DeviceDetailHeader(
-    device: DeviceDto,
+    device: Device,
     onBackClicked: () -> Unit,
     onEditClicked: (String) -> Unit,
     onDeleteClicked: () -> Unit,
@@ -161,7 +161,7 @@ private fun DeviceDetailHeader(
 }
 
 @Composable
-private fun DeviceMainInfoCard(device: DeviceDto) {
+private fun DeviceMainInfoCard(device: Device) {
     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
@@ -198,7 +198,7 @@ private fun DeviceMainInfoCard(device: DeviceDto) {
 }
 
 @Composable
-private fun DeviceHardwareCard(device: DeviceDto) {
+private fun DeviceHardwareCard(device: Device) {
     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(

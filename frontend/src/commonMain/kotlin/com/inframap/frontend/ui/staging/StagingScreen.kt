@@ -16,7 +16,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.inframap.frontend.data.dto.StagingDeviceDto
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
@@ -26,6 +25,7 @@ import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.InfraMapTablePagination
 import com.inframap.frontend.designsystem.TableColumn
+import com.inframap.frontend.domain.model.StagingDevice
 import kotlin.math.ceil
 
 @Composable
@@ -42,7 +42,7 @@ fun StagingScreen(
 
             if (state.errorMessage != null) {
                 StagingErrorCard(
-                    errorMessage = state.errorMessage,
+                    errorMessage = state.errorMessage.asString(),
                     onRetryClicked = actions.onRetryClicked,
                 )
             } else if (state.isLoading) {
@@ -60,7 +60,7 @@ fun StagingScreen(
         if (state.deviceToDismiss != null) {
             val confirmMessage =
                 if (state.actionErrorMessage != null) {
-                    "Erro ao descartar: ${state.actionErrorMessage}\n\n" +
+                    "Erro ao descartar: ${state.actionErrorMessage.asString()}\n\n" +
                         "Deseja tentar novamente?"
                 } else {
                     "Tem certeza que deseja descartar o dispositivo '${state.deviceToDismiss.hostname}' " +
@@ -134,7 +134,7 @@ private fun StagingTableCard(
             TableColumn(header = "Ações", weight = 2.5f),
         )
 
-    val totalPages = maxOf(1, ceil(state.total.toDouble() / state.perPage.toDouble()).toInt())
+    val totalPages = maxOf(1, ceil(state.totalItems.toDouble() / state.perPage.toDouble()).toInt())
 
     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -149,7 +149,7 @@ private fun StagingTableCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             InfraMapTablePagination(
-                currentPage = state.page,
+                currentPage = state.currentPage,
                 totalPages = totalPages,
                 onPageChange = actions.onPageChanged,
             )
@@ -160,7 +160,7 @@ private fun StagingTableCard(
 @Composable
 private fun StagingRowCell(
     colIndex: Int,
-    item: StagingDeviceDto,
+    item: StagingDevice,
     state: StagingUiState,
     actions: StagingActions,
 ) {

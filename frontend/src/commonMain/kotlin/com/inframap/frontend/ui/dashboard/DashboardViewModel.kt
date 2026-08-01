@@ -1,35 +1,31 @@
 package com.inframap.frontend.ui.dashboard
 
-import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.DeviceListResponse
-import com.inframap.frontend.data.dto.DiscoveryListResponse
-import com.inframap.frontend.data.dto.HealthDto
-import com.inframap.frontend.data.dto.StagingListResponse
 import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.data.sse.SSEEvent
+import com.inframap.frontend.designsystem.resources.Res
+import com.inframap.frontend.domain.usecase.dashboard.GetDiscoverySourcesUseCase
+import com.inframap.frontend.domain.usecase.dashboard.GetHealthUseCase
+import com.inframap.frontend.domain.usecase.device.GetDevicesUseCase
+import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
+import com.inframap.frontend.ui.base.BaseViewModel
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 class DashboardViewModel(
-    private val apiClient: ApiClient,
+    private val getDevicesUseCase: GetDevicesUseCase,
+    private val getStagingDevicesUseCase: GetStagingDevicesUseCase,
+    private val getHealthUseCase: GetHealthUseCase,
+    private val getDiscoverySourcesUseCase: GetDiscoverySourcesUseCase,
     private val sseClient: SSEClient? = null,
-    private val scope: CoroutineScope,
     private val autoRefreshIntervalMs: Long = 30_000L,
-) {
-    private val _state = MutableStateFlow(DashboardUiState())
-    val state: StateFlow<DashboardUiState> = _state.asStateFlow()
-
-    private var fetchMetricsJob: Job? = null
+    scope: CoroutineScope? = null,
+) : BaseViewModel<DashboardUiState>(DashboardUiState(), scope) {
     private var autoRefreshJob: Job? = null
     private var sseJob: Job? = null
 
@@ -40,7 +36,7 @@ class DashboardViewModel(
     }
 
     fun loadData() {
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
+        updateState { it.copy(isLoading = true, errorMessage = null) }
         triggerFetchMetrics()
     }
 
@@ -49,11 +45,9 @@ class DashboardViewModel(
     }
 
     private fun triggerFetchMetrics() {
-        fetchMetricsJob?.cancel()
-        fetchMetricsJob =
-            scope.launch {
-                fetchMetrics()
-            }
+        launchJob("fetch_metrics") {
+            fetchMetrics()
+        }
     }
 
     fun stopAutoRefresh() {
@@ -67,9 +61,8 @@ class DashboardViewModel(
         sseClient?.disconnect()
     }
 
-    fun clear() {
-        fetchMetricsJob?.cancel()
-        fetchMetricsJob = null
+    override fun clear() {
+        super.clear()
         stopAutoRefresh()
         stopSseListening()
     }
@@ -77,66 +70,38 @@ class DashboardViewModel(
     @Suppress("LongMethod")
     private suspend fun fetchMetrics() =
         coroutineScope {
-            val devicesDeferred = async { apiClient.get<DeviceListResponse>("/api/v1/devices") }
-            val stagingDeferred = async { apiClient.get<StagingListResponse>("/api/v1/devices/staging") }
-            val healthDeferred = async { apiClient.get<HealthDto>("/api/v1/health") }
-            val sourcesDeferred = async { apiClient.get<DiscoveryListResponse>("/api/v1/discovery/sources") }
+            val devicesDeferred = async { getDevicesUseCase(page = 1, perPage = 1) }
+            val stagingDeferred = async { getStagingDevicesUseCase(page = 1, perPage = 1) }
+            val healthDeferred = async { getHealthUseCase() }
+            val sourcesDeferred = async { getDiscoverySourcesUseCase() }
 
             val devicesResult = devicesDeferred.await()
             val stagingResult = stagingDeferred.await()
             val healthResult = healthDeferred.await()
             val sourcesResult = sourcesDeferred.await()
 
-            val hasError =
-                devicesResult is ApiResult.Error ||
-                    stagingResult is ApiResult.Error ||
-                    healthResult is ApiResult.Error ||
-                    sourcesResult is ApiResult.Error
+            val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult)
 
-            val hasNetworkError =
-                devicesResult is ApiResult.NetworkError ||
-                    stagingResult is ApiResult.NetworkError ||
-                    healthResult is ApiResult.NetworkError ||
-                    sourcesResult is ApiResult.NetworkError
-
-            if (hasNetworkError) {
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Network error. Failed to reach server.",
-                    )
-                }
+            if (results.any { it is ApiResult.NetworkError }) {
+                handleMetricsNetworkError(devicesResult)
                 return@coroutineScope
             }
 
-            if (hasError) {
-                val errorMsg =
-                    listOf(devicesResult, stagingResult, healthResult, sourcesResult)
-                        .filterIsInstance<ApiResult.Error>()
-                        .firstOrNull()
-                        ?.message
-                        ?.ifEmpty { null }
-                        ?: "Failed to load dashboard metrics"
-
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = errorMsg,
-                    )
-                }
+            if (results.any { it is ApiResult.Error }) {
+                handleMetricsApiError(results)
                 return@coroutineScope
             }
 
             val activeTotal = (devicesResult as? ApiResult.Success)?.data?.total ?: 0L
             val stagedTotal = (stagingResult as? ApiResult.Success)?.data?.total ?: 0L
             val healthData = (healthResult as? ApiResult.Success)?.data
-            val sourcesTotal = (sourcesResult as? ApiResult.Success)?.data?.total ?: 0L
+            val sourcesTotal = (sourcesResult as? ApiResult.Success)?.data?.size?.toLong() ?: 0L
 
-            _state.update {
+            updateState {
                 it.copy(
                     totalActiveDevices = activeTotal,
                     totalStagedDevices = stagedTotal,
-                    isSystemHealthy = healthData?.status == "ok",
+                    isSystemHealthy = healthData?.isHealthy,
                     systemVersion = healthData?.version ?: "",
                     totalDiscoverySources = sourcesTotal,
                     isLoading = false,
@@ -145,53 +110,73 @@ class DashboardViewModel(
             }
         }
 
+    private fun handleMetricsNetworkError(representative: ApiResult<*>) {
+        updateState {
+            it.copy(
+                isLoading = false,
+                errorMessage = mapError(representative, UiText.Resource(Res.string.dashboard_error_load)),
+            )
+        }
+    }
+
+    private fun handleMetricsApiError(results: List<ApiResult<*>>) {
+        val errorResult = results.filterIsInstance<ApiResult.Error>().firstOrNull()
+        val errorMsg =
+            errorResult?.let { mapError(it, UiText.Resource(Res.string.dashboard_error_load)) }
+                ?: UiText.Resource(Res.string.dashboard_error_load)
+        updateState {
+            it.copy(
+                isLoading = false,
+                errorMessage = errorMsg,
+            )
+        }
+    }
+
     private fun startAutoRefresh() {
         if (autoRefreshIntervalMs <= 0) return
-        autoRefreshJob?.cancel()
-        autoRefreshJob =
-            scope.launch {
-                while (isActive) {
-                    delay(autoRefreshIntervalMs)
-                    fetchHealth()
-                }
+        launchJob("auto_refresh") {
+            while (isActive) {
+                delay(autoRefreshIntervalMs)
+                fetchHealth()
             }
+        }
     }
 
     suspend fun fetchHealth() {
-        val healthResult = apiClient.get<HealthDto>("/api/v1/health")
-        if (healthResult is ApiResult.Success) {
-            _state.update {
-                it.copy(
-                    isSystemHealthy = healthResult.data.status == "ok",
-                    systemVersion = healthResult.data.version,
-                )
+        when (val healthResult = getHealthUseCase()) {
+            is ApiResult.Success -> {
+                updateState {
+                    it.copy(
+                        isSystemHealthy = healthResult.data.isHealthy,
+                        systemVersion = healthResult.data.version,
+                    )
+                }
             }
+            else -> Unit
         }
     }
 
     private fun startSseListening() {
         val client = sseClient ?: return
-        sseJob?.cancel()
-        sseJob =
-            scope.launch {
-                while (isActive) {
-                    client.connect("/api/v1/events").collect { event ->
-                        when (event) {
-                            is SSEEvent.DeviceCreated,
-                            is SSEEvent.DeviceUpdated,
-                            is SSEEvent.TopologyUpdated,
-                            is SSEEvent.DiscoveryProgress,
-                            -> {
-                                triggerFetchMetrics()
-                            }
-                            is SSEEvent.Disconnected -> {
-                                delay(5000L)
-                                startSseListening()
-                            }
-                            else -> Unit
+        launchJob("sse_listening") {
+            while (isActive) {
+                client.connect("/api/v1/events").collect { event ->
+                    when (event) {
+                        is SSEEvent.DeviceCreated,
+                        is SSEEvent.DeviceUpdated,
+                        is SSEEvent.TopologyUpdated,
+                        is SSEEvent.DiscoveryProgress,
+                        -> {
+                            triggerFetchMetrics()
                         }
+                        is SSEEvent.Disconnected -> {
+                            delay(5000L)
+                            startSseListening()
+                        }
+                        else -> Unit
                     }
                 }
             }
+        }
     }
 }

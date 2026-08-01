@@ -10,4 +10,9 @@ class LoginUseCase(
     private val authRepository: AuthRepository,
 ) : UseCase<LoginRequest, ApiResult<LoginResult>> {
     override suspend fun invoke(params: LoginRequest): ApiResult<LoginResult> = authRepository.login(params)
+
+    suspend operator fun invoke(
+        username: String,
+        password: String,
+    ): ApiResult<LoginResult> = invoke(LoginRequest(username = username, password = password))
 }

@@ -1,72 +1,63 @@
 package com.inframap.frontend.ui.login
 
-import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.LoginRequest
-import com.inframap.frontend.data.dto.LoginResponseDto
+import com.inframap.frontend.designsystem.resources.Res
+import com.inframap.frontend.domain.usecase.auth.LoginUseCase
+import com.inframap.frontend.ui.base.BaseViewModel
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 class LoginViewModel(
-    private val apiClient: ApiClient,
-    private val scope: CoroutineScope,
-) {
-    private val _state = MutableStateFlow(LoginUiState())
-    val state: StateFlow<LoginUiState> = _state.asStateFlow()
-
+    private val loginUseCase: LoginUseCase,
+    scope: CoroutineScope? = null,
+) : BaseViewModel<LoginUiState>(LoginUiState(), scope) {
     private val _effects = Channel<LoginEffect>(Channel.BUFFERED)
     val effects: Flow<LoginEffect> = _effects.receiveAsFlow()
 
     fun onUsernameChanged(value: String) {
-        _state.update { it.copy(username = value, errorMessage = null) }
+        updateState { it.copy(username = value, errorMessage = null) }
     }
 
     fun onPasswordChanged(value: String) {
-        _state.update { it.copy(password = value, errorMessage = null) }
+        updateState { it.copy(password = value, errorMessage = null) }
     }
 
     fun login() {
-        val current = _state.value
+        val current = state.value
         if (current.username.isBlank() || current.password.isBlank()) {
-            _state.update { it.copy(errorMessage = "Username and password are required") }
+            updateState { it.copy(errorMessage = UiText.Resource(Res.string.login_error_credentials)) }
             return
         }
         if (current.isLoading) return
 
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
+        updateState { it.copy(isLoading = true, errorMessage = null) }
 
-        scope.launch {
-            val result =
-                apiClient.post<LoginResponseDto, LoginRequest>(
-                    "/api/v1/auth/login",
-                    LoginRequest(username = current.username, password = current.password),
-                )
-
-            when (result) {
+        launchJob("login") {
+            when (val result = loginUseCase(username = current.username, password = current.password)) {
                 is ApiResult.Success -> {
-                    _state.update { it.copy(isLoading = false) }
+                    updateState { it.copy(isLoading = false) }
                     _effects.send(LoginEffect.NavigateToDashboard)
                 }
                 is ApiResult.Error -> {
                     val message =
                         if (result.httpStatus == 429) {
-                            "Too many attempts. Please wait before trying again."
+                            UiText.Resource(Res.string.login_error_rate_limit)
                         } else {
-                            result.message
+                            mapError(result, UiText.Resource(Res.string.login_error_credentials))
                         }
-                    _state.update { it.copy(isLoading = false, errorMessage = message) }
+                    updateState { it.copy(isLoading = false, errorMessage = message) }
                 }
-                is ApiResult.NetworkError ->
-                    _state.update {
-                        it.copy(isLoading = false, errorMessage = "Network error. Check your connection.")
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.login_error_network)),
+                        )
                     }
+                }
             }
         }
     }

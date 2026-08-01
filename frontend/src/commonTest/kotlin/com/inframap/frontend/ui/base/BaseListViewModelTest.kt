@@ -14,9 +14,9 @@ private data class TestListState(
 ) : Paginated
 
 private class TestListViewModel(
-    scope: CoroutineScope,
     defaultPerPage: Int = 10,
-) : BaseListViewModel<TestListState>(TestListState(), scope, defaultPerPage) {
+    scope: CoroutineScope? = null,
+) : BaseListViewModel<TestListState>(TestListState(), defaultPerPage, scope) {
     var lastLoadedPage: Int = 0
     var lastLoadedPerPage: Int = 0
     var loadPageCallCount: Int = 0
@@ -28,15 +28,15 @@ private class TestListViewModel(
         loadPageCallCount++
         lastLoadedPage = page
         lastLoadedPerPage = perPage
-        updateState { copy(currentPage = page) }
+        updateState { it.copy(currentPage = page) }
     }
 
     fun setTotalItems(total: Long) {
-        updateState { copy(totalItems = total) }
+        updateState { it.copy(totalItems = total) }
     }
 
     fun setLoading(loading: Boolean) {
-        updateState { copy(isLoading = loading) }
+        updateState { it.copy(isLoading = loading) }
     }
 }
 
@@ -44,7 +44,7 @@ class BaseListViewModelTest {
     @Test
     fun loadPageTriggersCorrectParameters() =
         runTest {
-            val vm = TestListViewModel(this, defaultPerPage = 10)
+            val vm = TestListViewModel(defaultPerPage = 10)
             vm.loadPage(2, 20)
             assertEquals(1, vm.loadPageCallCount)
             assertEquals(2, vm.lastLoadedPage)
@@ -56,7 +56,7 @@ class BaseListViewModelTest {
     @Test
     fun refreshReloadsCurrentPage() =
         runTest {
-            val vm = TestListViewModel(this, defaultPerPage = 10)
+            val vm = TestListViewModel(defaultPerPage = 10)
             vm.loadPage(3)
             assertEquals(1, vm.loadPageCallCount)
             vm.refresh()
@@ -68,7 +68,7 @@ class BaseListViewModelTest {
     @Test
     fun nextPageNavigatesWhenNotAtEnd() =
         runTest {
-            val vm = TestListViewModel(this, defaultPerPage = 10)
+            val vm = TestListViewModel(defaultPerPage = 10)
             // Set state to page 1, 25 total items => 3 pages total
             vm.loadPage(1)
             vm.setTotalItems(25)
@@ -92,7 +92,7 @@ class BaseListViewModelTest {
     @Test
     fun previousPageNavigatesWhenNotAtFirstPage() =
         runTest {
-            val vm = TestListViewModel(this, defaultPerPage = 10)
+            val vm = TestListViewModel(defaultPerPage = 10)
             vm.loadPage(2)
             assertEquals(1, vm.loadPageCallCount)
 
@@ -110,7 +110,7 @@ class BaseListViewModelTest {
     @Test
     fun navigationMethodsAreNoOpWhenLoading() =
         runTest {
-            val vm = TestListViewModel(this, defaultPerPage = 10)
+            val vm = TestListViewModel(defaultPerPage = 10)
             vm.loadPage(1)
             assertEquals(1, vm.loadPageCallCount)
             vm.setTotalItems(30)

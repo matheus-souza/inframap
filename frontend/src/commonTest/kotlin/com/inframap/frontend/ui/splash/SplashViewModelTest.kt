@@ -1,15 +1,15 @@
 package com.inframap.frontend.ui.splash
 
-import com.inframap.frontend.data.api.ApiClient
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
+import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.LoginRequest
+import com.inframap.frontend.data.dto.OnboardRequest
+import com.inframap.frontend.domain.model.LoginResult
+import com.inframap.frontend.domain.model.OnboardResult
+import com.inframap.frontend.domain.model.SetupStatus
+import com.inframap.frontend.domain.model.User
+import com.inframap.frontend.domain.repository.AuthRepository
+import com.inframap.frontend.domain.usecase.auth.GetCurrentUserUseCase
+import com.inframap.frontend.domain.usecase.auth.GetSetupStatusUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -17,172 +17,152 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SplashViewModelTest {
-    private val jsonHeaders =
-        headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+    private val notOnboarded = SetupStatus(onboardingCompleted = false, systemInstanceId = "")
+    private val onboarded = SetupStatus(onboardingCompleted = true, systemInstanceId = "inst-1")
+    private val sampleUser = User(id = "u1", username = "admin", email = "a@b.com", fullName = "Admin")
 
-    private fun createClient(handler: suspend (String) -> Pair<HttpStatusCode, String>): ApiClient {
-        val engine =
-            MockEngine { request ->
-                val (status, body) = handler(request.url.encodedPath)
-                respond(body, status, jsonHeaders)
-            }
-        val httpClient =
-            HttpClient(engine) {
-                install(ContentNegotiation) {
-                    json(
-                        Json {
-                            ignoreUnknownKeys = true
-                            isLenient = true
-                        },
-                    )
-                }
-            }
-        return ApiClient(baseUrl = "", httpClient = httpClient)
-    }
+    private fun repoWithSetupAndUser(
+        setupResult: ApiResult<SetupStatus>,
+        userResult: ApiResult<User>,
+    ): AuthRepository =
+        object : AuthRepository {
+            override suspend fun getSetupStatus() = setupResult
+
+            override suspend fun login(request: LoginRequest) =
+                ApiResult.Success(
+                    LoginResult(token = "tok", userId = "u1", username = "admin"),
+                    requestId = "",
+                )
+
+            override suspend fun onboard(request: OnboardRequest) =
+                ApiResult.Success(
+                    OnboardResult(
+                        onboardingCompleted = true,
+                        systemInstanceId = "inst-1",
+                        adminUserId = "u1",
+                    ),
+                    requestId = "",
+                )
+
+            override suspend fun getCurrentUser() = userResult
+        }
 
     @Test
     fun notOnboardedNavigatesToOnboarding() =
         runTest {
-            val client =
-                createClient { path ->
-                    when {
-                        path.contains("setup/status") ->
-                            HttpStatusCode.OK to
-                                """{"data":{"onboarding_completed":false,"system_instance_id":""},"meta":{"request_id":"r1"}}"""
-                        else ->
-                            HttpStatusCode.NotFound to
-                                """{"error":{"code":"NOT_FOUND","message":"Not found"},"meta":{"request_id":"r2"}}"""
-                    }
-                }
-
-            val viewModel = SplashViewModel(client, this)
-            val deferred = async { viewModel.effects.first() }
-            viewModel.checkAuthState()
+            val repo =
+                repoWithSetupAndUser(
+                    setupResult = ApiResult.Success(notOnboarded, requestId = ""),
+                    userResult = ApiResult.Success(sampleUser, requestId = ""),
+                )
+            val vm = SplashViewModel(GetSetupStatusUseCase(repo), GetCurrentUserUseCase(repo), scope = this)
+            val deferred = async { vm.effects.first() }
+            vm.checkAuthState()
             advanceUntilIdle()
 
             assertIs<SplashEffect.NavigateToOnboarding>(deferred.await())
+            vm.clear()
         }
 
     @Test
     fun onboardedAndAuthenticatedNavigatesToDashboard() =
         runTest {
-            val client =
-                createClient { path ->
-                    when {
-                        path.contains("setup/status") ->
-                            HttpStatusCode.OK to
-                                """{"data":{"onboarding_completed":true,"system_instance_id":"inst-1"},"meta":{"request_id":"r1"}}"""
-                        path.contains("auth/me") ->
-                            HttpStatusCode.OK to
-                                """{"data":{"id":"u1","username":"admin","email":"a@b.com","full_name":"Admin","is_active":true,"permissions":["admin"]},"meta":{"request_id":"r2"}}"""
-                        else ->
-                            HttpStatusCode.NotFound to
-                                """{"error":{"code":"NOT_FOUND","message":"Not found"},"meta":{"request_id":"r3"}}"""
-                    }
-                }
-
-            val viewModel = SplashViewModel(client, this)
-            val deferred = async { viewModel.effects.first() }
-            viewModel.checkAuthState()
+            val repo =
+                repoWithSetupAndUser(
+                    setupResult = ApiResult.Success(onboarded, requestId = ""),
+                    userResult = ApiResult.Success(sampleUser, requestId = ""),
+                )
+            val vm = SplashViewModel(GetSetupStatusUseCase(repo), GetCurrentUserUseCase(repo), scope = this)
+            val deferred = async { vm.effects.first() }
+            vm.checkAuthState()
             advanceUntilIdle()
 
             assertIs<SplashEffect.NavigateToDashboard>(deferred.await())
+            vm.clear()
         }
 
     @Test
     fun onboardedButUnauthenticatedNavigatesToLogin() =
         runTest {
-            val client =
-                createClient { path ->
-                    when {
-                        path.contains("setup/status") ->
-                            HttpStatusCode.OK to
-                                """{"data":{"onboarding_completed":true,"system_instance_id":"inst-1"},"meta":{"request_id":"r1"}}"""
-                        path.contains("auth/me") ->
-                            HttpStatusCode.Unauthorized to
-                                """{"error":{"code":"UNAUTHENTICATED","message":"Missing or invalid session token"},"meta":{"request_id":"r2"}}"""
-                        else ->
-                            HttpStatusCode.NotFound to
-                                """{"error":{"code":"NOT_FOUND","message":"Not found"},"meta":{"request_id":"r3"}}"""
-                    }
-                }
-
-            val viewModel = SplashViewModel(client, this)
-            val deferred = async { viewModel.effects.first() }
-            viewModel.checkAuthState()
+            val repo =
+                repoWithSetupAndUser(
+                    setupResult = ApiResult.Success(onboarded, requestId = ""),
+                    userResult =
+                        ApiResult.Error(
+                            code = "UNAUTH",
+                            message = "Unauthenticated",
+                            requestId = "",
+                            httpStatus = 401,
+                        ),
+                )
+            val vm = SplashViewModel(GetSetupStatusUseCase(repo), GetCurrentUserUseCase(repo), scope = this)
+            val deferred = async { vm.effects.first() }
+            vm.checkAuthState()
             advanceUntilIdle()
 
             assertIs<SplashEffect.NavigateToLogin>(deferred.await())
+            vm.clear()
         }
 
     @Test
     fun setupStatusErrorNavigatesToLogin() =
         runTest {
-            val client =
-                createClient { _ ->
-                    HttpStatusCode.InternalServerError to
-                        """{"error":{"code":"INTERNAL_ERROR","message":"Server error"},"meta":{"request_id":"r1"}}"""
-                }
-
-            val viewModel = SplashViewModel(client, this)
-            val deferred = async { viewModel.effects.first() }
-            viewModel.checkAuthState()
+            val repo =
+                repoWithSetupAndUser(
+                    setupResult =
+                        ApiResult.Error(
+                            code = "SERVER_ERROR",
+                            message = "Server error",
+                            requestId = "",
+                            httpStatus = 500,
+                        ),
+                    userResult = ApiResult.Success(sampleUser, requestId = ""),
+                )
+            val vm = SplashViewModel(GetSetupStatusUseCase(repo), GetCurrentUserUseCase(repo), scope = this)
+            val deferred = async { vm.effects.first() }
+            vm.checkAuthState()
             advanceUntilIdle()
 
             assertIs<SplashEffect.NavigateToLogin>(deferred.await())
+            vm.clear()
         }
 
     @Test
     fun initialStateIsLoading() {
-        val client = createClient { _ -> HttpStatusCode.OK to "{}" }
-        val scope = TestScope(StandardTestDispatcher())
-        val viewModel = SplashViewModel(client, scope)
+        val repo =
+            repoWithSetupAndUser(
+                setupResult = ApiResult.Success(onboarded, requestId = ""),
+                userResult = ApiResult.Success(sampleUser, requestId = ""),
+            )
 
-        assertTrue(viewModel.state.value.isLoading)
+        @Suppress("UNUSED_VARIABLE")
+        val scope = TestScope(StandardTestDispatcher())
+        val vm = SplashViewModel(GetSetupStatusUseCase(repo), GetCurrentUserUseCase(repo))
+
+        assertTrue(vm.state.value.isLoading)
+        vm.clear()
     }
 
     @Test
     fun authMeNetworkErrorNavigatesToLogin() =
         runTest {
-            var callCount = 0
-            val engine =
-                MockEngine { request ->
-                    callCount++
-                    if (request.url.encodedPath.contains("setup/status")) {
-                        respond(
-                            """{"data":{"onboarding_completed":true,"system_instance_id":"inst-1"},"meta":{"request_id":"r1"}}""",
-                            HttpStatusCode.OK,
-                            jsonHeaders,
-                        )
-                    } else {
-                        throw RuntimeException("Network failure")
-                    }
-                }
-            val httpClient =
-                HttpClient(engine) {
-                    install(ContentNegotiation) {
-                        json(
-                            Json {
-                                ignoreUnknownKeys = true
-                                isLenient = true
-                            },
-                        )
-                    }
-                }
-            val client = ApiClient(baseUrl = "", httpClient = httpClient)
-
-            val viewModel = SplashViewModel(client, this)
-            val deferred = async { viewModel.effects.first() }
-            viewModel.checkAuthState()
+            val repo =
+                repoWithSetupAndUser(
+                    setupResult = ApiResult.Success(onboarded, requestId = ""),
+                    userResult = ApiResult.NetworkError(RuntimeException("Network failure")),
+                )
+            val vm = SplashViewModel(GetSetupStatusUseCase(repo), GetCurrentUserUseCase(repo), scope = this)
+            val deferred = async { vm.effects.first() }
+            vm.checkAuthState()
             advanceUntilIdle()
 
             assertIs<SplashEffect.NavigateToLogin>(deferred.await())
+            vm.clear()
         }
 }

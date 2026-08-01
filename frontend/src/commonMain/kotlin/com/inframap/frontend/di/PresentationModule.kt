@@ -12,24 +12,23 @@ import com.inframap.frontend.ui.splash.SplashViewModel
 import com.inframap.frontend.ui.staging.StagingViewModel
 import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
-import kotlinx.coroutines.CoroutineScope
 import org.koin.dsl.module
 
 val presentationModule =
     module {
-        factory { (scope: CoroutineScope) -> DeviceListViewModel(get(), scope) }
-        factory { (deviceId: String, scope: CoroutineScope) -> DeviceDetailViewModel(deviceId, get(), scope) }
-        factory { (scope: CoroutineScope) -> CreateDeviceViewModel(get(), scope) }
-        factory { (deviceId: String, scope: CoroutineScope) -> EditDeviceViewModel(deviceId, get(), scope) }
+        factory { DeviceListViewModel(get(), get()) }
+        factory { (deviceId: String) -> DeviceDetailViewModel(deviceId, get(), get()) }
+        factory { CreateDeviceViewModel(get()) }
+        factory { (deviceId: String) -> EditDeviceViewModel(deviceId, get(), get()) }
 
-        factory { (scope: CoroutineScope) -> StagingViewModel(get(), scope) }
+        factory { StagingViewModel(get(), get(), get()) }
 
-        factory { (scope: CoroutineScope) -> SubnetsViewModel(get(), scope) }
-        factory { (scope: CoroutineScope) -> CreateSubnetViewModel(get(), scope) }
+        factory { SubnetsViewModel(get()) }
+        factory { CreateSubnetViewModel(get()) }
 
-        factory { (sseClient: SSEClient?, scope: CoroutineScope) -> DashboardViewModel(get(), sseClient, scope) }
+        factory { (sseClient: SSEClient?) -> DashboardViewModel(get(), get(), get(), get(), sseClient) }
 
-        factory { (scope: CoroutineScope) -> LoginViewModel(get(), scope) }
-        factory { (scope: CoroutineScope) -> OnboardingViewModel(get(), scope) }
-        factory { (scope: CoroutineScope) -> SplashViewModel(get(), scope) }
+        factory { LoginViewModel(get()) }
+        factory { OnboardingViewModel(get()) }
+        factory { SplashViewModel(get(), get()) }
     }

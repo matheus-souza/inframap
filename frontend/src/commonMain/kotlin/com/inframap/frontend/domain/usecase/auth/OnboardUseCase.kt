@@ -10,4 +10,22 @@ class OnboardUseCase(
     private val authRepository: AuthRepository,
 ) : UseCase<OnboardRequest, ApiResult<OnboardResult>> {
     override suspend fun invoke(params: OnboardRequest): ApiResult<OnboardResult> = authRepository.onboard(params)
+
+    @Suppress("LongParameterList")
+    suspend operator fun invoke(
+        adminUsername: String,
+        adminEmail: String,
+        adminPassword: String,
+        adminFullName: String,
+        telemetryEnabled: Boolean = false,
+    ): ApiResult<OnboardResult> =
+        invoke(
+            OnboardRequest(
+                adminUsername = adminUsername,
+                adminEmail = adminEmail,
+                adminPassword = adminPassword,
+                adminFullName = adminFullName,
+                telemetryEnabled = telemetryEnabled,
+            ),
+        )
 }

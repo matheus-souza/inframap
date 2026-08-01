@@ -36,8 +36,6 @@ import com.inframap.frontend.ui.splash.SplashViewModel
 import com.inframap.frontend.ui.staging.StagingViewModel
 import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import org.koin.core.parameter.parametersOf
 import org.koin.dsl.koinApplication
 import kotlin.test.Test
@@ -48,7 +46,7 @@ class KoinModuleCheckTest {
     fun checkDataAndDomainModulesAreSatisfied() {
         val app =
             koinApplication {
-                modules(appModules)
+                modules(appModules("http://test-host:8080"))
             }
 
         val koin = app.koin
@@ -79,18 +77,17 @@ class KoinModuleCheckTest {
         assertNotNull(koin.get<GetStagingSummaryUseCase>())
         assertNotNull(koin.get<GetDiscoverySourcesUseCase>())
 
-        val scope = CoroutineScope(Dispatchers.Unconfined)
-        assertNotNull(koin.get<DeviceListViewModel> { parametersOf(scope) })
-        assertNotNull(koin.get<DeviceDetailViewModel> { parametersOf("dev-1", scope) })
-        assertNotNull(koin.get<CreateDeviceViewModel> { parametersOf(scope) })
-        assertNotNull(koin.get<EditDeviceViewModel> { parametersOf("dev-1", scope) })
-        assertNotNull(koin.get<StagingViewModel> { parametersOf(scope) })
-        assertNotNull(koin.get<SubnetsViewModel> { parametersOf(scope) })
-        assertNotNull(koin.get<CreateSubnetViewModel> { parametersOf(scope) })
-        assertNotNull(koin.get<DashboardViewModel> { parametersOf(null as SSEClient?, scope) })
-        assertNotNull(koin.get<LoginViewModel> { parametersOf(scope) })
-        assertNotNull(koin.get<OnboardingViewModel> { parametersOf(scope) })
-        assertNotNull(koin.get<SplashViewModel> { parametersOf(scope) })
+        assertNotNull(koin.get<DeviceListViewModel>())
+        assertNotNull(koin.get<DeviceDetailViewModel> { parametersOf("dev-1") })
+        assertNotNull(koin.get<CreateDeviceViewModel>())
+        assertNotNull(koin.get<EditDeviceViewModel> { parametersOf("dev-1") })
+        assertNotNull(koin.get<StagingViewModel>())
+        assertNotNull(koin.get<SubnetsViewModel>())
+        assertNotNull(koin.get<CreateSubnetViewModel>())
+        assertNotNull(koin.get<DashboardViewModel> { parametersOf(null as SSEClient?) })
+        assertNotNull(koin.get<LoginViewModel>())
+        assertNotNull(koin.get<OnboardingViewModel>())
+        assertNotNull(koin.get<SplashViewModel>())
 
         app.close()
     }

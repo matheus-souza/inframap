@@ -44,6 +44,9 @@
 - **RFC-016**: Automated Discovery & Reconciliation Engine Specification
 - **RFC-017**: Network Topology & Mapping Engine Specification
 
+- **ADR-001**: Backend Architectural Decisions Log
+- **ADR-002**: Frontend Clean Architecture Decisions (AD-012 to AD-022)
+
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.
 
 ---
@@ -109,3 +112,6 @@ Guidelines below are continuously updated from internal code reviews, CodeRabbit
 55. **Automated Code Review & Sequential Architectural PR Strategy**: Complex architectural refactorings MUST be split into small, focused, sequential feature branches (Foundation, Domain Layer, Dependency Injection, ViewModel Migration, Version Catalog). Every branch MUST undergo an automated Senior Code Review before opening a PR, enforcing clean architecture boundaries and zero-warning build quality gates.
 56. **Gradle Version Catalog Centralization & Dependency Update Auditing**: All Gradle plugins, Multiplatform library artifacts, and version definitions MUST be managed in `frontend/gradle/libs.versions.toml`. Build scripts (`build.gradle.kts`) MUST reference dependencies using type-safe catalog accessors (`libs...` and `alias(libs.plugins...)`). The `com.github.ben-manes.versions` plugin MUST be configured with a stability filter function (`rejectVersionIf { isNonStable(candidate.version) }`) to enable clean dependency update reports via `./gradlew dependencyUpdates`.
 57. **Demand-Agnostic Core Documentation**: Official project documentation (RFCs, ADRs, `CONTEXT.md`) MUST be demand-agnostic. They MUST NOT reference temporary scratch folders (`.scratch/`), task ticket IDs (e.g. `T14`, `T15`), or ephemeral task paths. Task-specific execution context and checklists belong exclusively in `.scratch/`.
+58. **CoroutineScope Injection Pattern for ViewModel Testability**: All ViewModels MUST accept an optional `scope: CoroutineScope? = null` as their last constructor parameter, forwarded to `BaseViewModel`/`BaseListViewModel`. Production Koin factories omit the parameter (VM creates its own `SupervisorJob` scope). Unit tests pass `scope = this` inside `runTest {}` blocks so the test scheduler controls coroutine execution. The `ownsScope` flag in `BaseViewModel` ensures `clear()` only cancels the scope when the VM created it, preventing `JobCancellationException` when tests inject their scope.
+59. **Frontend Three-Layer Clean Architecture Enforcement**: Frontend code MUST follow a strict three-layer architecture: Data (DTOs, API client, repository implementations), Domain (models, repository interfaces, UseCases), and Presentation (ViewModels, Contracts, Screens). Dependencies flow inward: Presentation → Domain ← Data. The Domain layer MUST have zero framework dependencies (no Ktor, no Compose, no Koin annotations). Violations are caught by `KoinModuleCheckTest` and import analysis.
+60. **UseCase-Mediated ViewModel Dependencies**: ViewModels MUST NOT depend directly on Repository interfaces. All data access MUST be mediated through single-responsibility UseCase classes injected via Koin. This ensures business logic is testable independently of the presentation layer and prevents ViewModels from accumulating repository-level concerns.

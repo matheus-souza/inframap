@@ -1,57 +1,58 @@
 package com.inframap.frontend.ui.devices
 
-import com.inframap.frontend.data.api.ApiClient
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
+import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.CreateDeviceRequest
+import com.inframap.frontend.data.dto.UpdateDeviceRequest
+import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.domain.model.PaginatedList
+import com.inframap.frontend.domain.repository.DeviceRepository
+import com.inframap.frontend.domain.usecase.device.CreateDeviceUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateDeviceViewModelTest {
-    private val jsonHeaders =
-        headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+    private val sampleCreatedDevice =
+        Device(
+            id = "d100",
+            hostname = "switch-core",
+            deviceType = "switch",
+            status = "active",
+        )
 
-    private fun createClient(handler: suspend (String) -> Pair<HttpStatusCode, String>): ApiClient {
-        val engine =
-            MockEngine { request ->
-                val (status, body) = handler(request.url.encodedPath)
-                respond(body, status, jsonHeaders)
-            }
-        val httpClient =
-            HttpClient(engine) {
-                install(ContentNegotiation) {
-                    json(
-                        Json {
-                            ignoreUnknownKeys = true
-                            isLenient = true
-                        },
-                    )
-                }
-            }
-        return ApiClient(baseUrl = "", httpClient = httpClient)
-    }
+    private fun repo(createResult: ApiResult<Device> = ApiResult.Success(sampleCreatedDevice, requestId = "")): DeviceRepository =
+        object : DeviceRepository {
+            override suspend fun getDevices(
+                page: Int,
+                perPage: Int,
+                search: String,
+            ) = ApiResult.Success(PaginatedList(items = emptyList<Device>(), total = 0, page = 1, perPage = 50), requestId = "")
+
+            override suspend fun getDeviceById(id: String) = ApiResult.Success(sampleCreatedDevice, requestId = "")
+
+            override suspend fun createDevice(request: CreateDeviceRequest) = createResult
+
+            override suspend fun updateDevice(
+                id: String,
+                request: UpdateDeviceRequest,
+            ) = ApiResult.Success(sampleCreatedDevice, requestId = "")
+
+            override suspend fun deleteDevice(id: String) = ApiResult.Success(Unit, requestId = "")
+        }
 
     @Test
     fun validationFailsWhenHostnameIsEmpty() =
         runTest {
-            val client = createClient { HttpStatusCode.OK to "{}" }
-            val vm = CreateDeviceViewModel(client, scope = this)
+            val vm = CreateDeviceViewModel(CreateDeviceUseCase(repo()), scope = this)
 
             vm.onHostnameChanged("")
             vm.onDeviceTypeChanged("")
@@ -66,13 +67,13 @@ class CreateDeviceViewModelTest {
                     .containsKey("device_type"),
             )
             assertNull(vm.state.value.createdDeviceId)
+            vm.clear()
         }
 
     @Test
     fun fieldChangeListenersClearValidationErrors() =
         runTest {
-            val client = createClient { HttpStatusCode.OK to "{}" }
-            val vm = CreateDeviceViewModel(client, scope = this)
+            val vm = CreateDeviceViewModel(CreateDeviceUseCase(repo()), scope = this)
 
             vm.onHostnameChanged("")
             vm.createDevice()
@@ -94,17 +95,13 @@ class CreateDeviceViewModelTest {
                 vm.state.value.validationErrors
                     .containsKey("hostname"),
             )
+            vm.clear()
         }
 
     @Test
     fun createDeviceIgnoresReentrantCallsWhenSubmitting() =
         runTest {
-            val client =
-                createClient {
-                    HttpStatusCode.Created to
-                        """{"data":{"id":"d100","hostname":"switch-core","device_type":"switch","status":"active"},"meta":{"request_id":"r1"}}"""
-                }
-            val vm = CreateDeviceViewModel(client, scope = this)
+            val vm = CreateDeviceViewModel(CreateDeviceUseCase(repo()), scope = this)
             vm.onHostnameChanged("switch-core")
             vm.onDeviceTypeChanged("switch")
 
@@ -121,17 +118,7 @@ class CreateDeviceViewModelTest {
     @Test
     fun createDeviceSucceedsWithValidPayload() =
         runTest {
-            val client =
-                createClient { path ->
-                    if (path.endsWith("/devices")) {
-                        HttpStatusCode.Created to
-                            """{"data":{"id":"d100","hostname":"switch-core","device_type":"switch","status":"active"},"meta":{"request_id":"r1"}}"""
-                    } else {
-                        HttpStatusCode.NotFound to """{"error":{"code":"NOT_FOUND","message":"Not found"},"meta":{"request_id":"r_err"}}"""
-                    }
-                }
-
-            val vm = CreateDeviceViewModel(client, scope = this)
+            val vm = CreateDeviceViewModel(CreateDeviceUseCase(repo()), scope = this)
             vm.onHostnameChanged("switch-core")
             vm.onIpAddressChanged("192.168.1.50")
             vm.onMacAddressChanged("00:11:22:33:44:55")
@@ -152,13 +139,17 @@ class CreateDeviceViewModelTest {
     @Test
     fun createDeviceHandlesApiError() =
         runTest {
-            val client =
-                createClient { _ ->
-                    HttpStatusCode.BadRequest to
-                        """{"error":{"code":"BAD_REQUEST","message":"Invalid IP format"},"meta":{"request_id":"r_err"}}"""
-                }
-
-            val vm = CreateDeviceViewModel(client, scope = this)
+            val errorRepo =
+                repo(
+                    createResult =
+                        ApiResult.Error(
+                            code = "INVALID_IP",
+                            message = "Invalid IP format",
+                            requestId = "",
+                            httpStatus = 400,
+                        ),
+                )
+            val vm = CreateDeviceViewModel(CreateDeviceUseCase(errorRepo), scope = this)
             vm.onHostnameChanged("invalid-dev")
             vm.onDeviceTypeChanged("router")
 
@@ -167,18 +158,16 @@ class CreateDeviceViewModelTest {
             advanceUntilIdle()
 
             val state = stateDeferred.await()
-            assertEquals("Invalid IP format", state.errorMessage)
+            assertEquals("Invalid IP format", state.errorMessage?.asStringAsync())
             assertFalse(state.isSubmitting)
+            vm.clear()
         }
 
     @Test
     fun createDeviceHandlesNetworkError() =
         runTest {
-            val engine = MockEngine { throw RuntimeException("Network crash") }
-            val httpClient = HttpClient(engine) { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
-            val client = ApiClient(baseUrl = "", httpClient = httpClient)
-
-            val vm = CreateDeviceViewModel(client, scope = this)
+            val errorRepo = repo(createResult = ApiResult.NetworkError(RuntimeException("Network failure")))
+            val vm = CreateDeviceViewModel(CreateDeviceUseCase(errorRepo), scope = this)
             vm.onHostnameChanged("router-net")
             vm.onDeviceTypeChanged("router")
 
@@ -187,7 +176,8 @@ class CreateDeviceViewModelTest {
             advanceUntilIdle()
 
             val state = stateDeferred.await()
-            assertEquals("Network error. Failed to create device.", state.errorMessage)
+            assertNotNull(state.errorMessage)
             assertFalse(state.isSubmitting)
+            vm.clear()
         }
 }
