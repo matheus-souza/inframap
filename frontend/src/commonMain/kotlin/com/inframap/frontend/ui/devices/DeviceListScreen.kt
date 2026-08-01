@@ -149,16 +149,7 @@ private fun DeviceListTableCard(
     state: DeviceListUiState,
     actions: DeviceListActions,
 ) {
-    val filteredDevices =
-        if (state.searchQuery.isBlank()) {
-            state.devices
-        } else {
-            state.devices.filter {
-                it.hostname.contains(state.searchQuery, ignoreCase = true)
-            }
-        }
-
-    if (filteredDevices.isEmpty()) {
+    if (state.devices.isEmpty()) {
         InfraMapCard(modifier = Modifier.fillMaxWidth()) {
             Box(
                 modifier = Modifier.fillMaxWidth().padding(32.dp),
@@ -185,7 +176,7 @@ private fun DeviceListTableCard(
             Column(modifier = Modifier.fillMaxSize()) {
                 InfraMapTable(
                     columns = columns,
-                    items = filteredDevices,
+                    items = state.devices,
                     onRowClick = { actions.onDeviceClicked(it.id) },
                     modifier = Modifier.weight(1f),
                 ) { colIndex, item ->

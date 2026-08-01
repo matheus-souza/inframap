@@ -31,6 +31,11 @@ abstract class BaseViewModel<S>(
         _state.update(reducer)
     }
 
+    protected fun cancelJob(key: String) {
+        jobs[key]?.cancel()
+        jobs.remove(key)
+    }
+
     protected fun launchJob(
         key: String,
         cancelPrevious: Boolean = true,

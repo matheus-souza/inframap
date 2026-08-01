@@ -19,7 +19,7 @@ class SubnetsViewModel(
         page: Int,
         perPage: Int,
     ) {
-        updateState { it.copy(isLoading = true, errorMessage = null, currentPage = page) }
+        updateState { it.copy(isLoading = true, errorMessage = null) }
 
         launchJob("fetch") {
             when (val result = getSubnetsUseCase()) {

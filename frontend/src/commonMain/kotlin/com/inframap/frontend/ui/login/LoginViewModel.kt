@@ -46,7 +46,7 @@ class LoginViewModel(
                         if (result.httpStatus == 429) {
                             UiText.Resource(Res.string.login_error_rate_limit)
                         } else {
-                            mapError(result, UiText.Resource(Res.string.login_error_credentials))
+                            UiText.Resource(Res.string.login_error_credentials)
                         }
                     updateState { it.copy(isLoading = false, errorMessage = message) }
                 }

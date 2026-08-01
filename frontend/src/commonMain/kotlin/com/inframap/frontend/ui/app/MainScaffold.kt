@@ -24,6 +24,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -81,6 +82,7 @@ fun MainScaffold(
     currentRoute: Route,
     navigator: Navigator,
     isHealthy: Boolean?,
+    onHealthChanged: (Boolean?) -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         AppTopBar(isHealthy = isHealthy)
@@ -102,6 +104,7 @@ fun MainScaffold(
                 RouteContent(
                     currentRoute = currentRoute,
                     navigator = navigator,
+                    onHealthChanged = onHealthChanged,
                 )
             }
         }
@@ -184,9 +187,10 @@ private fun AppNavRail(
 private fun RouteContent(
     currentRoute: Route,
     navigator: Navigator,
+    onHealthChanged: (Boolean?) -> Unit = {},
 ) {
     when (currentRoute) {
-        Route.Dashboard -> DashboardRoute()
+        Route.Dashboard -> DashboardRoute(onHealthChanged)
         Route.Devices -> DeviceListRoute(navigator = navigator)
         is Route.DeviceDetail ->
             DeviceDetailRoute(
@@ -210,12 +214,15 @@ private fun RouteContent(
 }
 
 @Composable
-private fun DashboardRoute() {
+private fun DashboardRoute(onHealthChanged: (Boolean?) -> Unit = {}) {
     val viewModel: DashboardViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
     val state by viewModel.state.collectAsState()
+    LaunchedEffect(state.isSystemHealthy) {
+        onHealthChanged(state.isSystemHealthy)
+    }
     DashboardScreen(
         state = state,
         onRefresh = viewModel::refresh,

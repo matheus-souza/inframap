@@ -11,7 +11,6 @@ import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -26,9 +25,6 @@ class DashboardViewModel(
     private val autoRefreshIntervalMs: Long = 30_000L,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<DashboardUiState>(DashboardUiState(), scope) {
-    private var autoRefreshJob: Job? = null
-    private var sseJob: Job? = null
-
     init {
         loadData()
         startAutoRefresh()
@@ -51,20 +47,12 @@ class DashboardViewModel(
     }
 
     fun stopAutoRefresh() {
-        autoRefreshJob?.cancel()
-        autoRefreshJob = null
+        cancelJob("auto_refresh")
     }
 
     fun stopSseListening() {
-        sseJob?.cancel()
-        sseJob = null
+        cancelJob("sse_listening")
         sseClient?.disconnect()
-    }
-
-    override fun clear() {
-        super.clear()
-        stopAutoRefresh()
-        stopSseListening()
     }
 
     @Suppress("LongMethod")
@@ -82,8 +70,9 @@ class DashboardViewModel(
 
             val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult)
 
-            if (results.any { it is ApiResult.NetworkError }) {
-                handleMetricsNetworkError(devicesResult)
+            val networkError = results.firstOrNull { it is ApiResult.NetworkError }
+            if (networkError != null) {
+                handleMetricsNetworkError(networkError)
                 return@coroutineScope
             }
 

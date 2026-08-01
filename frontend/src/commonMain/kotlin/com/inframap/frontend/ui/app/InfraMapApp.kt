@@ -1,6 +1,7 @@
 package com.inframap.frontend.ui.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,6 +38,7 @@ fun InfraMapApp() {
                     currentRoute = currentRoute,
                     navigator = navigator,
                     isHealthy = isHealthy,
+                    onHealthChanged = { isHealthy = it },
                 )
         }
     }
@@ -46,6 +48,9 @@ fun InfraMapApp() {
 private fun SplashRoute(navigator: Navigator) {
     val viewModel: SplashViewModel = koinInject()
     SplashScreen()
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
     LaunchedEffect(Unit) {
         viewModel.checkAuthState()
         viewModel.effects.collect { effect ->
@@ -62,6 +67,9 @@ private fun SplashRoute(navigator: Navigator) {
 private fun LoginRoute(navigator: Navigator) {
     val viewModel: LoginViewModel = koinInject()
     val loginState by viewModel.state.collectAsState()
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
     LoginScreen(
         state = loginState,
         onUsernameChanged = viewModel::onUsernameChanged,
@@ -81,6 +89,9 @@ private fun LoginRoute(navigator: Navigator) {
 private fun OnboardingRoute(navigator: Navigator) {
     val viewModel: OnboardingViewModel = koinInject()
     val onboardingState by viewModel.state.collectAsState()
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
     OnboardingScreen(
         state = onboardingState,
         onUsernameChanged = viewModel::onUsernameChanged,

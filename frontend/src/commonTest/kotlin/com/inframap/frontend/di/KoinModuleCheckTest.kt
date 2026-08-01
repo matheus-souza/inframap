@@ -1,7 +1,6 @@
 package com.inframap.frontend.di
 
 import com.inframap.frontend.data.api.ApiClient
-import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.domain.repository.AuthRepository
 import com.inframap.frontend.domain.repository.DashboardRepository
 import com.inframap.frontend.domain.repository.DeviceRepository
@@ -84,7 +83,7 @@ class KoinModuleCheckTest {
         assertNotNull(koin.get<StagingViewModel>())
         assertNotNull(koin.get<SubnetsViewModel>())
         assertNotNull(koin.get<CreateSubnetViewModel>())
-        assertNotNull(koin.get<DashboardViewModel> { parametersOf(null as SSEClient?) })
+        assertNotNull(koin.get<DashboardViewModel>())
         assertNotNull(koin.get<LoginViewModel>())
         assertNotNull(koin.get<OnboardingViewModel>())
         assertNotNull(koin.get<SplashViewModel>())

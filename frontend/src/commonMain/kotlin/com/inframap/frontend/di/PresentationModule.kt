@@ -1,6 +1,5 @@
 package com.inframap.frontend.di
 
-import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.ui.dashboard.DashboardViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceViewModel
 import com.inframap.frontend.ui.devices.DeviceDetailViewModel
@@ -26,7 +25,7 @@ val presentationModule =
         factory { SubnetsViewModel(get()) }
         factory { CreateSubnetViewModel(get()) }
 
-        factory { (sseClient: SSEClient?) -> DashboardViewModel(get(), get(), get(), get(), sseClient) }
+        factory { DashboardViewModel(get(), get(), get(), get(), getOrNull()) }
 
         factory { LoginViewModel(get()) }
         factory { OnboardingViewModel(get()) }

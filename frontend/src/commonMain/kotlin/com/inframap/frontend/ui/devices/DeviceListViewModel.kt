@@ -28,7 +28,7 @@ class DeviceListViewModel(
 
         launchJob("fetch") {
             val query = state.value.searchQuery.takeIf { it.isNotBlank() }
-            val params = GetDevicesUseCase.Params(page = page, perPage = 50, search = query ?: "")
+            val params = GetDevicesUseCase.Params(page = page, perPage = perPage, search = query ?: "")
             when (val result = getDevicesUseCase(params)) {
                 is ApiResult.Success -> {
                     updateState {

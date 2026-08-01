@@ -29,7 +29,7 @@ class StagingViewModel(
         updateState { it.copy(isLoading = true, errorMessage = null, currentPage = page) }
 
         launchJob("fetch") {
-            when (val result = getStagingDevicesUseCase(page = page, perPage = 50)) {
+            when (val result = getStagingDevicesUseCase(page = page, perPage = perPage)) {
                 is ApiResult.Success -> {
                     updateState {
                         it.copy(

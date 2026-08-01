@@ -3,11 +3,13 @@ package com.inframap.frontend.ui.login
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.LoginRequest
 import com.inframap.frontend.data.dto.OnboardRequest
+import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.model.LoginResult
 import com.inframap.frontend.domain.model.SetupStatus
 import com.inframap.frontend.domain.model.User
 import com.inframap.frontend.domain.repository.AuthRepository
 import com.inframap.frontend.domain.usecase.auth.LoginUseCase
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -165,7 +167,8 @@ class LoginViewModelTest {
             advanceUntilIdle()
 
             val result = deferred.await()
-            assertEquals("Invalid username or password", result.errorMessage?.asStringAsync())
+            assertIs<UiText.Resource>(result.errorMessage)
+            assertEquals(Res.string.login_error_credentials, (result.errorMessage as UiText.Resource).resId)
             assertFalse(result.isLoading)
             vm.clear()
         }
