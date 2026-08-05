@@ -1,14 +1,12 @@
 package com.inframap.frontend.ui.subnets
 
+import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.CreateSubnetRequest
-import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
-import com.inframap.frontend.domain.repository.SubnetRepository
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
+import com.inframap.frontend.fakes.FakeSubnetRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -29,20 +27,18 @@ class CreateSubnetViewModelTest {
             discoveryEnabled = true,
         )
 
-    private val emptyPagedSubnets =
-        PaginatedList(items = emptyList<Subnet>(), total = 0, page = 1, perPage = 50)
-
-    private fun successRepo(result: Subnet = sampleCreatedSubnet): SubnetRepository =
-        object : SubnetRepository {
-            override suspend fun getSubnets() = ApiResult.Success(emptyPagedSubnets, requestId = "")
-
-            override suspend fun createSubnet(request: CreateSubnetRequest) = ApiResult.Success(result, requestId = "")
-        }
+    private fun makeVm(
+        repo: FakeSubnetRepository =
+            FakeSubnetRepository(
+                createSubnetResult = ApiResult.Success(sampleCreatedSubnet, requestId = ""),
+            ),
+        scope: CoroutineScope? = null,
+    ) = CreateSubnetViewModel(CreateSubnetUseCase(repo), scope = scope)
 
     @Test
     fun validationFailsOnEmptyFields() =
         runTest {
-            val vm = CreateSubnetViewModel(CreateSubnetUseCase(successRepo()), scope = this)
+            val vm = makeVm(scope = this)
 
             assertFalse(vm.validate())
             val errors = vm.state.value.validationErrors
@@ -54,7 +50,7 @@ class CreateSubnetViewModelTest {
     @Test
     fun validationFailsOnInvalidCidrAndVlan() =
         runTest {
-            val vm = CreateSubnetViewModel(CreateSubnetUseCase(successRepo()), scope = this)
+            val vm = makeVm(scope = this)
 
             vm.onNameChanged("Servers")
             vm.onCidrChanged("invalid-cidr")
@@ -73,7 +69,7 @@ class CreateSubnetViewModelTest {
     fun createSubnetWorkflowCompletesSuccessfully() =
         runTest {
             var onSuccessCalled = false
-            val vm = CreateSubnetViewModel(CreateSubnetUseCase(successRepo()), scope = this)
+            val vm = makeVm(scope = this)
 
             vm.onNameChanged("Management")
             vm.onCidrChanged("192.168.1.0/24")
@@ -82,22 +78,25 @@ class CreateSubnetViewModelTest {
             vm.onDescriptionChanged("Core mgmt subnet")
             vm.onDiscoveryEnabledChanged(true)
 
-            val stateDeferred = async { vm.state.first { !it.isSubmitting && it.isSuccess } }
-            vm.createSubnet { onSuccessCalled = true }
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                vm.createSubnet { onSuccessCalled = true }
+                advanceUntilIdle()
 
-            val state = stateDeferred.await()
-            assertTrue(state.isSuccess)
-            assertFalse(state.isSubmitting)
-            assertNull(state.errorMessage)
-            assertTrue(onSuccessCalled)
+                val state = expectMostRecentItem()
+                assertTrue(state.isSuccess)
+                assertFalse(state.isSubmitting)
+                assertNull(state.errorMessage)
+                assertTrue(onSuccessCalled)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun createSubnetIgnoresReentrantCallsWhenSubmitting() =
         runTest {
-            val vm = CreateSubnetViewModel(CreateSubnetUseCase(successRepo()), scope = this)
+            val vm = makeVm(scope = this)
             vm.onNameChanged("Management")
             vm.onCidrChanged("192.168.1.0/24")
 
@@ -114,30 +113,31 @@ class CreateSubnetViewModelTest {
     @Test
     fun createSubnetHandlesApiError() =
         runTest {
-            val errorRepo =
-                object : SubnetRepository {
-                    override suspend fun getSubnets() = ApiResult.Success(emptyPagedSubnets, requestId = "")
-
-                    override suspend fun createSubnet(request: CreateSubnetRequest) =
+            val repo =
+                FakeSubnetRepository(
+                    createSubnetResult =
                         ApiResult.Error(
                             code = "DUPLICATE_CIDR",
                             message = "Subnet CIDR already registered",
                             requestId = "",
                             httpStatus = 409,
-                        )
-                }
-            val vm = CreateSubnetViewModel(CreateSubnetUseCase(errorRepo), scope = this)
+                        ),
+                )
+            val vm = makeVm(repo = repo, scope = this)
             vm.onNameChanged("Management")
             vm.onCidrChanged("192.168.1.0/24")
 
-            val stateDeferred = async { vm.state.first { !it.isSubmitting && it.errorMessage != null } }
-            vm.createSubnet()
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                vm.createSubnet()
+                advanceUntilIdle()
 
-            val state = stateDeferred.await()
-            assertFalse(state.isSubmitting)
-            assertFalse(state.isSuccess)
-            assertEquals("Subnet CIDR already registered", state.errorMessage?.asStringAsync())
+                val state = expectMostRecentItem()
+                assertFalse(state.isSubmitting)
+                assertFalse(state.isSuccess)
+                assertEquals("Subnet CIDR already registered", state.errorMessage?.asStringAsync())
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 }

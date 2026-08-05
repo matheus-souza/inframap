@@ -66,6 +66,7 @@ kotlin {
                 implementation(libs.coroutines.test)
                 implementation(libs.ktor.client.mock)
                 implementation(libs.koin.test)
+                implementation(libs.turbine)
             }
         }
 

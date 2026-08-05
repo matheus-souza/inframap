@@ -1,15 +1,12 @@
 package com.inframap.frontend.ui.subnets
 
+import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.CreateSubnetRequest
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
-import com.inframap.frontend.domain.repository.SubnetRepository
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
+import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,22 +33,22 @@ class SubnetsViewModelTest {
     fun loadSubnetsPopulatesListSuccessfully() =
         runTest {
             val repo =
-                object : SubnetRepository {
-                    override suspend fun getSubnets() = ApiResult.Success(pagedSubnets, requestId = "")
-
-                    override suspend fun createSubnet(request: CreateSubnetRequest) = ApiResult.Success(sampleSubnet, requestId = "")
-                }
+                FakeSubnetRepository(
+                    getSubnetsResult = ApiResult.Success(pagedSubnets, requestId = ""),
+                )
             val vm = SubnetsViewModel(GetSubnetsUseCase(repo), scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-            assertFalse(state.isLoading)
-            assertNull(state.errorMessage)
-            assertEquals(1, state.subnets.size)
-            assertEquals("Management", state.subnets.first().name)
-            assertEquals("192.168.1.0/24", state.subnets.first().cidr)
+                assertFalse(state.isLoading)
+                assertNull(state.errorMessage)
+                assertEquals(1, state.subnets.size)
+                assertEquals("Management", state.subnets.first().name)
+                assertEquals("192.168.1.0/24", state.subnets.first().cidr)
+                cancelAndIgnoreRemainingEvents()
+            }
 
             vm.dismissToast()
             assertNull(vm.state.value.toastMessage)
@@ -62,25 +59,25 @@ class SubnetsViewModelTest {
     fun loadSubnetsHandlesApiError() =
         runTest {
             val repo =
-                object : SubnetRepository {
-                    override suspend fun getSubnets() =
+                FakeSubnetRepository(
+                    getSubnetsResult =
                         ApiResult.Error(
                             code = "DB_ERROR",
                             message = "DB Error",
                             requestId = "",
                             httpStatus = 500,
-                        )
-
-                    override suspend fun createSubnet(request: CreateSubnetRequest) = ApiResult.Success(sampleSubnet, requestId = "")
-                }
+                        ),
+                )
             val vm = SubnetsViewModel(GetSubnetsUseCase(repo), scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-            assertFalse(state.isLoading)
-            assertNotNull(state.errorMessage)
+                assertFalse(state.isLoading)
+                assertNotNull(state.errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
@@ -88,19 +85,19 @@ class SubnetsViewModelTest {
     fun loadSubnetsHandlesNetworkError() =
         runTest {
             val repo =
-                object : SubnetRepository {
-                    override suspend fun getSubnets() = ApiResult.NetworkError(RuntimeException("Network failure"))
-
-                    override suspend fun createSubnet(request: CreateSubnetRequest) = ApiResult.Success(sampleSubnet, requestId = "")
-                }
+                FakeSubnetRepository(
+                    getSubnetsResult = ApiResult.NetworkError(RuntimeException("Network failure")),
+                )
             val vm = SubnetsViewModel(GetSubnetsUseCase(repo), scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-            assertFalse(state.isLoading)
-            assertNotNull(state.errorMessage)
+                assertFalse(state.isLoading)
+                assertNotNull(state.errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 }
