@@ -1,17 +1,10 @@
 package com.inframap.frontend.ui.onboarding
 
+import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.LoginRequest
-import com.inframap.frontend.data.dto.OnboardRequest
-import com.inframap.frontend.domain.model.LoginResult
-import com.inframap.frontend.domain.model.OnboardResult
-import com.inframap.frontend.domain.model.SetupStatus
-import com.inframap.frontend.domain.model.User
-import com.inframap.frontend.domain.repository.AuthRepository
 import com.inframap.frontend.domain.usecase.auth.OnboardUseCase
+import com.inframap.frontend.fakes.FakeAuthRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -24,33 +17,7 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class OnboardingViewModelTest {
-    private val sampleOnboardResult =
-        OnboardResult(
-            onboardingCompleted = true,
-            systemInstanceId = "inst-1",
-            adminUserId = "u1",
-        )
-
-    private fun successRepo(): AuthRepository =
-        object : AuthRepository {
-            override suspend fun getSetupStatus() = ApiResult.Success(SetupStatus(onboardingCompleted = false), requestId = "")
-
-            override suspend fun login(request: LoginRequest) =
-                ApiResult.Success(
-                    LoginResult(token = "tok", userId = "u1", username = "admin"),
-                    requestId = "",
-                )
-
-            override suspend fun onboard(request: OnboardRequest) = ApiResult.Success(sampleOnboardResult, requestId = "")
-
-            override suspend fun getCurrentUser() =
-                ApiResult.Success(
-                    User(id = "u1", username = "admin", email = "a@b.com"),
-                    requestId = "",
-                )
-        }
-
-    private val mockOnboardSuccess = OnboardUseCase(successRepo())
+    private val mockOnboardSuccess = OnboardUseCase(FakeAuthRepository())
 
     private fun fillValidFields(vm: OnboardingViewModel) {
         vm.onUsernameChanged("admin")
@@ -252,11 +219,11 @@ class OnboardingViewModelTest {
             val vm = OnboardingViewModel(mockOnboardSuccess, scope = this)
             fillValidFields(vm)
 
-            val deferred = async { vm.effects.first() }
-            vm.onboard()
-            advanceUntilIdle()
-
-            assertIs<OnboardingEffect.NavigateToLogin>(deferred.await())
+            vm.effects.test {
+                vm.onboard()
+                assertIs<OnboardingEffect.NavigateToLogin>(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
             assertFalse(vm.state.value.isLoading)
             vm.clear()
         }
@@ -264,70 +231,46 @@ class OnboardingViewModelTest {
     @Test
     fun failedOnboardShowsErrorMessage() =
         runTest {
-            val errorRepo =
-                object : AuthRepository {
-                    override suspend fun getSetupStatus() = ApiResult.Success(SetupStatus(onboardingCompleted = false), requestId = "")
-
-                    override suspend fun login(request: LoginRequest) =
-                        ApiResult.Success(
-                            LoginResult(token = "tok", userId = "u1", username = "admin"),
-                            requestId = "",
-                        )
-
-                    override suspend fun onboard(request: OnboardRequest) =
+            val repo =
+                FakeAuthRepository(
+                    onboardResult =
                         ApiResult.Error(
                             code = "ALREADY_ONBOARDED",
                             message = "System is already onboarded",
                             requestId = "",
                             httpStatus = 409,
-                        )
-
-                    override suspend fun getCurrentUser() =
-                        ApiResult.Success(
-                            User(id = "u1", username = "admin", email = "a@b.com"),
-                            requestId = "",
-                        )
-                }
-            val vm = OnboardingViewModel(OnboardUseCase(errorRepo), scope = this)
+                        ),
+                )
+            val vm = OnboardingViewModel(OnboardUseCase(repo), scope = this)
             fillValidFields(vm)
 
-            val deferred = async { vm.state.first { !it.isLoading && it.errorMessage != null } }
-            vm.onboard()
-            advanceUntilIdle()
-
-            assertEquals("System is already onboarded", deferred.await().errorMessage?.asStringAsync())
+            vm.state.test {
+                skipItems(1)
+                vm.onboard()
+                advanceUntilIdle()
+                assertEquals("System is already onboarded", expectMostRecentItem().errorMessage?.asStringAsync())
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun networkErrorShowsConnectionMessage() =
         runTest {
-            val errorRepo =
-                object : AuthRepository {
-                    override suspend fun getSetupStatus() = ApiResult.Success(SetupStatus(onboardingCompleted = false), requestId = "")
-
-                    override suspend fun login(request: LoginRequest) =
-                        ApiResult.Success(
-                            LoginResult(token = "tok", userId = "u1", username = "admin"),
-                            requestId = "",
-                        )
-
-                    override suspend fun onboard(request: OnboardRequest) = ApiResult.NetworkError(RuntimeException("Network failure"))
-
-                    override suspend fun getCurrentUser() =
-                        ApiResult.Success(
-                            User(id = "u1", username = "admin", email = "a@b.com"),
-                            requestId = "",
-                        )
-                }
-            val vm = OnboardingViewModel(OnboardUseCase(errorRepo), scope = this)
+            val repo =
+                FakeAuthRepository(
+                    onboardResult = ApiResult.NetworkError(RuntimeException("Network failure")),
+                )
+            val vm = OnboardingViewModel(OnboardUseCase(repo), scope = this)
             fillValidFields(vm)
 
-            val deferred = async { vm.state.first { !it.isLoading && it.errorMessage != null } }
-            vm.onboard()
-            advanceUntilIdle()
-
-            assertNotNull(deferred.await().errorMessage)
+            vm.state.test {
+                skipItems(1)
+                vm.onboard()
+                advanceUntilIdle()
+                assertNotNull(expectMostRecentItem().errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 }

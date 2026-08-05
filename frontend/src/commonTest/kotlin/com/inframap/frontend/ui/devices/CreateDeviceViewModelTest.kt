@@ -1,15 +1,12 @@
 package com.inframap.frontend.ui.devices
 
+import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.CreateDeviceRequest
-import com.inframap.frontend.data.dto.UpdateDeviceRequest
 import com.inframap.frontend.domain.model.Device
-import com.inframap.frontend.domain.model.PaginatedList
-import com.inframap.frontend.domain.repository.DeviceRepository
 import com.inframap.frontend.domain.usecase.device.CreateDeviceUseCase
+import com.inframap.frontend.fakes.FakeDeviceRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -29,30 +26,18 @@ class CreateDeviceViewModelTest {
             status = "active",
         )
 
-    private fun repo(createResult: ApiResult<Device> = ApiResult.Success(sampleCreatedDevice, requestId = "")): DeviceRepository =
-        object : DeviceRepository {
-            override suspend fun getDevices(
-                page: Int,
-                perPage: Int,
-                search: String,
-            ) = ApiResult.Success(PaginatedList(items = emptyList<Device>(), total = 0, page = 1, perPage = 50), requestId = "")
-
-            override suspend fun getDeviceById(id: String) = ApiResult.Success(sampleCreatedDevice, requestId = "")
-
-            override suspend fun createDevice(request: CreateDeviceRequest) = createResult
-
-            override suspend fun updateDevice(
-                id: String,
-                request: UpdateDeviceRequest,
-            ) = ApiResult.Success(sampleCreatedDevice, requestId = "")
-
-            override suspend fun deleteDevice(id: String) = ApiResult.Success(Unit, requestId = "")
-        }
+    private fun makeVm(
+        repo: FakeDeviceRepository =
+            FakeDeviceRepository(
+                createDeviceResult = ApiResult.Success(sampleCreatedDevice, requestId = ""),
+            ),
+        scope: CoroutineScope? = null,
+    ) = CreateDeviceViewModel(CreateDeviceUseCase(repo), scope = scope)
 
     @Test
     fun validationFailsWhenHostnameIsEmpty() =
         runTest {
-            val vm = CreateDeviceViewModel(CreateDeviceUseCase(repo()), scope = this)
+            val vm = makeVm(scope = this)
 
             vm.onHostnameChanged("")
             vm.onDeviceTypeChanged("")
@@ -73,7 +58,7 @@ class CreateDeviceViewModelTest {
     @Test
     fun fieldChangeListenersClearValidationErrors() =
         runTest {
-            val vm = CreateDeviceViewModel(CreateDeviceUseCase(repo()), scope = this)
+            val vm = makeVm(scope = this)
 
             vm.onHostnameChanged("")
             vm.createDevice()
@@ -101,7 +86,7 @@ class CreateDeviceViewModelTest {
     @Test
     fun createDeviceIgnoresReentrantCallsWhenSubmitting() =
         runTest {
-            val vm = CreateDeviceViewModel(CreateDeviceUseCase(repo()), scope = this)
+            val vm = makeVm(scope = this)
             vm.onHostnameChanged("switch-core")
             vm.onDeviceTypeChanged("switch")
 
@@ -118,30 +103,32 @@ class CreateDeviceViewModelTest {
     @Test
     fun createDeviceSucceedsWithValidPayload() =
         runTest {
-            val vm = CreateDeviceViewModel(CreateDeviceUseCase(repo()), scope = this)
+            val vm = makeVm(scope = this)
             vm.onHostnameChanged("switch-core")
             vm.onIpAddressChanged("192.168.1.50")
             vm.onMacAddressChanged("00:11:22:33:44:55")
             vm.onDeviceTypeChanged("switch")
 
-            val stateDeferred = async { vm.state.first { it.createdDeviceId != null } }
-            vm.createDevice()
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                vm.createDevice()
+                advanceUntilIdle()
 
-            val state = stateDeferred.await()
-            assertEquals("d100", state.createdDeviceId)
-            assertFalse(state.isSubmitting)
-            assertNull(state.errorMessage)
-
+                val state = expectMostRecentItem()
+                assertEquals("d100", state.createdDeviceId)
+                assertFalse(state.isSubmitting)
+                assertNull(state.errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun createDeviceHandlesApiError() =
         runTest {
-            val errorRepo =
-                repo(
-                    createResult =
+            val repo =
+                FakeDeviceRepository(
+                    createDeviceResult =
                         ApiResult.Error(
                             code = "INVALID_IP",
                             message = "Invalid IP format",
@@ -149,35 +136,44 @@ class CreateDeviceViewModelTest {
                             httpStatus = 400,
                         ),
                 )
-            val vm = CreateDeviceViewModel(CreateDeviceUseCase(errorRepo), scope = this)
+            val vm = makeVm(repo = repo, scope = this)
             vm.onHostnameChanged("invalid-dev")
             vm.onDeviceTypeChanged("router")
 
-            val stateDeferred = async { vm.state.first { it.errorMessage != null } }
-            vm.createDevice()
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                vm.createDevice()
+                advanceUntilIdle()
 
-            val state = stateDeferred.await()
-            assertEquals("Invalid IP format", state.errorMessage?.asStringAsync())
-            assertFalse(state.isSubmitting)
+                val state = expectMostRecentItem()
+                assertEquals("Invalid IP format", state.errorMessage?.asStringAsync())
+                assertFalse(state.isSubmitting)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun createDeviceHandlesNetworkError() =
         runTest {
-            val errorRepo = repo(createResult = ApiResult.NetworkError(RuntimeException("Network failure")))
-            val vm = CreateDeviceViewModel(CreateDeviceUseCase(errorRepo), scope = this)
+            val repo =
+                FakeDeviceRepository(
+                    createDeviceResult = ApiResult.NetworkError(RuntimeException("Network failure")),
+                )
+            val vm = makeVm(repo = repo, scope = this)
             vm.onHostnameChanged("router-net")
             vm.onDeviceTypeChanged("router")
 
-            val stateDeferred = async { vm.state.first { it.errorMessage != null } }
-            vm.createDevice()
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                vm.createDevice()
+                advanceUntilIdle()
 
-            val state = stateDeferred.await()
-            assertNotNull(state.errorMessage)
-            assertFalse(state.isSubmitting)
+                val state = expectMostRecentItem()
+                assertNotNull(state.errorMessage)
+                assertFalse(state.isSubmitting)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 }

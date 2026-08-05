@@ -1,0 +1,10 @@
+# ADR-003: Test Infrastructure Decisions
+
+This document tracks architectural decisions for the frontend test infrastructure (Turbine, Shared Fakes, Koin verify).
+
+| ID | Date | Context / Decision | Rationale | Impact | Status |
+| --- | --- | --- | --- | --- | --- |
+| AD-023 | 2026-08-05 | Turbine 1.2.1 for Flow/StateFlow Testing | Replaces `async { flow.first { predicate } }` + `advanceUntilIdle()` pattern with `flow.test { awaitItem() }`. Turbine provides automatic timeout, better error messages, and structured flow assertion API. | Eliminates potential hangs from `flow.first {}`, reduces test boilerplate, works on wasmJs target since v1.1.0 | Active |
+| AD-024 | 2026-08-05 | Shared Fake Classes Over Mocking Libraries | One `FakeXxxRepository` per repository interface in `commonTest/.../fakes/`. Each fake uses `var result` properties for configurable returns and optional `callCount` fields for interaction verification. Rejected MockK (JVM-only) and deferred Mokkery (compiler plugin lock-in risk). | Zero external dependency, works on all KMP targets, reduces ~300 lines of anonymous `object :` stubs across 11 test files | Active |
+| AD-025 | 2026-08-05 | Koin `module.verify()` for DI Graph Validation | Replaces 93-line `koinApplication { ... assertNotNull(koin.get<T>()) }` test with `module { includes(appModules(...)) }.verify()`. Dry-run checks constructor parameter resolution without instantiating classes or triggering side effects. | Eliminates ViewModel init-block side effects during DI tests, reduces test to ~15 lines, extensible via `koinParameterTypes` companion val | Active |
+| AD-026 | 2026-08-05 | Fakes Use `var` Properties, Not Lambdas, for Dynamic Behavior | Fake result fields are `var` (e.g., `var getDevicesResult: ApiResult<...>`) allowing tests to mutate returns between calls. Lambdas were rejected to keep the API simple and avoid closure complexity. | Tests needing dynamic behavior (SSE reload, auto-refresh) reassign `fake.result = ...` inline | Active |

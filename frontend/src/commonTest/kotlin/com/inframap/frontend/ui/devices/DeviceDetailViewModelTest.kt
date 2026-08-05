@@ -1,16 +1,13 @@
 package com.inframap.frontend.ui.devices
 
+import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.CreateDeviceRequest
-import com.inframap.frontend.data.dto.UpdateDeviceRequest
 import com.inframap.frontend.domain.model.Device
-import com.inframap.frontend.domain.model.PaginatedList
-import com.inframap.frontend.domain.repository.DeviceRepository
 import com.inframap.frontend.domain.usecase.device.DeleteDeviceUseCase
 import com.inframap.frontend.domain.usecase.device.GetDeviceByIdUseCase
+import com.inframap.frontend.fakes.FakeDeviceRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -31,52 +28,43 @@ class DeviceDetailViewModelTest {
             status = "active",
         )
 
-    private fun repo(
-        getResult: ApiResult<Device> = ApiResult.Success(sampleDevice, requestId = ""),
-        deleteResult: ApiResult<Unit> = ApiResult.Success(Unit, requestId = ""),
-    ): DeviceRepository =
-        object : DeviceRepository {
-            override suspend fun getDevices(
-                page: Int,
-                perPage: Int,
-                search: String,
-            ) = ApiResult.Success(PaginatedList(items = listOf(sampleDevice), total = 1, page = 1, perPage = 50), requestId = "")
-
-            override suspend fun getDeviceById(id: String) = getResult
-
-            override suspend fun createDevice(request: CreateDeviceRequest) = ApiResult.Success(sampleDevice, requestId = "")
-
-            override suspend fun updateDevice(
-                id: String,
-                request: UpdateDeviceRequest,
-            ) = ApiResult.Success(sampleDevice, requestId = "")
-
-            override suspend fun deleteDevice(id: String) = deleteResult
-        }
+    private fun makeVm(
+        repo: FakeDeviceRepository =
+            FakeDeviceRepository(
+                getDeviceByIdResult = ApiResult.Success(sampleDevice, requestId = ""),
+            ),
+        scope: CoroutineScope? = null,
+    ) = DeviceDetailViewModel(
+        "d1",
+        GetDeviceByIdUseCase(repo),
+        DeleteDeviceUseCase(repo),
+        scope = scope,
+    )
 
     @Test
     fun loadDevicePopulatesDetailsSuccessfully() =
         runTest {
-            val r = repo()
-            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
+            val vm = makeVm(scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-            assertFalse(state.isLoading)
-            assertNull(state.errorMessage)
-            assertEquals("router-01", state.device?.hostname)
-            assertEquals("192.168.1.1", state.device?.ipAddress)
+                assertFalse(state.isLoading)
+                assertNull(state.errorMessage)
+                assertEquals("router-01", state.device?.hostname)
+                assertEquals("192.168.1.1", state.device?.ipAddress)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun loadDeviceHandlesNotFoundApiError() =
         runTest {
-            val r =
-                repo(
-                    getResult =
+            val repo =
+                FakeDeviceRepository(
+                    getDeviceByIdResult =
                         ApiResult.Error(
                             code = "NOT_FOUND",
                             message = "Device not found",
@@ -84,57 +72,67 @@ class DeviceDetailViewModelTest {
                             httpStatus = 404,
                         ),
                 )
-            val vm = DeviceDetailViewModel("unknown", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
+            val vm = makeVm(repo = repo, scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-            assertFalse(state.isLoading)
-            assertEquals("Device not found", state.errorMessage?.asStringAsync())
+                assertFalse(state.isLoading)
+                assertEquals("Device not found", state.errorMessage?.asStringAsync())
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun loadDeviceHandlesNetworkError() =
         runTest {
-            val r = repo(getResult = ApiResult.NetworkError(RuntimeException("Network failure")))
-            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
+            val repo =
+                FakeDeviceRepository(
+                    getDeviceByIdResult = ApiResult.NetworkError(RuntimeException("Network failure")),
+                )
+            val vm = makeVm(repo = repo, scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-            assertFalse(state.isLoading)
-            assertNotNull(state.errorMessage)
+                assertFalse(state.isLoading)
+                assertNotNull(state.errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun deleteDeviceIgnoresReentrantCallsWhenDeleting() =
         runTest {
-            val r = repo()
-            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
-            val loadDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            loadDeferred.await()
+            val vm = makeVm(scope = this)
 
-            vm.deleteDevice {}
-            assertTrue(vm.state.value.isDeleting)
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            vm.deleteDevice {}
-            assertTrue(vm.state.value.isDeleting)
+                vm.deleteDevice {}
+                assertTrue(vm.state.value.isDeleting)
 
-            advanceUntilIdle()
+                vm.deleteDevice {}
+                assertTrue(vm.state.value.isDeleting)
+
+                advanceUntilIdle()
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun deleteDeviceHandlesApiError() =
         runTest {
-            val r =
-                repo(
-                    deleteResult =
+            val repo =
+                FakeDeviceRepository(
+                    getDeviceByIdResult = ApiResult.Success(sampleDevice, requestId = ""),
+                    deleteDeviceResult =
                         ApiResult.Error(
                             code = "LOCKED",
                             message = "Deletion locked",
@@ -142,63 +140,71 @@ class DeviceDetailViewModelTest {
                             httpStatus = 500,
                         ),
                 )
-            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
-            val loadDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            loadDeferred.await()
+            val vm = makeVm(repo = repo, scope = this)
 
-            val stateDeferred = async { vm.state.first { it.errorMessage != null } }
-            vm.deleteDevice {}
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            val state = stateDeferred.await()
-            assertEquals("Deletion locked", state.errorMessage?.asStringAsync())
-            assertFalse(state.isDeleting)
+                vm.deleteDevice {}
+                advanceUntilIdle()
+
+                val state = expectMostRecentItem()
+                assertEquals("Deletion locked", state.errorMessage?.asStringAsync())
+                assertFalse(state.isDeleting)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun deleteDeviceHandlesNetworkError() =
         runTest {
-            val r = repo(deleteResult = ApiResult.NetworkError(RuntimeException("Network failure")))
-            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
-            val loadDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            loadDeferred.await()
+            val repo =
+                FakeDeviceRepository(
+                    getDeviceByIdResult = ApiResult.Success(sampleDevice, requestId = ""),
+                    deleteDeviceResult = ApiResult.NetworkError(RuntimeException("Network failure")),
+                )
+            val vm = makeVm(repo = repo, scope = this)
 
-            val stateDeferred = async { vm.state.first { it.errorMessage != null } }
-            vm.deleteDevice {}
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            val state = stateDeferred.await()
-            assertNotNull(state.errorMessage)
-            assertFalse(state.isDeleting)
+                vm.deleteDevice {}
+                advanceUntilIdle()
+
+                val state = expectMostRecentItem()
+                assertNotNull(state.errorMessage)
+                assertFalse(state.isDeleting)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun openCloseAndDeleteDialogWorkflow() =
         runTest {
-            val r = repo()
-            val vm = DeviceDetailViewModel("d1", GetDeviceByIdUseCase(r), DeleteDeviceUseCase(r), scope = this)
-            val loadDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            loadDeferred.await()
+            val vm = makeVm(scope = this)
 
-            vm.openDeleteDialog()
-            assertTrue(vm.state.value.showDeleteDialog)
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            vm.closeDeleteDialog()
-            assertFalse(vm.state.value.showDeleteDialog)
+                vm.openDeleteDialog()
+                assertTrue(vm.state.value.showDeleteDialog)
 
-            var navTriggered = false
-            val deleteDeferred = async { vm.state.first { !it.isDeleting } }
-            vm.deleteDevice { navTriggered = true }
-            advanceUntilIdle()
-            deleteDeferred.await()
+                vm.closeDeleteDialog()
+                assertFalse(vm.state.value.showDeleteDialog)
 
-            assertTrue(navTriggered)
-            assertFalse(vm.state.value.isDeleting)
+                var navTriggered = false
+                vm.deleteDevice { navTriggered = true }
+                advanceUntilIdle()
+
+                assertTrue(navTriggered)
+                assertFalse(vm.state.value.isDeleting)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 }

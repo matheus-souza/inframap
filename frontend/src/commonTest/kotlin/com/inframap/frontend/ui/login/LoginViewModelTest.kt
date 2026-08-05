@@ -1,18 +1,13 @@
 package com.inframap.frontend.ui.login
 
+import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.LoginRequest
-import com.inframap.frontend.data.dto.OnboardRequest
 import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.model.LoginResult
-import com.inframap.frontend.domain.model.SetupStatus
-import com.inframap.frontend.domain.model.User
-import com.inframap.frontend.domain.repository.AuthRepository
 import com.inframap.frontend.domain.usecase.auth.LoginUseCase
+import com.inframap.frontend.fakes.FakeAuthRepository
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -33,20 +28,10 @@ class LoginViewModelTest {
             email = "a@b.com",
         )
 
-    private fun repoWithLogin(result: ApiResult<LoginResult>): AuthRepository =
-        object : AuthRepository {
-            override suspend fun getSetupStatus() = ApiResult.Success(SetupStatus(onboardingCompleted = true), requestId = "")
-
-            override suspend fun login(request: LoginRequest) = result
-
-            override suspend fun onboard(request: OnboardRequest) =
-                ApiResult.Error(code = "ERR", message = "Not implemented", requestId = "", httpStatus = 500)
-
-            override suspend fun getCurrentUser() =
-                ApiResult.Success(User(id = "u1", username = "admin", email = "a@b.com"), requestId = "")
-        }
-
-    private val mockLoginSuccess = LoginUseCase(repoWithLogin(ApiResult.Success(sampleLoginResult, requestId = "")))
+    private val mockLoginSuccess =
+        LoginUseCase(
+            FakeAuthRepository(loginResult = ApiResult.Success(sampleLoginResult, requestId = "")),
+        )
 
     @Test
     fun initialStateIsEmpty() {
@@ -134,11 +119,11 @@ class LoginViewModelTest {
             vm.onUsernameChanged("admin")
             vm.onPasswordChanged("correctpassword")
 
-            val deferred = async { vm.effects.first() }
-            vm.login()
-            advanceUntilIdle()
-
-            assertIs<LoginEffect.NavigateToDashboard>(deferred.await())
+            vm.effects.test {
+                vm.login()
+                assertIs<LoginEffect.NavigateToDashboard>(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
             assertFalse(vm.state.value.isLoading)
             vm.clear()
         }
@@ -148,13 +133,14 @@ class LoginViewModelTest {
         runTest {
             val useCase =
                 LoginUseCase(
-                    repoWithLogin(
-                        ApiResult.Error(
-                            code = "INVALID_CREDENTIALS",
-                            message = "Invalid username or password",
-                            requestId = "",
-                            httpStatus = 401,
-                        ),
+                    FakeAuthRepository(
+                        loginResult =
+                            ApiResult.Error(
+                                code = "INVALID_CREDENTIALS",
+                                message = "Invalid username or password",
+                                requestId = "",
+                                httpStatus = 401,
+                            ),
                     ),
                 )
             val vm = LoginViewModel(useCase, scope = this)
@@ -162,14 +148,17 @@ class LoginViewModelTest {
             vm.onUsernameChanged("admin")
             vm.onPasswordChanged("wrongpassword")
 
-            val deferred = async { vm.state.first { !it.isLoading && it.errorMessage != null } }
-            vm.login()
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                vm.login()
+                advanceUntilIdle()
 
-            val result = deferred.await()
-            assertIs<UiText.Resource>(result.errorMessage)
-            assertEquals(Res.string.login_error_credentials, (result.errorMessage as UiText.Resource).resId)
-            assertFalse(result.isLoading)
+                val result = expectMostRecentItem()
+                assertIs<UiText.Resource>(result.errorMessage)
+                assertEquals(Res.string.login_error_credentials, (result.errorMessage as UiText.Resource).resId)
+                assertFalse(result.isLoading)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
@@ -178,13 +167,14 @@ class LoginViewModelTest {
         runTest {
             val useCase =
                 LoginUseCase(
-                    repoWithLogin(
-                        ApiResult.Error(
-                            code = "RATE_LIMIT",
-                            message = "Rate limit exceeded",
-                            requestId = "",
-                            httpStatus = 429,
-                        ),
+                    FakeAuthRepository(
+                        loginResult =
+                            ApiResult.Error(
+                                code = "RATE_LIMIT",
+                                message = "Rate limit exceeded",
+                                requestId = "",
+                                httpStatus = 429,
+                            ),
                     ),
                 )
             val vm = LoginViewModel(useCase, scope = this)
@@ -192,11 +182,13 @@ class LoginViewModelTest {
             vm.onUsernameChanged("admin")
             vm.onPasswordChanged("password123")
 
-            val deferred = async { vm.state.first { !it.isLoading && it.errorMessage != null } }
-            vm.login()
-            advanceUntilIdle()
-
-            assertNotNull(deferred.await().errorMessage)
+            vm.state.test {
+                skipItems(1)
+                vm.login()
+                advanceUntilIdle()
+                assertNotNull(expectMostRecentItem().errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
@@ -205,18 +197,22 @@ class LoginViewModelTest {
         runTest {
             val useCase =
                 LoginUseCase(
-                    repoWithLogin(ApiResult.NetworkError(RuntimeException("Network failure"))),
+                    FakeAuthRepository(
+                        loginResult = ApiResult.NetworkError(RuntimeException("Network failure")),
+                    ),
                 )
             val vm = LoginViewModel(useCase, scope = this)
 
             vm.onUsernameChanged("admin")
             vm.onPasswordChanged("password123")
 
-            val deferred = async { vm.state.first { !it.isLoading && it.errorMessage != null } }
-            vm.login()
-            advanceUntilIdle()
-
-            assertNotNull(deferred.await().errorMessage)
+            vm.state.test {
+                skipItems(1)
+                vm.login()
+                advanceUntilIdle()
+                assertNotNull(expectMostRecentItem().errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 }

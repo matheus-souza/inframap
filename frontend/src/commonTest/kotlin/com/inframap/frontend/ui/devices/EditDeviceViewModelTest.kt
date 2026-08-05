@@ -1,16 +1,13 @@
 package com.inframap.frontend.ui.devices
 
+import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.CreateDeviceRequest
-import com.inframap.frontend.data.dto.UpdateDeviceRequest
 import com.inframap.frontend.domain.model.Device
-import com.inframap.frontend.domain.model.PaginatedList
-import com.inframap.frontend.domain.repository.DeviceRepository
 import com.inframap.frontend.domain.usecase.device.GetDeviceByIdUseCase
 import com.inframap.frontend.domain.usecase.device.UpdateDeviceUseCase
+import com.inframap.frontend.fakes.FakeDeviceRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -31,152 +28,127 @@ class EditDeviceViewModelTest {
             status = "active",
         )
 
-    private fun successRepo(updateResult: ApiResult<Device> = ApiResult.Success(sampleDevice, requestId = "")): DeviceRepository =
-        object : DeviceRepository {
-            override suspend fun getDevices(
-                page: Int,
-                perPage: Int,
-                search: String,
-            ) = ApiResult.Success(PaginatedList(items = listOf(sampleDevice), total = 1, page = 1, perPage = 50), requestId = "")
-
-            override suspend fun getDeviceById(id: String) = ApiResult.Success(sampleDevice, requestId = "")
-
-            override suspend fun createDevice(request: CreateDeviceRequest) = ApiResult.Success(sampleDevice, requestId = "")
-
-            override suspend fun updateDevice(
-                id: String,
-                request: UpdateDeviceRequest,
-            ) = updateResult
-
-            override suspend fun deleteDevice(id: String) = ApiResult.Success(Unit, requestId = "")
-        }
+    private fun makeVm(
+        repo: FakeDeviceRepository =
+            FakeDeviceRepository(
+                getDeviceByIdResult = ApiResult.Success(sampleDevice, requestId = ""),
+            ),
+        scope: CoroutineScope? = null,
+    ) = EditDeviceViewModel(
+        "d1",
+        GetDeviceByIdUseCase(repo),
+        UpdateDeviceUseCase(repo),
+        scope = scope,
+    )
 
     @Test
     fun loadDevicePrepopulatesStateSuccessfully() =
         runTest {
-            val repo = successRepo()
-            val vm = EditDeviceViewModel("d1", GetDeviceByIdUseCase(repo), UpdateDeviceUseCase(repo), scope = this)
+            val vm = makeVm(scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-            assertFalse(state.isLoading)
-            assertEquals("router-01", state.hostname)
-            assertEquals("10.0.0.1", state.ipAddress)
+                assertFalse(state.isLoading)
+                assertEquals("router-01", state.hostname)
+                assertEquals("10.0.0.1", state.ipAddress)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun loadDeviceHandlesApiError() =
         runTest {
-            val errorRepo =
-                object : DeviceRepository {
-                    override suspend fun getDevices(
-                        page: Int,
-                        perPage: Int,
-                        search: String,
-                    ) = ApiResult.Success(PaginatedList(items = emptyList<Device>(), total = 0, page = 1, perPage = 50), requestId = "")
+            val repo =
+                FakeDeviceRepository(
+                    getDeviceByIdResult =
+                        ApiResult.Error(
+                            code = "NOT_FOUND",
+                            message = "Device not found",
+                            requestId = "",
+                            httpStatus = 404,
+                        ),
+                )
+            val vm = makeVm(repo = repo, scope = this)
 
-                    override suspend fun getDeviceById(id: String) =
-                        ApiResult.Error(code = "NOT_FOUND", message = "Device not found", requestId = "", httpStatus = 404)
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-                    override suspend fun createDevice(request: CreateDeviceRequest) = ApiResult.Success(sampleDevice, requestId = "")
-
-                    override suspend fun updateDevice(
-                        id: String,
-                        request: UpdateDeviceRequest,
-                    ) = ApiResult.Success(sampleDevice, requestId = "")
-
-                    override suspend fun deleteDevice(id: String) = ApiResult.Success(Unit, requestId = "")
-                }
-            val vm = EditDeviceViewModel("d999", GetDeviceByIdUseCase(errorRepo), UpdateDeviceUseCase(errorRepo), scope = this)
-
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
-
-            assertFalse(state.isLoading)
-            assertEquals("Device not found", state.errorMessage?.asStringAsync())
+                assertFalse(state.isLoading)
+                assertEquals("Device not found", state.errorMessage?.asStringAsync())
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun loadDeviceHandlesNetworkError() =
         runTest {
-            val errorRepo =
-                object : DeviceRepository {
-                    override suspend fun getDevices(
-                        page: Int,
-                        perPage: Int,
-                        search: String,
-                    ) = ApiResult.Success(PaginatedList(items = emptyList<Device>(), total = 0, page = 1, perPage = 50), requestId = "")
+            val repo =
+                FakeDeviceRepository(
+                    getDeviceByIdResult = ApiResult.NetworkError(RuntimeException("Network failure")),
+                )
+            val vm = makeVm(repo = repo, scope = this)
 
-                    override suspend fun getDeviceById(id: String) = ApiResult.NetworkError(RuntimeException("Network failure"))
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-                    override suspend fun createDevice(request: CreateDeviceRequest) = ApiResult.Success(sampleDevice, requestId = "")
-
-                    override suspend fun updateDevice(
-                        id: String,
-                        request: UpdateDeviceRequest,
-                    ) = ApiResult.Success(sampleDevice, requestId = "")
-
-                    override suspend fun deleteDevice(id: String) = ApiResult.Success(Unit, requestId = "")
-                }
-            val vm = EditDeviceViewModel("d1", GetDeviceByIdUseCase(errorRepo), UpdateDeviceUseCase(errorRepo), scope = this)
-
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
-
-            assertFalse(state.isLoading)
-            assertNotNull(state.errorMessage)
+                assertFalse(state.isLoading)
+                assertNotNull(state.errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun updateDeviceIgnoresReentrantCallsWhenSubmitting() =
         runTest {
-            val repo = successRepo()
-            val vm = EditDeviceViewModel("d1", GetDeviceByIdUseCase(repo), UpdateDeviceUseCase(repo), scope = this)
-            val loadDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            loadDeferred.await()
+            val vm = makeVm(scope = this)
 
-            vm.updateDevice()
-            assertTrue(vm.state.value.isSubmitting)
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            vm.updateDevice()
-            assertTrue(vm.state.value.isSubmitting)
+                vm.updateDevice()
+                assertTrue(vm.state.value.isSubmitting)
 
-            advanceUntilIdle()
+                vm.updateDevice()
+                assertTrue(vm.state.value.isSubmitting)
+
+                advanceUntilIdle()
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun updateDeviceValidatesAndSucceeds() =
         runTest {
-            val repo = successRepo()
-            val vm = EditDeviceViewModel("d1", GetDeviceByIdUseCase(repo), UpdateDeviceUseCase(repo), scope = this)
-            val loadDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            loadDeferred.await()
+            val vm = makeVm(scope = this)
 
-            vm.onHostnameChanged("router-01-updated")
-            vm.onIpAddressChanged("10.0.0.1")
-            vm.onMacAddressChanged("AA:BB:CC:DD:EE:FF")
-            vm.onDeviceTypeChanged("router")
-            vm.onStatusChanged("active")
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            val stateDeferred = async { vm.state.first { it.isSuccess } }
-            vm.updateDevice()
-            advanceUntilIdle()
+                vm.onHostnameChanged("router-01-updated")
+                vm.onIpAddressChanged("10.0.0.1")
+                vm.onMacAddressChanged("AA:BB:CC:DD:EE:FF")
+                vm.onDeviceTypeChanged("router")
+                vm.onStatusChanged("active")
 
-            val state = stateDeferred.await()
-            assertTrue(state.isSuccess)
-            assertFalse(state.isSubmitting)
-            assertNull(state.errorMessage)
+                vm.updateDevice()
+                advanceUntilIdle()
 
+                val state = expectMostRecentItem()
+                assertTrue(state.isSuccess)
+                assertFalse(state.isSubmitting)
+                assertNull(state.errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
@@ -184,8 +156,9 @@ class EditDeviceViewModelTest {
     fun updateDeviceHandlesApiError() =
         runTest {
             val repo =
-                successRepo(
-                    updateResult =
+                FakeDeviceRepository(
+                    getDeviceByIdResult = ApiResult.Success(sampleDevice, requestId = ""),
+                    updateDeviceResult =
                         ApiResult.Error(
                             code = "DUPLICATE",
                             message = "Duplicate hostname",
@@ -193,20 +166,21 @@ class EditDeviceViewModelTest {
                             httpStatus = 400,
                         ),
                 )
-            val vm = EditDeviceViewModel("d1", GetDeviceByIdUseCase(repo), UpdateDeviceUseCase(repo), scope = this)
-            val loadDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            loadDeferred.await()
+            val vm = makeVm(repo = repo, scope = this)
 
-            vm.onHostnameChanged("duplicate-name")
-            val stateDeferred = async { vm.state.first { it.errorMessage != null } }
-            vm.updateDevice()
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            val state = stateDeferred.await()
-            assertEquals("Duplicate hostname", state.errorMessage?.asStringAsync())
-            assertFalse(state.isSubmitting)
+                vm.onHostnameChanged("duplicate-name")
+                vm.updateDevice()
+                advanceUntilIdle()
 
+                val state = expectMostRecentItem()
+                assertEquals("Duplicate hostname", state.errorMessage?.asStringAsync())
+                assertFalse(state.isSubmitting)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
@@ -214,43 +188,46 @@ class EditDeviceViewModelTest {
     fun updateDeviceHandlesNetworkError() =
         runTest {
             val repo =
-                successRepo(
-                    updateResult = ApiResult.NetworkError(RuntimeException("Network failure")),
+                FakeDeviceRepository(
+                    getDeviceByIdResult = ApiResult.Success(sampleDevice, requestId = ""),
+                    updateDeviceResult = ApiResult.NetworkError(RuntimeException("Network failure")),
                 )
-            val vm = EditDeviceViewModel("d1", GetDeviceByIdUseCase(repo), UpdateDeviceUseCase(repo), scope = this)
-            val loadDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            loadDeferred.await()
+            val vm = makeVm(repo = repo, scope = this)
 
-            val stateDeferred = async { vm.state.first { it.errorMessage != null } }
-            vm.updateDevice()
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            val state = stateDeferred.await()
-            assertNotNull(state.errorMessage)
-            assertFalse(state.isSubmitting)
+                vm.updateDevice()
+                advanceUntilIdle()
 
+                val state = expectMostRecentItem()
+                assertNotNull(state.errorMessage)
+                assertFalse(state.isSubmitting)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun updateDeviceFailsValidationWhenHostnameIsEmpty() =
         runTest {
-            val repo = successRepo()
-            val vm = EditDeviceViewModel("d1", GetDeviceByIdUseCase(repo), UpdateDeviceUseCase(repo), scope = this)
-            val loadDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            loadDeferred.await()
+            val vm = makeVm(scope = this)
 
-            vm.onHostnameChanged("")
-            vm.updateDevice()
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            assertTrue(
-                vm.state.value.validationErrors
-                    .containsKey("hostname"),
-            )
-            assertFalse(vm.state.value.isSuccess)
+                vm.onHostnameChanged("")
+                vm.updateDevice()
 
+                assertTrue(
+                    vm.state.value.validationErrors
+                        .containsKey("hostname"),
+                )
+                assertFalse(vm.state.value.isSuccess)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 }

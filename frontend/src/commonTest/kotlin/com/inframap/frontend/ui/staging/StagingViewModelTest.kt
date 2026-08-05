@@ -1,16 +1,15 @@
 package com.inframap.frontend.ui.staging
 
+import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.domain.model.Device
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.StagingDevice
-import com.inframap.frontend.domain.repository.StagingRepository
 import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
+import com.inframap.frontend.fakes.FakeStagingRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -30,72 +29,37 @@ class StagingViewModelTest {
             status = "pending",
         )
 
-    private val sampleDevice =
-        Device(
-            id = "st1",
-            hostname = "stg-switch-01",
-            deviceType = "switch",
-            status = "active",
-        )
-
     private val pagedResult =
         PaginatedList(items = listOf(sampleStagingDevice), total = 1, page = 1, perPage = 50)
 
-    private val fakeGetSuccess =
-        GetStagingDevicesUseCase(
-            object : StagingRepository {
-                override suspend fun getStagingDevices(
-                    page: Int,
-                    perPage: Int,
-                ) = ApiResult.Success(pagedResult, requestId = "")
-
-                override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
-
-                override suspend fun dismissDevice(id: String) = ApiResult.Success(Unit, requestId = "")
-            },
-        )
-
-    private val fakeApproveSuccess =
-        ApproveDeviceUseCase(
-            object : StagingRepository {
-                override suspend fun getStagingDevices(
-                    page: Int,
-                    perPage: Int,
-                ) = ApiResult.Success(pagedResult, requestId = "")
-
-                override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
-
-                override suspend fun dismissDevice(id: String) = ApiResult.Success(Unit, requestId = "")
-            },
-        )
-
-    private val fakeDismissSuccess =
-        DismissDeviceUseCase(
-            object : StagingRepository {
-                override suspend fun getStagingDevices(
-                    page: Int,
-                    perPage: Int,
-                ) = ApiResult.Success(pagedResult, requestId = "")
-
-                override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
-
-                override suspend fun dismissDevice(id: String) = ApiResult.Success(Unit, requestId = "")
-            },
-        )
+    private fun makeVm(
+        repo: FakeStagingRepository =
+            FakeStagingRepository(
+                getStagingDevicesResult = ApiResult.Success(pagedResult, requestId = ""),
+            ),
+        scope: CoroutineScope? = null,
+    ) = StagingViewModel(
+        GetStagingDevicesUseCase(repo),
+        ApproveDeviceUseCase(repo),
+        DismissDeviceUseCase(repo),
+        scope = scope,
+    )
 
     @Test
     fun loadStagingDevicesPopulatesListSuccessfully() =
         runTest {
-            val vm = StagingViewModel(fakeGetSuccess, fakeApproveSuccess, fakeDismissSuccess, scope = this)
+            val vm = makeVm(scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-            assertFalse(state.isLoading)
-            assertNull(state.errorMessage)
-            assertEquals(1, state.devices.size)
-            assertEquals("stg-switch-01", state.devices.first().hostname)
+                assertFalse(state.isLoading)
+                assertNull(state.errorMessage)
+                assertEquals(1, state.devices.size)
+                assertEquals("stg-switch-01", state.devices.first().hostname)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
@@ -103,30 +67,25 @@ class StagingViewModelTest {
     fun loadStagingDevicesHandlesApiError() =
         runTest {
             val repo =
-                object : StagingRepository {
-                    override suspend fun getStagingDevices(
-                        page: Int,
-                        perPage: Int,
-                    ) = ApiResult.Error(code = "DB_ERROR", message = "DB Error", requestId = "", httpStatus = 500)
-
-                    override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
-
-                    override suspend fun dismissDevice(id: String) = ApiResult.Success(Unit, requestId = "")
-                }
-            val vm =
-                StagingViewModel(
-                    GetStagingDevicesUseCase(repo),
-                    ApproveDeviceUseCase(repo),
-                    DismissDeviceUseCase(repo),
-                    scope = this,
+                FakeStagingRepository(
+                    getStagingDevicesResult =
+                        ApiResult.Error(
+                            code = "DB_ERROR",
+                            message = "DB Error",
+                            requestId = "",
+                            httpStatus = 500,
+                        ),
                 )
+            val vm = makeVm(repo = repo, scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-            assertFalse(state.isLoading)
-            assertNotNull(state.errorMessage)
+                assertFalse(state.isLoading)
+                assertNotNull(state.errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
@@ -134,86 +93,88 @@ class StagingViewModelTest {
     fun loadStagingDevicesHandlesNetworkError() =
         runTest {
             val repo =
-                object : StagingRepository {
-                    override suspend fun getStagingDevices(
-                        page: Int,
-                        perPage: Int,
-                    ) = ApiResult.NetworkError(RuntimeException("Network failure"))
-
-                    override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
-
-                    override suspend fun dismissDevice(id: String) = ApiResult.Success(Unit, requestId = "")
-                }
-            val vm =
-                StagingViewModel(
-                    GetStagingDevicesUseCase(repo),
-                    ApproveDeviceUseCase(repo),
-                    DismissDeviceUseCase(repo),
-                    scope = this,
+                FakeStagingRepository(
+                    getStagingDevicesResult = ApiResult.NetworkError(RuntimeException("Network failure")),
                 )
+            val vm = makeVm(repo = repo, scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isLoading } }
-            advanceUntilIdle()
-            val state = stateDeferred.await()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
 
-            assertFalse(state.isLoading)
-            assertNotNull(state.errorMessage)
+                assertFalse(state.isLoading)
+                assertNotNull(state.errorMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun approveDeviceWorkflowCompletesSuccessfully() =
         runTest {
-            val vm = StagingViewModel(fakeGetSuccess, fakeApproveSuccess, fakeDismissSuccess, scope = this)
-            advanceUntilIdle()
+            val vm = makeVm(scope = this)
 
-            val stateDeferred = async { vm.state.first { !it.isProcessingAction && it.toastMessage != null } }
-            vm.approveDevice(sampleStagingDevice)
-            advanceUntilIdle()
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            val state = stateDeferred.await()
-            assertFalse(state.isProcessingAction)
-            assertNotNull(state.toastMessage)
+                vm.approveDevice(sampleStagingDevice)
+                advanceUntilIdle()
+
+                val state = expectMostRecentItem()
+                assertFalse(state.isProcessingAction)
+                assertNotNull(state.toastMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun approveDeviceIgnoresReentrantCallsWhenProcessing() =
         runTest {
-            val vm = StagingViewModel(fakeGetSuccess, fakeApproveSuccess, fakeDismissSuccess, scope = this)
-            advanceUntilIdle()
+            val vm = makeVm(scope = this)
 
-            vm.approveDevice(sampleStagingDevice)
-            assertTrue(vm.state.value.isProcessingAction)
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            vm.approveDevice(sampleStagingDevice)
-            assertTrue(vm.state.value.isProcessingAction)
+                vm.approveDevice(sampleStagingDevice)
+                assertTrue(vm.state.value.isProcessingAction)
 
-            advanceUntilIdle()
+                vm.approveDevice(sampleStagingDevice)
+                assertTrue(vm.state.value.isProcessingAction)
+
+                advanceUntilIdle()
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
     @Test
     fun dismissDeviceWorkflowCompletesSuccessfully() =
         runTest {
-            val vm = StagingViewModel(fakeGetSuccess, fakeApproveSuccess, fakeDismissSuccess, scope = this)
-            advanceUntilIdle()
+            val vm = makeVm(scope = this)
 
-            vm.confirmDismissDevice(sampleStagingDevice)
-            assertEquals(
-                "st1",
-                vm.state.value.deviceToDismiss
-                    ?.id,
-            )
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            val stateDeferred = async { vm.state.first { !it.isProcessingAction && it.toastMessage != null } }
-            vm.dismissDevice()
-            advanceUntilIdle()
+                vm.confirmDismissDevice(sampleStagingDevice)
+                assertEquals(
+                    "st1",
+                    vm.state.value.deviceToDismiss
+                        ?.id,
+                )
 
-            val state = stateDeferred.await()
-            assertNull(state.deviceToDismiss)
-            assertFalse(state.isProcessingAction)
-            assertNotNull(state.toastMessage)
+                vm.dismissDevice()
+                advanceUntilIdle()
+
+                val state = expectMostRecentItem()
+                assertNull(state.deviceToDismiss)
+                assertFalse(state.isProcessingAction)
+                assertNotNull(state.toastMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
 
             vm.dismissToast()
             assertNull(vm.state.value.toastMessage)
@@ -224,40 +185,32 @@ class StagingViewModelTest {
     fun dismissDeviceHandlesApiError() =
         runTest {
             val repo =
-                object : StagingRepository {
-                    override suspend fun getStagingDevices(
-                        page: Int,
-                        perPage: Int,
-                    ) = ApiResult.Success(pagedResult, requestId = "")
-
-                    override suspend fun approveDevice(id: String) = ApiResult.Success(sampleDevice, requestId = "")
-
-                    override suspend fun dismissDevice(id: String) =
+                FakeStagingRepository(
+                    getStagingDevicesResult = ApiResult.Success(pagedResult, requestId = ""),
+                    dismissDeviceResult =
                         ApiResult.Error(
                             code = "DISMISS_ERROR",
                             message = "Cannot dismiss device",
                             requestId = "",
                             httpStatus = 400,
-                        )
-                }
-            val vm =
-                StagingViewModel(
-                    GetStagingDevicesUseCase(repo),
-                    ApproveDeviceUseCase(repo),
-                    DismissDeviceUseCase(repo),
-                    scope = this,
+                        ),
                 )
-            advanceUntilIdle()
+            val vm = makeVm(repo = repo, scope = this)
 
-            vm.confirmDismissDevice(sampleStagingDevice)
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
 
-            val stateDeferred = async { vm.state.first { it.actionErrorMessage != null } }
-            vm.dismissDevice()
-            advanceUntilIdle()
+                vm.confirmDismissDevice(sampleStagingDevice)
 
-            val state = stateDeferred.await()
-            assertNotNull(state.actionErrorMessage)
-            assertFalse(state.isProcessingAction)
+                vm.dismissDevice()
+                advanceUntilIdle()
+
+                val state = expectMostRecentItem()
+                assertNotNull(state.actionErrorMessage)
+                assertFalse(state.isProcessingAction)
+                cancelAndIgnoreRemainingEvents()
+            }
 
             vm.dismissActionError()
             assertNull(vm.state.value.actionErrorMessage)
