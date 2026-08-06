@@ -6,11 +6,13 @@ import com.inframap.frontend.data.repository.DashboardRepositoryImpl
 import com.inframap.frontend.data.repository.DeviceRepositoryImpl
 import com.inframap.frontend.data.repository.StagingRepositoryImpl
 import com.inframap.frontend.data.repository.SubnetRepositoryImpl
+import com.inframap.frontend.data.repository.TopologyRepositoryImpl
 import com.inframap.frontend.domain.repository.AuthRepository
 import com.inframap.frontend.domain.repository.DashboardRepository
 import com.inframap.frontend.domain.repository.DeviceRepository
 import com.inframap.frontend.domain.repository.StagingRepository
 import com.inframap.frontend.domain.repository.SubnetRepository
+import com.inframap.frontend.domain.repository.TopologyRepository
 import org.koin.dsl.module
 
 fun dataModule(baseUrl: String) =
@@ -21,4 +23,5 @@ fun dataModule(baseUrl: String) =
         single<SubnetRepository> { SubnetRepositoryImpl(get()) }
         single<AuthRepository> { AuthRepositoryImpl(get()) }
         single<DashboardRepository> { DashboardRepositoryImpl(get()) }
+        single<TopologyRepository> { TopologyRepositoryImpl(get()) }
     }
