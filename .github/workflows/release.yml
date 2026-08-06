@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Semantic Version Tag (e.g. v0.1.0)'
+        description: 'Semantic Version Tag (e.g. v1.0.0-rc.26)'
         required: true
-        default: 'v0.1.0'
+        default: 'v1.0.0-rc.26'
 
 jobs:
   release:
@@ -20,7 +20,7 @@ jobs:
       packages: write
 
     steps:
-      - name: Determine Release Tag
+      - name: Determine Release Tag & Type
         id: release_tag
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -28,11 +28,16 @@ jobs:
           else
             TAG="${{ github.ref_name }}"
           fi
-          if ! echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Error: Tag '$TAG' does not match semver format vX.Y.Z"
+          if ! echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$'; then
+            echo "Error: Tag '$TAG' does not match semver format vX.Y.Z or vX.Y.Z-rc.N"
             exit 1
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+          if echo "$TAG" | grep -q '\-rc'; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,7 +65,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}},value=${{ steps.release_tag.outputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release_tag.outputs.tag }}
+            type=raw,value=${{ steps.release_tag.outputs.tag }}
             type=raw,value=latest
 
       - name: Build & Push Multi-Arch Container Image
@@ -90,6 +95,7 @@ jobs:
         with:
           tag_name: ${{ steps.release_tag.outputs.tag }}
           name: Release ${{ steps.release_tag.outputs.tag }}
+          prerelease: ${{ steps.release_tag.outputs.is_prerelease == 'true' }}
           generate_release_notes: true
           body: |
             ## 🚀 InfraMap Single Binary Container Release
