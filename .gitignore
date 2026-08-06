@@ -24,6 +24,9 @@ frontend/.gradle/
 .gradle/
 build/
 node_modules/
+frontend/e2e/node_modules/
+frontend/e2e/playwright-report/
+frontend/e2e/test-results/
 
 # IDE & OS
 .DS_Store
@@ -31,3 +34,4 @@ node_modules/
 .vscode/
 *.swp
 *.swo
+
