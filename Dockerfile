@@ -6,9 +6,10 @@ COPY frontend/gradlew /app/frontend/gradlew
 COPY frontend/build.gradle.kts /app/frontend/build.gradle.kts
 COPY frontend/settings.gradle.kts /app/frontend/settings.gradle.kts
 COPY frontend/gradle/libs.versions.toml /app/frontend/gradle/libs.versions.toml
+COPY frontend/gradle.properties* /app/frontend/
 
 # Pre-fetch dependencies to cache this layer
-RUN ./gradlew dependencies --no-daemon || true
+RUN ./gradlew dependencies --no-daemon
 
 COPY frontend/src/ /app/frontend/src/
 
