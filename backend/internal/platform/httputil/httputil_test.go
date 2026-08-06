@@ -169,7 +169,7 @@ func TestAuthMiddleware(t *testing.T) {
 	stack := httputil.AuthMiddleware(nil)(handler)
 
 	t.Run("public route bypasses auth", func(t *testing.T) {
-		for _, path := range []string{"/api/v1/health", "/api/v1/setup/status", "/api/v1/setup/onboard", "/api/v1/auth/login"} {
+		for _, path := range []string{"/api/v1/health", "/api/v1/setup/status", "/api/v1/setup/onboard", "/api/v1/auth/login", "/", "/index.html", "/topology", "/dashboard"} {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, path, nil)
 			stack.ServeHTTP(w, r)
