@@ -11,7 +11,11 @@
   <p align="center">
     The ultimate homelab infrastructure management, automated discovery, and topology mapping engine.
     <br />
-    <a href="docs/project-foundation.md"><strong>Explore the Docs »</strong></a>
+    <a href="docs/DEVELOPMENT.md"><strong>Developer Guide »</strong></a>
+    &middot;
+    <a href="docs/DEPLOYMENT.md"><strong>Deployment Guide »</strong></a>
+    &middot;
+    <a href="docs/RELEASE.md"><strong>Release Guide »</strong></a>
     <br />
     <br />
     <a href="https://github.com/matheussouza/inframap/issues/new?labels=bug">Report Bug</a>
@@ -22,6 +26,7 @@
   <img src="https://img.shields.io/badge/Go-1.25+-bd93f9?style=flat-square&logo=go&logoColor=white" alt="Go Version">
   <img src="https://img.shields.io/badge/PostgreSQL-17-8be9fd?style=flat-square&logo=postgresql&logoColor=1e1f29" alt="PostgreSQL Version">
   <img src="https://img.shields.io/badge/Compose_Multiplatform-WASM-bd93f9?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin Compose Multiplatform">
+  <img src="https://img.shields.io/badge/Container-ghcr.io%2Fmatheus--souza%2Finframap-50fa7b?style=flat-square&logo=docker&logoColor=white" alt="GHCR Container">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-50fa7b?style=flat-square" alt="Apache 2.0 License"></a>
 </div>
 
@@ -34,6 +39,14 @@
       <ul>
         <li><a href="#built-with">Built With</a></li>
         <li><a href="#core-principles">Core Principles</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#documentation">Documentation</a>
+      <ul>
+        <li><a href="docs/DEVELOPMENT.md">Developer Setup & Workflow</a></li>
+        <li><a href="docs/DEPLOYMENT.md">Homelab Deployment Guide</a></li>
+        <li><a href="docs/RELEASE.md">Release & Versioning Process</a></li>
       </ul>
     </li>
     <li>
@@ -71,6 +84,13 @@ Designed specifically for homelabs and small-scale infrastructure, InfraMap inte
 * **Migrations:** [Goose](https://github.com/pressly/goose) (Automated startup migrations)
 * **Frontend:** [Kotlin Compose Multiplatform (WASM)](https://www.jetbrains.com/lp/compose-multiplatform/) embedded via Go `embed.FS`
 
+<!-- DOCUMENTATION -->
+## Documentation
+
+- 🛠️ **[Developer Guide](docs/DEVELOPMENT.md)**: Setup instructions, local hot-reload, quality gates, and code generation.
+- 🚀 **[Homelab Deployment Guide](docs/DEPLOYMENT.md)**: Docker Compose setup, 32-byte master key generation, Watchtower auto-updates, TLS reverse proxy, and backups.
+- 📦 **[Release Process Guide](docs/RELEASE.md)**: Semantic versioning policy (`make release VERSION=v0.1.0`), multi-arch container image publishing, and rollback instructions.
+
 <!-- GETTING STARTED -->
 ## Getting Started
 
@@ -96,6 +116,8 @@ InfraMap is fully self-contained. A single command spins up the database, automa
    ```
 
 3. Open `http://localhost:8055` in your browser (configurable via `INFRAMAP_PORT`).
+
+For detailed local development instructions, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). For production homelab deployment, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 <!-- AUTO-UPDATES & ZERO DATA LOSS -->
 ## Auto-Updates & Zero Data Loss
@@ -128,8 +150,6 @@ Every major architectural decision, data model, and API contract is extensively 
 
 <!-- ROADMAP -->
 ## Roadmap
-
-The project is currently moving from the **Foundation** phase to the **Scaffolding** phase.
 
 See the [ROADMAP.md](ROADMAP.md) file for a complete list of upcoming features, modules, and integrations.
 
