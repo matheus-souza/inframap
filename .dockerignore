@@ -1,0 +1,29 @@
+# Git & Version Control
+.git
+.gitignore
+
+# Scratch & Temporary
+.scratch
+.gemini
+.claude
+.agents
+.vscode
+.idea
+
+# Build Artifacts & Caches
+frontend/build/
+frontend/.gradle/
+.gradle/
+node_modules/
+frontend/e2e/
+backend/bin/
+backend/coverage.*
+
+# Documentation & Markdown
+*.md
+docs/
+
+# Local Dev Files
+.env
+.env.*
+docker-compose.dev.yml

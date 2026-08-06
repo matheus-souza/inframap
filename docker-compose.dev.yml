@@ -1,3 +1,11 @@
+# Local Development Docker Compose Environment
+#
+# Usage:
+#   make dev (starts postgres container and backend API server on :8055)
+#   cd frontend && ./gradlew wasmJsBrowserRun (optional standalone dev server on :8080)
+#
+# CORS is configured to allow requests from http://localhost:8080 during local development.
+
 services:
   postgres:
     image: postgres:17-alpine

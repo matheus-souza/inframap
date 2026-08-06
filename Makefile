@@ -40,6 +40,14 @@ build-backend: ## Build production backend binary
 
 build: build-frontend copy-frontend-assets build-backend ## Build complete single-binary InfraMap application (Backend + Embedded WASM Frontend)
 
+docker-build: ## Build minimal production Docker container image
+	@echo "Building production Docker image inframap:local..."
+	docker build -t inframap:local .
+
+docker-run: docker-build ## Start production Docker Compose environment
+	@echo "Starting production Docker Compose environment..."
+	docker compose up -d
+
 test: ## Run backend unit & integration tests
 	@echo "Running backend test suite..."
 	cd backend && $(GO) test -v -race ./...
