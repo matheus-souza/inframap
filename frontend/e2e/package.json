@@ -1,0 +1,14 @@
+{
+  "name": "inframap-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Visual regression end-to-end test suite for InfraMap WebApp",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:update-snapshots": "playwright test --update-snapshots"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1"
+  }
+}
