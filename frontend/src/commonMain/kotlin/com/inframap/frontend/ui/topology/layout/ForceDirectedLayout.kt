@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import com.inframap.frontend.domain.model.TopologyEdge
 import com.inframap.frontend.domain.model.TopologyGraph
 import com.inframap.frontend.domain.model.TopologyNode
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -72,7 +73,7 @@ object ForceDirectedLayout {
         val positions = mutableMapOf<String, Offset>()
 
         nodes.forEachIndexed { index, node ->
-            val angle = 2.0 * Math.PI * index / nodes.size
+            val angle = 2.0 * PI * index / nodes.size
             val x = centerX + (radius * cos(angle)).toFloat()
             val y = centerY + (radius * sin(angle)).toFloat()
             positions[node.id] = Offset(x, y)
