@@ -22,7 +22,8 @@ class TopologyRepositoryImplTest {
         status: HttpStatusCode = HttpStatusCode.OK,
     ): ApiClient {
         val mockEngine =
-            MockEngine { _ ->
+            MockEngine { request ->
+                assertEquals("/api/v1/topology/graph", request.url.encodedPath)
                 respond(
                     content = jsonResponse,
                     status = status,

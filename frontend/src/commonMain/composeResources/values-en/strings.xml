@@ -53,4 +53,14 @@
     <string name="validation_password_min">Password must be at least 12 characters.</string>
     <string name="validation_password_mismatch">Passwords do not match.</string>
     <string name="onboarding_error_generic">Initial setup failed.</string>
+
+    <!-- Topology -->
+    <string name="topology_title">Network Topology</string>
+    <string name="topology_subtitle">Interactive force-directed graph view</string>
+    <string name="topology_empty">No devices discovered yet</string>
+    <string name="topology_reset_view">Reset View</string>
+    <string name="topology_refresh">Refresh</string>
+    <string name="topology_retry">Retry</string>
+    <string name="topology_close">Close</string>
+    <string name="topology_error_load">Failed to load network topology.</string>
 </resources>

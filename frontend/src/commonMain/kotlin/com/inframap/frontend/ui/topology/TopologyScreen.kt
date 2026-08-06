@@ -22,8 +22,10 @@ import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
+import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.model.TopologyNode
 import com.inframap.frontend.ui.topology.components.TopologyCanvas
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
 @Suppress("LongMethod")
@@ -73,7 +75,7 @@ fun TopologyScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         InfraMapButton(
-                            text = "Retry",
+                            text = stringResource(Res.string.topology_retry),
                             onClick = actions.onRefresh,
                         )
                     }
@@ -89,7 +91,7 @@ fun TopologyScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "No devices discovered yet",
+                        text = stringResource(Res.string.topology_empty),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -139,12 +141,12 @@ private fun TopologyHeader(
     ) {
         Column {
             Text(
-                text = "Network Topology",
+                text = stringResource(Res.string.topology_title),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = "Interactive force-directed graph view",
+                text = stringResource(Res.string.topology_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -159,11 +161,11 @@ private fun TopologyHeader(
             )
             Spacer(modifier = Modifier.width(8.dp))
             TextButton(onClick = onResetViewport) {
-                Text("Reset View")
+                Text(stringResource(Res.string.topology_reset_view))
             }
             Spacer(modifier = Modifier.width(8.dp))
             InfraMapButton(
-                text = "Refresh",
+                text = stringResource(Res.string.topology_refresh),
                 onClick = onRefresh,
             )
         }
@@ -191,7 +193,7 @@ private fun NodeDetailsCard(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 TextButton(onClick = onDismiss) {
-                    Text("Close")
+                    Text(stringResource(Res.string.topology_close))
                 }
             }
 

@@ -4,9 +4,11 @@ import androidx.compose.ui.geometry.Offset
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.data.sse.SSEEvent
+import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.usecase.topology.GetTopologyGraphUseCase
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.topology.layout.ForceDirectedLayout
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
 
 @Suppress("TooManyFunctions")
@@ -27,18 +29,23 @@ class TopologyViewModel(
             when (result) {
                 is ApiResult.Success -> {
                     val positions = ForceDirectedLayout.calculatePositions(result.data)
+                    val updatedSelectedNode =
+                        state.value.selectedNode?.let { current ->
+                            result.data.nodes.find { it.id == current.id }
+                        }
                     updateState {
                         it.copy(
                             isLoading = false,
                             graph = result.data,
                             nodePositions = positions,
+                            selectedNode = updatedSelectedNode,
                             errorMessage = null,
                         )
                     }
                 }
 
                 else -> {
-                    val mappedError = mapError(result)
+                    val mappedError = mapError(result, UiText.Resource(Res.string.topology_error_load))
                     updateState {
                         it.copy(
                             isLoading = false,

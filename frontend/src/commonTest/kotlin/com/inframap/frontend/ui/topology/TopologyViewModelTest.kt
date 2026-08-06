@@ -188,7 +188,7 @@ class TopologyViewModelTest {
                 val refreshedState = expectMostRecentItem()
                 assertFalse(refreshedState.isLoading)
                 assertEquals(2, refreshedState.graph?.nodes?.size)
-                assertTrue(fakeRepo.getTopologyGraphCallCount >= 2)
+                assertEquals(2, fakeRepo.getTopologyGraphCallCount)
                 cancelAndIgnoreRemainingEvents()
             }
 
