@@ -50,7 +50,7 @@ docker-run: docker-build ## Start production Docker Compose environment
 
 release: ## Create and push semantic version git tag (usage: make release VERSION=v1.0.0-rc.26)
 	@if [ -z "$(VERSION)" ]; then echo "Error: VERSION is required (e.g. make release VERSION=v1.0.0-rc.26)"; exit 1; fi
-	@if ! echo "$(VERSION)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$$'; then echo "Error: VERSION must match semver pattern vX.Y.Z or vX.Y.Z-rc.N (e.g. v1.0.0-rc.26)"; exit 1; fi
+	@if ! echo "$(VERSION)" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.(0|[1-9][0-9]*))?$$'; then echo "Error: VERSION must match semver pattern vX.Y.Z or vX.Y.Z-rc.N (e.g. v1.0.0-rc.26)"; exit 1; fi
 	@echo "Creating and pushing tag $(VERSION)..."
 	git tag -a $(VERSION) -m "Release $(VERSION)"
 	git push origin $(VERSION)

@@ -8,35 +8,40 @@ This document outlines the versioning policy, automated release workflow, and ro
 
 InfraMap adheres strictly to **Semantic Versioning (SemVer 2.0.0)**:
 
-- `v{MAJOR}.{MINOR}.{PATCH}` (e.g. `v0.1.0`)
+- `v{MAJOR}.{MINOR}.{PATCH}` (e.g. `v1.0.0`)
+- `v{MAJOR}.{MINOR}.{PATCH}-rc.{N}` (e.g. `v1.0.0-rc.26` for Release Candidates)
   - **MAJOR**: Incompatible API changes or breaking architecture refactors.
   - **MINOR**: Backward-compatible new features (e.g. new integration discovery provider).
   - **PATCH**: Backward-compatible bug fixes and security patches.
+  - **RELEASE CANDIDATES (`-rc.N`)**: Pre-releases published to GHCR for validation before stable release. Pre-releases are tagged on GHCR as `:vX.Y.Z-rc.N` (the `:latest` tag is only updated on stable releases).
 
 ---
 
 ## 2. Triggering an Automated Release
 
-To initiate a release:
+To initiate a release candidate or stable release:
 
 ```bash
 # Ensure you are on develop with all PRs merged and quality gates passing
 git checkout develop
 git pull origin develop
 
-# Create and push the release tag (e.g. v0.1.0)
-make release VERSION=v0.1.0
+# Trigger release candidate build
+make release VERSION=v1.0.0-rc.26
+
+# Or trigger stable release build
+make release VERSION=v1.0.0
 ```
 
 ### What GitHub Actions Pipeline Does Automatically
 
 Upon receiving a tag matching `v*.*.*`:
 
-1. **Tag Format Validation**: Validates exact SemVer `vX.Y.Z` structure.
+1. **Tag Format Validation**: Validates exact SemVer `vX.Y.Z` or `vX.Y.Z-rc.N` structure.
 2. **Multi-Architecture Container Build**: Builds `linux/amd64` and `linux/arm64` container images with Docker Buildx.
-3. **Container Registry Tagging**: Tags images on `ghcr.io/matheus-souza/inframap` with `:v0.1.0`, `:v0.1`, and `:latest`.
+3. **Container Registry Tagging**: Tags images on `ghcr.io/matheus-souza/inframap` with `:vX.Y.Z-rc.N` (and updates `:latest` tag only for stable releases).
 4. **Vulnerability Scanning**: Runs Trivy security scanner against `CRITICAL` and `HIGH` CVEs.
-5. **GitHub Release Generation**: Creates a GitHub Release with auto-generated release notes and installation instructions.
+5. **GitHub Release Generation**: Creates a GitHub Release (marked as Pre-release for `-rc.N` tags) with auto-generated release notes and quick-start guides.
 
 ---
 
@@ -45,8 +50,8 @@ Upon receiving a tag matching `v*.*.*`:
 Before deploying a new version to production homelab nodes:
 
 ```bash
-# Pull the newly published container image
-docker pull ghcr.io/matheus-souza/inframap:v0.1.0
+# Pull the newly published release candidate container image
+docker pull ghcr.io/matheus-souza/inframap:v1.0.0-rc.26
 
 # Verify health status
 curl -f http://localhost:8055/api/v1/health
@@ -58,9 +63,9 @@ curl -f http://localhost:8055/api/v1/health
 
 If a release candidate exhibits issues in your environment:
 
-1. Update your `docker-compose.yml` image tag to the previous stable release:
+1. Update your `docker-compose.yml` image tag to the previous stable release or working RC:
    ```yaml
-   image: ghcr.io/matheus-souza/inframap:v0.0.9
+   image: ghcr.io/matheus-souza/inframap:v1.0.0-rc.25
    ```
 2. Restart the stack:
    ```bash
