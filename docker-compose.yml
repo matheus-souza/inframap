@@ -1,0 +1,43 @@
+services:
+  inframap:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inframap
+    restart: unless-stopped
+    ports:
+      - "${INFRAMAP_PORT:-8055}:8055"
+    environment:
+      - DATABASE_URL=postgres://inframap:${POSTGRES_PASSWORD:-inframap_prod_pass}@postgres:5432/inframap?sslmode=disable
+      - INFRAMAP_PORT=8055
+      - INFRAMAP_MASTER_KEY=${INFRAMAP_MASTER_KEY:-change-me-in-production-32-chars}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - inframap-net
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: inframap-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: inframap
+      POSTGRES_USER: inframap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inframap_prod_pass}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - inframap-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inframap"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  inframap-net:
+    driver: bridge
+
+volumes:
+  postgres_prod_data:
