@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -48,5 +49,30 @@ func TestHealthEndpoint(t *testing.T) {
 func TestGetPort(t *testing.T) {
 	if port := getPort(); port != "8055" {
 		t.Errorf("expected default port 8055, got %s", port)
+	}
+}
+
+func TestStaticEmbeddedFS(t *testing.T) {
+	sub, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		t.Fatalf("failed to create sub filesystem from staticFS: %v", err)
+	}
+
+	cfg := bootstrap.Config{
+		DatabaseURL: "postgres://invalid:invalid@localhost:5432/invalid?sslmode=disable",
+		StaticFS:    sub,
+	}
+	app, err := bootstrap.New(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("failed to create bootstrap app: %v", err)
+	}
+	defer app.Close()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	app.Router.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK && w.Code != http.StatusNotFound {
+		t.Errorf("expected 200 or 404 for SPA fallback, got %d", w.Code)
 	}
 }

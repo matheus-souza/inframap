@@ -25,9 +25,20 @@ dev-down: ## Stop local development environment containers (preserves database v
 dev-clean: ## Stop containers and remove database volume
 	docker-compose -f docker-compose.dev.yml down -v
 
-build: ## Build production backend binary
+build-frontend: ## Build Kotlin WASM frontend production bundle
+	@echo "Building frontend WASM distribution..."
+	cd frontend && ./gradlew wasmJsBrowserDistribution
+
+copy-frontend-assets: ## Copy compiled WASM assets to backend embed directory
+	@echo "Copying WASM distribution to backend/cmd/api/static/..."
+	rm -rf backend/cmd/api/static/* && mkdir -p backend/cmd/api/static && touch backend/cmd/api/static/.gitkeep
+	cp -r frontend/build/dist/wasmJs/productionExecutable/* backend/cmd/api/static/
+
+build-backend: ## Build production backend binary
 	@echo "Building InfraMap single binary..."
 	cd backend && CGO_ENABLED=0 $(GO) build -ldflags="-s -w" -o bin/inframap ./cmd/api
+
+build: build-frontend copy-frontend-assets build-backend ## Build complete single-binary InfraMap application (Backend + Embedded WASM Frontend)
 
 test: ## Run backend unit & integration tests
 	@echo "Running backend test suite..."
