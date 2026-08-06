@@ -2,6 +2,8 @@
 backend/bin/
 backend/coverage.out
 backend/coverage.html
+backend/cmd/api/static/*
+!backend/cmd/api/static/.gitkeep
 *.test
 *.out
 *.exe

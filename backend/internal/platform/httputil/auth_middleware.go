@@ -63,6 +63,9 @@ var publicRoutes = map[string]bool{
 }
 
 func isPublicRoute(path string) bool {
+	if !strings.HasPrefix(path, "/api/") {
+		return true
+	}
 	return publicRoutes[path]
 }
 

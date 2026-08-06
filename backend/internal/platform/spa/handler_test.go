@@ -192,3 +192,16 @@ func TestSPAHandler_FallbackAlsoGetsCacheNoCache(t *testing.T) {
 		t.Fatalf("expected no-cache for SPA fallback, got %q", got)
 	}
 }
+
+func TestSPAHandler_MissingIndexHTMLReturns404(t *testing.T) {
+	emptyFS := fstest.MapFS{}
+	handler := spa.NewSPAHandler(emptyFS)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing index.html, got %d", rec.Code)
+	}
+}
