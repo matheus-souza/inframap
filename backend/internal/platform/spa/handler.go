@@ -38,7 +38,7 @@ func NewSPAHandler(fsys fs.FS) http.Handler {
 		if urlPath == "index.html" {
 			content, readErr := fs.ReadFile(fsys, "index.html")
 			if readErr != nil {
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				http.NotFound(w, r)
 				return
 			}
 			_, _ = w.Write(content)
