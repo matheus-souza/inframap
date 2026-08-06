@@ -60,6 +60,9 @@ import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
 import com.inframap.frontend.ui.subnets.SubnetsActions
 import com.inframap.frontend.ui.subnets.SubnetsScreen
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
+import com.inframap.frontend.ui.topology.TopologyActions
+import com.inframap.frontend.ui.topology.TopologyScreen
+import com.inframap.frontend.ui.topology.TopologyViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
@@ -208,7 +211,7 @@ private fun RouteContent(
         Route.Staging -> StagingRoute()
         Route.Subnets -> SubnetsRoute(navigator = navigator)
         Route.CreateSubnet -> CreateSubnetRoute(navigator = navigator)
-        Route.Topology -> PlaceholderScreen("Topology")
+        Route.Topology -> TopologyRoute()
         else -> PlaceholderScreen("")
     }
 }
@@ -416,6 +419,28 @@ private fun CreateSubnetRoute(navigator: Navigator) {
             onCancelClicked = { navigator.navigateTo(Route.Subnets) },
         )
     CreateSubnetScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun TopologyRoute() {
+    val viewModel: TopologyViewModel = koinInject()
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+    val actions =
+        TopologyActions(
+            onRefresh = viewModel::refresh,
+            onNodeSelected = viewModel::selectNode,
+            onDismissNodeDetails = viewModel::dismissNodeDetails,
+            onPan = viewModel::onPan,
+            onZoom = viewModel::onZoom,
+            onResetViewport = viewModel::resetViewport,
+        )
+    TopologyScreen(
         state = state,
         actions = actions,
     )

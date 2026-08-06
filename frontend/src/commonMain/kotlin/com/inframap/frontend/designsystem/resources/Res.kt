@@ -242,5 +242,53 @@ object Res {
                 "onboarding_error_generic",
                 setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
             )
+        val topology_title: StringResource =
+            StringResource(
+                "string:topology_title",
+                "topology_title",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_subtitle: StringResource =
+            StringResource(
+                "string:topology_subtitle",
+                "topology_subtitle",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_empty: StringResource =
+            StringResource(
+                "string:topology_empty",
+                "topology_empty",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_reset_view: StringResource =
+            StringResource(
+                "string:topology_reset_view",
+                "topology_reset_view",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_refresh: StringResource =
+            StringResource(
+                "string:topology_refresh",
+                "topology_refresh",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_retry: StringResource =
+            StringResource(
+                "string:topology_retry",
+                "topology_retry",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_close: StringResource =
+            StringResource(
+                "string:topology_close",
+                "topology_close",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_error_load: StringResource =
+            StringResource(
+                "string:topology_error_load",
+                "topology_error_load",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
     }
 }

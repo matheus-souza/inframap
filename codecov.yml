@@ -57,6 +57,8 @@ ignore:
   - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/staging/StagingScreen.kt"
   - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/SubnetsScreen.kt"
   - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreen.kt"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/topology/TopologyScreen.kt"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/topology/components/**"
   - "**/DashboardScreen.kt"
   - "**/DeviceListScreen.kt"
   - "**/DeviceDetailScreen.kt"

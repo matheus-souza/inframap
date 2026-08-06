@@ -53,4 +53,14 @@
     <string name="validation_password_min">Senha deve ter pelo menos 12 caracteres.</string>
     <string name="validation_password_mismatch">As senhas não conferem.</string>
     <string name="onboarding_error_generic">Falha na configuração inicial.</string>
+
+    <!-- Topology -->
+    <string name="topology_title">Topologia de Rede</string>
+    <string name="topology_subtitle">Visualização interativa da topologia em grafo</string>
+    <string name="topology_empty">Nenhum dispositivo descoberto ainda</string>
+    <string name="topology_reset_view">Resetar Visão</string>
+    <string name="topology_refresh">Atualizar</string>
+    <string name="topology_retry">Tentar novamente</string>
+    <string name="topology_close">Fechar</string>
+    <string name="topology_error_load">Falha ao carregar topologia de rede.</string>
 </resources>

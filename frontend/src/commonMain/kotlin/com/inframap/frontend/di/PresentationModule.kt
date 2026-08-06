@@ -11,6 +11,7 @@ import com.inframap.frontend.ui.splash.SplashViewModel
 import com.inframap.frontend.ui.staging.StagingViewModel
 import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
+import com.inframap.frontend.ui.topology.TopologyViewModel
 import org.koin.dsl.module
 
 val presentationModule =
@@ -26,6 +27,8 @@ val presentationModule =
         factory { CreateSubnetViewModel(get()) }
 
         factory { DashboardViewModel(get(), get(), get(), get(), getOrNull()) }
+
+        factory { TopologyViewModel(get(), getOrNull()) }
 
         factory { LoginViewModel(get()) }
         factory { OnboardingViewModel(get()) }
