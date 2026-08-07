@@ -8,7 +8,9 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
+
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -86,7 +88,40 @@ func (s *sessionValidatorAdapter) ValidateSession(ctx context.Context, token str
 func NewConfigFromEnv() Config {
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable"
+		host := os.Getenv("PGHOST")
+		user := os.Getenv("PGUSER")
+		pass := os.Getenv("PGPASSWORD")
+		dbname := os.Getenv("PGDATABASE")
+		port := os.Getenv("PGPORT")
+		sslmode := os.Getenv("PGSSLMODE")
+
+		if host != "" || user != "" || pass != "" || dbname != "" {
+			if host == "" {
+				host = "localhost"
+			}
+			if user == "" {
+				user = "inframap"
+			}
+			if dbname == "" {
+				dbname = "inframap"
+			}
+			if port == "" {
+				port = "5432"
+			}
+			if sslmode == "" {
+				sslmode = "disable"
+			}
+			dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+				url.QueryEscape(user),
+				url.QueryEscape(pass),
+				host,
+				port,
+				dbname,
+				sslmode,
+			)
+		} else {
+			dbURL = "postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable"
+		}
 	}
 	return Config{
 		DatabaseURL:        dbURL,
@@ -94,6 +129,7 @@ func NewConfigFromEnv() Config {
 		CORSAllowedOrigins: os.Getenv("INFRAMAP_CORS_ALLOWED_ORIGINS"),
 	}
 }
+
 
 // New initializes and wires all application components.
 func New(ctx context.Context, cfg Config) (*App, error) {

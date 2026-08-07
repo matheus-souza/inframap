@@ -56,27 +56,27 @@ Discovery Source (CIDR / Subnet Range / Provider Config)
 
 # 2. Pipeline Architecture & Stages
 
-### Stage 1: Discovery Collectors (Primary Collection)
+## Stage 1: Discovery Collectors (Primary Collection)
 Collectors are lightweight, single-responsibility workers that execute targeted fact-gathering protocols:
 
 1. **ICMP Collector**: Tests IPv4/IPv6 reachability and measures RTT latency.
-   - *Resilience Strategy*: Attempts native ICMP socket (`golang.org/x/net/icmp`). If OS permissions are restricted, falls back to system `ping` command (`exec.Command("ping", ...)`). If neither is available (e.g. Distroless non-root container), logs `slog.Warn` and gracefully bypasses ICMP without halting discovery.
+   - *Resilience Strategy*: Attempts native ICMP socket (`golang.org/x/net/icmp`). If OS permissions are restricted, falls back to system `ping` command (`exec.CommandContext(ctx, "ping", ...)`). If neither is available (e.g. Distroless non-root container), logs `slog.Warn` and gracefully bypasses ICMP without halting discovery.
 2. **ARP Collector**: Reads OS ARP table (`/proc/net/arp` on Linux, `sysctl`/`arp -an` on BSD/macOS). Operates with zero privileges (unprivileged OS read) to map local L2 `IP → MAC`.
 3. **Reverse DNS Collector**: Performs asynchronous PTR lookups against configured DNS resolvers to obtain canonical hostnames (FQDN).
 4. **SNMP Collector**: Queries standard MIB OIDs (`sysName`, `sysDescr`, `sysObjectID`, `ifTable`, `ipAddrTable`) using credentials resolved via Credential Sets. Returns hardware vendor, OS version, serial numbers, and interface mappings.
 5. *Extensible Collectors (Future)*: mDNS, SSDP, LLDP, Mikrotik RouterOS API, UniFi Controller API.
 
-### Stage 2: Normalizer
-Converts protocol-specific raw responses into standardized `RawObservation` DTOs with timestamped metadata and source confidence scores.
+## Stage 2: Normalizer
+Converts protocol-specific raw responses into standardized `RawObservation` DTOs with timestamped metadata and source confidence scores. Trims surrounding whitespace from IP, MAC, and Hostname, and lowercases MAC and Hostname strings.
 
-### Stage 3: Validator
+## Stage 3: Validator
 Enforces strict sanity constraints before identity resolution:
 - Validates IPv4/IPv6 address syntax (`netip.ParseAddr`).
 - Validates MAC address format (`net.ParseMAC`). Rejects multicast, broadcast (`FF:FF:FF:FF:FF:FF`), and zero MACs (`00:00:00:00:00:00`).
-- Validates and sanitizes hostname strings (strips unprintable control characters, verifies length).
+- Validates hostname strings (rejects any hostname containing unprintable control characters `< 0x20` or `0x7f`, or exceeding 253 characters).
 - Discards invalid or corrupted observation records prior to matching.
 
-### Stage 4: Matcher Engine
+## Stage 4: Matcher Engine
 Resolves target observation identity against existing inventory using a 5-tier precedence hierarchy:
 
 | Priority | Identifier | Match Condition | Action |
@@ -87,16 +87,17 @@ Resolves target observation identity against existing inventory using a 5-tier p
 | **4** | **Subnet + Hostname + IP** | Compound match on `hostname` + `ip_address` within same `subnet_id` | Associate observation with existing `device_id`. |
 | **5 (Lowest)** | **No Match** | None of the above matchers yield a hit | Flag as new asset for Inventory Sync. |
 
-### Stage 5: Conflict Resolver (Reconciler Engine)
+## Stage 5: Conflict Resolver (Reconciler Engine)
 Evaluates field-level updates when multiple collectors or integrations supply data for the same asset:
 - Applies attribute-level **Confidence Scores** (`metadata->'field_confidence_scores'`).
 - Respects **User-Locked Fields** (`metadata->'user_locked_fields'`) to prevent automated overwrites of operator-curated names, roles, or notes.
 - Performs deep additive JSON metadata merging (`reflect.DeepEqual` check prevents redundant updates).
 
-### Stage 6: Inventory Sync
+## Stage 6: Inventory Sync
 Persists verified device changes to the `devices`, `interfaces`, and `ip_addresses` database tables within transactional boundaries (`pgx.Tx`).
 
-### Stage 7: Reactive Domain Events
+## Stage 7: Reactive Domain Events
+
 Upon successful Inventory Sync, the Engine emits strongly-typed domain events over the `EventBus`:
 - `device.discovered` (new device added)
 - `device.updated` (existing device attributes reconciled)
