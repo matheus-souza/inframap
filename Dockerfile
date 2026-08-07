@@ -1,5 +1,5 @@
 # Stage 1: Build Frontend (Kotlin WASM)
-FROM eclipse-temurin:21-jdk AS builder-frontend
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS builder-frontend
 WORKDIR /app/frontend
 COPY frontend/gradle/ /app/frontend/gradle/
 COPY frontend/gradlew /app/frontend/gradlew
