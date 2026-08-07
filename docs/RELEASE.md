@@ -17,21 +17,13 @@ InfraMap adheres strictly to **Semantic Versioning (SemVer 2.0.0)**:
 
 ---
 
-## 2. Triggering an Automated Release
+## 2. Automated Release Pipeline
 
-To initiate a release candidate or stable release:
+Releases are fully automated via GitHub Actions:
 
-```bash
-# Ensure you are on develop with all PRs merged and quality gates passing
-git checkout develop
-git pull origin develop
-
-# Trigger release candidate build
-make release VERSION=v1.0.0-rc.26
-
-# Or trigger stable release build
-make release VERSION=v1.0.0
-```
+- **Merge to `develop`**: Automatically generates and pushes the next Release Candidate tag (e.g. `v1.0.0-rc.27`), builds multi-arch container images (`:v1.0.0-rc.27`), scans for vulnerabilities via Trivy, and creates a pre-release on GitHub Releases.
+- **Merge to `main`**: Automatically generates and pushes the official release tag (e.g. `v1.0.0`), builds multi-arch container images (`:v1.0.0` and `:latest`), scans for vulnerabilities via Trivy, and creates an official release on GitHub Releases.
+- **Manual Trigger**: Can also be manually initiated via `make release VERSION=v1.0.0-rc.X` or via GitHub Actions `workflow_dispatch`.
 
 ### What GitHub Actions Pipeline Does Automatically
 

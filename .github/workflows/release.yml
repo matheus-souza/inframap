@@ -2,6 +2,9 @@ name: Release Pipeline
 
 on:
   push:
+    branches:
+      - develop
+      - main
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -20,17 +23,66 @@ jobs:
       packages: write
 
     steps:
-      - name: Determine Release Tag & Type
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Determine & Auto-Create Release Tag
         id: release_tag
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_VERSION: ${{ inputs.version }}
           REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          git fetch --tags origin
+
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             TAG="$INPUT_VERSION"
-          else
+          elif [ "$REF_TYPE" = "tag" ]; then
             TAG="$REF_NAME"
+          elif [ "$REF_NAME" = "develop" ]; then
+            LATEST_RC=$(git tag -l "v*-rc.*" | sort -V | tail -n 1)
+            if [ -z "$LATEST_RC" ]; then
+              TAG="v1.0.0-rc.1"
+            else
+              PREFIX=$(echo "$LATEST_RC" | sed -E 's/(.*-rc\.)[0-9]+$/\1/')
+              NUM=$(echo "$LATEST_RC" | sed -E 's/.*-rc\.([0-9]+)$/\1/')
+              NEXT_NUM=$((NUM + 1))
+              TAG="${PREFIX}${NEXT_NUM}"
+            fi
+            echo "Auto-generated Release Candidate Tag for develop: $TAG"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+              git tag -a "$TAG" -m "Automated release candidate $TAG"
+              git push origin "$TAG" || true
+            fi
+          elif [ "$REF_NAME" = "main" ]; then
+            LATEST_RC=$(git tag -l "v*-rc.*" | sort -V | tail -n 1)
+            if [ -n "$LATEST_RC" ]; then
+              TAG=$(echo "$LATEST_RC" | sed -E 's/-rc\.[0-9]+$//')
+            else
+              LATEST_RELEASE=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" | grep -v '\-rc' | sort -V | tail -n 1)
+              if [ -z "$LATEST_RELEASE" ]; then
+                TAG="v1.0.0"
+              else
+                TAG="$LATEST_RELEASE"
+              fi
+            fi
+            echo "Auto-generated Official Release Tag for main: $TAG"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+              git tag -a "$TAG" -m "Automated official release $TAG"
+              git push origin "$TAG" || true
+            fi
+          else
+            echo "Error: Unsupported ref $REF_NAME"
+            exit 1
           fi
 
           if [[ "$TAG" == *$'\n'* || "$TAG" == *$'\r'* ]]; then
@@ -49,12 +101,6 @@ jobs:
           else
             printf 'is_prerelease=false\n' >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -91,7 +137,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@v0.28.0
+        uses: aquasecurity/trivy-action@0.30.0
         with:
           image-ref: ghcr.io/${{ github.repository }}:${{ steps.release_tag.outputs.tag }}
           format: 'table'
