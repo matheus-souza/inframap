@@ -23,6 +23,10 @@
 | **Session Token** | Cryptographically secure stateful token prefixed with `ims_` used for authentication. | `Table: user_sessions`, `struct UserSession` |
 | **Sliding Session** | Session model with 30-minute inactivity sliding renewal managed by `SessionRepository` and 7-day hard absolute expiration limit. | `modules/identity/repository` |
 | **Auth Context** | Request context carrying authenticated `userID` and assigned RBAC `permissions` list. | `internal/platform/httputil` |
+| **Discovery Collector** | Plug-and-play worker (ICMP, ARP, Reverse DNS, SNMP) gathering raw network facts. | `modules/discovery/collectors` |
+| **Credential Set** | Priority-ordered set of vault credentials linked to a Discovery Source for automated auth. | `modules/credentials` |
+| **Validator Phase** | Discovery pipeline stage enforcing MAC, IP, and hostname sanity constraints before matching. | `modules/discovery/engine/validator.go` |
+| **Inventory Sync** | Database persistence phase applying reconciled asset updates and triggering domain events. | `modules/discovery/engine/inventory_sync.go` |
 | **Device Inventory** | System of record for all physical, virtual, and network devices. | `modules/inventory`, `Table: devices` |
 | **Device Staging** | Holding queue for newly discovered devices awaiting manual verification before promotion to active inventory. | `modules/inventory`, `Table: device_staging` |
 | **User-Locked Fields** | Device properties modified manually by an operator, protected from automated scanner overwrites. | `metadata->'user_locked_fields'` |
@@ -43,6 +47,7 @@
 - **RFC-015**: Code Coverage & Quality Gate Policy (Patch Coverage >= 85%)
 - **RFC-016**: Automated Discovery & Reconciliation Engine Specification
 - **RFC-017**: Network Topology & Mapping Engine Specification
+- **RFC-018**: Discovery Engine & Active Collectors Architecture Specification
 
 - **ADR-001**: Backend Architectural Decisions Log (AD-001 to AD-011, AD-027 to AD-030)
 - **ADR-002**: Frontend Clean Architecture Decisions (AD-012 to AD-022)
