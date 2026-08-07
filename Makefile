@@ -3,6 +3,7 @@
 .PHONY: help dev dev-down dev-clean build test test-e2e test-coverage lint lint-frontend test-frontend verify generate migrate-up migrate-down setup-hooks clean
 
 DEFAULT_PORT ?= 8055
+COMPOSE ?= docker compose
 MISE := $(shell command -v mise 2> /dev/null)
 GO := $(if $(MISE),mise exec -- go,go)
 GOOSE := $(if $(MISE),mise exec -- goose,goose)
@@ -14,16 +15,16 @@ help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 dev: ## Start single self-contained local development environment (PostgreSQL + backend)
-	docker-compose -f docker-compose.dev.yml up -d postgres
+	$(COMPOSE) -f docker-compose.dev.yml up -d postgres
 	@echo "Waiting for PostgreSQL to be ready..."
-	@until docker-compose -f docker-compose.dev.yml exec postgres pg_isready -U inframap; do sleep 1; done
+	@until $(COMPOSE) -f docker-compose.dev.yml exec postgres pg_isready -U inframap; do sleep 1; done
 	cd backend && INFRAMAP_PORT=$(DEFAULT_PORT) $(GO) run ./cmd/api
 
 dev-down: ## Stop local development environment containers (preserves database volume)
-	docker-compose -f docker-compose.dev.yml down
+	$(COMPOSE) -f docker-compose.dev.yml down
 
 dev-clean: ## Stop containers and remove database volume
-	docker-compose -f docker-compose.dev.yml down -v
+	$(COMPOSE) -f docker-compose.dev.yml down -v
 
 build-frontend: ## Build Kotlin WASM frontend production bundle
 	@echo "Building frontend WASM distribution..."
@@ -46,7 +47,7 @@ docker-build: ## Build minimal production Docker container image
 
 docker-run: docker-build ## Start production Docker Compose environment
 	@echo "Starting production Docker Compose environment..."
-	docker compose up -d
+	$(COMPOSE) up -d
 
 release: ## Create and push semantic version git tag (usage: make release VERSION=v1.0.0-rc.26)
 	@if [ -z "$(VERSION)" ]; then echo "Error: VERSION is required (e.g. make release VERSION=v1.0.0-rc.26)"; exit 1; fi

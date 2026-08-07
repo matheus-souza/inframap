@@ -9,9 +9,9 @@ services:
     ports:
       - "${INFRAMAP_PORT:-8055}:8055"
     environment:
-      - DATABASE_URL=postgres://inframap:${POSTGRES_PASSWORD:-inframap_prod_pass}@postgres:5432/inframap?sslmode=disable
+      - DATABASE_URL=postgres://inframap:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/inframap?sslmode=disable
       - INFRAMAP_PORT=8055
-      - INFRAMAP_MASTER_KEY=${INFRAMAP_MASTER_KEY:-change-me-in-production-32-chars}
+      - INFRAMAP_MASTER_KEY=${INFRAMAP_MASTER_KEY:?INFRAMAP_MASTER_KEY must be set}
     depends_on:
       postgres:
         condition: service_healthy
@@ -25,7 +25,7 @@ services:
     environment:
       POSTGRES_DB: inframap
       POSTGRES_USER: inframap
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inframap_prod_pass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
     networks:

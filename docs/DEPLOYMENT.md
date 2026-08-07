@@ -80,6 +80,8 @@ INFRAMAP_MASTER_KEY=your_exact_32_character_master_key_here
 INFRAMAP_PORT=8055
 ```
 
+> **Important**: `POSTGRES_PASSWORD` is interpolated into a `postgres://` connection URL. If your password contains URL-reserved characters (`@`, `#`, `?`, `/`, `%`), you must percent-encode them (e.g., `p@ss` → `p%40ss`). Alternatively, set `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` as separate env vars — pgx supports both formats.
+
 ---
 
 ## 3. Initial Setup & Onboarding
