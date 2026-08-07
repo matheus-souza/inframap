@@ -1,29 +1,19 @@
 package bootstrap_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/matheussouza/inframap/internal/bootstrap"
 )
 
 func TestNewConfigFromEnv_IndividualPGBars(t *testing.T) {
-	os.Unsetenv("DATABASE_URL")
-	os.Setenv("PGHOST", "db.internal")
-	os.Setenv("PGUSER", "admin")
-	os.Setenv("PGPASSWORD", "p@ss%word#123")
-	os.Setenv("PGDATABASE", "custom_db")
-	os.Setenv("PGPORT", "5433")
-	os.Setenv("PGSSLMODE", "require")
-
-	defer func() {
-		os.Unsetenv("PGHOST")
-		os.Unsetenv("PGUSER")
-		os.Unsetenv("PGPASSWORD")
-		os.Unsetenv("PGDATABASE")
-		os.Unsetenv("PGPORT")
-		os.Unsetenv("PGSSLMODE")
-	}()
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("PGHOST", "db.internal")
+	t.Setenv("PGUSER", "admin")
+	t.Setenv("PGPASSWORD", "p@ss%word#123")
+	t.Setenv("PGDATABASE", "custom_db")
+	t.Setenv("PGPORT", "5433")
+	t.Setenv("PGSSLMODE", "require")
 
 	cfg := bootstrap.NewConfigFromEnv()
 
