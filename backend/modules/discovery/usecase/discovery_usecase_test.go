@@ -449,4 +449,30 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 			t.Errorf("expected 0 records, got %d", len(recs))
 		}
 	})
+
+	t.Run("TriggerScan Validations and Execution", func(t *testing.T) {
+		_, err := uc.TriggerScan(ctx, nil)
+		if !errors.Is(err, usecase.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for nil request, got %v", err)
+		}
+
+		_, err = uc.TriggerScan(ctx, &dto.TriggerScanRequest{CIDR: ""})
+		if err == nil {
+			t.Fatal("expected error for empty CIDR, got nil")
+		}
+
+		_, err = uc.TriggerScan(ctx, &dto.TriggerScanRequest{CIDR: "10.0.0.0/8"})
+		if err == nil {
+			t.Fatal("expected error for oversized CIDR /8, got nil")
+		}
+
+		res, err := uc.TriggerScan(ctx, &dto.TriggerScanRequest{CIDR: "192.168.1.0/30"})
+		if err != nil {
+			t.Fatalf("expected nil error on TriggerScan, got %v", err)
+		}
+		if res.CIDR != "192.168.1.0/30" {
+			t.Errorf("expected CIDR '192.168.1.0/30', got %q", res.CIDR)
+		}
+	})
 }
+

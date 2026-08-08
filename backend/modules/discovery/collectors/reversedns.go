@@ -30,9 +30,14 @@ func (c *ReverseDNSCollector) Name() string { return "Reverse DNS Resolver" }
 // Collect expands the target CIDR and performs PTR lookups for each IP.
 // Only IPs with valid PTR records produce observations.
 func (c *ReverseDNSCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]RawObservation, error) {
+	if c.resolver == nil {
+		return nil, nil
+	}
+
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("reverse-dns collector: %w", err)
 	}
+
 
 	addrs, err := ExpandCIDR(target.CIDR)
 	if err != nil {

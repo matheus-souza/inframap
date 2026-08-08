@@ -14,7 +14,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
+	"github.com/matheussouza/inframap/modules/discovery/collectors"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
+
 	"github.com/matheussouza/inframap/modules/discovery/engine"
 	"github.com/matheussouza/inframap/modules/discovery/repository"
 	inventoryRepo "github.com/matheussouza/inframap/modules/inventory/repository"
@@ -37,18 +39,20 @@ type DiscoveryUseCase interface {
 	GetSourceByID(ctx context.Context, id string) (*dto.DiscoverySourceResponse, error)
 	ListSources(ctx context.Context) ([]*dto.DiscoverySourceResponse, error)
 	TriggerRun(ctx context.Context, sourceID string) (*dto.DiscoverySourceResponse, error)
+	TriggerScan(ctx context.Context, req *dto.TriggerScanRequest) (*dto.ScanResultResponse, error)
 	IngestNormalizedDevice(ctx context.Context, sourceID uuid.UUID, norm *dto.NormalizedDeviceDTO) (*dto.DiscoveryRecordResponse, error)
 	ListRecordsByDevice(ctx context.Context, deviceID string) ([]*dto.DiscoveryRecordResponse, error)
 }
 
 // DefaultDiscoveryUseCase implements DiscoveryUseCase interface.
 type DefaultDiscoveryUseCase struct {
-	discRepo   repository.DiscoveryRepository
-	invRepo    inventoryRepo.InventoryRepository
-	eventBus   eventbus.EventBus
-	logger     *slog.Logger
-	matcher    engine.IdentityMatcher
-	reconciler engine.FieldReconciler
+	discRepo     repository.DiscoveryRepository
+	invRepo      inventoryRepo.InventoryRepository
+	eventBus     eventbus.EventBus
+	logger       *slog.Logger
+	matcher      engine.IdentityMatcher
+	reconciler   engine.FieldReconciler
+	orchestrator engine.Orchestrator
 }
 
 // NewDefaultDiscoveryUseCase constructs a DefaultDiscoveryUseCase instance.
@@ -58,15 +62,23 @@ func NewDefaultDiscoveryUseCase(
 	eventBus eventbus.EventBus,
 	logger *slog.Logger,
 ) *DefaultDiscoveryUseCase {
+	orch := engine.NewDefaultOrchestrator(eventBus)
+	orch.RegisterCollector(collectors.NewARPCollector(nil))
+	orch.RegisterCollector(collectors.NewReverseDNSCollector(nil))
+	orch.RegisterCollector(collectors.NewICMPCollector(nil))
+	orch.RegisterCollector(collectors.NewSNMPCollector(nil, nil))
+
 	return &DefaultDiscoveryUseCase{
-		discRepo:   discRepo,
-		invRepo:    invRepo,
-		eventBus:   eventBus,
-		logger:     logger,
-		matcher:    engine.NewDefaultIdentityMatcher(),
-		reconciler: engine.NewDefaultFieldReconciler(),
+		discRepo:     discRepo,
+		invRepo:      invRepo,
+		eventBus:     eventBus,
+		logger:       logger,
+		matcher:      engine.NewDefaultIdentityMatcher(),
+		reconciler:   engine.NewDefaultFieldReconciler(),
+		orchestrator: orch,
 	}
 }
+
 
 // CreateSource registers a new discovery source after normalization and validation.
 func (u *DefaultDiscoveryUseCase) CreateSource(ctx context.Context, req *dto.CreateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
@@ -114,6 +126,51 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 	}
 
 	return res, nil
+}
+
+// TriggerScan executes an active discovery scan across a target CIDR network range.
+func (u *DefaultDiscoveryUseCase) TriggerScan(ctx context.Context, req *dto.TriggerScanRequest) (*dto.ScanResultResponse, error) {
+	if req == nil {
+		return nil, ErrInvalidInput
+	}
+
+	req.Normalize()
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidInput, err.Error())
+	}
+
+	if _, err := collectors.ParseTargetPrefix(req.CIDR); err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidInput, err.Error())
+	}
+
+	var activeDevices []db.Device
+	if u.invRepo != nil {
+		devs, _, err := u.invRepo.ListDevices(ctx, "", "", 10000, 0, false)
+		if err == nil {
+			activeDevices = devs
+		}
+	}
+
+
+	target := collectors.DiscoveryTarget{
+		CIDR:            req.CIDR,
+		SubnetID:        req.SubnetID,
+		CredentialSetID: req.CredentialSetID,
+	}
+
+	res, err := u.orchestrator.RunScan(ctx, target, activeDevices)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.ScanResultResponse{
+		CIDR:            res.Target.CIDR,
+		TotalCollected:  res.TotalCollected,
+		TotalValid:      res.TotalValid,
+		TotalDiscovered: res.TotalDiscovered,
+		TotalUpdated:    res.TotalUpdated,
+		DurationMs:      res.Duration.Milliseconds(),
+	}, nil
 }
 
 // IngestNormalizedDevice processes a normalized scan observation:
