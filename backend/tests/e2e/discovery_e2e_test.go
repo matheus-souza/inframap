@@ -151,6 +151,19 @@ func TestE2E_DiscoveryFlow(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200 OK on trigger scan, got %d", resp.StatusCode)
 		}
+
+		var env httputil.SuccessEnvelope
+		if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode scan response: %v", err)
+		}
+		dataMap, ok := env.Data.(map[string]any)
+		if !ok {
+			t.Fatal("expected data map in scan response envelope")
+		}
+		if cidr, _ := dataMap["cidr"].(string); cidr != "127.0.0.1/32" {
+			t.Errorf("expected cidr '127.0.0.1/32', got %q", cidr)
+		}
 	})
 }
+
 

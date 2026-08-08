@@ -145,11 +145,21 @@ func (u *DefaultDiscoveryUseCase) TriggerScan(ctx context.Context, req *dto.Trig
 
 	var activeDevices []db.Device
 	if u.invRepo != nil {
-		devs, _, err := u.invRepo.ListDevices(ctx, "", "", 10000, 0, false)
-		if err == nil {
-			activeDevices = devs
+		const pageSize int32 = 1000
+		var offset int32
+		for {
+			devs, total, err := u.invRepo.ListDevices(ctx, "", "", pageSize, offset, false)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load active inventory: %w", err)
+			}
+			activeDevices = append(activeDevices, devs...)
+			offset += pageSize
+			if int64(offset) >= total {
+				break
+			}
 		}
 	}
+
 
 
 	target := collectors.DiscoveryTarget{

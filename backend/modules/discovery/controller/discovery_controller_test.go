@@ -345,9 +345,28 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		mux.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
-			t.Errorf("expected 200 OK, got %d", rec.Code)
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+
+		var env map[string]interface{}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		data, ok := env["data"].(map[string]interface{})
+		if !ok {
+			t.Fatal("expected data map in response envelope")
+		}
+		if cidr, _ := data["cidr"].(string); cidr != "192.168.1.0/24" {
+			t.Errorf("expected cidr '192.168.1.0/24', got %q", cidr)
+		}
+		if tc, _ := data["total_collected"].(float64); int(tc) != 4 {
+			t.Errorf("expected total_collected 4, got %d", int(tc))
+		}
+		if tv, _ := data["total_valid"].(float64); int(tv) != 3 {
+			t.Errorf("expected total_valid 3, got %d", int(tv))
 		}
 	})
+
 
 	t.Run("TriggerScan Invalid JSON", func(t *testing.T) {
 		req := httptest.NewRequest("POST", "/api/v1/discovery/scan", bytes.NewReader([]byte("invalid json")))
