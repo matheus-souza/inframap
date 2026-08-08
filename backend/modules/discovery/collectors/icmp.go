@@ -91,18 +91,36 @@ func (c *ICMPCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]
 	return observations, nil
 }
 
+// PacketConn abstracts net.PacketConn / icmp.PacketConn for unit testing.
+type PacketConn interface {
+	SetDeadline(t time.Time) error
+	WriteTo(b []byte, dst net.Addr) (int, error)
+	ReadFrom(b []byte) (int, net.Addr, error)
+	Close() error
+}
+
 // DualModeICMPPinger implements ICMPPinger with 3-level fallback:
 // 1. Native ICMP Socket (golang.org/x/net/icmp)
 // 2. System Ping CLI (exec.CommandContext)
 // 3. ErrICMPUnavailable
 type DualModeICMPPinger struct {
-	pingPath string
+	pingPath         string
+	listenPacketFunc func(network, address string) (PacketConn, error)
 }
 
 // NewDefaultICMPPinger creates a DualModeICMPPinger.
 func NewDefaultICMPPinger() *DualModeICMPPinger {
 	pingPath, _ := exec.LookPath("ping")
-	return &DualModeICMPPinger{pingPath: pingPath}
+	return &DualModeICMPPinger{
+		pingPath: pingPath,
+		listenPacketFunc: func(network, address string) (PacketConn, error) {
+			c, err := icmp.ListenPacket(network, address)
+			if err != nil {
+				return nil, err
+			}
+			return c, nil
+		},
+	}
 }
 
 // Ping attempts a native ICMP socket first, then falls back to system ping CLI.
@@ -129,9 +147,14 @@ func (p *DualModeICMPPinger) Ping(ctx context.Context, ip netip.Addr) (time.Dura
 }
 
 func (p *DualModeICMPPinger) pingNative(_ context.Context, ip netip.Addr) (time.Duration, error) {
-	conn, err := icmp.ListenPacket("udp4", "0.0.0.0")
+
+	if p.listenPacketFunc == nil {
+		return 0, errors.New("listenPacketFunc not set")
+	}
+
+	conn, err := p.listenPacketFunc("udp4", "0.0.0.0")
 	if err != nil {
-		conn, err = icmp.ListenPacket("ip4:icmp", "0.0.0.0")
+		conn, err = p.listenPacketFunc("ip4:icmp", "0.0.0.0")
 		if err != nil {
 			return 0, err
 		}
@@ -178,6 +201,7 @@ func (p *DualModeICMPPinger) pingNative(_ context.Context, ip netip.Addr) (time.
 
 	return 0, fmt.Errorf("unexpected ICMP message type: %v", parsedMsg.Type)
 }
+
 
 var pingRTTRegex = regexp.MustCompile(`time[=<]([\d\.]+)\s*ms`)
 
