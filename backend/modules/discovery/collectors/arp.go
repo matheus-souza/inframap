@@ -42,9 +42,9 @@ func (c *ARPCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]R
 		return nil, fmt.Errorf("arp collector: %w", err)
 	}
 
-	prefix, err := netip.ParsePrefix(target.CIDR)
+	prefix, err := ParseTargetPrefix(target.CIDR)
 	if err != nil {
-		return nil, fmt.Errorf("arp collector: invalid CIDR %q: %w", target.CIDR, err)
+		return nil, fmt.Errorf("arp collector: %w", err)
 	}
 
 	entries, err := c.reader.ReadEntries(ctx)
@@ -56,7 +56,12 @@ func (c *ARPCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]R
 	var observations []RawObservation
 
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("arp collector: %w", err)
+		}
+
 		addr, parseErr := netip.ParseAddr(entry.IPAddress)
+
 		if parseErr != nil {
 			continue // skip unparseable IPs
 		}

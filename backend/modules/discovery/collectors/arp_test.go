@@ -142,4 +142,49 @@ func TestARPCollector_Collect(t *testing.T) {
 			t.Fatal("expected context cancellation error, got nil")
 		}
 	})
+
+	t.Run("Rejects oversized CIDR larger than /16", func(t *testing.T) {
+		reader := &fakeARPReader{}
+		c := collectors.NewARPCollector(reader)
+		target := collectors.DiscoveryTarget{CIDR: "10.0.0.0/8", SubnetID: "sub-1"}
+
+		_, err := c.Collect(context.Background(), target)
+		if err == nil {
+			t.Fatal("expected error for oversized CIDR /8, got nil")
+		}
+		if !errors.Is(err, collectors.ErrCIDRTooLarge) {
+			t.Errorf("expected ErrCIDRTooLarge, got %v", err)
+		}
+	})
+
+	t.Run("Cancels during entry loop when context is cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Reader cancels context while reading entries
+		cancellingReader := &cancellingARPReader{
+			cancel: cancel,
+			entries: []collectors.ARPEntry{
+				{IPAddress: "192.168.1.10", MACAddress: "aa:bb:cc:dd:ee:01", Interface: "eth0"},
+			},
+		}
+
+		c := collectors.NewARPCollector(cancellingReader)
+		target := collectors.DiscoveryTarget{CIDR: "192.168.1.0/24", SubnetID: "sub-1"}
+
+		_, err := c.Collect(ctx, target)
+		if err == nil {
+			t.Fatal("expected context cancellation error during loop, got nil")
+		}
+	})
 }
+
+type cancellingARPReader struct {
+	cancel  context.CancelFunc
+	entries []collectors.ARPEntry
+}
+
+func (c *cancellingARPReader) ReadEntries(_ context.Context) ([]collectors.ARPEntry, error) {
+	c.cancel() // cancel context right before returning entries
+	return c.entries, nil
+}
+
