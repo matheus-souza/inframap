@@ -190,11 +190,13 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 					processedIPs[normalized.IPAddress] = true
 
 					if o.bus != nil {
-						_ = o.bus.Publish(ctx, eventbus.NewBaseEvent("device.updated", map[string]interface{}{
+						if pubErr := o.bus.Publish(ctx, eventbus.NewBaseEvent("device.updated", map[string]interface{}{
 							"device_id":       existingDev.ID.String(),
 							"ip_address":      normalized.IPAddress,
 							"protocol_source": normalized.ProtocolSource,
-						}))
+						})); pubErr != nil {
+							slog.Warn("failed to publish device.updated event", "device_id", existingDev.ID, "error", pubErr)
+						}
 					}
 				}
 			}
@@ -204,13 +206,15 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 				processedIPs[normalized.IPAddress] = true
 
 				if o.bus != nil {
-					_ = o.bus.Publish(ctx, eventbus.NewBaseEvent("device.discovered", map[string]interface{}{
+					if pubErr := o.bus.Publish(ctx, eventbus.NewBaseEvent("device.discovered", map[string]interface{}{
 						"ip_address":      normalized.IPAddress,
 						"mac_address":     normalized.MACAddress,
 						"hostname":        normalized.Hostname,
 						"vendor":          normalized.Vendor,
 						"protocol_source": normalized.ProtocolSource,
-					}))
+					})); pubErr != nil {
+						slog.Warn("failed to publish device.discovered event", "ip_address", normalized.IPAddress, "error", pubErr)
+					}
 				}
 			}
 		}

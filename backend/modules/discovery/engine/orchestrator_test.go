@@ -46,8 +46,9 @@ func TestDefaultWorkerPoolSize(t *testing.T) {
 	t.Run("Respects INFRAMAP_SCAN_CONCURRENCY override", func(t *testing.T) {
 		t.Setenv("INFRAMAP_SCAN_CONCURRENCY", "8")
 		if got := engine.DefaultWorkerPoolSize(); got != 8 {
-			t.Errorf("expected 8, got %d", 8)
+			t.Errorf("expected 8, got %d", got)
 		}
+
 	})
 
 	t.Run("Falls back on invalid env string", func(t *testing.T) {
