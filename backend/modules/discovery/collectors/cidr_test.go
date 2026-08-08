@@ -78,12 +78,20 @@ func TestExpandCIDR(t *testing.T) {
 		}
 	})
 
+	t.Run("Rejects IPv6 CIDR larger than /112", func(t *testing.T) {
+		_, err := collectors.ExpandCIDR("2001:db8::/64")
+		if err == nil {
+			t.Fatal("expected error for oversized IPv6 CIDR, got nil")
+		}
+	})
+
 	t.Run("Rejects invalid CIDR string", func(t *testing.T) {
 		_, err := collectors.ExpandCIDR("not-a-cidr")
 		if err == nil {
 			t.Fatal("expected error for invalid CIDR, got nil")
 		}
 	})
+
 
 	t.Run("/31 point-to-point returns 2 IPs", func(t *testing.T) {
 		addrs, err := collectors.ExpandCIDR("10.0.0.0/31")
