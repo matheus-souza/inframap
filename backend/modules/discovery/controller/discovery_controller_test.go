@@ -24,8 +24,10 @@ type mockDiscoveryUseCase struct {
 	failGetSource           bool
 	failListSources         bool
 	failTriggerRun          bool
+	failTriggerScan         bool
 	failListRecordsByDevice bool
 }
+
 
 func (m *mockDiscoveryUseCase) CreateSource(_ context.Context, req *dto.CreateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
 	if m.failCreateSource {
@@ -79,7 +81,23 @@ func (m *mockDiscoveryUseCase) TriggerRun(_ context.Context, idStr string) (*dto
 	return s, nil
 }
 
+func (m *mockDiscoveryUseCase) TriggerScan(_ context.Context, req *dto.TriggerScanRequest) (*dto.ScanResultResponse, error) {
+
+	if m.failTriggerScan {
+		return nil, errors.New("internal scan error")
+	}
+	if req == nil || req.CIDR == "" {
+		return nil, usecase.ErrInvalidInput
+	}
+	return &dto.ScanResultResponse{
+		CIDR:           req.CIDR,
+		TotalCollected: 4,
+		TotalValid:     3,
+	}, nil
+}
+
 func (m *mockDiscoveryUseCase) IngestNormalizedDevice(_ context.Context, _ uuid.UUID, _ *dto.NormalizedDeviceDTO) (*dto.DiscoveryRecordResponse, error) {
+
 	return nil, nil
 }
 
@@ -102,7 +120,9 @@ func TestDiscoveryController_Unit(t *testing.T) {
 	mux.HandleFunc("GET /api/v1/discovery/sources", ctrl.ListSources)
 	mux.HandleFunc("GET /api/v1/discovery/sources/{id}", ctrl.GetSourceByID)
 	mux.HandleFunc("POST /api/v1/discovery/sources/{id}/run", ctrl.TriggerRun)
+	mux.HandleFunc("POST /api/v1/discovery/scan", ctrl.TriggerScan)
 	mux.HandleFunc("GET /api/v1/discovery/devices/{id}/records", ctrl.ListRecordsByDevice)
+
 
 	// Pre-seed a source
 	src, _ := uc.CreateSource(context.Background(), &dto.CreateDiscoverySourceRequest{
@@ -315,4 +335,76 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		}
 		uc.failListRecordsByDevice = false
 	})
+
+	t.Run("TriggerScan Success", func(t *testing.T) {
+		body := map[string]interface{}{"cidr": "192.168.1.0/24"}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("POST", "/api/v1/discovery/scan", bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+
+		var env map[string]interface{}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		data, ok := env["data"].(map[string]interface{})
+		if !ok {
+			t.Fatal("expected data map in response envelope")
+		}
+		if cidr, _ := data["cidr"].(string); cidr != "192.168.1.0/24" {
+			t.Errorf("expected cidr '192.168.1.0/24', got %q", cidr)
+		}
+		if tc, _ := data["total_collected"].(float64); int(tc) != 4 {
+			t.Errorf("expected total_collected 4, got %d", int(tc))
+		}
+		if tv, _ := data["total_valid"].(float64); int(tv) != 3 {
+			t.Errorf("expected total_valid 3, got %d", int(tv))
+		}
+	})
+
+
+	t.Run("TriggerScan Invalid JSON", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/discovery/scan", bytes.NewReader([]byte("invalid json")))
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request, got %d", rec.Code)
+		}
+	})
+
+	t.Run("TriggerScan Invalid Input", func(t *testing.T) {
+		body := map[string]interface{}{"cidr": ""}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("POST", "/api/v1/discovery/scan", bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request, got %d", rec.Code)
+		}
+	})
+
+	t.Run("TriggerScan Internal Error", func(t *testing.T) {
+		uc.failTriggerScan = true
+		body := map[string]interface{}{"cidr": "192.168.1.0/24"}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("POST", "/api/v1/discovery/scan", bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500 Internal Server Error, got %d", rec.Code)
+		}
+		uc.failTriggerScan = false
+	})
 }
+

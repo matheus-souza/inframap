@@ -115,3 +115,25 @@ func (c *DiscoveryController) ListRecordsByDevice(w http.ResponseWriter, r *http
 		"total": len(records),
 	})
 }
+
+// TriggerScan handles POST /api/v1/discovery/scan
+func (c *DiscoveryController) TriggerScan(w http.ResponseWriter, r *http.Request) {
+	var req dto.TriggerScanRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_JSON", "Invalid JSON payload format", nil)
+		return
+	}
+
+	resp, err := c.uc.TriggerScan(r.Context(), &req)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidInput) {
+			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_INPUT", err.Error(), nil)
+			return
+		}
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to execute active discovery scan", nil)
+		return
+	}
+
+	httputil.WriteJSON(w, r, http.StatusOK, resp)
+}
+

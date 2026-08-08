@@ -131,4 +131,39 @@ func TestE2E_DiscoveryFlow(t *testing.T) {
 			t.Fatalf("expected 200 OK on trigger run, got %d", resp.StatusCode)
 		}
 	})
+
+	t.Run("Step 5: Trigger Active Network Scan", func(t *testing.T) {
+		scanPayload := discdto.TriggerScanRequest{
+			CIDR: "127.0.0.1/32",
+		}
+		body, _ := json.Marshal(scanPayload)
+
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/discovery/scan", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("trigger active scan request failed: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK on trigger scan, got %d", resp.StatusCode)
+		}
+
+		var env httputil.SuccessEnvelope
+		if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode scan response: %v", err)
+		}
+		dataMap, ok := env.Data.(map[string]any)
+		if !ok {
+			t.Fatal("expected data map in scan response envelope")
+		}
+		if cidr, _ := dataMap["cidr"].(string); cidr != "127.0.0.1/32" {
+			t.Errorf("expected cidr '127.0.0.1/32', got %q", cidr)
+		}
+	})
 }
+
+

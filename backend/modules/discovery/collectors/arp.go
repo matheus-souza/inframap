@@ -38,9 +38,14 @@ func (c *ARPCollector) Name() string { return "ARP Table Reader" }
 
 // Collect reads the ARP table and returns observations for entries within the target CIDR.
 func (c *ARPCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]RawObservation, error) {
+	if c.reader == nil {
+		return nil, nil
+	}
+
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("arp collector: %w", err)
 	}
+
 
 	prefix, err := ParseTargetPrefix(target.CIDR)
 	if err != nil {

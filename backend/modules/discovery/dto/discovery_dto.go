@@ -97,3 +97,43 @@ type DiscoveryRecordResponse struct {
 	RawPayload        map[string]interface{} `json:"raw_payload"`
 	LastScannedAt     time.Time              `json:"last_scanned_at"`
 }
+
+// TriggerScanRequest represents the request payload to initiate an active network scan.
+type TriggerScanRequest struct {
+	CIDR            string  `json:"cidr"`
+	SubnetID        string  `json:"subnet_id,omitempty"`
+	CredentialSetID *string `json:"credential_set_id,omitempty"`
+}
+
+// Normalize trims whitespace and normalizes payload parameters.
+func (r *TriggerScanRequest) Normalize() {
+	r.CIDR = strings.TrimSpace(r.CIDR)
+	r.SubnetID = strings.TrimSpace(r.SubnetID)
+	if r.CredentialSetID != nil {
+		val := strings.TrimSpace(*r.CredentialSetID)
+		if val == "" {
+			r.CredentialSetID = nil
+		} else {
+			r.CredentialSetID = &val
+		}
+	}
+}
+
+// Validate checks that CIDR is present and valid.
+func (r *TriggerScanRequest) Validate() error {
+	if r.CIDR == "" {
+		return errors.New("cidr target string cannot be empty")
+	}
+	return nil
+}
+
+// ScanResultResponse represents the HTTP API response summarizing an active discovery scan execution.
+type ScanResultResponse struct {
+	CIDR            string `json:"cidr"`
+	TotalCollected  int    `json:"total_collected"`
+	TotalValid      int    `json:"total_valid"`
+	TotalDiscovered int    `json:"total_discovered"`
+	TotalUpdated    int    `json:"total_updated"`
+	DurationMs      int64  `json:"duration_ms"`
+}
+

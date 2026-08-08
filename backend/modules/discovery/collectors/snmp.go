@@ -76,9 +76,14 @@ var snmpTargetOIDs = []string{
 
 // Collect queries all host IPs within target CIDR using resolved credential sets.
 func (c *SNMPCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]RawObservation, error) {
+	if c.client == nil {
+		return nil, nil
+	}
+
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("snmp collector: %w", err)
 	}
+
 
 	addrs, err := ExpandCIDR(target.CIDR)
 	if err != nil {

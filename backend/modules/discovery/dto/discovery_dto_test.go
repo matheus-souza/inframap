@@ -52,3 +52,48 @@ func TestCreateDiscoverySourceRequest_NormalizeAndValidate(t *testing.T) {
 		}
 	})
 }
+
+func TestTriggerScanRequest_NormalizeAndValidate(t *testing.T) {
+	t.Run("Valid request with whitespace and optional fields", func(t *testing.T) {
+		credID := "  cred-123  "
+		req := &dto.TriggerScanRequest{
+			CIDR:            "  192.168.1.0/24  ",
+			SubnetID:        "  subnet-456  ",
+			CredentialSetID: &credID,
+		}
+		req.Normalize()
+		if req.CIDR != "192.168.1.0/24" {
+			t.Errorf("expected trimmed CIDR, got %q", req.CIDR)
+		}
+		if req.SubnetID != "subnet-456" {
+			t.Errorf("expected trimmed SubnetID, got %q", req.SubnetID)
+		}
+		if req.CredentialSetID == nil || *req.CredentialSetID != "cred-123" {
+			t.Errorf("expected trimmed CredentialSetID 'cred-123', got %v", req.CredentialSetID)
+		}
+		if err := req.Validate(); err != nil {
+			t.Fatalf("expected valid request, got %v", err)
+		}
+	})
+
+	t.Run("Empty CredentialSetID normalizes to nil", func(t *testing.T) {
+		emptyCred := "   "
+		req := &dto.TriggerScanRequest{
+			CIDR:            "10.0.0.0/24",
+			CredentialSetID: &emptyCred,
+		}
+		req.Normalize()
+		if req.CredentialSetID != nil {
+			t.Errorf("expected nil CredentialSetID, got %v", req.CredentialSetID)
+		}
+	})
+
+	t.Run("Empty CIDR fails validation", func(t *testing.T) {
+		req := &dto.TriggerScanRequest{CIDR: "   "}
+		req.Normalize()
+		if err := req.Validate(); err == nil {
+			t.Error("expected error for empty CIDR, got nil")
+		}
+	})
+}
+
