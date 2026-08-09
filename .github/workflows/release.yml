@@ -133,6 +133,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: APP_VERSION=${{ steps.release_tag.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

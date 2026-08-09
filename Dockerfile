@@ -17,6 +17,7 @@ RUN ./gradlew wasmJsBrowserDistribution --no-daemon
 
 # Stage 2: Build Backend Single Binary (Go + Embedded WASM)
 FROM golang:1.25-alpine AS builder-backend
+ARG APP_VERSION=dev
 WORKDIR /app/backend
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
@@ -24,7 +25,7 @@ RUN go mod download
 COPY backend/ ./
 COPY --from=builder-frontend /app/frontend/build/dist/wasmJs/productionExecutable/ ./cmd/api/static/
 
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /inframap ./cmd/api
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X github.com/matheussouza/inframap/modules/configuration/usecase.AppVersion=${APP_VERSION}" -o /inframap ./cmd/api
 
 # Stage 3: Minimal Runtime (Distroless Static)
 FROM gcr.io/distroless/static-debian12:nonroot

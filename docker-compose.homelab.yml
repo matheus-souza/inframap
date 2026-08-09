@@ -1,0 +1,41 @@
+services:
+  inframap:
+    image: ghcr.io/matheus-souza/inframap:latest
+    container_name: inframap
+    restart: unless-stopped
+    ports:
+      - "8055:8055"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+      INFRAMAP_PORT: "8055"
+      INFRAMAP_MASTER_KEY: ${INFRAMAP_MASTER_KEY:?INFRAMAP_MASTER_KEY must be set}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - inframap-net
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: inframap-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: inframap
+      POSTGRES_USER: inframap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - ${POSTGRES_DATA_PATH:-inframap-pgdata}:/var/lib/postgresql/data
+    networks:
+      - inframap-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inframap"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  inframap-net:
+    driver: bridge
+
+volumes:
+  inframap-pgdata:

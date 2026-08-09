@@ -37,7 +37,7 @@ copy-frontend-assets: ## Copy compiled WASM assets to backend embed directory
 
 build-backend: ## Build production backend binary
 	@echo "Building InfraMap single binary..."
-	cd backend && CGO_ENABLED=0 $(GO) build -ldflags="-s -w" -o bin/inframap ./cmd/api
+	cd backend && CGO_ENABLED=0 $(GO) build -ldflags="-s -w -X github.com/matheussouza/inframap/modules/configuration/usecase.AppVersion=$(shell git describe --tags --exact-match 2>/dev/null || echo dev)" -o bin/inframap ./cmd/api
 
 build: build-frontend copy-frontend-assets build-backend ## Build complete single-binary InfraMap application (Backend + Embedded WASM Frontend)
 
