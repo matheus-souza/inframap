@@ -159,7 +159,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	// 2. Database Migrations (auto-apply on startup)
 	if cfg.DatabaseURL != "" {
 		if err := db.RunMigrations(ctx, cfg.DatabaseURL); err != nil {
-			log.Warn("database migration failed (continuing for offline/testing mode)", slog.Any("error", err))
+			return nil, fmt.Errorf("run database migrations: %w", err)
 		}
 	}
 

@@ -19,7 +19,7 @@ services:
     ports:
       - "8055:8055"
     environment:
-      DATABASE_URL: postgres://inframap:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/inframap?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
       INFRAMAP_PORT: "8055"
       INFRAMAP_MASTER_KEY: ${INFRAMAP_MASTER_KEY:?INFRAMAP_MASTER_KEY must be set}
     depends_on:
@@ -76,13 +76,14 @@ Create a `.env` file next to your `docker-compose.yml`:
 
 ```env
 POSTGRES_PASSWORD=your_secure_postgres_password_here
+DATABASE_URL=postgres://inframap:your_secure_postgres_password_here@postgres:5432/inframap?sslmode=disable
 INFRAMAP_MASTER_KEY=your_exact_32_character_master_key_here
 
 # Optional: bind-mount PostgreSQL data to a specific host path (default: named Docker volume)
 # POSTGRES_DATA_PATH=/path/to/persistent/storage/inframap/postgres
 ```
 
-> **Important**: `POSTGRES_PASSWORD` is interpolated into a `postgres://` connection URL. If your password contains URL-reserved characters (`@`, `#`, `?`, `/`, `%`), you must percent-encode them (e.g., `p@ss` → `p%40ss`). Alternatively, set `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` as separate env vars — pgx supports both formats.
+> **Important**: `DATABASE_URL` and `POSTGRES_PASSWORD` are separate variables. `POSTGRES_PASSWORD` sets the raw password that PostgreSQL stores; `DATABASE_URL` is the connection string the application uses. If your password contains URL-reserved characters (`@`, `#`, `?`, `/`, `%`), percent-encode them only in `DATABASE_URL` (e.g., `p@ss` → `p%40ss` in the URL, but keep `p@ss` as-is in `POSTGRES_PASSWORD`). Alternatively, set `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` as separate env vars — pgx supports both formats.
 
 ---
 

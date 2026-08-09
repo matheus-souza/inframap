@@ -6,7 +6,7 @@ services:
     ports:
       - "8055:8055"
     environment:
-      DATABASE_URL: postgres://inframap:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/inframap?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
       INFRAMAP_PORT: "8055"
       INFRAMAP_MASTER_KEY: ${INFRAMAP_MASTER_KEY:?INFRAMAP_MASTER_KEY must be set}
     depends_on:

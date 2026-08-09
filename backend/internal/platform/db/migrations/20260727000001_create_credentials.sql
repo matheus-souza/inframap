@@ -14,5 +14,11 @@ CREATE TABLE credentials (
 CREATE INDEX idx_credentials_type ON credentials(type);
 CREATE INDEX idx_credentials_created_at ON credentials(created_at DESC);
 
+CREATE TRIGGER update_credentials_updated_at
+    BEFORE UPDATE ON credentials
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- +goose Down
+DROP TRIGGER IF EXISTS update_credentials_updated_at ON credentials;
 DROP TABLE IF EXISTS credentials;
