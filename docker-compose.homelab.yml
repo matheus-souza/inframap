@@ -24,7 +24,7 @@ services:
       POSTGRES_USER: inframap
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     volumes:
-      - /mnt/usb-dock/docker/inframap/postgres:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_PATH:-inframap-pgdata}:/var/lib/postgresql/data
     networks:
       - inframap-net
     healthcheck:
@@ -36,3 +36,6 @@ services:
 networks:
   inframap-net:
     driver: bridge
+
+volumes:
+  inframap-pgdata:

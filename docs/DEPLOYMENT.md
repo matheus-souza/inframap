@@ -19,9 +19,9 @@ services:
     ports:
       - "8055:8055"
     environment:
-      - DATABASE_URL=postgres://inframap:${POSTGRES_PASSWORD}@postgres:5432/inframap?sslmode=disable
-      - INFRAMAP_PORT=8055
-      - INFRAMAP_MASTER_KEY=${INFRAMAP_MASTER_KEY}
+      DATABASE_URL: postgres://inframap:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/inframap?sslmode=disable
+      INFRAMAP_PORT: "8055"
+      INFRAMAP_MASTER_KEY: ${INFRAMAP_MASTER_KEY:?INFRAMAP_MASTER_KEY must be set}
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,9 +35,9 @@ services:
     environment:
       POSTGRES_DB: inframap
       POSTGRES_USER: inframap
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     volumes:
-      - postgres_prod_data:/var/lib/postgresql/data
+      - ${POSTGRES_DATA_PATH:-inframap-pgdata}:/var/lib/postgresql/data
     networks:
       - inframap-net
     healthcheck:
@@ -51,7 +51,7 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_prod_data:
+  inframap-pgdata:
 ```
 
 ---
@@ -77,7 +77,9 @@ Create a `.env` file next to your `docker-compose.yml`:
 ```env
 POSTGRES_PASSWORD=your_secure_postgres_password_here
 INFRAMAP_MASTER_KEY=your_exact_32_character_master_key_here
-INFRAMAP_PORT=8055
+
+# Optional: bind-mount PostgreSQL data to a specific host path (default: named Docker volume)
+# POSTGRES_DATA_PATH=/path/to/persistent/storage/inframap/postgres
 ```
 
 > **Important**: `POSTGRES_PASSWORD` is interpolated into a `postgres://` connection URL. If your password contains URL-reserved characters (`@`, `#`, `?`, `/`, `%`), you must percent-encode them (e.g., `p@ss` → `p%40ss`). Alternatively, set `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` as separate env vars — pgx supports both formats.
