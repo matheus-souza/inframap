@@ -86,6 +86,8 @@ INFRAMAP_PORT=8055
 
 ## 3. Initial Setup & Onboarding
 
+Database migrations are applied automatically on container startup (via embedded Goose). No manual migration step is required.
+
 1. Start the stack: `docker compose up -d`
 2. Open `http://<your-server-ip>:8055` in your browser.
 3. Complete the Onboarding Wizard to set up admin credentials and start automated network discovery.

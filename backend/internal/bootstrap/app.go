@@ -156,7 +156,14 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		log.Warn("INFRAMAP_MASTER_KEY not set: using ephemeral random key — encrypted data will NOT survive restarts (set this variable in production)")
 	}
 
-	// 2. Database Connection Pool
+	// 2. Database Migrations (auto-apply on startup)
+	if cfg.DatabaseURL != "" {
+		if err := db.RunMigrations(ctx, cfg.DatabaseURL); err != nil {
+			log.Warn("database migration failed (continuing for offline/testing mode)", slog.Any("error", err))
+		}
+	}
+
+	// 3. Database Connection Pool
 	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid database URL: %w", err)

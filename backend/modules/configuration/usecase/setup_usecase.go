@@ -15,7 +15,8 @@ import (
 )
 
 // AppVersion defines the technical installation version.
-const AppVersion = "v1.0.0-rc.7"
+// Injected at build time via -ldflags "-X ...AppVersion=vX.Y.Z".
+var AppVersion = "dev"
 
 // ErrAlreadyOnboarded indicates that onboarding has already been completed.
 var ErrAlreadyOnboarded = errors.New("system onboarding is already completed")
