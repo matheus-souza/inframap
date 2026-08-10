@@ -52,13 +52,19 @@ func DefaultWorkerPoolSize() int {
 	return cpus
 }
 
+// DeviceCallback is invoked for each valid, normalized observation after matching.
+// sourceType is the protocol source (e.g. "icmp", "arp"). norm is the normalized DTO.
+// matched indicates whether the device was found in active inventory.
+type DeviceCallback func(ctx context.Context, norm *dto.NormalizedDeviceDTO, sourceType string, matched bool)
+
 // DefaultOrchestrator implements Orchestrator.
 type DefaultOrchestrator struct {
-	mu         sync.RWMutex
-	collectors []collectors.Collector
-	matcher    IdentityMatcher
-	reconciler FieldReconciler
-	bus        eventbus.EventBus
+	mu               sync.RWMutex
+	collectors       []collectors.Collector
+	matcher          IdentityMatcher
+	reconciler       FieldReconciler
+	bus              eventbus.EventBus
+	onDeviceCallback DeviceCallback
 }
 
 // NewDefaultOrchestrator constructs a DefaultOrchestrator with default matcher and reconciler.
@@ -69,6 +75,13 @@ func NewDefaultOrchestrator(bus eventbus.EventBus) *DefaultOrchestrator {
 		reconciler: NewDefaultFieldReconciler(),
 		bus:        bus,
 	}
+}
+
+// SetDeviceCallback registers a callback invoked for each processed device observation.
+func (o *DefaultOrchestrator) SetDeviceCallback(cb DeviceCallback) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.onDeviceCallback = cb
 }
 
 // RegisterCollector appends a collector worker to the orchestrator.
@@ -174,7 +187,6 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 		matchRes := o.matcher.MatchDevice(normDTO, activeDevices)
 
 		if matchRes.DeviceID != nil {
-			// Find existing active device
 			var existingDev *db.Device
 			for i := range activeDevices {
 				if activeDevices[i].ID == *matchRes.DeviceID {
@@ -198,6 +210,13 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 							slog.Warn("failed to publish device.updated event", "device_id", existingDev.ID, "error", pubErr)
 						}
 					}
+
+					o.mu.RLock()
+					cb := o.onDeviceCallback
+					o.mu.RUnlock()
+					if cb != nil {
+						cb(ctx, normDTO, normalized.ProtocolSource, true)
+					}
 				}
 			}
 		} else {
@@ -215,6 +234,13 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 					})); pubErr != nil {
 						slog.Warn("failed to publish device.discovered event", "ip_address", normalized.IPAddress, "error", pubErr)
 					}
+				}
+
+				o.mu.RLock()
+				cb := o.onDeviceCallback
+				o.mu.RUnlock()
+				if cb != nil {
+					cb(ctx, normDTO, normalized.ProtocolSource, false)
 				}
 			}
 		}

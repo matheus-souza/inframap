@@ -18,6 +18,7 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/internal/platform/httputil"
+	"github.com/matheussouza/inframap/internal/platform/netinfo"
 	"github.com/matheussouza/inframap/internal/platform/spa"
 	"github.com/matheussouza/inframap/internal/platform/logger"
 	"github.com/matheussouza/inframap/modules/audit"
@@ -243,6 +244,16 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 			"status":  status,
 			"version": configuc.AppVersion,
 		})
+	})
+
+	// Network interface auto-detection endpoint
+	mux.HandleFunc("GET /api/v1/network/interfaces", func(w http.ResponseWriter, r *http.Request) {
+		ifaces, ifErr := netinfo.DetectInterfaces()
+		if ifErr != nil {
+			httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to detect network interfaces", nil)
+			return
+		}
+		httputil.WriteJSON(w, r, http.StatusOK, map[string]interface{}{"data": ifaces})
 	})
 
 	// Wire Integrations Registry & Native Providers

@@ -34,6 +34,11 @@ type DiscoveryRepository interface {
 	ListRecordsByDevice(ctx context.Context, deviceID uuid.UUID) ([]*dto.DiscoveryRecordResponse, error)
 }
 
+// ConfigPayload represents decrypted discovery source configuration.
+type ConfigPayload struct {
+	CIDR string `json:"cidr"`
+}
+
 // PgDiscoveryRepository implements DiscoveryRepository backed by PostgreSQL.
 type PgDiscoveryRepository struct {
 	queries   *db.Queries
@@ -90,7 +95,7 @@ func (r *PgDiscoveryRepository) CreateSource(ctx context.Context, req *dto.Creat
 		return nil, fmt.Errorf("failed to create discovery source: %w", err)
 	}
 
-	return mapSourceToDTO(&row), nil
+	return r.mapSourceToDTO(&row), nil
 }
 
 // GetSourceByID retrieves a single discovery source by ID.
@@ -103,7 +108,7 @@ func (r *PgDiscoveryRepository) GetSourceByID(ctx context.Context, id uuid.UUID)
 		return nil, fmt.Errorf("failed to query discovery source: %w", err)
 	}
 
-	return mapSourceToDTO(&row), nil
+	return r.mapSourceToDTO(&row), nil
 }
 
 // ListSources retrieves all discovery sources ordered by creation date descending.
@@ -115,7 +120,7 @@ func (r *PgDiscoveryRepository) ListSources(ctx context.Context) ([]*dto.Discove
 
 	items := make([]*dto.DiscoverySourceResponse, len(rows))
 	for i, row := range rows {
-		items[i] = mapSourceToDTO(&row)
+		items[i] = r.mapSourceToDTO(&row)
 	}
 	return items, nil
 }
@@ -133,7 +138,7 @@ func (r *PgDiscoveryRepository) UpdateSourceStatus(ctx context.Context, id uuid.
 		return nil, fmt.Errorf("failed to update discovery source status: %w", err)
 	}
 
-	return mapSourceToDTO(&row), nil
+	return r.mapSourceToDTO(&row), nil
 }
 
 // DeleteSource removes a discovery source record.
@@ -181,7 +186,7 @@ func (r *PgDiscoveryRepository) ListRecordsByDevice(ctx context.Context, deviceI
 	return items, nil
 }
 
-func mapSourceToDTO(row *db.DiscoverySource) *dto.DiscoverySourceResponse {
+func (r *PgDiscoveryRepository) mapSourceToDTO(row *db.DiscoverySource) *dto.DiscoverySourceResponse {
 	resp := &dto.DiscoverySourceResponse{
 		ID:         row.ID,
 		Name:       row.Name,
@@ -196,6 +201,15 @@ func mapSourceToDTO(row *db.DiscoverySource) *dto.DiscoverySourceResponse {
 	}
 	if row.LastRunAt.Valid {
 		resp.LastRunAt = &row.LastRunAt.Time
+	}
+	if row.ConfigEncrypted.Valid && r.encryptor != nil {
+		decrypted, err := r.encryptor.Decrypt(row.ConfigEncrypted.String)
+		if err == nil {
+			var cfg ConfigPayload
+			if json.Unmarshal(decrypted, &cfg) == nil {
+				resp.ConfigCIDR = cfg.CIDR
+			}
+		}
 	}
 	return resp
 }

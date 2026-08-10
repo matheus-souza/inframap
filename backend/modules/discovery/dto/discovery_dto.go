@@ -63,15 +63,16 @@ func (r *CreateDiscoverySourceRequest) Validate() error {
 
 // DiscoverySourceResponse represents a discovery source returned to API clients.
 type DiscoverySourceResponse struct {
-	ID           uuid.UUID              `json:"id"`
-	Name         string                 `json:"name"`
-	Type         string                 `json:"type"`
-	Enabled      bool                   `json:"enabled"`
-	ScheduleCron *string                `json:"schedule_cron,omitempty"`
-	LastRunAt    *time.Time             `json:"last_run_at,omitempty"`
-	LastStatus   string                 `json:"last_status"`
-	CreatedAt    time.Time              `json:"created_at"`
-	UpdatedAt    time.Time              `json:"updated_at"`
+	ID           uuid.UUID `json:"id"`
+	Name         string    `json:"name"`
+	Type         string    `json:"type"`
+	Enabled      bool      `json:"enabled"`
+	ScheduleCron *string   `json:"schedule_cron,omitempty"`
+	ConfigCIDR   string    `json:"config_cidr,omitempty"`
+	LastRunAt    *time.Time `json:"last_run_at,omitempty"`
+	LastStatus   string    `json:"last_status"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 // NormalizedDeviceDTO represents a normalized device observation parsed from raw scanner payloads.
