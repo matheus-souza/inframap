@@ -13,8 +13,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Lan
+import androidx.compose.material.icons.filled.MoveToInbox
+import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
@@ -30,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -68,16 +76,17 @@ import org.koin.core.parameter.parametersOf
 
 data class NavItem(
     val label: String,
+    val icon: ImageVector,
     val route: Route,
 )
 
 private val navItems =
     listOf(
-        NavItem("Dashboard", Route.Dashboard),
-        NavItem("Devices", Route.Devices),
-        NavItem("Staging", Route.Staging),
-        NavItem("Subnets", Route.Subnets),
-        NavItem("Topology", Route.Topology),
+        NavItem("Dashboard", Icons.Filled.SpaceDashboard, Route.Dashboard),
+        NavItem("Devices", Icons.Filled.Dns, Route.Devices),
+        NavItem("Staging", Icons.Filled.MoveToInbox, Route.Staging),
+        NavItem("Subnets", Icons.Filled.Lan, Route.Subnets),
+        NavItem("Topology", Icons.Filled.AccountTree, Route.Topology),
     )
 
 @Composable
@@ -174,7 +183,12 @@ private fun AppNavRail(
             NavigationRailItem(
                 selected = isSelected,
                 onClick = { navigator.navigateTo(item.route) },
-                icon = {},
+                icon = {
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = item.label,
+                    )
+                },
                 label = {
                     Text(
                         text = item.label,
