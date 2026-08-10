@@ -397,6 +397,128 @@ class DashboardViewModelTest {
         }
 
     @Test
+    fun healthFallbackPopulatesHealthWhenAuthGatedEndpointsFail() =
+        runTest {
+            val dashRepo = FakeDashboardRepository()
+            val deviceRepo =
+                FakeDeviceRepository(
+                    getDevicesResult =
+                        ApiResult.Error(
+                            code = "UNAUTHENTICATED",
+                            message = "Token expired",
+                            requestId = "",
+                            httpStatus = 401,
+                        ),
+                )
+            val stagingRepo =
+                FakeStagingRepository(
+                    getStagingDevicesResult =
+                        ApiResult.Error(
+                            code = "UNAUTHENTICATED",
+                            message = "Token expired",
+                            requestId = "",
+                            httpStatus = 401,
+                        ),
+                )
+            val vm = makeVm(deviceRepo = deviceRepo, stagingRepo = stagingRepo, dashRepo = dashRepo, scope = this)
+
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
+                assertFalse(state.isLoading)
+                assertNotNull(state.errorMessage)
+                assertEquals(true, state.isSystemHealthy)
+                assertEquals("v1.2.3", state.systemVersion)
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.clear()
+        }
+
+    @Test
+    fun healthFallbackPreservesPreviousHealthWhenAllEndpointsFail() =
+        runTest {
+            val deviceRepo =
+                FakeDeviceRepository(
+                    getDevicesResult =
+                        ApiResult.Success(
+                            PaginatedList(items = listOf(FakeDeviceRepository.DEFAULT_DEVICE), total = 15L, page = 1, perPage = 1),
+                            requestId = "",
+                        ),
+                )
+            val stagingRepo =
+                FakeStagingRepository(
+                    getStagingDevicesResult =
+                        ApiResult.Success(
+                            PaginatedList(items = emptyList(), total = 3L, page = 1, perPage = 50),
+                            requestId = "",
+                        ),
+                )
+            val dashRepo = FakeDashboardRepository()
+            val vm = makeVm(deviceRepo = deviceRepo, stagingRepo = stagingRepo, dashRepo = dashRepo, scope = this)
+
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
+                assertEquals(true, vm.state.value.isSystemHealthy)
+                assertEquals("v1.2.3", vm.state.value.systemVersion)
+
+                val networkError = ApiResult.NetworkError(RuntimeException("Network down"))
+                deviceRepo.getDevicesResult = networkError
+                stagingRepo.getStagingDevicesResult = networkError
+                dashRepo.getHealthResult = networkError
+                dashRepo.getDiscoverySourcesResult = networkError
+                vm.refresh()
+                skipItems(1)
+                val state = awaitItem()
+                assertNotNull(state.errorMessage)
+                assertEquals(true, state.isSystemHealthy)
+                assertEquals("v1.2.3", state.systemVersion)
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.clear()
+        }
+
+    @Test
+    fun staleResponseIsDiscardedByGenerationToken() =
+        runTest {
+            val deviceRepo =
+                FakeDeviceRepository(
+                    getDevicesResult =
+                        ApiResult.Success(
+                            PaginatedList(
+                                items = listOf(FakeDeviceRepository.DEFAULT_DEVICE),
+                                total = 10L,
+                                page = 1,
+                                perPage = 1,
+                            ),
+                            requestId = "",
+                        ),
+                    onGetDevices = { kotlinx.coroutines.delay(5000L) },
+                )
+            val vm = makeVm(deviceRepo = deviceRepo, scope = this)
+
+            advanceTimeBy(1000L)
+            runCurrent()
+
+            deviceRepo.onGetDevices = null
+            deviceRepo.getDevicesResult =
+                ApiResult.Success(
+                    PaginatedList(
+                        items = listOf(FakeDeviceRepository.DEFAULT_DEVICE),
+                        total = 99L,
+                        page = 1,
+                        perPage = 1,
+                    ),
+                    requestId = "",
+                )
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertEquals(99L, vm.state.value.totalActiveDevices)
+            vm.clear()
+        }
+
+    @Test
     fun dashboardUiStateDefaultsAreCorrect() {
         val state = DashboardUiState()
         assertEquals(0L, state.totalActiveDevices)

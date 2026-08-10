@@ -9,13 +9,21 @@ internal val InfraMapColorScheme: ColorScheme =
     darkColorScheme(
         primary = InfraMapPurple,
         secondary = InfraMapCyan,
+        tertiary = InfraMapOrange,
         background = InfraMapBackground,
         surface = InfraMapSurface,
+        surfaceVariant = InfraMapSurfaceVariant,
+        surfaceContainerHighest = InfraMapSurfaceContainerHighest,
         error = InfraMapRed,
+        errorContainer = InfraMapErrorContainer,
         onPrimary = InfraMapBackground,
         onSecondary = InfraMapBackground,
+        onTertiary = InfraMapBackground,
         onBackground = InfraMapForeground,
         onSurface = InfraMapForeground,
+        onSurfaceVariant = InfraMapOnSurfaceVariant,
+        onError = InfraMapOnError,
+        onErrorContainer = InfraMapOnErrorContainer,
         outline = InfraMapComment,
     )
 

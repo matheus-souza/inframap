@@ -25,6 +25,8 @@ class DashboardViewModel(
     private val autoRefreshIntervalMs: Long = 30_000L,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<DashboardUiState>(DashboardUiState(), scope) {
+    private var metricsGeneration = 0L
+
     init {
         loadData()
         startAutoRefresh()
@@ -32,6 +34,7 @@ class DashboardViewModel(
     }
 
     fun loadData() {
+        metricsGeneration++
         updateState { it.copy(isLoading = true, errorMessage = null) }
         triggerFetchMetrics()
     }
@@ -56,7 +59,8 @@ class DashboardViewModel(
     }
 
     @Suppress("LongMethod")
-    private suspend fun fetchMetrics() =
+    private suspend fun fetchMetrics() {
+        val generation = metricsGeneration
         coroutineScope {
             val devicesDeferred = async { getDevicesUseCase(page = 1, perPage = 1) }
             val stagingDeferred = async { getStagingDevicesUseCase(page = 1, perPage = 1) }
@@ -68,16 +72,25 @@ class DashboardViewModel(
             val healthResult = healthDeferred.await()
             val sourcesResult = sourcesDeferred.await()
 
+            if (generation != metricsGeneration) return@coroutineScope
+
             val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult)
 
             val networkError = results.firstOrNull { it is ApiResult.NetworkError }
             if (networkError != null) {
-                handleMetricsNetworkError(networkError)
+                handleMetricsError(
+                    mapError(networkError, UiText.Resource(Res.string.dashboard_error_load)),
+                    healthResult,
+                )
                 return@coroutineScope
             }
 
-            if (results.any { it is ApiResult.Error }) {
-                handleMetricsApiError(results)
+            val errorResult = results.firstOrNull { it is ApiResult.Error }
+            if (errorResult != null) {
+                handleMetricsError(
+                    mapError(errorResult, UiText.Resource(Res.string.dashboard_error_load)),
+                    healthResult,
+                )
                 return@coroutineScope
             }
 
@@ -98,25 +111,21 @@ class DashboardViewModel(
                 )
             }
         }
-
-    private fun handleMetricsNetworkError(representative: ApiResult<*>) {
-        updateState {
-            it.copy(
-                isLoading = false,
-                errorMessage = mapError(representative, UiText.Resource(Res.string.dashboard_error_load)),
-            )
-        }
     }
 
-    private fun handleMetricsApiError(results: List<ApiResult<*>>) {
-        val errorResult = results.filterIsInstance<ApiResult.Error>().firstOrNull()
-        val errorMsg =
-            errorResult?.let { mapError(it, UiText.Resource(Res.string.dashboard_error_load)) }
-                ?: UiText.Resource(Res.string.dashboard_error_load)
+    private fun handleMetricsError(
+        errorMsg: UiText,
+        healthResult: ApiResult<*>,
+    ) {
+        val healthData =
+            (healthResult as? ApiResult.Success)
+                ?.data as? com.inframap.frontend.domain.model.Health
         updateState {
             it.copy(
                 isLoading = false,
                 errorMessage = errorMsg,
+                isSystemHealthy = healthData?.isHealthy ?: it.isSystemHealthy,
+                systemVersion = healthData?.version ?: it.systemVersion,
             )
         }
     }
