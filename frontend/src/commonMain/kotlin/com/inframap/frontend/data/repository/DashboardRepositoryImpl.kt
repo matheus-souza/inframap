@@ -18,7 +18,7 @@ class DashboardRepositoryImpl(
     private val apiClient: ApiClient,
 ) : DashboardRepository {
     override suspend fun getHealth(): ApiResult<Health> =
-        apiClient.get<HealthDto>("/health").map {
+        apiClient.get<HealthDto>("/api/v1/health").map {
             DashboardMapper.toDomain(it)
         }
 
