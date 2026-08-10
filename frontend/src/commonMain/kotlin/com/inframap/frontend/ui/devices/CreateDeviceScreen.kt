@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -62,7 +64,11 @@ fun CreateDeviceScreen(
 @Composable
 private fun CreateDeviceHeader(onCancelClicked: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        InfraMapOutlinedButton(text = "← Voltar", onClick = onCancelClicked)
+        InfraMapOutlinedButton(
+            text = "Voltar",
+            onClick = onCancelClicked,
+            leadingIcon = Icons.AutoMirrored.Filled.ArrowBack,
+        )
         Spacer(modifier = Modifier.width(16.dp))
         Column {
             Text(

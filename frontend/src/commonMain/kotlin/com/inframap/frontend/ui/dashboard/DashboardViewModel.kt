@@ -106,6 +106,7 @@ class DashboardViewModel(
                 errorMessage = mapError(representative, UiText.Resource(Res.string.dashboard_error_load)),
             )
         }
+        launchJob("fetch_health_fallback") { fetchHealth() }
     }
 
     private fun handleMetricsApiError(results: List<ApiResult<*>>) {
@@ -119,6 +120,7 @@ class DashboardViewModel(
                 errorMessage = errorMsg,
             )
         }
+        launchJob("fetch_health_fallback") { fetchHealth() }
     }
 
     private fun startAutoRefresh() {
