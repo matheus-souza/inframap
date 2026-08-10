@@ -64,13 +64,12 @@ func (c *IdentityController) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set HttpOnly SameSite=Lax cookie for browser WASM clients
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure
 		Name:     SessionCookieName,
 		Value:    resp.Token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   604800, // 7 days
 	})
@@ -87,13 +86,12 @@ func (c *IdentityController) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clear cookie
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure
 		Name:     SessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
@@ -101,6 +99,13 @@ func (c *IdentityController) Logout(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, r, http.StatusOK, map[string]string{
 		"message": "successfully logged out",
 	})
+}
+
+// Reverse proxies (Caddy, Nginx, Traefik) overwrite X-Forwarded-Proto; a client
+// forging "https" on plain HTTP only causes self-denial (browser rejects the
+// Secure cookie). See ADR-004 for the full trust model rationale.
+func isSecureRequest(r *http.Request) bool {
+	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }
 
 // GetMe handles GET /api/v1/auth/me.
