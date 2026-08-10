@@ -22,7 +22,7 @@ internal val InfraMapColorScheme: ColorScheme =
         onBackground = InfraMapForeground,
         onSurface = InfraMapForeground,
         onSurfaceVariant = InfraMapOnSurfaceVariant,
-        onError = InfraMapForeground,
+        onError = InfraMapOnError,
         onErrorContainer = InfraMapOnErrorContainer,
         outline = InfraMapComment,
     )

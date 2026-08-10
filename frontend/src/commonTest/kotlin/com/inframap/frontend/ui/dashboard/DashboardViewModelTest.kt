@@ -397,6 +397,69 @@ class DashboardViewModelTest {
         }
 
     @Test
+    fun healthFallbackPopulatesHealthWhenAuthGatedEndpointsFail() =
+        runTest {
+            val dashRepo = FakeDashboardRepository()
+            val deviceRepo =
+                FakeDeviceRepository(
+                    getDevicesResult =
+                        ApiResult.Error(
+                            code = "UNAUTHENTICATED",
+                            message = "Token expired",
+                            requestId = "",
+                            httpStatus = 401,
+                        ),
+                )
+            val stagingRepo =
+                FakeStagingRepository(
+                    getStagingDevicesResult =
+                        ApiResult.Error(
+                            code = "UNAUTHENTICATED",
+                            message = "Token expired",
+                            requestId = "",
+                            httpStatus = 401,
+                        ),
+                )
+            val vm = makeVm(deviceRepo = deviceRepo, stagingRepo = stagingRepo, dashRepo = dashRepo, scope = this)
+
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
+                assertFalse(state.isLoading)
+                assertNotNull(state.errorMessage)
+                assertEquals(true, state.isSystemHealthy)
+                assertEquals("v1.2.3", state.systemVersion)
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.clear()
+        }
+
+    @Test
+    fun healthFallbackPreservesPreviousHealthWhenAllEndpointsFail() =
+        runTest {
+            val dashRepo = FakeDashboardRepository()
+            val vm = makeVm(dashRepo = dashRepo, scope = this)
+
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
+                assertEquals(true, vm.state.value.isSystemHealthy)
+                assertEquals("v1.2.3", vm.state.value.systemVersion)
+
+                dashRepo.getHealthResult =
+                    ApiResult.NetworkError(RuntimeException("Network down"))
+                vm.refresh()
+                skipItems(1)
+                val state = awaitItem()
+                assertNotNull(state.errorMessage)
+                assertEquals(true, state.isSystemHealthy)
+                assertEquals("v1.2.3", state.systemVersion)
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.clear()
+        }
+
+    @Test
     fun dashboardUiStateDefaultsAreCorrect() {
         val state = DashboardUiState()
         assertEquals(0L, state.totalActiveDevices)
