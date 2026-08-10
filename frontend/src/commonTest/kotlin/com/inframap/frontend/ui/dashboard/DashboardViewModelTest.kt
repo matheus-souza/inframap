@@ -479,6 +479,46 @@ class DashboardViewModelTest {
         }
 
     @Test
+    fun staleResponseIsDiscardedByGenerationToken() =
+        runTest {
+            val deviceRepo =
+                FakeDeviceRepository(
+                    getDevicesResult =
+                        ApiResult.Success(
+                            PaginatedList(
+                                items = listOf(FakeDeviceRepository.DEFAULT_DEVICE),
+                                total = 10L,
+                                page = 1,
+                                perPage = 1,
+                            ),
+                            requestId = "",
+                        ),
+                    onGetDevices = { kotlinx.coroutines.delay(5000L) },
+                )
+            val vm = makeVm(deviceRepo = deviceRepo, scope = this)
+
+            advanceTimeBy(1000L)
+            runCurrent()
+
+            deviceRepo.onGetDevices = null
+            deviceRepo.getDevicesResult =
+                ApiResult.Success(
+                    PaginatedList(
+                        items = listOf(FakeDeviceRepository.DEFAULT_DEVICE),
+                        total = 99L,
+                        page = 1,
+                        perPage = 1,
+                    ),
+                    requestId = "",
+                )
+            vm.refresh()
+            advanceUntilIdle()
+
+            assertEquals(99L, vm.state.value.totalActiveDevices)
+            vm.clear()
+        }
+
+    @Test
     fun dashboardUiStateDefaultsAreCorrect() {
         val state = DashboardUiState()
         assertEquals(0L, state.totalActiveDevices)

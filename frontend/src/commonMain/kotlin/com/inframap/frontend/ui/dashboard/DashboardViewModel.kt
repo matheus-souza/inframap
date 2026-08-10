@@ -85,12 +85,12 @@ class DashboardViewModel(
                 return@coroutineScope
             }
 
-            if (results.any { it is ApiResult.Error }) {
-                val errorResult = results.filterIsInstance<ApiResult.Error>().firstOrNull()
-                val errorMsg =
-                    errorResult?.let { mapError(it, UiText.Resource(Res.string.dashboard_error_load)) }
-                        ?: UiText.Resource(Res.string.dashboard_error_load)
-                handleMetricsError(errorMsg, healthResult)
+            val errorResult = results.firstOrNull { it is ApiResult.Error }
+            if (errorResult != null) {
+                handleMetricsError(
+                    mapError(errorResult, UiText.Resource(Res.string.dashboard_error_load)),
+                    healthResult,
+                )
                 return@coroutineScope
             }
 
