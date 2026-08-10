@@ -2,6 +2,7 @@
 package spa
 
 import (
+	"errors"
 	"io/fs"
 	"net/http"
 	"path/filepath"
@@ -29,6 +30,14 @@ func NewSPAHandler(fsys fs.FS) http.Handler {
 
 		_, err := fs.Stat(fsys, urlPath)
 		if err != nil {
+			if isStaticAsset(urlPath) {
+				if errors.Is(err, fs.ErrNotExist) {
+					http.NotFound(w, r)
+				} else {
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				}
+				return
+			}
 			urlPath = "index.html"
 		}
 
@@ -54,7 +63,20 @@ func setCacheHeaders(w http.ResponseWriter, filePath string) {
 		w.Header().Set("Cache-Control", "no-cache")
 		return
 	}
+	if filepath.Ext(filePath) == ".wasm" {
+		w.Header().Set("Cache-Control", "public, no-cache")
+		return
+	}
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+}
+
+func isStaticAsset(filePath string) bool {
+	switch filepath.Ext(filePath) {
+	case ".wasm", ".js", ".css", ".json", ".map",
+		".svg", ".png", ".jpg", ".ico", ".woff", ".woff2", ".ttf":
+		return true
+	}
+	return false
 }
 
 func setContentType(w http.ResponseWriter, filePath string) {
