@@ -25,8 +25,6 @@ class DashboardViewModel(
     private val autoRefreshIntervalMs: Long = 30_000L,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<DashboardUiState>(DashboardUiState(), scope) {
-    private var metricsGeneration = 0L
-
     init {
         loadData()
         startAutoRefresh()
@@ -34,7 +32,6 @@ class DashboardViewModel(
     }
 
     fun loadData() {
-        metricsGeneration++
         updateState { it.copy(isLoading = true, errorMessage = null) }
         triggerFetchMetrics()
     }
@@ -59,8 +56,7 @@ class DashboardViewModel(
     }
 
     @Suppress("LongMethod")
-    private suspend fun fetchMetrics() {
-        val generation = metricsGeneration
+    private suspend fun fetchMetrics() =
         coroutineScope {
             val devicesDeferred = async { getDevicesUseCase(page = 1, perPage = 1) }
             val stagingDeferred = async { getStagingDevicesUseCase(page = 1, perPage = 1) }
@@ -71,8 +67,6 @@ class DashboardViewModel(
             val stagingResult = stagingDeferred.await()
             val healthResult = healthDeferred.await()
             val sourcesResult = sourcesDeferred.await()
-
-            if (generation != metricsGeneration) return@coroutineScope
 
             val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult)
 
@@ -111,7 +105,6 @@ class DashboardViewModel(
                 )
             }
         }
-    }
 
     private fun handleMetricsError(
         errorMsg: UiText,

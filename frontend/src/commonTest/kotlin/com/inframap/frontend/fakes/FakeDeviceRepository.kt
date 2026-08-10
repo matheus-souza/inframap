@@ -17,7 +17,6 @@ class FakeDeviceRepository(
     var createDeviceResult: ApiResult<Device> = ApiResult.Success(DEFAULT_DEVICE, requestId = ""),
     var updateDeviceResult: ApiResult<Device> = ApiResult.Success(DEFAULT_DEVICE, requestId = ""),
     var deleteDeviceResult: ApiResult<Unit> = ApiResult.Success(Unit, requestId = ""),
-    var onGetDevices: (suspend () -> Unit)? = null,
 ) : DeviceRepository {
     var getDevicesCallCount = 0
 
@@ -27,7 +26,6 @@ class FakeDeviceRepository(
         search: String,
     ): ApiResult<PaginatedList<Device>> {
         getDevicesCallCount++
-        onGetDevices?.invoke()
         return getDevicesResult
     }
 
