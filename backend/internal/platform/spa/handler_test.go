@@ -193,6 +193,21 @@ func TestSPAHandler_FallbackAlsoGetsCacheNoCache(t *testing.T) {
 	}
 }
 
+func TestSPAHandler_MissingStaticAssetReturns404(t *testing.T) {
+	handler := spa.NewSPAHandler(testFS())
+
+	paths := []string{"/missing.wasm", "/missing.js", "/missing.css", "/missing.json", "/missing.map"}
+	for _, p := range paths {
+		req := httptest.NewRequest(http.MethodGet, p, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("path %s: expected 404 for missing static asset, got %d", p, rec.Code)
+		}
+	}
+}
+
 func TestSPAHandler_MissingIndexHTMLReturns404(t *testing.T) {
 	emptyFS := fstest.MapFS{}
 	handler := spa.NewSPAHandler(emptyFS)

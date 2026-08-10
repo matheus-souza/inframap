@@ -29,6 +29,10 @@ func NewSPAHandler(fsys fs.FS) http.Handler {
 
 		_, err := fs.Stat(fsys, urlPath)
 		if err != nil {
+			if isStaticAsset(urlPath) {
+				http.NotFound(w, r)
+				return
+			}
 			urlPath = "index.html"
 		}
 
@@ -55,6 +59,15 @@ func setCacheHeaders(w http.ResponseWriter, filePath string) {
 		return
 	}
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+}
+
+func isStaticAsset(filePath string) bool {
+	switch filepath.Ext(filePath) {
+	case ".wasm", ".js", ".css", ".json", ".map",
+		".svg", ".png", ".jpg", ".ico", ".woff", ".woff2", ".ttf":
+		return true
+	}
+	return false
 }
 
 func setContentType(w http.ResponseWriter, filePath string) {
