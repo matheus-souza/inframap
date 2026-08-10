@@ -101,6 +101,9 @@ func (c *IdentityController) Logout(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Reverse proxies (Caddy, Nginx, Traefik) overwrite X-Forwarded-Proto; a client
+// forging "https" on plain HTTP only causes self-denial (browser rejects the
+// Secure cookie). See ADR-004 for the full trust model rationale.
 func isSecureRequest(r *http.Request) bool {
 	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }

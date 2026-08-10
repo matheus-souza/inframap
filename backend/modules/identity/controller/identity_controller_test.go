@@ -3,6 +3,7 @@ package controller_test
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -162,19 +163,42 @@ func TestIdentityController_Unit(t *testing.T) {
 		t.Error("expected inframap_session cookie in response")
 	})
 
-	t.Run("Logout Failure Returns 500", func(t *testing.T) {
-		mockUC.logoutErr = errors.New("db error")
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+	t.Run("Login Success via direct TLS sets Secure cookie", func(t *testing.T) {
+		mockUC.loginErr = nil
+		mockUC.loginResp = &dto.LoginResponse{
+			Token:       "ims_testtoken_tls",
+			UserID:      "user-1",
+			Username:    "admin",
+			Permissions: []string{"admin"},
+			ExpiresAt:   time.Now().Add(30 * time.Minute),
+		}
+
+		payload := dto.LoginRequest{Username: "admin", Password: "passwordsuper123"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(body))
+		req.TLS = &tls.ConnectionState{}
 		w := httptest.NewRecorder()
 
-		ctrl.Logout(w, req)
+		ctrl.Login(w, req)
 
-		if w.Code != http.StatusInternalServerError {
-			t.Errorf("expected 500 Internal Server Error, got %d", w.Code)
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200 OK, got %d", w.Code)
 		}
+
+		resp := w.Result()
+		defer func() { _ = resp.Body.Close() }()
+		for _, c := range resp.Cookies() {
+			if c.Name == controller.SessionCookieName {
+				if !c.Secure {
+					t.Error("expected Secure cookie for direct TLS request")
+				}
+				return
+			}
+		}
+		t.Error("expected inframap_session cookie in response")
 	})
 
-	t.Run("Logout Success Clears Cookie", func(t *testing.T) {
+	t.Run("Logout over HTTP sets non-Secure cookie", func(t *testing.T) {
 		mockUC.logoutErr = nil
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
 		req.Header.Set("Authorization", "Bearer ims_tokenclear")
@@ -188,14 +212,85 @@ func TestIdentityController_Unit(t *testing.T) {
 
 		resp := w.Result()
 		defer func() { _ = resp.Body.Close() }()
-		cookies := resp.Cookies()
-		for _, c := range cookies {
+		for _, c := range resp.Cookies() {
 			if c.Name == controller.SessionCookieName {
+				if c.Secure {
+					t.Error("expected non-Secure cookie for plain HTTP logout")
+				}
 				if c.MaxAge != -1 {
 					t.Errorf("expected MaxAge -1 on logout cookie, got %d", c.MaxAge)
 				}
+				return
 			}
 		}
+		t.Error("expected inframap_session cookie in response")
+	})
+
+	t.Run("Logout via HTTPS proxy sets Secure cookie", func(t *testing.T) {
+		mockUC.logoutErr = nil
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+		req.Header.Set("Authorization", "Bearer ims_tokenclear")
+		req.Header.Set("X-Forwarded-Proto", "https")
+		w := httptest.NewRecorder()
+
+		ctrl.Logout(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200 OK, got %d", w.Code)
+		}
+
+		resp := w.Result()
+		defer func() { _ = resp.Body.Close() }()
+		for _, c := range resp.Cookies() {
+			if c.Name == controller.SessionCookieName {
+				if !c.Secure {
+					t.Error("expected Secure cookie for HTTPS proxy logout")
+				}
+				return
+			}
+		}
+		t.Error("expected inframap_session cookie in response")
+	})
+
+	t.Run("Logout Failure Returns 500", func(t *testing.T) {
+		mockUC.logoutErr = errors.New("db error")
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+		w := httptest.NewRecorder()
+
+		ctrl.Logout(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500 Internal Server Error, got %d", w.Code)
+		}
+	})
+
+	t.Run("Logout via direct TLS sets Secure cookie", func(t *testing.T) {
+		mockUC.logoutErr = nil
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+		req.Header.Set("Authorization", "Bearer ims_tokenclear")
+		req.TLS = &tls.ConnectionState{}
+		w := httptest.NewRecorder()
+
+		ctrl.Logout(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200 OK, got %d", w.Code)
+		}
+
+		resp := w.Result()
+		defer func() { _ = resp.Body.Close() }()
+		for _, c := range resp.Cookies() {
+			if c.Name == controller.SessionCookieName {
+				if !c.Secure {
+					t.Error("expected Secure cookie for direct TLS logout")
+				}
+				if c.MaxAge != -1 {
+					t.Errorf("expected MaxAge -1 on logout cookie, got %d", c.MaxAge)
+				}
+				return
+			}
+		}
+		t.Error("expected inframap_session cookie in response")
 	})
 
 	t.Run("GetMe Missing Token Returns 401", func(t *testing.T) {
