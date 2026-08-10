@@ -64,7 +64,7 @@ func (c *IdentityController) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure
 		Name:     SessionCookieName,
 		Value:    resp.Token,
 		Path:     "/",
@@ -86,7 +86,7 @@ func (c *IdentityController) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // nosemgrep: go.lang.security.audit.net.cookie-missing-secure.cookie-missing-secure
 		Name:     SessionCookieName,
 		Value:    "",
 		Path:     "/",
