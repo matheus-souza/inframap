@@ -64,13 +64,12 @@ func (c *IdentityController) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set HttpOnly SameSite=Lax cookie for browser WASM clients
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    resp.Token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   604800, // 7 days
 	})
@@ -87,13 +86,12 @@ func (c *IdentityController) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clear cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
@@ -101,6 +99,10 @@ func (c *IdentityController) Logout(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, r, http.StatusOK, map[string]string{
 		"message": "successfully logged out",
 	})
+}
+
+func isSecureRequest(r *http.Request) bool {
+	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }
 
 // GetMe handles GET /api/v1/auth/me.
