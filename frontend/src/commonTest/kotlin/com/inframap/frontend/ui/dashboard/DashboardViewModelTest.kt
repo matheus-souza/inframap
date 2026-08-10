@@ -437,8 +437,24 @@ class DashboardViewModelTest {
     @Test
     fun healthFallbackPreservesPreviousHealthWhenAllEndpointsFail() =
         runTest {
+            val deviceRepo =
+                FakeDeviceRepository(
+                    getDevicesResult =
+                        ApiResult.Success(
+                            PaginatedList(items = listOf(FakeDeviceRepository.DEFAULT_DEVICE), total = 15L, page = 1, perPage = 1),
+                            requestId = "",
+                        ),
+                )
+            val stagingRepo =
+                FakeStagingRepository(
+                    getStagingDevicesResult =
+                        ApiResult.Success(
+                            PaginatedList(items = emptyList(), total = 3L, page = 1, perPage = 50),
+                            requestId = "",
+                        ),
+                )
             val dashRepo = FakeDashboardRepository()
-            val vm = makeVm(dashRepo = dashRepo, scope = this)
+            val vm = makeVm(deviceRepo = deviceRepo, stagingRepo = stagingRepo, dashRepo = dashRepo, scope = this)
 
             vm.state.test {
                 skipItems(1)
@@ -446,8 +462,11 @@ class DashboardViewModelTest {
                 assertEquals(true, vm.state.value.isSystemHealthy)
                 assertEquals("v1.2.3", vm.state.value.systemVersion)
 
-                dashRepo.getHealthResult =
-                    ApiResult.NetworkError(RuntimeException("Network down"))
+                val networkError = ApiResult.NetworkError(RuntimeException("Network down"))
+                deviceRepo.getDevicesResult = networkError
+                stagingRepo.getStagingDevicesResult = networkError
+                dashRepo.getHealthResult = networkError
+                dashRepo.getDiscoverySourcesResult = networkError
                 vm.refresh()
                 skipItems(1)
                 val state = awaitItem()
