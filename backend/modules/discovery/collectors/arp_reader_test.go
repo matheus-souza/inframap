@@ -14,7 +14,7 @@ func TestParseProcNetARP(t *testing.T) {
 192.168.18.100   0x1         0x0         00:00:00:00:00:00     *        eth0
 `)
 
-	reader := collectors.NewProcNetARPReader(func(name string) ([]byte, error) {
+	reader := collectors.NewProcNetARPReader(func(_ string) ([]byte, error) {
 		return data, nil
 	})
 
@@ -47,45 +47,27 @@ func TestParseProcNetARP_NilReader_Fallback(t *testing.T) {
 	_ = entries
 }
 
-func TestParseARPLine(t *testing.T) {
-	tests := []struct {
-		name    string
-		line    string
-		wantIP  string
-		wantMAC string
-		wantOK  bool
-	}{
-		{
-			name:    "macOS format",
-			line:    "? (192.168.18.1) at aa:bb:cc:dd:ee:01 on en0 ifscope [ethernet]",
-			wantIP:  "192.168.18.1",
-			wantMAC: "aa:bb:cc:dd:ee:01",
-			wantOK:  true,
-		},
-		{
-			name:    "Linux format",
-			line:    "? (10.0.0.1) at 11:22:33:44:55:66 [ether] on eth0",
-			wantIP:  "10.0.0.1",
-			wantMAC: "11:22:33:44:55:66",
-			wantOK:  true,
-		},
-		{
-			name:   "incomplete entry",
-			line:   "? (192.168.18.5) at (incomplete) on en0",
-			wantOK: false,
-		},
-		{
-			name:   "too short",
-			line:   "short line",
-			wantOK: false,
-		},
-	}
+func TestARPCollector_WithProcReader(t *testing.T) {
+	data := []byte(`IP address       HW type     Flags       HW address            Mask     Device
+192.168.18.1     0x1         0x2         aa:bb:cc:dd:ee:01     *        eth0
+10.0.0.5         0x1         0x2         11:22:33:44:55:66     *        eth1
+`)
+	reader := collectors.NewProcNetARPReader(func(_ string) ([]byte, error) {
+		return data, nil
+	})
+	col := collectors.NewARPCollector(reader)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// parseARPLine is unexported, test via NewProcNetARPReader integration
-			// Instead we test the full Collect path
-		})
-		_ = tt
+	obs, err := col.Collect(context.Background(), collectors.DiscoveryTarget{CIDR: "192.168.18.0/24"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(obs) != 1 {
+		t.Fatalf("expected 1 observation within CIDR, got %d", len(obs))
+	}
+	if obs[0].IPAddress != "192.168.18.1" {
+		t.Errorf("expected IP 192.168.18.1, got %s", obs[0].IPAddress)
+	}
+	if obs[0].MACAddress != "aa:bb:cc:dd:ee:01" {
+		t.Errorf("expected MAC aa:bb:cc:dd:ee:01, got %s", obs[0].MACAddress)
 	}
 }
