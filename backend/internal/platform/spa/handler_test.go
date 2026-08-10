@@ -208,6 +208,35 @@ func TestSPAHandler_MissingStaticAssetReturns404(t *testing.T) {
 	}
 }
 
+func TestSPAHandler_WASMCacheRevalidation(t *testing.T) {
+	handler := spa.NewSPAHandler(testFS())
+
+	req := httptest.NewRequest(http.MethodGet, "/inframap.wasm", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	expected := "public, no-cache"
+	if got := rec.Header().Get("Cache-Control"); got != expected {
+		t.Fatalf("expected %q for WASM cache, got %q", expected, got)
+	}
+}
+
+func TestSPAHandler_StatErrorReturns500(t *testing.T) {
+	failFS := fstest.MapFS{
+		"index.html": {Data: []byte("<html>SPA</html>")},
+	}
+	failFS["broken.wasm"] = &fstest.MapFile{Data: []byte("data"), Mode: 0}
+	handler := spa.NewSPAHandler(failFS)
+
+	req := httptest.NewRequest(http.MethodGet, "/missing.wasm", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing .wasm, got %d", rec.Code)
+	}
+}
+
 func TestSPAHandler_MissingIndexHTMLReturns404(t *testing.T) {
 	emptyFS := fstest.MapFS{}
 	handler := spa.NewSPAHandler(emptyFS)
