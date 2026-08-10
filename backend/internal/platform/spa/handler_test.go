@@ -1,14 +1,54 @@
 package spa_test
 
 import (
+	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/matheussouza/inframap/internal/platform/spa"
 )
+
+type statErrorFS struct {
+	err error
+}
+
+func (f statErrorFS) Open(name string) (fs.File, error) {
+	if name == "index.html" {
+		return fstest.MapFS{"index.html": {Data: []byte("<html>SPA</html>")}}.Open("index.html")
+	}
+	return nil, f.err
+}
+
+func (f statErrorFS) Stat(name string) (fs.FileInfo, error) {
+	if name == "index.html" {
+		return fileInfo{name: "index.html", size: 16}, nil
+	}
+	return nil, f.err
+}
+
+func (f statErrorFS) ReadFile(name string) ([]byte, error) {
+	if name == "index.html" {
+		return []byte("<html>SPA</html>"), nil
+	}
+	return nil, f.err
+}
+
+type fileInfo struct {
+	name string
+	size int64
+}
+
+func (fi fileInfo) Name() string      { return fi.name }
+func (fi fileInfo) Size() int64       { return fi.size }
+func (fi fileInfo) Mode() fs.FileMode { return 0o444 }
+func (fi fileInfo) ModTime() time.Time { return time.Time{} }
+func (fi fileInfo) IsDir() bool       { return false }
+func (fi fileInfo) Sys() any          { return nil }
 
 func testFS() fstest.MapFS {
 	return fstest.MapFS{
@@ -222,18 +262,15 @@ func TestSPAHandler_WASMCacheRevalidation(t *testing.T) {
 }
 
 func TestSPAHandler_StatErrorReturns500(t *testing.T) {
-	failFS := fstest.MapFS{
-		"index.html": {Data: []byte("<html>SPA</html>")},
-	}
-	failFS["broken.wasm"] = &fstest.MapFile{Data: []byte("data"), Mode: 0}
-	handler := spa.NewSPAHandler(failFS)
+	fsys := statErrorFS{err: errors.New("disk I/O error")}
+	handler := spa.NewSPAHandler(fsys)
 
-	req := httptest.NewRequest(http.MethodGet, "/missing.wasm", nil)
+	req := httptest.NewRequest(http.MethodGet, "/app.wasm", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("expected 404 for missing .wasm, got %d", rec.Code)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for non-ErrNotExist stat error, got %d", rec.Code)
 	}
 }
 
