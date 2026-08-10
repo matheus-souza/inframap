@@ -19,14 +19,19 @@ on:
         default: 'v1.0.0-rc.26'
 
 concurrency:
-  group: release-${{ github.event.pull_request.base.ref || github.ref_name }}
+  group: release-pipeline
   cancel-in-progress: false
 
 jobs:
   release:
     name: Build, Scan & Publish Release Artifacts
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.merged == true) ||
+      (github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.ref_name == 'develop' || github.ref_name == 'main'))
     permissions:
       contents: write
       packages: write
@@ -74,10 +79,9 @@ jobs:
             echo "Auto-generated Release Candidate Tag for develop: $TAG"
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPOSITORY}.git"
             if ! git rev-parse "$TAG" >/dev/null 2>&1; then
               git tag -a "$TAG" -m "Automated release candidate $TAG"
-              git push origin "$TAG"
+              git -c http.extraHeader="Authorization: Basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64)" push origin "$TAG"
             fi
           elif [ "$TARGET_BRANCH" = "main" ]; then
             LATEST_RC=$(git tag -l "v*-rc.*" | sort -V | tail -n 1)
@@ -94,10 +98,9 @@ jobs:
             echo "Auto-generated Official Release Tag for main: $TAG"
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPOSITORY}.git"
             if ! git rev-parse "$TAG" >/dev/null 2>&1; then
               git tag -a "$TAG" -m "Automated official release $TAG"
-              git push origin "$TAG"
+              git -c http.extraHeader="Authorization: Basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64)" push origin "$TAG"
             fi
           else
             echo "Error: Unsupported ref $TARGET_BRANCH"
