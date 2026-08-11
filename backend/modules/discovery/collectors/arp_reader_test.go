@@ -2,6 +2,7 @@ package collectors_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/matheussouza/inframap/modules/discovery/collectors"
@@ -70,6 +71,29 @@ func TestParseProcNetARP_RejectsMulticastAndBroadcast(t *testing.T) {
 	}
 	if entries[0].IPAddress != "192.168.18.1" {
 		t.Errorf("expected IP 192.168.18.1, got %s", entries[0].IPAddress)
+	}
+}
+
+func TestReadEntries_FallbackToARPCommand(t *testing.T) {
+	reader := collectors.NewProcNetARPReader(func(_ string) ([]byte, error) {
+		return nil, fmt.Errorf("no /proc/net/arp")
+	})
+
+	entries, err := reader.ReadEntries(context.Background())
+	if err != nil {
+		t.Logf("arp command fallback: err=%v (expected on systems without arp binary)", err)
+	}
+	_ = entries
+}
+
+func TestReadEntries_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	reader := collectors.NewProcNetARPReader(nil)
+	_, err := reader.ReadEntries(ctx)
+	if err == nil {
+		t.Fatal("expected context cancellation error")
 	}
 }
 

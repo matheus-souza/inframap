@@ -194,6 +194,72 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		}
 	})
 
+	t.Run("DeviceCallback receives network_device type for SNMP source", func(t *testing.T) {
+		col := &fakeCollector{
+			id:   "snmp",
+			name: "SNMP",
+			observations: []collectors.RawObservation{
+				{IPAddress: "10.0.0.1", MACAddress: "aa:bb:cc:dd:ee:01", Hostname: "core-sw", ProtocolSource: "snmp", ConfidenceScore: 80},
+			},
+		}
+
+		bus := eventbus.NewInMemoryEventBus(1, 16)
+		orch := engine.NewDefaultOrchestrator(bus)
+		orch.RegisterCollector(col)
+
+		var captured []*dto.NormalizedDeviceDTO
+		orch.SetDeviceCallback(func(_ context.Context, norm *dto.NormalizedDeviceDTO, _ string, _ bool) {
+			captured = append(captured, norm)
+		})
+
+		target := collectors.DiscoveryTarget{CIDR: "10.0.0.0/24"}
+		_, err := orch.RunScan(context.Background(), target, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(captured) != 1 {
+			t.Fatalf("expected 1 callback, got %d", len(captured))
+		}
+		if captured[0].DeviceType != "network_device" {
+			t.Errorf("expected DeviceType 'network_device' for snmp, got %q", captured[0].DeviceType)
+		}
+	})
+
+	t.Run("DeviceCallback for matched device receives matched=true", func(t *testing.T) {
+		col := &fakeCollector{
+			id:   "arp",
+			name: "ARP",
+			observations: []collectors.RawObservation{
+				{IPAddress: "10.0.0.10", MACAddress: "aa:bb:cc:dd:ee:01", Hostname: "known-host", ProtocolSource: "arp", ConfidenceScore: 50},
+			},
+		}
+
+		existingID := uuid.New()
+		activeDevices := []db.Device{{ID: existingID, Hostname: "known-host"}}
+		activeDevices[0].MacAddress, _ = net.ParseMAC("aa:bb:cc:dd:ee:01")
+
+		bus := eventbus.NewInMemoryEventBus(1, 16)
+		orch := engine.NewDefaultOrchestrator(bus)
+		orch.RegisterCollector(col)
+
+		var matchedFlags []bool
+		orch.SetDeviceCallback(func(_ context.Context, _ *dto.NormalizedDeviceDTO, _ string, matched bool) {
+			matchedFlags = append(matchedFlags, matched)
+		})
+
+		target := collectors.DiscoveryTarget{CIDR: "10.0.0.0/24"}
+		_, err := orch.RunScan(context.Background(), target, activeDevices)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(matchedFlags) != 1 {
+			t.Fatalf("expected 1 callback, got %d", len(matchedFlags))
+		}
+		if !matchedFlags[0] {
+			t.Error("expected matched=true for known device")
+		}
+	})
+
 	t.Run("DeviceCallback receives populated DeviceType", func(t *testing.T) {
 		col := &fakeCollector{
 			id:   "arp",

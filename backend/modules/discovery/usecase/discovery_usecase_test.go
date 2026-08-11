@@ -291,6 +291,22 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("TriggerRun sets error status when scan fails", func(t *testing.T) {
+		sources, _ := uc.ListSources(ctx)
+		if len(sources) == 0 {
+			t.Fatal("expected at least 1 source")
+		}
+		sources[0].ConfigCIDR = "not-a-valid-cidr"
+
+		_, err := uc.TriggerRun(ctx, sources[0].ID.String())
+		if err == nil {
+			t.Fatal("expected error for invalid CIDR scan, got nil")
+		}
+		if sources[0].LastStatus != "error" {
+			t.Errorf("expected status 'error' after scan failure, got %q", sources[0].LastStatus)
+		}
+	})
+
 	t.Run("TriggerRun with CIDR executes scan and resets to idle", func(t *testing.T) {
 		sources, _ := uc.ListSources(ctx)
 		if len(sources) == 0 {
