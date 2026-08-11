@@ -12,6 +12,7 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/discovery/collectors"
+	"github.com/matheussouza/inframap/modules/discovery/dto"
 	"github.com/matheussouza/inframap/modules/discovery/engine"
 )
 
@@ -190,6 +191,37 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		_, err := orch.RunScan(ctx, target, nil)
 		if err == nil {
 			t.Fatal("expected context cancellation error, got nil")
+		}
+	})
+
+	t.Run("DeviceCallback receives populated DeviceType", func(t *testing.T) {
+		col := &fakeCollector{
+			id:   "arp",
+			name: "ARP",
+			observations: []collectors.RawObservation{
+				{IPAddress: "10.0.0.1", MACAddress: "aa:bb:cc:dd:ee:01", Hostname: "host1", ProtocolSource: "arp", ConfidenceScore: 50},
+			},
+		}
+
+		bus := eventbus.NewInMemoryEventBus(1, 16)
+		orch := engine.NewDefaultOrchestrator(bus)
+		orch.RegisterCollector(col)
+
+		var captured []*dto.NormalizedDeviceDTO
+		orch.SetDeviceCallback(func(_ context.Context, norm *dto.NormalizedDeviceDTO, _ string, _ bool) {
+			captured = append(captured, norm)
+		})
+
+		target := collectors.DiscoveryTarget{CIDR: "10.0.0.0/24"}
+		_, err := orch.RunScan(context.Background(), target, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(captured) != 1 {
+			t.Fatalf("expected 1 callback invocation, got %d", len(captured))
+		}
+		if captured[0].DeviceType != "host" {
+			t.Errorf("expected DeviceType 'host' for arp source, got %q", captured[0].DeviceType)
 		}
 	})
 }
