@@ -288,6 +288,22 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("TriggerRun with CIDR executes scan and resets to idle", func(t *testing.T) {
+		sources, _ := uc.ListSources(ctx)
+		if len(sources) == 0 {
+			t.Fatal("expected at least 1 source")
+		}
+		sources[0].ConfigCIDR = "192.168.1.0/24"
+
+		res, err := uc.TriggerRun(ctx, sources[0].ID.String())
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if res.LastStatus != "idle" {
+			t.Errorf("expected status idle, got %s", res.LastStatus)
+		}
+	})
+
 	t.Run("IngestNormalizedDevice Matches Existing Device & Reconciles", func(t *testing.T) {
 		sources, _ := uc.ListSources(ctx)
 		srcID := sources[0].ID
