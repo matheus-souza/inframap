@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
+import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.resources.Res
@@ -86,14 +89,16 @@ fun TopologyScreen(
                 Box(
                     modifier =
                         Modifier
-                            .fillMaxSize()
+                            .fillMaxWidth()
                             .weight(1f),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = stringResource(Res.string.topology_empty),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    InfraMapEmptyState(
+                        icon = Icons.Filled.AccountTree,
+                        title = "Topologia vazia",
+                        subtitle =
+                            "O mapa de topologia é gerado a partir dos dispositivos no inventário. " +
+                                "Cadastre ou aprove dispositivos para visualizar as conexões.",
                     )
                 }
             }

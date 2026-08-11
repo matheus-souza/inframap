@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -62,13 +63,16 @@ func NewDefaultDiscoveryUseCase(
 	eventBus eventbus.EventBus,
 	logger *slog.Logger,
 ) *DefaultDiscoveryUseCase {
+	arpReader := collectors.NewProcNetARPReader(os.ReadFile)
+	dnsResolver := collectors.NewNetDNSResolver()
+
 	orch := engine.NewDefaultOrchestrator(eventBus)
-	orch.RegisterCollector(collectors.NewARPCollector(nil))
-	orch.RegisterCollector(collectors.NewReverseDNSCollector(nil))
 	orch.RegisterCollector(collectors.NewICMPCollector(nil))
+	orch.RegisterCollector(collectors.NewARPCollector(arpReader))
+	orch.RegisterCollector(collectors.NewReverseDNSCollector(dnsResolver))
 	orch.RegisterCollector(collectors.NewSNMPCollector(nil, nil))
 
-	return &DefaultDiscoveryUseCase{
+	uc := &DefaultDiscoveryUseCase{
 		discRepo:     discRepo,
 		invRepo:      invRepo,
 		eventBus:     eventBus,
@@ -77,6 +81,10 @@ func NewDefaultDiscoveryUseCase(
 		reconciler:   engine.NewDefaultFieldReconciler(),
 		orchestrator: orch,
 	}
+
+	orch.SetDeviceCallback(uc.persistDiscoveredDevice)
+
+	return uc
 }
 
 
@@ -118,6 +126,28 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 
 	if _, updateErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "running"); updateErr != nil {
 		return nil, fmt.Errorf("failed to set discovery status to running: %w", updateErr)
+	}
+
+	cidr := source.ConfigCIDR
+	if cidr == "" {
+		if u.logger != nil {
+			u.logger.Warn("discovery source has no CIDR configured, skipping scan", slog.String("source_id", source.ID.String()))
+		}
+		if _, errStatusErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "error"); errStatusErr != nil {
+			return nil, fmt.Errorf("failed to set error status for missing CIDR: %w", errStatusErr)
+		}
+		return nil, fmt.Errorf("discovery source %s has no CIDR configured", source.ID)
+	}
+
+	scanReq := &dto.TriggerScanRequest{CIDR: cidr}
+	if _, scanErr := u.TriggerScan(ctx, scanReq); scanErr != nil {
+		if u.logger != nil {
+			u.logger.Error("discovery source scan failed", slog.String("source_id", source.ID.String()), slog.Any("error", scanErr))
+		}
+		if _, idleErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "error"); idleErr != nil {
+			return nil, fmt.Errorf("failed to set error status after scan failure: %w", idleErr)
+		}
+		return nil, fmt.Errorf("discovery scan failed for source %s: %w", source.ID, scanErr)
 	}
 
 	res, finishErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "idle")
@@ -348,6 +378,56 @@ func (u *DefaultDiscoveryUseCase) ListRecordsByDevice(ctx context.Context, devic
 		return nil, ErrInvalidUUID
 	}
 	return u.discRepo.ListRecordsByDevice(ctx, deviceID)
+}
+
+// persistDiscoveredDevice is called by the orchestrator for each valid observation.
+// New devices go to staging; matched devices are already reconciled in-memory by the orchestrator.
+func (u *DefaultDiscoveryUseCase) persistDiscoveredDevice(ctx context.Context, norm *dto.NormalizedDeviceDTO, sourceType string, matched bool) {
+	if matched {
+		return
+	}
+	if u.invRepo == nil {
+		if u.logger != nil {
+			u.logger.Error("cannot persist discovered device: inventory repository is not configured")
+		}
+		return
+	}
+
+	rawBytes, _ := json.Marshal(norm.RawPayload)
+
+	stageParams := db.CreateStagingDeviceParams{
+		ID:         uuid.New(),
+		Hostname:   norm.Hostname,
+		DeviceType: norm.DeviceType,
+		RawPayload: rawBytes,
+		Status:     "discovered",
+	}
+	if norm.IPAddress != "" {
+		if addr, parseErr := netip.ParseAddr(norm.IPAddress); parseErr == nil {
+			stageParams.IpAddress = &addr
+		}
+	}
+	if norm.MACAddress != "" {
+		if hw, parseErr := net.ParseMAC(norm.MACAddress); parseErr == nil {
+			stageParams.MacAddress = hw
+		}
+	}
+
+	staged, err := u.invRepo.CreateStagingDevice(ctx, stageParams)
+	if err != nil {
+		if u.logger != nil {
+			u.logger.Error("failed to persist discovered device to staging", slog.String("ip", norm.IPAddress), slog.Any("error", err))
+		}
+		return
+	}
+
+	if u.eventBus != nil {
+		_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.staged", map[string]interface{}{
+			"staging_id":  staged.ID.String(),
+			"ip_address":  norm.IPAddress,
+			"source_type": sourceType,
+		}))
+	}
 }
 
 func isTrustedProvider(sourceType string) bool {

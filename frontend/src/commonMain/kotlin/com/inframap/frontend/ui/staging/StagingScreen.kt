@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,6 +22,7 @@ import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapConfirmDialog
+import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
@@ -124,35 +127,45 @@ private fun StagingTableCard(
     state: StagingUiState,
     actions: StagingActions,
 ) {
-    val columns =
-        listOf(
-            TableColumn(header = "Hostname", weight = 2f),
-            TableColumn(header = "Endereço IP", weight = 1.5f),
-            TableColumn(header = "MAC", weight = 1.5f),
-            TableColumn(header = "Tipo", weight = 1.2f),
-            TableColumn(header = "Status", weight = 1f),
-            TableColumn(header = "Ações", weight = 2.5f),
+    if (state.devices.isEmpty()) {
+        InfraMapEmptyState(
+            icon = Icons.Filled.MoveToInbox,
+            title = "Nenhum dispositivo na fila de staging",
+            subtitle =
+                "Dispositivos descobertos automaticamente aparecem aqui para revisão. " +
+                    "Configure uma fonte de descoberta e execute um scan para começar.",
         )
-
-    val totalPages = maxOf(1, ceil(state.totalItems.toDouble() / state.perPage.toDouble()).toInt())
-
-    InfraMapCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            InfraMapTable(
-                columns = columns,
-                items = state.devices,
-                modifier = Modifier.weight(1f),
-            ) { colIndex, item ->
-                StagingRowCell(colIndex = colIndex, item = item, state = state, actions = actions)
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            InfraMapTablePagination(
-                currentPage = state.currentPage,
-                totalPages = totalPages,
-                onPageChange = actions.onPageChanged,
+    } else {
+        val columns =
+            listOf(
+                TableColumn(header = "Hostname", weight = 2f),
+                TableColumn(header = "Endereço IP", weight = 1.5f),
+                TableColumn(header = "MAC", weight = 1.5f),
+                TableColumn(header = "Tipo", weight = 1.2f),
+                TableColumn(header = "Status", weight = 1f),
+                TableColumn(header = "Ações", weight = 2.5f),
             )
+
+        val totalPages = maxOf(1, ceil(state.totalItems.toDouble() / state.perPage.toDouble()).toInt())
+
+        InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                InfraMapTable(
+                    columns = columns,
+                    items = state.devices,
+                    modifier = Modifier.weight(1f),
+                ) { colIndex, item ->
+                    StagingRowCell(colIndex = colIndex, item = item, state = state, actions = actions)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                InfraMapTablePagination(
+                    currentPage = state.currentPage,
+                    totalPages = totalPages,
+                    onPageChange = actions.onPageChanged,
+                )
+            }
         }
     }
 }

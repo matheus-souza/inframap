@@ -69,6 +69,9 @@ func TestE2E_DiscoveryFlow(t *testing.T) {
 		createPayload := discdto.CreateDiscoverySourceRequest{
 			Name: "Cluster Proxmox VE",
 			Type: "proxmox",
+			Config: map[string]interface{}{
+				"cidr": "127.0.0.1/32",
+			},
 		}
 		body, _ := json.Marshal(createPayload)
 
