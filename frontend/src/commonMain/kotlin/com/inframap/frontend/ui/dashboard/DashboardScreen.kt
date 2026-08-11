@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Rocket
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,6 +30,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
+import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapGreen
 import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
 import com.inframap.frontend.designsystem.InfraMapRed
@@ -117,46 +120,71 @@ private fun DashboardErrorBanner(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DashboardContent(state: DashboardUiState) {
-    if (state.isLoading && state.totalActiveDevices == 0L && state.errorMessage == null) {
+    val isEmpty =
+        state.totalActiveDevices == 0L &&
+            state.totalStagedDevices == 0L &&
+            state.totalDiscoverySources == 0L
+
+    if (state.isLoading && isEmpty && state.errorMessage == null) {
         InfraMapLoadingSkeleton(
             lines = 4,
             lineHeight = 100.dp,
             spacing = 16.dp,
         )
-    } else {
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            maxItemsInEachRow = 4,
-        ) {
-            MetricCard(
-                title = "Active Devices",
-                value = state.totalActiveDevices.toString(),
-                subtitle = "Inventory items",
-                modifier = Modifier.width(260.dp),
-            )
+        return
+    }
 
-            MetricCard(
-                title = "Staged Devices",
-                value = state.totalStagedDevices.toString(),
-                subtitle = "Awaiting verification",
-                modifier = Modifier.width(260.dp),
-            )
+    if (isEmpty && state.errorMessage == null) {
+        DashboardWelcomeBanner()
+        Spacer(modifier = Modifier.height(16.dp))
+    }
 
-            HealthMetricCard(
-                isHealthy = state.isSystemHealthy,
-                version = state.systemVersion,
-                modifier = Modifier.width(260.dp),
-            )
+    DashboardMetrics(state = state)
+}
 
-            MetricCard(
-                title = "Discovery Sources",
-                value = state.totalDiscoverySources.toString(),
-                subtitle = "Configured targets",
-                modifier = Modifier.width(260.dp),
-            )
-        }
+@Composable
+private fun DashboardWelcomeBanner() {
+    InfraMapEmptyState(
+        icon = Icons.Filled.Rocket,
+        title = "Bem-vindo ao InfraMap",
+        subtitle =
+            "Para começar, cadastre uma subrede na seção Subredes e configure " +
+                "uma fonte de descoberta para escanear sua rede automaticamente.",
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DashboardMetrics(state: DashboardUiState) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        maxItemsInEachRow = 4,
+    ) {
+        MetricCard(
+            title = "Active Devices",
+            value = state.totalActiveDevices.toString(),
+            subtitle = "Inventory items",
+            modifier = Modifier.width(260.dp),
+        )
+        MetricCard(
+            title = "Staged Devices",
+            value = state.totalStagedDevices.toString(),
+            subtitle = "Awaiting verification",
+            modifier = Modifier.width(260.dp),
+        )
+        HealthMetricCard(
+            isHealthy = state.isSystemHealthy,
+            version = state.systemVersion,
+            modifier = Modifier.width(260.dp),
+        )
+        MetricCard(
+            title = "Discovery Sources",
+            value = state.totalDiscoverySources.toString(),
+            subtitle = "Configured targets",
+            modifier = Modifier.width(260.dp),
+        )
     }
 }
 

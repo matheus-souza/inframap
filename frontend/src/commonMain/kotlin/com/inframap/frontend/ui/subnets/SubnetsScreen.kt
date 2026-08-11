@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
+import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.TableColumn
@@ -49,7 +52,7 @@ fun SubnetsScreen(
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
-                SubnetsTableCard(state = state)
+                SubnetsTableCard(state = state, actions = actions)
             }
         }
     }
@@ -107,25 +110,40 @@ private fun SubnetsErrorCard(
 }
 
 @Composable
-private fun SubnetsTableCard(state: SubnetsUiState) {
-    val columns =
-        listOf(
-            TableColumn(header = "Nome", weight = 2f),
-            TableColumn(header = "CIDR", weight = 1.8f),
-            TableColumn(header = "VLAN ID", weight = 1f),
-            TableColumn(header = "Gateway", weight = 1.5f),
-            TableColumn(header = "Auto-Descoberta", weight = 1.5f),
-            TableColumn(header = "Descrição", weight = 2f),
+private fun SubnetsTableCard(
+    state: SubnetsUiState,
+    actions: SubnetsActions,
+) {
+    if (state.subnets.isEmpty()) {
+        InfraMapEmptyState(
+            icon = Icons.Filled.Hub,
+            title = "Nenhuma subrede cadastrada",
+            subtitle =
+                "Subredes definem as faixas de rede onde a descoberta automática " +
+                    "de dispositivos será executada.",
+            ctaLabel = "Cadastrar Subrede",
+            onCtaClick = actions.onCreateSubnetClicked,
         )
+    } else {
+        val columns =
+            listOf(
+                TableColumn(header = "Nome", weight = 2f),
+                TableColumn(header = "CIDR", weight = 1.8f),
+                TableColumn(header = "VLAN ID", weight = 1f),
+                TableColumn(header = "Gateway", weight = 1.5f),
+                TableColumn(header = "Auto-Descoberta", weight = 1.5f),
+                TableColumn(header = "Descrição", weight = 2f),
+            )
 
-    InfraMapCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            InfraMapTable(
-                columns = columns,
-                items = state.subnets,
-                modifier = Modifier.weight(1f),
-            ) { colIndex, item ->
-                SubnetRowCell(colIndex = colIndex, item = item)
+        InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                InfraMapTable(
+                    columns = columns,
+                    items = state.subnets,
+                    modifier = Modifier.weight(1f),
+                ) { colIndex, item ->
+                    SubnetRowCell(colIndex = colIndex, item = item)
+                }
             }
         }
     }
