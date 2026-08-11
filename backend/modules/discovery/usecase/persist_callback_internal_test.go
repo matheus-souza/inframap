@@ -15,8 +15,9 @@ import (
 )
 
 type stubInvRepo struct {
-	staged              []db.DeviceStaging
-	failCreateStaging   bool
+	capturedParams    []db.CreateStagingDeviceParams
+	staged            []db.DeviceStaging
+	failCreateStaging bool
 }
 
 func (s *stubInvRepo) CreateDevice(_ context.Context, _ db.CreateDeviceParams) (*db.Device, error) {
@@ -36,7 +37,16 @@ func (s *stubInvRepo) CreateStagingDevice(_ context.Context, params db.CreateSta
 	if s.failCreateStaging {
 		return nil, errors.New("staging insert failed")
 	}
-	staged := db.DeviceStaging{ID: params.ID, Hostname: params.Hostname, Status: params.Status}
+	s.capturedParams = append(s.capturedParams, params)
+	staged := db.DeviceStaging{
+		ID:         params.ID,
+		Hostname:   params.Hostname,
+		IpAddress:  params.IpAddress,
+		MacAddress: params.MacAddress,
+		DeviceType: params.DeviceType,
+		RawPayload: params.RawPayload,
+		Status:     params.Status,
+	}
 	s.staged = append(s.staged, staged)
 	return &staged, nil
 }
@@ -92,11 +102,27 @@ func TestPersistDiscoveredDevice(t *testing.T) {
 
 		uc.persistDiscoveredDevice(context.Background(), norm, "arp", false)
 
-		if len(inv.staged) != 1 {
-			t.Fatalf("expected 1 staged device, got %d", len(inv.staged))
+		if len(inv.capturedParams) != 1 {
+			t.Fatalf("expected 1 staged device, got %d", len(inv.capturedParams))
 		}
-		if inv.staged[0].Hostname != "discovered-host" {
-			t.Errorf("expected hostname discovered-host, got %s", inv.staged[0].Hostname)
+		p := inv.capturedParams[0]
+		if p.Hostname != "discovered-host" {
+			t.Errorf("hostname = %q, want %q", p.Hostname, "discovered-host")
+		}
+		if p.IpAddress == nil || p.IpAddress.String() != "10.0.0.5" {
+			t.Errorf("ip_address = %v, want 10.0.0.5", p.IpAddress)
+		}
+		if p.MacAddress.String() != "aa:bb:cc:dd:ee:ff" {
+			t.Errorf("mac_address = %q, want aa:bb:cc:dd:ee:ff", p.MacAddress.String())
+		}
+		if p.DeviceType != "host" {
+			t.Errorf("device_type = %q, want %q", p.DeviceType, "host")
+		}
+		if p.Status != "discovered" {
+			t.Errorf("status = %q, want %q", p.Status, "discovered")
+		}
+		if len(p.RawPayload) == 0 {
+			t.Error("raw_payload should not be empty")
 		}
 	})
 
@@ -111,8 +137,21 @@ func TestPersistDiscoveredDevice(t *testing.T) {
 
 		uc.persistDiscoveredDevice(context.Background(), norm, "snmp", false)
 
-		if len(inv.staged) != 1 {
-			t.Fatalf("expected 1 staged device, got %d", len(inv.staged))
+		if len(inv.capturedParams) != 1 {
+			t.Fatalf("expected 1 staged device, got %d", len(inv.capturedParams))
+		}
+		p := inv.capturedParams[0]
+		if p.Hostname != "no-addr-host" {
+			t.Errorf("hostname = %q, want %q", p.Hostname, "no-addr-host")
+		}
+		if p.IpAddress != nil {
+			t.Errorf("ip_address should be nil, got %v", p.IpAddress)
+		}
+		if p.MacAddress != nil {
+			t.Errorf("mac_address should be nil, got %v", p.MacAddress)
+		}
+		if p.DeviceType != "unknown" {
+			t.Errorf("device_type = %q, want %q", p.DeviceType, "unknown")
 		}
 	})
 
@@ -151,8 +190,15 @@ func TestPersistDiscoveredDevice(t *testing.T) {
 
 		uc.persistDiscoveredDevice(context.Background(), norm, "arp", false)
 
-		if len(inv.staged) != 1 {
-			t.Fatalf("expected 1 staged device, got %d", len(inv.staged))
+		if len(inv.capturedParams) != 1 {
+			t.Fatalf("expected 1 staged device, got %d", len(inv.capturedParams))
+		}
+		p := inv.capturedParams[0]
+		if p.DeviceType != "host" {
+			t.Errorf("device_type = %q, want %q", p.DeviceType, "host")
+		}
+		if p.IpAddress == nil || p.IpAddress.String() != "10.0.0.2" {
+			t.Errorf("ip_address = %v, want 10.0.0.2", p.IpAddress)
 		}
 	})
 }
