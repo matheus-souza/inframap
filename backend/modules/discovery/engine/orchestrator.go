@@ -179,6 +179,7 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 			MACAddress:      normalized.MACAddress,
 			Hostname:        normalized.Hostname,
 			Manufacturer:    normalized.Vendor,
+			DeviceType:      classifyDeviceType(normalized),
 			ConfidenceScore: normalized.ConfidenceScore,
 			RawPayload:      normalized.RawMetadata,
 		}
@@ -254,4 +255,15 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 		TotalUpdated:    totalUpdated,
 		Duration:        time.Since(start),
 	}, nil
+}
+
+func classifyDeviceType(obs collectors.RawObservation) string {
+	switch obs.ProtocolSource {
+	case "snmp":
+		return "network_device"
+	case "icmp", "arp":
+		return "host"
+	default:
+		return "unknown"
+	}
 }

@@ -28,18 +28,37 @@ func TestDetectInterfaces(t *testing.T) {
 	}
 }
 
-func TestDetectInterfaces_NoVirtualInterfaces(t *testing.T) {
-	ifaces, err := netinfo.DetectInterfaces()
-	if err != nil {
-		t.Fatalf("DetectInterfaces failed: %v", err)
+func TestIsVirtualInterface(t *testing.T) {
+	tests := []struct {
+		name    string
+		iface   string
+		virtual bool
+	}{
+		{"docker bridge", "docker0", true},
+		{"docker uppercase", "Docker0", true},
+		{"br- prefix", "br-abc123", true},
+		{"veth pair", "veth1234", true},
+		{"virbr libvirt", "virbr0", true},
+		{"lxc container", "lxc-br0", true},
+		{"flannel overlay", "flannel.1", true},
+		{"cni interface", "cni0", true},
+		{"calico tunnel", "calicoabcdef", true},
+		{"weave overlay", "weave", true},
+		{"tun device", "tun0", true},
+		{"tap device", "tap0", true},
+		{"ethernet", "eth0", false},
+		{"wifi", "wlan0", false},
+		{"macos ethernet", "en0", false},
+		{"bond interface", "bond0", false},
+		{"empty name", "", false},
 	}
 
-	virtualPrefixes := []string{"docker", "br-", "veth", "virbr"}
-	for _, iface := range ifaces {
-		for _, prefix := range virtualPrefixes {
-			if len(iface.Name) >= len(prefix) && iface.Name[:len(prefix)] == prefix {
-				t.Errorf("virtual interface %s should be filtered", iface.Name)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := netinfo.IsVirtualInterface(tt.iface)
+			if got != tt.virtual {
+				t.Errorf("IsVirtualInterface(%q) = %v, want %v", tt.iface, got, tt.virtual)
 			}
-		}
+		})
 	}
 }

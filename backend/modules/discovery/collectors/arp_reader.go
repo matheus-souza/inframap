@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"os/exec"
 	"strings"
 )
@@ -60,7 +61,7 @@ func parseProcNetARP(data []byte) []ARPEntry {
 			continue
 		}
 		mac := fields[3]
-		if mac == "00:00:00:00:00:00" || mac == "ff:ff:ff:ff:ff:ff" {
+		if !isValidUnicastMAC(mac) {
 			continue
 		}
 		entries = append(entries, ARPEntry{
@@ -119,7 +120,7 @@ func parseARPLine(line string) (ARPEntry, bool) {
 	ip := strings.Trim(ipRaw, "()")
 	mac := fields[atIdx+1]
 
-	if mac == "(incomplete)" || mac == "00:00:00:00:00:00" || mac == "ff:ff:ff:ff:ff:ff" {
+	if mac == "(incomplete)" || !isValidUnicastMAC(mac) {
 		return ARPEntry{}, false
 	}
 
@@ -136,4 +137,26 @@ func parseARPLine(line string) (ARPEntry, bool) {
 		MACAddress: mac,
 		Interface:  iface,
 	}, true
+}
+
+func isValidUnicastMAC(s string) bool {
+	hw, err := net.ParseMAC(s)
+	if err != nil || len(hw) < 6 {
+		return false
+	}
+	// reject zero, broadcast, and multicast (bit 0 of first octet)
+	allZero := true
+	allFF := true
+	for _, b := range hw {
+		if b != 0x00 {
+			allZero = false
+		}
+		if b != 0xff {
+			allFF = false
+		}
+	}
+	if allZero || allFF {
+		return false
+	}
+	return hw[0]&0x01 == 0
 }

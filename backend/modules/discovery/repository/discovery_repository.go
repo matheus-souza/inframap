@@ -95,7 +95,7 @@ func (r *PgDiscoveryRepository) CreateSource(ctx context.Context, req *dto.Creat
 		return nil, fmt.Errorf("failed to create discovery source: %w", err)
 	}
 
-	return r.mapSourceToDTO(&row), nil
+	return r.mapSourceToDTO(&row)
 }
 
 // GetSourceByID retrieves a single discovery source by ID.
@@ -108,7 +108,7 @@ func (r *PgDiscoveryRepository) GetSourceByID(ctx context.Context, id uuid.UUID)
 		return nil, fmt.Errorf("failed to query discovery source: %w", err)
 	}
 
-	return r.mapSourceToDTO(&row), nil
+	return r.mapSourceToDTO(&row)
 }
 
 // ListSources retrieves all discovery sources ordered by creation date descending.
@@ -120,7 +120,11 @@ func (r *PgDiscoveryRepository) ListSources(ctx context.Context) ([]*dto.Discove
 
 	items := make([]*dto.DiscoverySourceResponse, len(rows))
 	for i, row := range rows {
-		items[i] = r.mapSourceToDTO(&row)
+		mapped, mapErr := r.mapSourceToDTO(&row)
+		if mapErr != nil {
+			return nil, mapErr
+		}
+		items[i] = mapped
 	}
 	return items, nil
 }
@@ -138,7 +142,7 @@ func (r *PgDiscoveryRepository) UpdateSourceStatus(ctx context.Context, id uuid.
 		return nil, fmt.Errorf("failed to update discovery source status: %w", err)
 	}
 
-	return r.mapSourceToDTO(&row), nil
+	return r.mapSourceToDTO(&row)
 }
 
 // DeleteSource removes a discovery source record.
@@ -186,7 +190,7 @@ func (r *PgDiscoveryRepository) ListRecordsByDevice(ctx context.Context, deviceI
 	return items, nil
 }
 
-func (r *PgDiscoveryRepository) mapSourceToDTO(row *db.DiscoverySource) *dto.DiscoverySourceResponse {
+func (r *PgDiscoveryRepository) mapSourceToDTO(row *db.DiscoverySource) (*dto.DiscoverySourceResponse, error) {
 	resp := &dto.DiscoverySourceResponse{
 		ID:         row.ID,
 		Name:       row.Name,
@@ -204,14 +208,16 @@ func (r *PgDiscoveryRepository) mapSourceToDTO(row *db.DiscoverySource) *dto.Dis
 	}
 	if row.ConfigEncrypted.Valid && r.encryptor != nil {
 		decrypted, err := r.encryptor.Decrypt(row.ConfigEncrypted.String)
-		if err == nil {
-			var cfg ConfigPayload
-			if json.Unmarshal(decrypted, &cfg) == nil {
-				resp.ConfigCIDR = cfg.CIDR
-			}
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt source config for %s: %w", row.ID, err)
 		}
+		var cfg ConfigPayload
+		if err := json.Unmarshal(decrypted, &cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse source config for %s: %w", row.ID, err)
+		}
+		resp.ConfigCIDR = cfg.CIDR
 	}
-	return resp
+	return resp, nil
 }
 
 func mapRecordToDTO(row *db.DeviceDiscoveryRecord) *dto.DiscoveryRecordResponse {

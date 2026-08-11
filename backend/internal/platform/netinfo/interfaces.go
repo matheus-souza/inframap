@@ -28,7 +28,7 @@ func DetectInterfaces() ([]InterfaceInfo, error) {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-		if isVirtualInterface(iface.Name) {
+		if IsVirtualInterface(iface.Name) {
 			continue
 		}
 
@@ -64,7 +64,8 @@ func DetectInterfaces() ([]InterfaceInfo, error) {
 	return results, nil
 }
 
-func isVirtualInterface(name string) bool {
+// IsVirtualInterface returns true if the interface name matches a known virtual/container prefix.
+func IsVirtualInterface(name string) bool {
 	virtualPrefixes := []string{
 		"docker", "br-", "veth", "virbr", "lxc", "flannel",
 		"cni", "calico", "weave", "tun", "tap",

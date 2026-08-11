@@ -275,19 +275,16 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		discRepo.failUpdateSourceStatus = false
 	})
 
-	t.Run("TriggerRun updates status to running then resets to idle", func(t *testing.T) {
+	t.Run("TriggerRun returns error when source has no CIDR", func(t *testing.T) {
 		sources, _ := uc.ListSources(ctx)
 		if len(sources) == 0 {
 			t.Fatal("expected at least 1 source")
 		}
 		srcID := sources[0].ID.String()
 
-		res, err := uc.TriggerRun(ctx, srcID)
-		if err != nil {
-			t.Fatalf("expected nil error on TriggerRun, got %v", err)
-		}
-		if res.LastStatus != "idle" {
-			t.Errorf("expected status idle upon completion, got %s", res.LastStatus)
+		_, err := uc.TriggerRun(ctx, srcID)
+		if err == nil {
+			t.Fatal("expected error for source without CIDR, got nil")
 		}
 	})
 

@@ -133,13 +133,21 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		if u.logger != nil {
 			u.logger.Warn("discovery source has no CIDR configured, skipping scan", slog.String("source_id", source.ID.String()))
 		}
-	} else {
-		scanReq := &dto.TriggerScanRequest{CIDR: cidr}
-		if _, scanErr := u.TriggerScan(ctx, scanReq); scanErr != nil {
-			if u.logger != nil {
-				u.logger.Error("discovery source scan failed", slog.String("source_id", source.ID.String()), slog.Any("error", scanErr))
-			}
+		if _, idleErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "idle"); idleErr != nil {
+			return nil, fmt.Errorf("failed to reset discovery status: %w", idleErr)
 		}
+		return nil, fmt.Errorf("discovery source %s has no CIDR configured", source.ID)
+	}
+
+	scanReq := &dto.TriggerScanRequest{CIDR: cidr}
+	if _, scanErr := u.TriggerScan(ctx, scanReq); scanErr != nil {
+		if u.logger != nil {
+			u.logger.Error("discovery source scan failed", slog.String("source_id", source.ID.String()), slog.Any("error", scanErr))
+		}
+		if _, idleErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "error"); idleErr != nil {
+			return nil, fmt.Errorf("failed to set error status after scan failure: %w", idleErr)
+		}
+		return nil, fmt.Errorf("discovery scan failed for source %s: %w", source.ID, scanErr)
 	}
 
 	res, finishErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "idle")
@@ -376,6 +384,12 @@ func (u *DefaultDiscoveryUseCase) ListRecordsByDevice(ctx context.Context, devic
 // New devices go to staging; matched devices are already reconciled in-memory by the orchestrator.
 func (u *DefaultDiscoveryUseCase) persistDiscoveredDevice(ctx context.Context, norm *dto.NormalizedDeviceDTO, sourceType string, matched bool) {
 	if matched {
+		return
+	}
+	if u.invRepo == nil {
+		if u.logger != nil {
+			u.logger.Error("cannot persist discovered device: inventory repository is not configured")
+		}
 		return
 	}
 
