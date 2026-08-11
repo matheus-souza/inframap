@@ -206,7 +206,10 @@ func (r *PgDiscoveryRepository) mapSourceToDTO(row *db.DiscoverySource) (*dto.Di
 	if row.LastRunAt.Valid {
 		resp.LastRunAt = &row.LastRunAt.Time
 	}
-	if row.ConfigEncrypted.Valid && r.encryptor != nil {
+	if row.ConfigEncrypted.Valid {
+		if r.encryptor == nil {
+			return nil, fmt.Errorf("cannot decrypt source config for %s: encryptor is not configured", row.ID)
+		}
 		decrypted, err := r.encryptor.Decrypt(row.ConfigEncrypted.String)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt source config for %s: %w", row.ID, err)

@@ -286,6 +286,9 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for source without CIDR, got nil")
 		}
+		if sources[0].LastStatus != "error" {
+			t.Errorf("expected source status 'error' after missing CIDR, got %q", sources[0].LastStatus)
+		}
 	})
 
 	t.Run("TriggerRun with CIDR executes scan and resets to idle", func(t *testing.T) {

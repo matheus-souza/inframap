@@ -133,8 +133,8 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		if u.logger != nil {
 			u.logger.Warn("discovery source has no CIDR configured, skipping scan", slog.String("source_id", source.ID.String()))
 		}
-		if _, idleErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "idle"); idleErr != nil {
-			return nil, fmt.Errorf("failed to reset discovery status: %w", idleErr)
+		if _, errStatusErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "error"); errStatusErr != nil {
+			return nil, fmt.Errorf("failed to set error status for missing CIDR: %w", errStatusErr)
 		}
 		return nil, fmt.Errorf("discovery source %s has no CIDR configured", source.ID)
 	}
