@@ -37,6 +37,7 @@ import com.inframap.frontend.designsystem.StatusOnlineColor
 import com.inframap.frontend.designsystem.StatusStagingColor
 import com.inframap.frontend.designsystem.StatusWarningColor
 
+@Suppress("LongMethod")
 @Composable
 fun LiveEventsWidget(
     events: List<DashboardEventItem>,

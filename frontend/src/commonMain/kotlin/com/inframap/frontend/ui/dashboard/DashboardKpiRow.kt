@@ -102,6 +102,7 @@ fun DashboardKpiRow(
     }
 }
 
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun KpiCard(
     title: String,

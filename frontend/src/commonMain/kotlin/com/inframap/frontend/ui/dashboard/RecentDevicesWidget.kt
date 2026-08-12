@@ -90,6 +90,7 @@ fun RecentDevicesWidget(
     }
 }
 
+@Suppress("LongMethod")
 @Composable
 private fun RecentDevicesTableContent(
     devices: List<Device>,
