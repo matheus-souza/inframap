@@ -189,7 +189,9 @@ private fun DetectedInterfacesCard(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = "Interfaces de rede encontradas neste servidor. Adicione como sub-rede para iniciar a varredura.",
+                        text =
+                            "Interfaces de rede encontradas neste servidor." +
+                                " Adicione como sub-rede para iniciar a varredura.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     )

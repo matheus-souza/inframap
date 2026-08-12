@@ -212,15 +212,33 @@ class CreateSubnetViewModelTest {
     fun loadNetworkInterfacesPopulatesDetectedInterfaces() =
         runTest {
             val vm = makeVm(scope = this)
+            advanceUntilIdle()
 
-            vm.state.test {
-                skipItems(1)
-                val state = expectMostRecentItem()
+            val state = vm.state.value
+            assertEquals(1, state.detectedInterfaces.size)
+            assertEquals("eth0", state.detectedInterfaces.first().name)
+            vm.clear()
+        }
 
-                assertEquals(1, state.detectedInterfaces.size)
-                assertEquals("eth0", state.detectedInterfaces.first().name)
-                cancelAndIgnoreRemainingEvents()
-            }
+    @Test
+    fun onInterfaceSelectedClearsGatewayValidationError() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onNameChanged("Servers")
+            vm.onCidrChanged("10.0.0.0/24")
+            vm.onGatewayIpChanged("bad-ip")
+            vm.validate()
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("gateway_ip"),
+            )
+
+            vm.onInterfaceSelected(sampleInterface)
+
+            assertFalse(
+                vm.state.value.validationErrors
+                    .containsKey("gateway_ip"),
+            )
             vm.clear()
         }
 

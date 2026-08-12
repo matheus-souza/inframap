@@ -10,6 +10,7 @@ import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
 import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -130,16 +131,12 @@ class SubnetsViewModelTest {
     fun loadNetworkInterfacesPopulatesDetectedInterfaces() =
         runTest {
             val vm = makeVm(scope = this)
+            advanceUntilIdle()
 
-            vm.state.test {
-                skipItems(1)
-                val state = expectMostRecentItem()
-
-                assertEquals(1, state.detectedInterfaces.size)
-                assertEquals("eth0", state.detectedInterfaces.first().name)
-                assertEquals("192.168.18.0/24", state.detectedInterfaces.first().cidr)
-                cancelAndIgnoreRemainingEvents()
-            }
+            val state = vm.state.value
+            assertEquals(1, state.detectedInterfaces.size)
+            assertEquals("eth0", state.detectedInterfaces.first().name)
+            assertEquals("192.168.18.0/24", state.detectedInterfaces.first().cidr)
             vm.clear()
         }
 
@@ -151,15 +148,11 @@ class SubnetsViewModelTest {
                     getInterfacesResult = ApiResult.NetworkError(RuntimeException("no network")),
                 )
             val vm = makeVm(networkRepo = networkRepo, scope = this)
+            advanceUntilIdle()
 
-            vm.state.test {
-                skipItems(1)
-                val state = expectMostRecentItem()
-
-                assertTrue(state.detectedInterfaces.isEmpty())
-                assertNull(state.errorMessage)
-                cancelAndIgnoreRemainingEvents()
-            }
+            val state = vm.state.value
+            assertTrue(state.detectedInterfaces.isEmpty())
+            assertNull(state.errorMessage)
             vm.clear()
         }
 }

@@ -4,9 +4,9 @@ import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.repository.AuthRepositoryImpl
 import com.inframap.frontend.data.repository.DashboardRepositoryImpl
 import com.inframap.frontend.data.repository.DeviceRepositoryImpl
+import com.inframap.frontend.data.repository.NetworkRepositoryImpl
 import com.inframap.frontend.data.repository.StagingRepositoryImpl
 import com.inframap.frontend.data.repository.SubnetRepositoryImpl
-import com.inframap.frontend.data.repository.NetworkRepositoryImpl
 import com.inframap.frontend.data.repository.TopologyRepositoryImpl
 import com.inframap.frontend.domain.repository.AuthRepository
 import com.inframap.frontend.domain.repository.DashboardRepository

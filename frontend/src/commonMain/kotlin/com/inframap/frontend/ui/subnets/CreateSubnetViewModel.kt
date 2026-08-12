@@ -68,12 +68,18 @@ class CreateSubnetViewModel(
 
     fun onInterfaceSelected(iface: NetworkInterface) {
         updateState {
+            val clearedErrors = it.validationErrors - "cidr" - "name"
             it.copy(
                 cidr = iface.cidr,
                 name = iface.name,
                 gatewayIp = iface.gateway.ifEmpty { it.gatewayIp },
                 showInterfaceSuggestions = false,
-                validationErrors = it.validationErrors - "cidr" - "name",
+                validationErrors =
+                    if (iface.gateway.isNotEmpty()) {
+                        clearedErrors - "gateway_ip"
+                    } else {
+                        clearedErrors
+                    },
             )
         }
     }
