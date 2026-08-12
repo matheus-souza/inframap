@@ -166,6 +166,7 @@ kover {
                     "com.inframap.frontend.ui.staging.*ScreenKt*",
                     "com.inframap.frontend.ui.subnets.*ScreenKt*",
                     "com.inframap.frontend.ui.topology.*ScreenKt*",
+                    "com.inframap.frontend.ui.inventory.*",
                     "com.inframap.frontend.ui.topology.components.*",
                     "com.inframap.frontend.ui.app.NavItem",
                     "com.inframap.frontend.ui.app.ComposableSingletons*",
