@@ -2,6 +2,13 @@ package com.inframap.frontend.designsystem
 
 import androidx.compose.ui.graphics.Color
 
+val InfraMapCanvasBg = Color(0xFF121214)
+val InfraMapSurfaceBg = Color(0xFF18181B)
+val InfraMapSurfaceElevated = Color(0xFF27272A)
+val InfraMapBorder = Color(0xFF27272A)
+val InfraMapTextPrimary = Color(0xFFF4F4F5)
+val InfraMapTextSecondary = Color(0xFFA1A1AA)
+
 internal val InfraMapPurple = Color(0xFFbd93f9)
 internal val InfraMapCyan = Color(0xFF8be9fd)
 internal val InfraMapBackground = Color(0xFF1e1f29)

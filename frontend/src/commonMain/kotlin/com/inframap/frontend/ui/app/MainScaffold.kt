@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.MoveToInbox
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -25,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -43,8 +46,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.InfraMapGreen
 import com.inframap.frontend.designsystem.InfraMapRed
+import com.inframap.frontend.domain.model.CommandPaletteAction
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
+import com.inframap.frontend.ui.command.CommandPaletteActions
+import com.inframap.frontend.ui.command.CommandPaletteEffect
+import com.inframap.frontend.ui.command.CommandPaletteListener
+import com.inframap.frontend.ui.command.CommandPaletteModal
+import com.inframap.frontend.ui.command.CommandPaletteViewModel
 import com.inframap.frontend.ui.dashboard.DashboardScreen
 import com.inframap.frontend.ui.dashboard.DashboardViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceActions
@@ -96,16 +105,68 @@ fun MainScaffold(
     isHealthy: Boolean?,
     onHealthChanged: (Boolean?) -> Unit = {},
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(isHealthy = isHealthy)
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+    val commandPaletteViewModel: CommandPaletteViewModel = koinInject()
+    val commandPaletteState by commandPaletteViewModel.state.collectAsState()
+
+    DisposableEffect(commandPaletteViewModel) {
+        onDispose { commandPaletteViewModel.clear() }
+    }
+
+    LaunchedEffect(Unit) {
+        commandPaletteViewModel.effects.collect { effect ->
+            when (effect) {
+                is CommandPaletteEffect.ExecuteItem -> {
+                    when (val action = effect.item.action) {
+                        is CommandPaletteAction.Navigate -> navigator.navigateTo(action.route)
+                        CommandPaletteAction.RefreshData -> {}
+                    }
+                }
+                CommandPaletteEffect.ClosePalette -> {}
+            }
+        }
+    }
+
+    CommandPaletteListener(onTogglePalette = commandPaletteViewModel::toggle) {
+        MainScaffoldContent(
+            currentRoute = currentRoute,
+            navigator = navigator,
+            isHealthy = isHealthy,
+            onHealthChanged = onHealthChanged,
+            onOpenCommandPalette = commandPaletteViewModel::open,
         )
+        val paletteActions =
+            CommandPaletteActions(
+                onQueryChanged = commandPaletteViewModel::onQueryChanged,
+                onNextItem = commandPaletteViewModel::onNextItem,
+                onPreviousItem = commandPaletteViewModel::onPreviousItem,
+                onSelectItem = commandPaletteViewModel::selectCurrentItem,
+                onItemClicked = commandPaletteViewModel::onItemClicked,
+                onDismiss = commandPaletteViewModel::close,
+            )
+        CommandPaletteModal(
+            state = commandPaletteState,
+            actions = paletteActions,
+        )
+    }
+}
+
+@Composable
+private fun MainScaffoldContent(
+    currentRoute: Route,
+    navigator: Navigator,
+    isHealthy: Boolean?,
+    onHealthChanged: (Boolean?) -> Unit,
+    onOpenCommandPalette: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        AppTopBar(
+            isHealthy = isHealthy,
+            onOpenCommandPalette = onOpenCommandPalette,
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         Row(modifier = Modifier.weight(1f)) {
             AppNavRail(currentRoute = currentRoute, navigator = navigator)
-            VerticalDivider(
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-            )
+            VerticalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             Box(
                 modifier =
                     Modifier
@@ -125,7 +186,10 @@ fun MainScaffold(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppTopBar(isHealthy: Boolean?) {
+private fun AppTopBar(
+    isHealthy: Boolean?,
+    onOpenCommandPalette: () -> Unit = {},
+) {
     TopAppBar(
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -136,10 +200,8 @@ private fun AppTopBar(isHealthy: Boolean?) {
                 )
                 if (isHealthy != null) {
                     Spacer(modifier = Modifier.width(8.dp))
-                    val dotColor =
-                        if (isHealthy) InfraMapGreen else InfraMapRed
-                    val description =
-                        if (isHealthy) "System healthy" else "System unhealthy"
+                    val dotColor = if (isHealthy) InfraMapGreen else InfraMapRed
+                    val description = if (isHealthy) "System healthy" else "System unhealthy"
                     Box(
                         modifier =
                             Modifier
@@ -151,11 +213,54 @@ private fun AppTopBar(isHealthy: Boolean?) {
                 }
             }
         },
+        actions = {
+            CommandPaletteTopBarButton(onClick = onOpenCommandPalette)
+        },
         colors =
             TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.surface,
             ),
     )
+}
+
+@Composable
+private fun CommandPaletteTopBarButton(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.padding(end = 16.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Command Palette",
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Buscar...",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = MaterialTheme.colorScheme.background,
+            ) {
+                Text(
+                    text = "⌘K",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable
