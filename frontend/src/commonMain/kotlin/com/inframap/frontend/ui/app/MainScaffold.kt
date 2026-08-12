@@ -2,47 +2,29 @@
 
 package com.inframap.frontend.ui.app
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.filled.SpaceDashboard
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.inframap.frontend.designsystem.InfraMapGreen
-import com.inframap.frontend.designsystem.InfraMapRed
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
 import com.inframap.frontend.ui.dashboard.DashboardScreen
@@ -123,38 +105,13 @@ fun MainScaffold(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppTopBar(isHealthy: Boolean?) {
-    TopAppBar(
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "InfraMap",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                if (isHealthy != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    val dotColor =
-                        if (isHealthy) InfraMapGreen else InfraMapRed
-                    val description =
-                        if (isHealthy) "System healthy" else "System unhealthy"
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(dotColor)
-                                .semantics { contentDescription = description },
-                    )
-                }
-            }
-        },
-        colors =
-            TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-            ),
+    com.inframap.frontend.designsystem.InfraMapTopBar(
+        title = "InfraMap",
+        isHealthy = isHealthy,
+        isSseConnected = isHealthy ?: true,
+        onSearchClicked = {},
     )
 }
 
@@ -163,41 +120,43 @@ private fun AppNavRail(
     currentRoute: Route,
     navigator: Navigator,
 ) {
-    NavigationRail(
-        modifier = Modifier.fillMaxHeight(),
-        containerColor = MaterialTheme.colorScheme.surface,
-    ) {
-        androidx.compose.foundation.layout
-            .Spacer(modifier = Modifier.padding(top = 8.dp))
-        navItems.forEach { item ->
-            val isSelected =
-                when (currentRoute) {
-                    Route.Devices,
-                    is Route.DeviceDetail,
-                    Route.CreateDevice,
-                    is Route.EditDevice,
-                    -> item.route == Route.Devices
-
-                    else -> currentRoute == item.route
-                }
-            NavigationRailItem(
-                selected = isSelected,
-                onClick = { navigator.navigateTo(item.route) },
-                icon = {
-                    Icon(
-                        imageVector = item.icon,
-                        contentDescription = item.label,
-                    )
-                },
-                label = {
-                    Text(
-                        text = item.label,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                },
+    val items =
+        navItems.map { navItem ->
+            com.inframap.frontend.designsystem.NavRailItem(
+                label = navItem.label,
+                icon = navItem.icon,
+                route = navItem.label,
             )
         }
-    }
+
+    val selectedRouteKey =
+        when (currentRoute) {
+            Route.Dashboard -> "Dashboard"
+            Route.Devices,
+            is Route.DeviceDetail,
+            Route.CreateDevice,
+            is Route.EditDevice,
+            -> "Devices"
+
+            Route.Staging -> "Staging"
+            Route.Subnets,
+            Route.CreateSubnet,
+            -> "Subnets"
+
+            Route.Topology -> "Topology"
+            else -> "Dashboard"
+        }
+
+    com.inframap.frontend.designsystem.InfraMapNavRail(
+        items = items,
+        selectedRoute = selectedRouteKey,
+        onItemSelected = { selectedKey ->
+            val targetNavItem = navItems.find { it.label == selectedKey }
+            if (targetNavItem != null) {
+                navigator.navigateTo(targetNavItem.route)
+            }
+        },
+    )
 }
 
 @Composable
