@@ -354,6 +354,129 @@ func TestScheduler_ShutdownCompletesWhenNoScansRunning(t *testing.T) {
 	}
 }
 
+func TestScheduler_EventCreatedRegistersNewCronJob(t *testing.T) {
+	srcID := uuid.New()
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	cronExpr := "@every 1s"
+	_ = bus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.created", map[string]interface{}{
+		"source_id":     srcID.String(),
+		"schedule_cron": cronExpr,
+		"enabled":       true,
+	}))
+
+	deadline := time.After(3 * time.Second)
+	for {
+		calls := uc.getTriggerCalls()
+		if len(calls) > 0 {
+			if calls[0] != srcID.String() {
+				t.Errorf("expected source %s, got %s", srcID, calls[0])
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("TriggerRun was not called within 3s after discovery_source.created event")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+func TestScheduler_EventCreatedDisabledDoesNotRegister(t *testing.T) {
+	srcID := uuid.New()
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	_ = bus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.created", map[string]interface{}{
+		"source_id":     srcID.String(),
+		"schedule_cron": "@every 1s",
+		"enabled":       false,
+	}))
+
+	time.Sleep(2 * time.Second)
+	if calls := uc.getTriggerCalls(); len(calls) != 0 {
+		t.Errorf("expected 0 calls for disabled source event, got %d", len(calls))
+	}
+}
+
+func TestScheduler_EventDeletedRemovesCronJob(t *testing.T) {
+	srcID := uuid.New()
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{
+			{ID: srcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle"},
+		},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	// Wait for at least one trigger
+	deadline := time.After(3 * time.Second)
+	for {
+		if len(uc.getTriggerCalls()) > 0 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("source did not fire before delete event")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	// Publish delete event
+	_ = bus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.deleted", map[string]interface{}{
+		"source_id": srcID.String(),
+	}))
+
+	// Allow event to process
+	time.Sleep(500 * time.Millisecond)
+
+	// Record count after delete
+	countAfterDelete := len(uc.getTriggerCalls())
+	time.Sleep(2 * time.Second)
+	countFinal := len(uc.getTriggerCalls())
+
+	if countFinal > countAfterDelete {
+		t.Errorf("source continued to fire after delete event: %d → %d calls", countAfterDelete, countFinal)
+	}
+}
+
 func TestScheduler_TriggerRunErrorDoesNotCrashScheduler(t *testing.T) {
 	srcID := uuid.New()
 	uc := &fakeUseCase{

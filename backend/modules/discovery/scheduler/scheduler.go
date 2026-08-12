@@ -81,6 +81,10 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		s.registerSource(src)
 	}
 
+	_ = s.bus.Subscribe("discovery_source.created", s.handleSourceCreated)
+	_ = s.bus.Subscribe("discovery_source.updated", s.handleSourceUpdated)
+	_ = s.bus.Subscribe("discovery_source.deleted", s.handleSourceDeleted)
+
 	s.cron.Start()
 	return nil
 }
@@ -112,6 +116,72 @@ func (s *Scheduler) Stop() {
 				slog.Any("error", err),
 			)
 		}
+	}
+}
+
+func (s *Scheduler) handleSourceCreated(_ context.Context, event eventbus.DomainEvent) error {
+	src, ok := s.parseSourceEvent(event)
+	if !ok {
+		return nil
+	}
+	s.registerSource(src)
+	return nil
+}
+
+func (s *Scheduler) handleSourceUpdated(_ context.Context, event eventbus.DomainEvent) error {
+	src, ok := s.parseSourceEvent(event)
+	if !ok {
+		return nil
+	}
+	s.unregisterSource(src.ID)
+	s.registerSource(src)
+	return nil
+}
+
+func (s *Scheduler) handleSourceDeleted(_ context.Context, event eventbus.DomainEvent) error {
+	payload, ok := event.Payload().(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	idStr, _ := payload["source_id"].(string)
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil
+	}
+	s.unregisterSource(id)
+	return nil
+}
+
+func (s *Scheduler) parseSourceEvent(event eventbus.DomainEvent) (*dto.DiscoverySourceResponse, bool) {
+	payload, ok := event.Payload().(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+
+	idStr, _ := payload["source_id"].(string)
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, false
+	}
+
+	enabled, _ := payload["enabled"].(bool)
+
+	var cronPtr *string
+	if cronStr, ok := payload["schedule_cron"].(string); ok && cronStr != "" {
+		cronPtr = &cronStr
+	}
+
+	return &dto.DiscoverySourceResponse{
+		ID:           id,
+		Enabled:      enabled,
+		ScheduleCron: cronPtr,
+	}, true
+}
+
+func (s *Scheduler) unregisterSource(id uuid.UUID) {
+	if entryID, ok := s.entries[id]; ok {
+		s.cron.Remove(entryID)
+		delete(s.entries, id)
 	}
 }
 
