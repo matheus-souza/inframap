@@ -9,9 +9,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,9 +26,11 @@ import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapEmptyState
+import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.TableColumn
+import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.Subnet
 
 @Composable
@@ -115,15 +121,25 @@ private fun SubnetsTableCard(
     actions: SubnetsActions,
 ) {
     if (state.subnets.isEmpty()) {
-        InfraMapEmptyState(
-            icon = Icons.Filled.Hub,
-            title = "Nenhuma subrede cadastrada",
-            subtitle =
-                "Subredes definem as faixas de rede onde a descoberta automática " +
-                    "de dispositivos será executada.",
-            ctaLabel = "Cadastrar Subrede",
-            onCtaClick = actions.onCreateSubnetClicked,
-        )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            InfraMapEmptyState(
+                icon = Icons.Filled.Hub,
+                title = "Nenhuma subrede cadastrada",
+                subtitle =
+                    "Subredes definem as faixas de rede onde a descoberta automática " +
+                        "de dispositivos será executada.",
+                ctaLabel = "Cadastrar Subrede",
+                onCtaClick = actions.onCreateSubnetClicked,
+            )
+
+            if (state.detectedInterfaces.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                DetectedInterfacesCard(
+                    interfaces = state.detectedInterfaces,
+                    onAddClicked = actions.onAddInterfaceClicked,
+                )
+            }
+        }
     } else {
         val columns =
             listOf(
@@ -146,6 +162,78 @@ private fun SubnetsTableCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DetectedInterfacesCard(
+    interfaces: List<NetworkInterface>,
+    onAddClicked: (NetworkInterface) -> Unit,
+) {
+    InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Sensors,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = "Interfaces detectadas",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "Interfaces de rede encontradas neste servidor. Adicione como sub-rede para iniciar a varredura.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+
+            interfaces.forEach { iface ->
+                DetectedInterfaceRow(
+                    iface = iface,
+                    onAddClicked = { onAddClicked(iface) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetectedInterfaceRow(
+    iface: NetworkInterface,
+    onAddClicked: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = iface.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "${iface.cidr}  |  IP: ${iface.ip}  |  MAC: ${iface.mac}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            )
+        }
+        InfraMapOutlinedButton(
+            text = "Adicionar",
+            onClick = onAddClicked,
+        )
     }
 }
 

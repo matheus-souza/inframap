@@ -2,8 +2,11 @@ package com.inframap.frontend.ui.subnets
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
+import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,13 +30,34 @@ class CreateSubnetViewModelTest {
             discoveryEnabled = true,
         )
 
+    private val sampleInterface =
+        NetworkInterface(
+            name = "eth0",
+            ip = "192.168.18.5",
+            cidr = "192.168.18.0/24",
+            mac = "aa:bb:cc:dd:ee:ff",
+            gateway = "192.168.18.1",
+        )
+
     private fun makeVm(
-        repo: FakeSubnetRepository =
+        subnetRepo: FakeSubnetRepository =
             FakeSubnetRepository(
                 createSubnetResult = ApiResult.Success(sampleCreatedSubnet, requestId = ""),
             ),
+        networkRepo: FakeNetworkRepository =
+            FakeNetworkRepository(
+                getInterfacesResult = ApiResult.Success(listOf(sampleInterface), requestId = ""),
+            ),
+        prefilledCidr: String? = null,
+        prefilledName: String? = null,
         scope: CoroutineScope? = null,
-    ) = CreateSubnetViewModel(CreateSubnetUseCase(repo), scope = scope)
+    ) = CreateSubnetViewModel(
+        CreateSubnetUseCase(subnetRepo),
+        GetNetworkInterfacesUseCase(networkRepo),
+        prefilledCidr,
+        prefilledName,
+        scope,
+    )
 
     @Test
     fun validationFailsOnEmptyFields() =
@@ -123,7 +147,7 @@ class CreateSubnetViewModelTest {
                             httpStatus = 409,
                         ),
                 )
-            val vm = makeVm(repo = repo, scope = this)
+            val vm = makeVm(subnetRepo = repo, scope = this)
             vm.onNameChanged("Management")
             vm.onCidrChanged("192.168.1.0/24")
 
@@ -138,6 +162,86 @@ class CreateSubnetViewModelTest {
                 assertEquals("Subnet CIDR already registered", state.errorMessage?.asStringAsync())
                 cancelAndIgnoreRemainingEvents()
             }
+            vm.clear()
+        }
+
+    @Test
+    fun prefilledDataPopulatesInitialState() =
+        runTest {
+            val vm =
+                makeVm(
+                    prefilledCidr = "10.0.0.0/8",
+                    prefilledName = "wlan0",
+                    scope = this,
+                )
+
+            assertEquals("10.0.0.0/8", vm.state.value.cidr)
+            assertEquals("wlan0", vm.state.value.name)
+            vm.clear()
+        }
+
+    @Test
+    fun onInterfaceSelectedFillsCidrAndName() =
+        runTest {
+            val vm = makeVm(scope = this)
+
+            vm.onInterfaceSelected(sampleInterface)
+
+            val state = vm.state.value
+            assertEquals("192.168.18.0/24", state.cidr)
+            assertEquals("eth0", state.name)
+            assertEquals("192.168.18.1", state.gatewayIp)
+            assertFalse(state.showInterfaceSuggestions)
+            vm.clear()
+        }
+
+    @Test
+    fun toggleSuggestionsFlipsVisibility() =
+        runTest {
+            val vm = makeVm(scope = this)
+
+            assertFalse(vm.state.value.showInterfaceSuggestions)
+            vm.toggleSuggestions()
+            assertTrue(vm.state.value.showInterfaceSuggestions)
+            vm.toggleSuggestions()
+            assertFalse(vm.state.value.showInterfaceSuggestions)
+            vm.clear()
+        }
+
+    @Test
+    fun loadNetworkInterfacesPopulatesDetectedInterfaces() =
+        runTest {
+            val vm = makeVm(scope = this)
+
+            vm.state.test {
+                skipItems(1)
+                val state = expectMostRecentItem()
+
+                assertEquals(1, state.detectedInterfaces.size)
+                assertEquals("eth0", state.detectedInterfaces.first().name)
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.clear()
+        }
+
+    @Test
+    fun onInterfaceSelectedDoesNotOverwriteGatewayWhenEmpty() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onGatewayIpChanged("10.0.0.1")
+
+            val ifaceWithoutGateway =
+                NetworkInterface(
+                    name = "lo",
+                    ip = "127.0.0.1",
+                    cidr = "127.0.0.0/8",
+                    mac = "00:00:00:00:00:00",
+                    gateway = "",
+                )
+
+            vm.onInterfaceSelected(ifaceWithoutGateway)
+
+            assertEquals("10.0.0.1", vm.state.value.gatewayIp)
             vm.clear()
         }
 }

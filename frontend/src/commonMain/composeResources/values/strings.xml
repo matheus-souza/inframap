@@ -34,6 +34,9 @@
     <string name="subnets_title">Sub-redes</string>
     <string name="subnets_error_load">Falha ao carregar sub-redes.</string>
     <string name="subnets_error_create">Falha ao criar sub-rede.</string>
+    <string name="subnets_detected_interfaces_title">Interfaces detectadas</string>
+    <string name="subnets_detected_interfaces_subtitle">Interfaces de rede encontradas neste servidor. Adicione como sub-rede para iniciar a varredura.</string>
+    <string name="subnets_fill_from_interface">Preencher a partir de interface detectada</string>
     <string name="validation_subnet_name_required">Nome da sub-rede é obrigatório.</string>
     <string name="validation_cidr_required">CIDR é obrigatório.</string>
     <string name="validation_cidr_invalid">Formato de CIDR inválido (ex: 192.168.1.0/24).</string>

@@ -178,6 +178,10 @@ private fun AppNavRail(
                     is Route.EditDevice,
                     -> item.route == Route.Devices
 
+                    Route.Subnets,
+                    is Route.CreateSubnet,
+                    -> item.route == Route.Subnets
+
                     else -> currentRoute == item.route
                 }
             NavigationRailItem(
@@ -224,7 +228,12 @@ private fun RouteContent(
 
         Route.Staging -> StagingRoute()
         Route.Subnets -> SubnetsRoute(navigator = navigator)
-        Route.CreateSubnet -> CreateSubnetRoute(navigator = navigator)
+        is Route.CreateSubnet ->
+            CreateSubnetRoute(
+                prefilledCidr = currentRoute.prefilledCidr,
+                prefilledName = currentRoute.prefilledName,
+                navigator = navigator,
+            )
         Route.Topology -> TopologyRoute()
         else -> PlaceholderScreen("")
     }
@@ -400,7 +409,15 @@ private fun SubnetsRoute(navigator: Navigator) {
     val state by viewModel.state.collectAsState()
     val actions =
         SubnetsActions(
-            onCreateSubnetClicked = { navigator.navigateTo(Route.CreateSubnet) },
+            onCreateSubnetClicked = { navigator.navigateTo(Route.CreateSubnet()) },
+            onAddInterfaceClicked = { iface ->
+                navigator.navigateTo(
+                    Route.CreateSubnet(
+                        prefilledCidr = iface.cidr,
+                        prefilledName = iface.name,
+                    ),
+                )
+            },
             onDismissToast = viewModel::dismissToast,
             onRetryClicked = viewModel::loadSubnets,
         )
@@ -411,8 +428,15 @@ private fun SubnetsRoute(navigator: Navigator) {
 }
 
 @Composable
-private fun CreateSubnetRoute(navigator: Navigator) {
-    val viewModel: CreateSubnetViewModel = koinInject()
+private fun CreateSubnetRoute(
+    prefilledCidr: String? = null,
+    prefilledName: String? = null,
+    navigator: Navigator,
+) {
+    val viewModel: CreateSubnetViewModel =
+        koinInject {
+            parametersOf(prefilledCidr, prefilledName)
+        }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -425,6 +449,8 @@ private fun CreateSubnetRoute(navigator: Navigator) {
             onGatewayIpChanged = viewModel::onGatewayIpChanged,
             onDescriptionChanged = viewModel::onDescriptionChanged,
             onDiscoveryEnabledChanged = viewModel::onDiscoveryEnabledChanged,
+            onInterfaceSelected = viewModel::onInterfaceSelected,
+            onToggleSuggestions = viewModel::toggleSuggestions,
             onSubmitClicked = {
                 viewModel.createSubnet {
                     navigator.navigateTo(Route.Subnets)
