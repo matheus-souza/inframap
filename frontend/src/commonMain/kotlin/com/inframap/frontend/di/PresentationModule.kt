@@ -1,6 +1,8 @@
 package com.inframap.frontend.di
 
 import com.inframap.frontend.ui.dashboard.DashboardViewModel
+import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
+import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceViewModel
 import com.inframap.frontend.ui.devices.DeviceDetailViewModel
 import com.inframap.frontend.ui.devices.DeviceListViewModel
@@ -25,6 +27,9 @@ val presentationModule =
 
         factory { SubnetsViewModel(get()) }
         factory { CreateSubnetViewModel(get()) }
+
+        factory { DiscoveryListViewModel(get(), get(), get()) }
+        factory { CreateDiscoverySourceViewModel(get()) }
 
         factory { DashboardViewModel(get(), get(), get(), get(), getOrNull()) }
 

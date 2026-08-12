@@ -9,12 +9,20 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 enum class DeviceStatus {
     ACTIVE,
     OFFLINE,
     STAGED,
+}
+
+enum class SourceStatus {
+    IDLE,
+    RUNNING,
+    ERROR,
+    CANCELLED,
 }
 
 @Composable
@@ -28,6 +36,30 @@ fun InfraMapStatusBadge(
             DeviceStatus.OFFLINE -> InfraMapRed to "Offline"
             DeviceStatus.STAGED -> InfraMapOrange to "Staged"
         }
+    StatusBadgeContent(backgroundColor = backgroundColor, label = label, modifier = modifier)
+}
+
+@Composable
+fun InfraMapStatusBadge(
+    status: SourceStatus,
+    modifier: Modifier = Modifier,
+) {
+    val (backgroundColor, label) =
+        when (status) {
+            SourceStatus.IDLE -> InfraMapComment to "Idle"
+            SourceStatus.RUNNING -> InfraMapGreen to "Running"
+            SourceStatus.ERROR -> InfraMapRed to "Error"
+            SourceStatus.CANCELLED -> InfraMapOrange to "Cancelled"
+        }
+    StatusBadgeContent(backgroundColor = backgroundColor, label = label, modifier = modifier)
+}
+
+@Composable
+private fun StatusBadgeContent(
+    backgroundColor: Color,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
     Surface(
         modifier = modifier,
         color = backgroundColor.copy(alpha = 0.15f),

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.MoveToInbox
+import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -48,6 +49,12 @@ import com.inframap.frontend.navigation.Route
 import com.inframap.frontend.ui.dashboard.DashboardScreen
 import com.inframap.frontend.ui.dashboard.DashboardViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceActions
+import com.inframap.frontend.ui.discovery.CreateDiscoverySourceActions
+import com.inframap.frontend.ui.discovery.CreateDiscoverySourceScreen
+import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
+import com.inframap.frontend.ui.discovery.DiscoveryListActions
+import com.inframap.frontend.ui.discovery.DiscoveryListScreen
+import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceScreen
 import com.inframap.frontend.ui.devices.CreateDeviceViewModel
 import com.inframap.frontend.ui.devices.DeviceDetailActions
@@ -86,6 +93,7 @@ private val navItems =
         NavItem("Devices", Icons.Filled.Dns, Route.Devices),
         NavItem("Staging", Icons.Filled.MoveToInbox, Route.Staging),
         NavItem("Subnets", Icons.Filled.Lan, Route.Subnets),
+        NavItem("Discovery", Icons.Filled.Radar, Route.DiscoverySources),
         NavItem("Topology", Icons.Filled.AccountTree, Route.Topology),
     )
 
@@ -178,6 +186,14 @@ private fun AppNavRail(
                     is Route.EditDevice,
                     -> item.route == Route.Devices
 
+                    Route.DiscoverySources,
+                    Route.CreateDiscoverySource,
+                    -> item.route == Route.DiscoverySources
+
+                    Route.Subnets,
+                    Route.CreateSubnet,
+                    -> item.route == Route.Subnets
+
                     else -> currentRoute == item.route
                 }
             NavigationRailItem(
@@ -225,6 +241,8 @@ private fun RouteContent(
         Route.Staging -> StagingRoute()
         Route.Subnets -> SubnetsRoute(navigator = navigator)
         Route.CreateSubnet -> CreateSubnetRoute(navigator = navigator)
+        Route.DiscoverySources -> DiscoveryListRoute(navigator = navigator)
+        Route.CreateDiscoverySource -> CreateDiscoverySourceRoute(navigator = navigator)
         Route.Topology -> TopologyRoute()
         else -> PlaceholderScreen("")
     }
@@ -433,6 +451,66 @@ private fun CreateSubnetRoute(navigator: Navigator) {
             onCancelClicked = { navigator.navigateTo(Route.Subnets) },
         )
     CreateSubnetScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun DiscoveryListRoute(navigator: Navigator) {
+    val viewModel: DiscoveryListViewModel = koinInject()
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+    val actions =
+        DiscoveryListActions(
+            onCreateSourceClicked = { navigator.navigateTo(Route.CreateDiscoverySource) },
+            onTriggerRunClicked = viewModel::triggerRun,
+            onDeleteSourceClicked = viewModel::confirmDeleteSource,
+            onConfirmDelete = viewModel::deleteSource,
+            onCancelDelete = viewModel::cancelDeleteSource,
+            onDismissDeleteError = viewModel::dismissDeleteError,
+            onDismissToast = viewModel::dismissToast,
+            onDismissTriggerRunError = viewModel::dismissTriggerRunError,
+            onRetryClicked = { viewModel.loadPage(1) },
+        )
+    DiscoveryListScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun CreateDiscoverySourceRoute(navigator: Navigator) {
+    val viewModel: CreateDiscoverySourceViewModel = koinInject()
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+
+    DisposableEffect(state.isSuccess) {
+        if (state.isSuccess) {
+            navigator.navigateTo(Route.DiscoverySources)
+        }
+        onDispose {}
+    }
+
+    val actions =
+        CreateDiscoverySourceActions(
+            onNameChanged = viewModel::onNameChanged,
+            onSourceTypeChanged = viewModel::onSourceTypeChanged,
+            onScheduleCronChanged = viewModel::onScheduleCronChanged,
+            onConfigCidrChanged = viewModel::onConfigCidrChanged,
+            onEnabledChanged = viewModel::onEnabledChanged,
+            onSubmitClicked = {
+                viewModel.createSource {
+                    navigator.navigateTo(Route.DiscoverySources)
+                }
+            },
+            onCancelClicked = { navigator.navigateTo(Route.DiscoverySources) },
+        )
+    CreateDiscoverySourceScreen(
         state = state,
         actions = actions,
     )

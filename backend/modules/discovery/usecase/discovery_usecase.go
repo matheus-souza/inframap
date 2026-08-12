@@ -40,6 +40,7 @@ type DiscoveryUseCase interface {
 	GetSourceByID(ctx context.Context, id string) (*dto.DiscoverySourceResponse, error)
 	ListSources(ctx context.Context) ([]*dto.DiscoverySourceResponse, error)
 	TriggerRun(ctx context.Context, sourceID string) (*dto.DiscoverySourceResponse, error)
+	DeleteSource(ctx context.Context, id string) error
 	TriggerScan(ctx context.Context, req *dto.TriggerScanRequest) (*dto.ScanResultResponse, error)
 	IngestNormalizedDevice(ctx context.Context, sourceID uuid.UUID, norm *dto.NormalizedDeviceDTO) (*dto.DiscoveryRecordResponse, error)
 	ListRecordsByDevice(ctx context.Context, deviceID string) ([]*dto.DiscoveryRecordResponse, error)
@@ -129,6 +130,21 @@ func (u *DefaultDiscoveryUseCase) GetSourceByID(ctx context.Context, idStr strin
 // ListSources returns all discovery sources.
 func (u *DefaultDiscoveryUseCase) ListSources(ctx context.Context) ([]*dto.DiscoverySourceResponse, error) {
 	return u.discRepo.ListSources(ctx)
+}
+
+// DeleteSource removes a discovery source and publishes a domain event.
+func (u *DefaultDiscoveryUseCase) DeleteSource(ctx context.Context, idStr string) error {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return ErrInvalidUUID
+	}
+	if err := u.discRepo.DeleteSource(ctx, id); err != nil {
+		return err
+	}
+	_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.deleted", map[string]interface{}{
+		"source_id": id.String(),
+	}))
+	return nil
 }
 
 // TriggerRun triggers a manual scan sweep for a discovery source.

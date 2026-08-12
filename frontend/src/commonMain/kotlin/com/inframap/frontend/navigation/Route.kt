@@ -27,5 +27,9 @@ sealed interface Route {
 
     data object CreateSubnet : Route
 
+    data object DiscoverySources : Route
+
+    data object CreateDiscoverySource : Route
+
     data object Topology : Route
 }
