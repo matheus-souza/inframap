@@ -107,7 +107,12 @@ func (u *DefaultDiscoveryUseCase) CreateSource(ctx context.Context, req *dto.Cre
 	if src.ScheduleCron != nil {
 		payload["schedule_cron"] = *src.ScheduleCron
 	}
-	_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.created", payload))
+	if pubErr := u.eventBus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.created", payload)); pubErr != nil {
+		u.logger.Error("failed to publish discovery_source.created event",
+			slog.String("source_id", src.ID.String()),
+			slog.Any("error", pubErr),
+		)
+	}
 
 	return src, nil
 }

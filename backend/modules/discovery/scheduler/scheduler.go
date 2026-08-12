@@ -38,15 +38,18 @@ type Scheduler struct {
 	bus     eventbus.EventBus
 	logger  *slog.Logger
 
-	cron    *cron.Cron
-	entries map[uuid.UUID]registeredEntry
+	cron      *cron.Cron
+	entriesMu sync.Mutex
+	entries   map[uuid.UUID]registeredEntry
 
 	runningMu sync.Mutex
 	running   map[uuid.UUID]*sync.Mutex
 
-	inFlightMu sync.Mutex
-	inFlight   map[uuid.UUID]bool
-	wg         sync.WaitGroup
+	inFlightMu  sync.Mutex
+	inFlight    map[uuid.UUID]bool
+	cancelledMu sync.Mutex
+	cancelled   map[uuid.UUID]bool
+	wg          sync.WaitGroup
 
 	reconcileInterval time.Duration
 
@@ -64,6 +67,7 @@ func New(uc SourceLister, updater StatusUpdater, bus eventbus.EventBus, logger *
 		entries:           make(map[uuid.UUID]registeredEntry),
 		running:           make(map[uuid.UUID]*sync.Mutex),
 		inFlight:          make(map[uuid.UUID]bool),
+		cancelled:         make(map[uuid.UUID]bool),
 		reconcileInterval: defaultReconcileInterval,
 	}
 }
@@ -94,12 +98,22 @@ func (s *Scheduler) Start(ctx context.Context) error {
 			}
 		}
 
-		s.registerSource(src)
+		s.registerSourceLocked(src)
 	}
 
-	_ = s.bus.Subscribe("discovery_source.created", s.handleSourceCreated)
-	_ = s.bus.Subscribe("discovery_source.updated", s.handleSourceUpdated)
-	_ = s.bus.Subscribe("discovery_source.deleted", s.handleSourceDeleted)
+	subscriptions := map[string]eventbus.EventHandler{
+		"discovery_source.created": s.handleSourceCreated,
+		"discovery_source.updated": s.handleSourceUpdated,
+		"discovery_source.deleted": s.handleSourceDeleted,
+	}
+	for topic, handler := range subscriptions {
+		if subErr := s.bus.Subscribe(topic, handler); subErr != nil {
+			s.logger.Error("failed to subscribe scheduler handler",
+				slog.String("topic", topic),
+				slog.Any("error", subErr),
+			)
+		}
+	}
 
 	s.cron.Start()
 	s.wg.Add(1)
@@ -110,22 +124,27 @@ func (s *Scheduler) Start(ctx context.Context) error {
 // Stop halts the cron runner, cancels in-flight scans, waits for them
 // to return, and sets their persisted status to "cancelled".
 func (s *Scheduler) Stop() {
+	var cronCtx context.Context
 	if s.cron != nil {
-		s.cron.Stop()
+		cronCtx = s.cron.Stop()
 	}
-
-	s.inFlightMu.Lock()
-	sources := make([]uuid.UUID, 0, len(s.inFlight))
-	for id := range s.inFlight {
-		sources = append(sources, id)
-	}
-	s.inFlightMu.Unlock()
 
 	if s.cancel != nil {
 		s.cancel()
 	}
 
+	if cronCtx != nil {
+		<-cronCtx.Done()
+	}
+
 	s.wg.Wait()
+
+	s.cancelledMu.Lock()
+	sources := make([]uuid.UUID, 0, len(s.cancelled))
+	for id := range s.cancelled {
+		sources = append(sources, id)
+	}
+	s.cancelledMu.Unlock()
 
 	for _, id := range sources {
 		if _, err := s.updater.UpdateSourceStatus(context.Background(), id, "cancelled"); err != nil {
@@ -151,8 +170,10 @@ func (s *Scheduler) handleSourceUpdated(_ context.Context, event eventbus.Domain
 	if !ok {
 		return nil
 	}
-	s.unregisterSource(src.ID)
-	s.registerSource(src)
+	s.entriesMu.Lock()
+	defer s.entriesMu.Unlock()
+	s.unregisterSourceLocked(src.ID)
+	s.registerSourceLocked(src)
 	return nil
 }
 
@@ -197,13 +218,28 @@ func (s *Scheduler) parseSourceEvent(event eventbus.DomainEvent) (*dto.Discovery
 }
 
 func (s *Scheduler) unregisterSource(id uuid.UUID) {
+	s.entriesMu.Lock()
+	defer s.entriesMu.Unlock()
+	s.unregisterSourceLocked(id)
+}
+
+func (s *Scheduler) unregisterSourceLocked(id uuid.UUID) {
 	if entry, ok := s.entries[id]; ok {
 		s.cron.Remove(entry.entryID)
 		delete(s.entries, id)
 	}
+	s.runningMu.Lock()
+	delete(s.running, id)
+	s.runningMu.Unlock()
 }
 
 func (s *Scheduler) registerSource(src *dto.DiscoverySourceResponse) {
+	s.entriesMu.Lock()
+	defer s.entriesMu.Unlock()
+	s.registerSourceLocked(src)
+}
+
+func (s *Scheduler) registerSourceLocked(src *dto.DiscoverySourceResponse) {
 	if !src.Enabled || src.ScheduleCron == nil || *src.ScheduleCron == "" {
 		return
 	}
@@ -242,6 +278,11 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 	s.inFlightMu.Unlock()
 
 	defer func() {
+		if s.ctx.Err() != nil {
+			s.cancelledMu.Lock()
+			s.cancelled[sourceID] = true
+			s.cancelledMu.Unlock()
+		}
 		s.inFlightMu.Lock()
 		delete(s.inFlight, sourceID)
 		s.inFlightMu.Unlock()
@@ -318,18 +359,19 @@ func (s *Scheduler) reconcile() {
 		}
 	}
 
-	// Remove stale or changed entries
+	s.entriesMu.Lock()
+	defer s.entriesMu.Unlock()
+
 	for id, entry := range s.entries {
 		cronExpr, exists := desired[id]
 		if !exists || cronExpr != entry.cronExpr {
-			s.unregisterSource(id)
+			s.unregisterSourceLocked(id)
 		}
 	}
 
-	// Add missing entries
 	for id, src := range desiredSources {
 		if _, exists := s.entries[id]; !exists {
-			s.registerSource(src)
+			s.registerSourceLocked(src)
 		}
 	}
 }

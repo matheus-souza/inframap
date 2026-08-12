@@ -13,6 +13,9 @@ import (
 	"github.com/matheussouza/inframap/modules/discovery/scheduler"
 )
 
+// fakeUseCase implements scheduler.SourceLister for tests.
+// triggerDelay, triggerErr, and onTriggerStart are configuration fields
+// that must be set before Start and remain immutable after construction.
 type fakeUseCase struct {
 	mu             sync.Mutex
 	sources        []*dto.DiscoverySourceResponse
@@ -82,6 +85,21 @@ func (f *fakeStatusUpdater) getStatus(id uuid.UUID) (string, bool) {
 
 func cron1s() *string { s := "@every 1s"; return &s }
 
+func waitForCalls(t *testing.T, uc *fakeUseCase, n int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.After(timeout)
+	for {
+		if len(uc.getTriggerCalls()) >= n {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected at least %d TriggerRun calls within %s, got %d", n, timeout, len(uc.getTriggerCalls()))
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
 func TestScheduler_RegistersAndFiresEligibleSources(t *testing.T) {
 	srcID := uuid.New()
 	uc := &fakeUseCase{
@@ -92,9 +110,8 @@ func TestScheduler_RegistersAndFiresEligibleSources(t *testing.T) {
 	updater := &fakeStatusUpdater{}
 	bus := eventbus.NewInMemoryEventBus(1, 16)
 	defer func() { _ = bus.Close() }()
-	logger := slog.Default()
 
-	s := scheduler.New(uc, updater, bus, logger)
+	s := scheduler.New(uc, updater, bus, slog.Default())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -103,20 +120,10 @@ func TestScheduler_RegistersAndFiresEligibleSources(t *testing.T) {
 	}
 	defer s.Stop()
 
-	deadline := time.After(3 * time.Second)
-	for {
-		calls := uc.getTriggerCalls()
-		if len(calls) > 0 {
-			if calls[0] != srcID.String() {
-				t.Errorf("expected source %s, got %s", srcID, calls[0])
-			}
-			return
-		}
-		select {
-		case <-deadline:
-			t.Fatal("TriggerRun was not called within 3s")
-		case <-time.After(100 * time.Millisecond):
-		}
+	waitForCalls(t, uc, 1, 3*time.Second)
+	calls := uc.getTriggerCalls()
+	if calls[0] != srcID.String() {
+		t.Errorf("expected source %s, got %s", srcID, calls[0])
 	}
 }
 
@@ -139,7 +146,7 @@ func TestScheduler_SkipsDisabledSources(t *testing.T) {
 	}
 	defer s.Stop()
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(1200 * time.Millisecond)
 	if calls := uc.getTriggerCalls(); len(calls) != 0 {
 		t.Errorf("expected 0 calls for disabled source, got %d", len(calls))
 	}
@@ -164,7 +171,7 @@ func TestScheduler_SkipsSourcesWithoutCron(t *testing.T) {
 	}
 	defer s.Stop()
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(1200 * time.Millisecond)
 	if calls := uc.getTriggerCalls(); len(calls) != 0 {
 		t.Errorf("expected 0 calls for source without cron, got %d", len(calls))
 	}
@@ -379,20 +386,10 @@ func TestScheduler_EventCreatedRegistersNewCronJob(t *testing.T) {
 		"enabled":       true,
 	}))
 
-	deadline := time.After(3 * time.Second)
-	for {
-		calls := uc.getTriggerCalls()
-		if len(calls) > 0 {
-			if calls[0] != srcID.String() {
-				t.Errorf("expected source %s, got %s", srcID, calls[0])
-			}
-			return
-		}
-		select {
-		case <-deadline:
-			t.Fatal("TriggerRun was not called within 3s after discovery_source.created event")
-		case <-time.After(100 * time.Millisecond):
-		}
+	waitForCalls(t, uc, 1, 3*time.Second)
+	calls := uc.getTriggerCalls()
+	if calls[0] != srcID.String() {
+		t.Errorf("expected source %s, got %s", srcID, calls[0])
 	}
 }
 
@@ -420,7 +417,7 @@ func TestScheduler_EventCreatedDisabledDoesNotRegister(t *testing.T) {
 		"enabled":       false,
 	}))
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(1200 * time.Millisecond)
 	if calls := uc.getTriggerCalls(); len(calls) != 0 {
 		t.Errorf("expected 0 calls for disabled source event, got %d", len(calls))
 	}
@@ -446,30 +443,16 @@ func TestScheduler_EventDeletedRemovesCronJob(t *testing.T) {
 	}
 	defer s.Stop()
 
-	// Wait for at least one trigger
-	deadline := time.After(3 * time.Second)
-	for {
-		if len(uc.getTriggerCalls()) > 0 {
-			break
-		}
-		select {
-		case <-deadline:
-			t.Fatal("source did not fire before delete event")
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
+	waitForCalls(t, uc, 1, 3*time.Second)
 
-	// Publish delete event
 	_ = bus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.deleted", map[string]interface{}{
 		"source_id": srcID.String(),
 	}))
 
-	// Allow event to process
 	time.Sleep(500 * time.Millisecond)
 
-	// Record count after delete
 	countAfterDelete := len(uc.getTriggerCalls())
-	time.Sleep(2 * time.Second)
+	time.Sleep(1500 * time.Millisecond)
 	countFinal := len(uc.getTriggerCalls())
 
 	if countFinal > countAfterDelete {
@@ -496,7 +479,6 @@ func TestScheduler_ReconcilePicksUpNewSource(t *testing.T) {
 	}
 	defer s.Stop()
 
-	// Add source directly to fake DB (no event)
 	uc.mu.Lock()
 	uc.sources = append(uc.sources, &dto.DiscoverySourceResponse{
 		ID: newSrcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle",
@@ -540,29 +522,16 @@ func TestScheduler_ReconcileRemovesDeletedSource(t *testing.T) {
 	}
 	defer s.Stop()
 
-	// Wait for at least one trigger
-	deadline := time.After(3 * time.Second)
-	for {
-		if len(uc.getTriggerCalls()) > 0 {
-			break
-		}
-		select {
-		case <-deadline:
-			t.Fatal("source did not fire before removal")
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
+	waitForCalls(t, uc, 1, 3*time.Second)
 
-	// Remove source from fake DB directly
 	uc.mu.Lock()
 	uc.sources = nil
 	uc.mu.Unlock()
 
-	// Wait for reconciliation to remove the job
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(1200 * time.Millisecond)
 
 	countAfterReconcile := len(uc.getTriggerCalls())
-	time.Sleep(2 * time.Second)
+	time.Sleep(1500 * time.Millisecond)
 	countFinal := len(uc.getTriggerCalls())
 
 	if countFinal > countAfterReconcile {
@@ -592,18 +561,17 @@ func TestScheduler_ReconcileUpdatesChangedCron(t *testing.T) {
 	}
 	defer s.Stop()
 
-	// No triggers should happen with 30s cron in the first 2s
 	time.Sleep(500 * time.Millisecond)
 	if len(uc.getTriggerCalls()) > 0 {
 		t.Fatal("30s cron should not have fired yet")
 	}
 
-	// Change cron to every 1s via fake DB
 	uc.mu.Lock()
-	uc.sources[0].ScheduleCron = cron1s()
+	uc.sources[0] = &dto.DiscoverySourceResponse{
+		ID: srcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle",
+	}
 	uc.mu.Unlock()
 
-	// Wait for reconciliation + cron fire
 	deadline := time.After(5 * time.Second)
 	for {
 		if len(uc.getTriggerCalls()) > 0 {
@@ -679,7 +647,6 @@ func TestScheduler_ScanEventsPublished(t *testing.T) {
 	}
 	defer s.Stop()
 
-	// Wait for started event
 	select {
 	case evt := <-startedEvents:
 		payload, ok := evt.Payload().(map[string]interface{})
@@ -696,7 +663,6 @@ func TestScheduler_ScanEventsPublished(t *testing.T) {
 		t.Fatal("discovery_source.scan.started event not received within 3s")
 	}
 
-	// Wait for completed event
 	select {
 	case evt := <-completedEvents:
 		payload, ok := evt.Payload().(map[string]interface{})
@@ -738,16 +704,5 @@ func TestScheduler_TriggerRunErrorDoesNotCrashScheduler(t *testing.T) {
 	}
 	defer s.Stop()
 
-	deadline := time.After(4 * time.Second)
-	for {
-		calls := uc.getTriggerCalls()
-		if len(calls) >= 2 {
-			return
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("expected at least 2 calls despite errors, got %d", len(uc.getTriggerCalls()))
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
+	waitForCalls(t, uc, 2, 4*time.Second)
 }

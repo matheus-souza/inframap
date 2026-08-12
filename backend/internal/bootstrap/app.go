@@ -311,9 +311,12 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 }
 
 // Start performs post-wiring startup of background services.
-func (a *App) Start(ctx context.Context) error {
+// The scheduler receives its own context (cancelled in Close) so in-flight
+// scans are not terminated by signal.NotifyContext before the HTTP server
+// finishes its graceful shutdown.
+func (a *App) Start(_ context.Context) error {
 	if a.scheduler != nil {
-		if err := a.scheduler.Start(ctx); err != nil {
+		if err := a.scheduler.Start(context.Background()); err != nil {
 			return fmt.Errorf("failed to start discovery scheduler: %w", err)
 		}
 	}

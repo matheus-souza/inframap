@@ -15,7 +15,7 @@
 
 ## Context
 
-Discovery sources support `schedule_cron` expressions for automated scanning, but no background scheduler consumed them. Scans could only be triggered manually via `POST /api/v1/discovery/sources/{id}/run`. T31 introduces a background scheduler that executes `TriggerRun` on cron schedules.
+Discovery sources support `schedule_cron` expressions for automated scanning, but no background scheduler consumed them. Scans could only be triggered manually via `POST /api/v1/discovery/sources/{id}/run`. The background scheduler executes `TriggerRun` on cron schedules.
 
 ## Key Design Principles
 
