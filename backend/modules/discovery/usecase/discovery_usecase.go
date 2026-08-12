@@ -95,7 +95,26 @@ func (u *DefaultDiscoveryUseCase) CreateSource(ctx context.Context, req *dto.Cre
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
 
-	return u.discRepo.CreateSource(ctx, req)
+	src, err := u.discRepo.CreateSource(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	payload := map[string]interface{}{
+		"source_id": src.ID.String(),
+		"enabled":   src.Enabled,
+	}
+	if src.ScheduleCron != nil {
+		payload["schedule_cron"] = *src.ScheduleCron
+	}
+	if pubErr := u.eventBus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.created", payload)); pubErr != nil {
+		u.logger.Error("failed to publish discovery_source.created event",
+			slog.String("source_id", src.ID.String()),
+			slog.Any("error", pubErr),
+		)
+	}
+
+	return src, nil
 }
 
 // GetSourceByID parses UUID and fetches a discovery source.

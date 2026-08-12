@@ -39,6 +39,10 @@ func main() {
 	}
 	defer app.Close()
 
+	if err := app.Start(ctx); err != nil {
+		log.Fatalf("failed to start background services: %v", err)
+	}
+
 	port := getPort()
 	addr := fmt.Sprintf(":%s", port)
 

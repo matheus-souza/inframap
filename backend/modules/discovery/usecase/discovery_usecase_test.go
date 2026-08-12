@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/db"
@@ -39,6 +40,10 @@ func (m *mockDiscRepo) CreateSource(_ context.Context, req *dto.CreateDiscoveryS
 		Type:       req.Type,
 		Enabled:    *req.Enabled,
 		LastStatus: "idle",
+	}
+	if req.ScheduleCron != "" {
+		cron := req.ScheduleCron
+		resp.ScheduleCron = &cron
 	}
 	m.sources[id] = resp
 	return resp, nil
@@ -241,6 +246,73 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 		if src.Name != "Local Proxmox VE" {
 			t.Errorf("expected name Local Proxmox VE, got %s", src.Name)
+		}
+	})
+
+	t.Run("CreateSource Emits discovery_source.created Event", func(t *testing.T) {
+		eventBus := eventbus.NewInMemoryEventBus(1, 10)
+		defer func() { _ = eventBus.Close() }()
+
+		received := make(chan eventbus.DomainEvent, 1)
+		_ = eventBus.Subscribe("discovery_source.created", func(_ context.Context, e eventbus.DomainEvent) error {
+			received <- e
+			return nil
+		})
+
+		localUC := usecase.NewDefaultDiscoveryUseCase(newMockDiscRepo(), newMockInvRepo(), eventBus, slog.Default())
+
+		cronExpr := "*/5 * * * *"
+		req := &dto.CreateDiscoverySourceRequest{
+			Name:         "Cron Source",
+			Type:         "icmp_sweep",
+			ScheduleCron: cronExpr,
+		}
+		src, err := localUC.CreateSource(ctx, req)
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
+		}
+
+		select {
+		case evt := <-received:
+			payload, ok := evt.Payload().(map[string]interface{})
+			if !ok {
+				t.Fatal("event payload is not map[string]interface{}")
+			}
+			if payload["source_id"] != src.ID.String() {
+				t.Errorf("expected source_id %s, got %v", src.ID, payload["source_id"])
+			}
+			if payload["schedule_cron"] != cronExpr {
+				t.Errorf("expected schedule_cron %s, got %v", cronExpr, payload["schedule_cron"])
+			}
+			if payload["enabled"] != true {
+				t.Errorf("expected enabled true, got %v", payload["enabled"])
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("discovery_source.created event was not received within 2s")
+		}
+	})
+
+	t.Run("CreateSource Logs Publish Error Without Failing", func(t *testing.T) {
+		closedBus := eventbus.NewInMemoryEventBus(1, 10)
+		_ = closedBus.Close()
+
+		logBuf := &bytes.Buffer{}
+		logLogger := slog.New(slog.NewTextHandler(logBuf, nil))
+		localUC := usecase.NewDefaultDiscoveryUseCase(newMockDiscRepo(), newMockInvRepo(), closedBus, logLogger)
+
+		req := &dto.CreateDiscoverySourceRequest{
+			Name: "Publish Fail Source",
+			Type: "icmp_sweep",
+		}
+		src, err := localUC.CreateSource(ctx, req)
+		if err != nil {
+			t.Fatalf("CreateSource should succeed even when Publish fails, got %v", err)
+		}
+		if src.Name != "Publish Fail Source" {
+			t.Errorf("expected name 'Publish Fail Source', got %s", src.Name)
+		}
+		if !bytes.Contains(logBuf.Bytes(), []byte("failed to publish discovery_source.created event")) {
+			t.Error("expected log entry for publish error")
 		}
 	})
 

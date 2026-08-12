@@ -31,6 +31,9 @@
 | **Device Staging** | Holding queue for newly discovered devices awaiting manual verification before promotion to active inventory. | `modules/inventory`, `Table: device_staging` |
 | **User-Locked Fields** | Device properties modified manually by an operator, protected from automated scanner overwrites. | `metadata->'user_locked_fields'` |
 | **Field Confidence Scores** | Per-attribute confidence scores (`metadata->'field_confidence_scores'`) governing reconciliation precedence. | `modules/discovery/engine` |
+| **Discovery Scheduler** | Background service that executes discovery scans on cron schedules defined per Discovery Source. Manages one job per source with in-memory concurrency control. | `modules/discovery/scheduler` |
+| **Reconciliation Loop** | Periodic (5 min) consistency check comparing registered scheduler jobs against database state, correcting drift independently of event bus reliability. | `modules/discovery/scheduler` |
+| **Scan Concurrency Lock** | In-memory per-source mutex preventing concurrent scan execution of the same Discovery Source. Single-instance only; designed for future evolution to distributed advisory locks. | `modules/discovery/scheduler` |
 
 ---
 
@@ -52,6 +55,8 @@
 - **ADR-001**: Backend Architectural Decisions Log (AD-001 to AD-011, AD-027 to AD-030)
 - **ADR-002**: Frontend Clean Architecture Decisions (AD-012 to AD-022)
 - **ADR-003**: Test Infrastructure Decisions (AD-023 to AD-026)
+- **ADR-004**: Session Cookie Transport Security (AD-027 to AD-028)
+- **ADR-005**: Discovery Background Scheduler (AD-032 to AD-041)
 
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.
 
@@ -164,3 +169,10 @@ Guidelines below are continuously updated from internal code reviews, CodeRabbit
 101. **Kotlin/WASM Production Builds Must Disable Content-Hash on WASM Assets**: Webpack production builds content-hash asset filenames by default (e.g., `a92a356b.wasm`), but the Kotlin/WASM bootstrap and Skiko runtime load `.wasm` files by their original names (`inframap-frontend-wasm-js.wasm`, `skiko.wasm`) via hardcoded string paths. A `webpack.config.d/` rule MUST override the WASM asset filename to `[name][ext]`. Without this, the SPA fallback serves `index.html` (text/html) for the missing unhashed filenames, causing `WebAssembly.compile` to reject the incorrect MIME type.
 102. **Stable-Named Assets Must Not Use Immutable Cache**: When unhashed WASM assets use stable filenames across releases (e.g., `skiko.wasm`), the SPA handler MUST NOT serve them with `Cache-Control: immutable`. Browsers would cache the old binary indefinitely and never revalidate, causing runtime incompatibility when the JS bundle updates but the WASM stays stale. Use `Cache-Control: public, no-cache` for `.wasm` files to force ETag/Last-Modified revalidation on every load. Reserve `max-age=31536000, immutable` for content-hashed assets only.
 103. **SPA fs.Stat Error Classification**: When `fs.Stat` fails for a static asset path, the SPA handler MUST check `errors.Is(err, fs.ErrNotExist)` and return 404 only for that case. Permission errors or I/O failures MUST return 500 (`http.StatusInternalServerError`). Blindly returning 404 for all stat errors masks filesystem corruption or misconfigured embed directives.
+104. **Shutdown Status Must Be Distinct from Error**: Background services cancelled by graceful shutdown MUST set persisted status to `"cancelled"`, not `"error"`. Shutdown is controlled interruption, not failure. Monitoring and alerting MUST NOT trigger on `cancelled` status. On boot, stale `running` or `cancelled` statuses MUST be reset to `idle` with a structured warning log. See ADR-005.
+105. **Scheduler Reconciliation Loop for Event-Driven State**: Background schedulers reacting to domain events via EventBus MUST implement a periodic reconciliation loop (e.g. every 5 min) that diffs desired state (database) against actual state (registered jobs). This guarantees eventual consistency independent of event bus reliability (dropped events, buffer full, implementation changes).
+106. **Shared Maps Require Dedicated Mutex**: Every Go `map` accessed from multiple goroutines MUST have a dedicated `sync.Mutex`. When two map operations must be atomic (e.g., unregister + register), they MUST be performed under the same lock acquisition. This applies to all internal state maps, not just those obviously concurrent.
+107. **SQL Migrations: NOT VALID + VALIDATE for CHECK Constraints**: `ADD CONSTRAINT ... CHECK (...)` MUST use `NOT VALID` to avoid full-table scans and write locks. Existing violating rows MUST be normalized first. A separate `VALIDATE CONSTRAINT` step confirms the constraint after normalization.
+108. **Migrations in Embedded Directory Only**: SQL migrations MUST be placed in the directory embedded by `//go:embed` in `migrate.go` (`internal/platform/db/migrations/`). Migrations in other directories are silently ignored.
+109. **Background Service Context Independence**: Background services (scheduler, workers) MUST own their own `context.Context` derived from `context.Background()`, cancelled only in `App.Close()`. They MUST NOT receive the signal context — that would cancel in-flight work before HTTP shutdown completes.
+110. **EventBus Subscribe Errors Must Be Logged**: Errors from `bus.Subscribe()` MUST be logged with the topic name and error details, not silently discarded. A failed subscription silently degrades the scheduler to reconciliation-only mode without any operator signal.
