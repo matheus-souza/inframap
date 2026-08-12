@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -63,7 +64,7 @@ fun DashboardKpiRow(
             badgeText = "${state.onlinePercentage}% online",
             badgeColor = StatusOnlineColor,
             subtitle = "Inventário de Ativos",
-            modifier = Modifier.weight(1f, fill = true),
+            modifier = Modifier.widthIn(min = 240.dp),
         )
 
         KpiCard(
@@ -73,7 +74,7 @@ fun DashboardKpiRow(
             badgeText = "Monitored",
             badgeColor = StatusOnlineColor,
             subtitle = "Subredes ativas",
-            modifier = Modifier.weight(1f, fill = true),
+            modifier = Modifier.widthIn(min = 240.dp),
         )
 
         val isRunning = state.discoveryEngineStatus == DiscoveryEngineStatus.RUNNING
@@ -86,7 +87,7 @@ fun DashboardKpiRow(
             badgeText = if (isRunning) "SCANNING" else "READY",
             badgeColor = engineStatusColor,
             subtitle = "Varredura em tempo real",
-            modifier = Modifier.weight(1f, fill = true),
+            modifier = Modifier.widthIn(min = 240.dp),
         )
 
         KpiCard(
@@ -97,7 +98,7 @@ fun DashboardKpiRow(
             badgeColor = StatusStagingColor,
             subtitle = "Aguardando aprovação",
             onClick = onStagingClick,
-            modifier = Modifier.weight(1f, fill = true),
+            modifier = Modifier.widthIn(min = 240.dp),
         )
     }
 }

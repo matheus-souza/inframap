@@ -2,8 +2,6 @@ package com.inframap.frontend.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -160,7 +158,6 @@ private fun DashboardWelcomeBanner() {
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DashboardOverviewLayout(
     state: DashboardUiState,
@@ -176,21 +173,19 @@ private fun DashboardOverviewLayout(
             onStagingClick = onStagingClick,
         )
 
-        FlowRow(
+        Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-            maxItemsInEachRow = 2,
         ) {
             RecentDevicesWidget(
                 devices = state.recentDevices,
                 onDeviceClick = onDeviceClick,
-                modifier = Modifier.weight(1.5f, fill = true),
+                modifier = Modifier.weight(1.5f),
             )
 
             LiveEventsWidget(
                 events = state.liveEvents,
-                modifier = Modifier.weight(1f, fill = true),
+                modifier = Modifier.weight(1f),
             )
         }
     }
