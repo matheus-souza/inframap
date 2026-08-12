@@ -1,35 +1,32 @@
 package com.inframap.frontend.ui.topology
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
-import com.inframap.frontend.designsystem.InfraMapCard
+import com.inframap.frontend.designsystem.InfraMapCanvasBg
 import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
-import com.inframap.frontend.designsystem.InfraMapStatusBadge
+import com.inframap.frontend.designsystem.InfraMapTextPrimary
+import com.inframap.frontend.designsystem.InfraMapTextSecondary
 import com.inframap.frontend.designsystem.resources.Res
-import com.inframap.frontend.domain.model.TopologyNode
-import com.inframap.frontend.ui.topology.components.TopologyCanvas
 import org.jetbrains.compose.resources.stringResource
-import kotlin.math.roundToInt
 
 @Suppress("LongMethod")
 @Composable
@@ -38,36 +35,25 @@ fun TopologyScreen(
     actions: TopologyActions,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .padding(16.dp),
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(InfraMapCanvasBg),
     ) {
-        TopologyHeader(
-            zoomScale = state.zoomScale,
-            onRefresh = actions.onRefresh,
-            onResetViewport = actions.onResetViewport,
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         when {
             state.isLoading -> {
                 InfraMapLoadingSkeleton(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
                 )
             }
 
             state.errorMessage != null -> {
                 Box(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .weight(1f),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -87,160 +73,82 @@ fun TopologyScreen(
 
             state.graph == null || state.graph.nodes.isEmpty() -> {
                 Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     InfraMapEmptyState(
                         icon = Icons.Filled.AccountTree,
                         title = "Topologia vazia",
-                        subtitle =
-                            "O mapa de topologia é gerado a partir dos dispositivos no inventário. " +
-                                "Cadastre ou aprove dispositivos para visualizar as conexões.",
+                        subtitle = "O mapa de topologia é gerado a partir dos dispositivos no inventário. " +
+                            "Cadastre ou aprove dispositivos para visualizar as conexões.",
                     )
                 }
             }
 
             else -> {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .weight(1f),
-                ) {
-                    TopologyCanvas(
-                        state = state,
-                        actions = actions,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                // Interactive Topology Canvas
+                TopologyCanvas(
+                    state = state,
+                    actions = actions,
+                    modifier = Modifier.fillMaxSize(),
+                )
 
+                // Top Bar Title & Subtitle
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(
+                            text = stringResource(Res.string.topology_title),
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = InfraMapTextPrimary,
+                        )
+                        Text(
+                            text = stringResource(Res.string.topology_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InfraMapTextSecondary,
+                        )
+                    }
+                }
+
+                // Floating Top-Center Control Bar
+                CanvasToolbar(
+                    activeTool = state.activeTool,
+                    zoomScale = state.zoomScale,
+                    showSubnetBoundaries = state.showSubnetBoundaries,
+                    onToolSelected = actions.onToolSelected,
+                    onZoomIn = { actions.onZoom(1.15f) },
+                    onZoomOut = { actions.onZoom(0.85f) },
+                    onResetZoom = actions.onResetViewport,
+                    onAutoLayout = actions.onAutoLayout,
+                    onToggleSubnetBoundaries = actions.onToggleSubnetBoundaries,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 16.dp),
+                )
+
+                // Right Slide-Over Device Inspector Sheet (360px)
+                AnimatedVisibility(
+                    visible = state.selectedNode != null,
+                    enter = slideInHorizontally(initialOffsetX = { it }),
+                    exit = slideOutHorizontally(targetOffsetX = { it }),
+                    modifier = Modifier.align(Alignment.TopEnd),
+                ) {
                     state.selectedNode?.let { node ->
-                        NodeDetailsCard(
+                        DeviceInspectorSheet(
                             node = node,
                             onDismiss = actions.onDismissNodeDetails,
-                            modifier =
-                                Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(16.dp)
-                                    .width(280.dp),
+                            onTriggerScan = actions.onTriggerScan,
+                            onEditMetadata = actions.onEditMetadata,
                         )
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun TopologyHeader(
-    zoomScale: Float,
-    onRefresh: () -> Unit,
-    onResetViewport: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column {
-            Text(
-                text = stringResource(Res.string.topology_title),
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(Res.string.topology_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val zoomPercent = (zoomScale * 100).roundToInt()
-            Text(
-                text = "$zoomPercent%",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            TextButton(onClick = onResetViewport) {
-                Text(stringResource(Res.string.topology_reset_view))
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            InfraMapButton(
-                text = stringResource(Res.string.topology_refresh),
-                onClick = onRefresh,
-            )
-        }
-    }
-}
-
-@Composable
-private fun NodeDetailsCard(
-    node: TopologyNode,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    InfraMapCard(
-        modifier = modifier,
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = node.label,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(Res.string.topology_close))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Type: ",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = node.deviceType,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Status: ",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                val deviceStatus =
-                    when (node.status.lowercase()) {
-                        "active" -> DeviceStatus.ACTIVE
-                        "staged" -> DeviceStatus.STAGED
-                        else -> DeviceStatus.OFFLINE
-                    }
-                InfraMapStatusBadge(status = deviceStatus)
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "ID: ${node.id}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

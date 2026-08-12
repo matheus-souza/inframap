@@ -194,4 +194,36 @@ class TopologyViewModelTest {
 
             viewModel.clear()
         }
+
+    @Test
+    fun toolSelectionAutoLayoutAndSubnetToggleWorkCorrectly() =
+        runTest {
+            val fakeRepo = FakeTopologyRepository(ApiResult.Success(sampleGraph, requestId = "req-1"))
+            val viewModel = TopologyViewModel(GetTopologyGraphUseCase(fakeRepo), scope = this)
+
+            viewModel.state.test {
+                awaitItem() // initial loading
+                advanceUntilIdle()
+                awaitItem() // loaded
+
+                assertEquals(CanvasTool.POINTER, viewModel.state.value.activeTool)
+                viewModel.selectTool(CanvasTool.HAND)
+                val handState = awaitItem()
+                assertEquals(CanvasTool.HAND, handState.activeTool)
+
+                assertTrue(viewModel.state.value.showSubnetBoundaries)
+                viewModel.toggleSubnetBoundaries()
+                val toggleState = awaitItem()
+                assertFalse(toggleState.showSubnetBoundaries)
+
+                val oldPositions = viewModel.state.value.nodePositions
+                viewModel.runAutoLayout()
+                val autoLayoutState = awaitItem()
+                assertNotNull(autoLayoutState.nodePositions)
+                assertTrue(autoLayoutState.nodePositions.containsKey("n1"))
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            viewModel.clear()
+        }
 }
