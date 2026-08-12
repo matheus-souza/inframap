@@ -5,12 +5,20 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 	"github.com/robfig/cron/v3"
 )
+
+const defaultReconcileInterval = 5 * time.Minute
+
+type registeredEntry struct {
+	entryID  cron.EntryID
+	cronExpr string
+}
 
 // SourceLister loads discovery sources for scheduling.
 type SourceLister interface {
@@ -31,7 +39,7 @@ type Scheduler struct {
 	logger  *slog.Logger
 
 	cron    *cron.Cron
-	entries map[uuid.UUID]cron.EntryID
+	entries map[uuid.UUID]registeredEntry
 
 	runningMu sync.Mutex
 	running   map[uuid.UUID]*sync.Mutex
@@ -40,6 +48,8 @@ type Scheduler struct {
 	inFlight   map[uuid.UUID]bool
 	wg         sync.WaitGroup
 
+	reconcileInterval time.Duration
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -47,14 +57,20 @@ type Scheduler struct {
 // New creates a Scheduler. Call Start to begin scheduling.
 func New(uc SourceLister, updater StatusUpdater, bus eventbus.EventBus, logger *slog.Logger) *Scheduler {
 	return &Scheduler{
-		uc:       uc,
-		updater:  updater,
-		bus:      bus,
-		logger:   logger,
-		entries:  make(map[uuid.UUID]cron.EntryID),
-		running:  make(map[uuid.UUID]*sync.Mutex),
-		inFlight: make(map[uuid.UUID]bool),
+		uc:                uc,
+		updater:           updater,
+		bus:               bus,
+		logger:            logger,
+		entries:           make(map[uuid.UUID]registeredEntry),
+		running:           make(map[uuid.UUID]*sync.Mutex),
+		inFlight:          make(map[uuid.UUID]bool),
+		reconcileInterval: defaultReconcileInterval,
 	}
+}
+
+// SetReconcileInterval overrides the default 5-minute reconciliation interval. Must be called before Start.
+func (s *Scheduler) SetReconcileInterval(d time.Duration) {
+	s.reconcileInterval = d
 }
 
 // Start loads sources, cleans up stale statuses, registers cron jobs, and starts the cron runner.
@@ -86,6 +102,8 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	_ = s.bus.Subscribe("discovery_source.deleted", s.handleSourceDeleted)
 
 	s.cron.Start()
+	s.wg.Add(1)
+	go s.reconcileLoop()
 	return nil
 }
 
@@ -179,8 +197,8 @@ func (s *Scheduler) parseSourceEvent(event eventbus.DomainEvent) (*dto.Discovery
 }
 
 func (s *Scheduler) unregisterSource(id uuid.UUID) {
-	if entryID, ok := s.entries[id]; ok {
-		s.cron.Remove(entryID)
+	if entry, ok := s.entries[id]; ok {
+		s.cron.Remove(entry.entryID)
 		delete(s.entries, id)
 	}
 }
@@ -205,7 +223,7 @@ func (s *Scheduler) registerSource(src *dto.DiscoverySourceResponse) {
 		return
 	}
 
-	s.entries[sourceID] = entryID
+	s.entries[sourceID] = registeredEntry{entryID: entryID, cronExpr: cronExpr}
 }
 
 func (s *Scheduler) executeSource(sourceID uuid.UUID) {
@@ -231,7 +249,16 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 		s.wg.Done()
 	}()
 
-	if _, err := s.uc.TriggerRun(s.ctx, sourceID.String()); err != nil {
+	_ = s.bus.Publish(s.ctx, eventbus.NewBaseEvent("discovery_source.scan.started", map[string]interface{}{
+		"source_id": sourceID.String(),
+		"trigger":   "scheduled",
+	}))
+
+	start := time.Now()
+	_, err := s.uc.TriggerRun(s.ctx, sourceID.String())
+	durationMs := time.Since(start).Milliseconds()
+
+	if err != nil {
 		if s.ctx.Err() != nil {
 			return
 		}
@@ -239,6 +266,71 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 			slog.String("source_id", sourceID.String()),
 			slog.Any("error", err),
 		)
+		_ = s.bus.Publish(s.ctx, eventbus.NewBaseEvent("discovery_source.scan.completed", map[string]interface{}{
+			"source_id":   sourceID.String(),
+			"trigger":     "scheduled",
+			"duration_ms": durationMs,
+			"success":     false,
+			"error":       err.Error(),
+		}))
+		return
+	}
+
+	_ = s.bus.Publish(s.ctx, eventbus.NewBaseEvent("discovery_source.scan.completed", map[string]interface{}{
+		"source_id":   sourceID.String(),
+		"trigger":     "scheduled",
+		"duration_ms": durationMs,
+		"success":     true,
+	}))
+}
+
+func (s *Scheduler) reconcileLoop() {
+	defer s.wg.Done()
+	ticker := time.NewTicker(s.reconcileInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.reconcile()
+		}
+	}
+}
+
+func (s *Scheduler) reconcile() {
+	sources, err := s.uc.ListSources(s.ctx)
+	if err != nil {
+		if s.ctx.Err() != nil {
+			return
+		}
+		s.logger.Error("reconciliation failed to list sources", slog.Any("error", err))
+		return
+	}
+
+	desired := make(map[uuid.UUID]string)
+	desiredSources := make(map[uuid.UUID]*dto.DiscoverySourceResponse)
+	for _, src := range sources {
+		if src.Enabled && src.ScheduleCron != nil && *src.ScheduleCron != "" {
+			desired[src.ID] = *src.ScheduleCron
+			desiredSources[src.ID] = src
+		}
+	}
+
+	// Remove stale or changed entries
+	for id, entry := range s.entries {
+		cronExpr, exists := desired[id]
+		if !exists || cronExpr != entry.cronExpr {
+			s.unregisterSource(id)
+		}
+	}
+
+	// Add missing entries
+	for id, src := range desiredSources {
+		if _, exists := s.entries[id]; !exists {
+			s.registerSource(src)
+		}
 	}
 }
 

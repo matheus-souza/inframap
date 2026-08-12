@@ -477,6 +477,246 @@ func TestScheduler_EventDeletedRemovesCronJob(t *testing.T) {
 	}
 }
 
+func TestScheduler_ReconcilePicksUpNewSource(t *testing.T) {
+	newSrcID := uuid.New()
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	s.SetReconcileInterval(500 * time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	// Add source directly to fake DB (no event)
+	uc.mu.Lock()
+	uc.sources = append(uc.sources, &dto.DiscoverySourceResponse{
+		ID: newSrcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle",
+	})
+	uc.mu.Unlock()
+
+	deadline := time.After(5 * time.Second)
+	for {
+		calls := uc.getTriggerCalls()
+		for _, c := range calls {
+			if c == newSrcID.String() {
+				return
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatal("reconciliation did not pick up new source within 5s")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+func TestScheduler_ReconcileRemovesDeletedSource(t *testing.T) {
+	srcID := uuid.New()
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{
+			{ID: srcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle"},
+		},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	s.SetReconcileInterval(500 * time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	// Wait for at least one trigger
+	deadline := time.After(3 * time.Second)
+	for {
+		if len(uc.getTriggerCalls()) > 0 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("source did not fire before removal")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	// Remove source from fake DB directly
+	uc.mu.Lock()
+	uc.sources = nil
+	uc.mu.Unlock()
+
+	// Wait for reconciliation to remove the job
+	time.Sleep(1500 * time.Millisecond)
+
+	countAfterReconcile := len(uc.getTriggerCalls())
+	time.Sleep(2 * time.Second)
+	countFinal := len(uc.getTriggerCalls())
+
+	if countFinal > countAfterReconcile {
+		t.Errorf("source continued to fire after reconciliation removed it: %d → %d", countAfterReconcile, countFinal)
+	}
+}
+
+func TestScheduler_ReconcileUpdatesChangedCron(t *testing.T) {
+	srcID := uuid.New()
+	slowCron := func() *string { s := "@every 30s"; return &s }
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{
+			{ID: srcID, Enabled: true, ScheduleCron: slowCron(), LastStatus: "idle"},
+		},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	s.SetReconcileInterval(500 * time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	// No triggers should happen with 30s cron in the first 2s
+	time.Sleep(500 * time.Millisecond)
+	if len(uc.getTriggerCalls()) > 0 {
+		t.Fatal("30s cron should not have fired yet")
+	}
+
+	// Change cron to every 1s via fake DB
+	uc.mu.Lock()
+	uc.sources[0].ScheduleCron = cron1s()
+	uc.mu.Unlock()
+
+	// Wait for reconciliation + cron fire
+	deadline := time.After(5 * time.Second)
+	for {
+		if len(uc.getTriggerCalls()) > 0 {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("reconciliation did not update cron expression — source never fired")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+func TestScheduler_ReconcileStopsOnContextCancel(t *testing.T) {
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	s.SetReconcileInterval(100 * time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	cancel()
+
+	done := make(chan struct{})
+	go func() {
+		s.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Stop() did not return within 3s after context cancel")
+	}
+}
+
+func TestScheduler_ScanEventsPublished(t *testing.T) {
+	srcID := uuid.New()
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{
+			{ID: srcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle"},
+		},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	startedEvents := make(chan eventbus.DomainEvent, 10)
+	completedEvents := make(chan eventbus.DomainEvent, 10)
+	_ = bus.Subscribe("discovery_source.scan.started", func(_ context.Context, e eventbus.DomainEvent) error {
+		startedEvents <- e
+		return nil
+	})
+	_ = bus.Subscribe("discovery_source.scan.completed", func(_ context.Context, e eventbus.DomainEvent) error {
+		completedEvents <- e
+		return nil
+	})
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	// Wait for started event
+	select {
+	case evt := <-startedEvents:
+		payload, ok := evt.Payload().(map[string]interface{})
+		if !ok {
+			t.Fatal("started event payload is not map[string]interface{}")
+		}
+		if payload["source_id"] != srcID.String() {
+			t.Errorf("expected source_id %s, got %v", srcID, payload["source_id"])
+		}
+		if payload["trigger"] != "scheduled" {
+			t.Errorf("expected trigger 'scheduled', got %v", payload["trigger"])
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("discovery_source.scan.started event not received within 3s")
+	}
+
+	// Wait for completed event
+	select {
+	case evt := <-completedEvents:
+		payload, ok := evt.Payload().(map[string]interface{})
+		if !ok {
+			t.Fatal("completed event payload is not map[string]interface{}")
+		}
+		if payload["source_id"] != srcID.String() {
+			t.Errorf("expected source_id %s, got %v", srcID, payload["source_id"])
+		}
+		if payload["success"] != true {
+			t.Errorf("expected success true, got %v", payload["success"])
+		}
+		if _, ok := payload["duration_ms"]; !ok {
+			t.Error("expected duration_ms in completed event payload")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("discovery_source.scan.completed event not received within 3s")
+	}
+}
+
 func TestScheduler_TriggerRunErrorDoesNotCrashScheduler(t *testing.T) {
 	srcID := uuid.New()
 	uc := &fakeUseCase{
