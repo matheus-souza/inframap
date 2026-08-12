@@ -216,11 +216,12 @@ class TopologyViewModelTest {
                 val toggleState = awaitItem()
                 assertFalse(toggleState.showSubnetBoundaries)
 
-                val oldPositions = viewModel.state.value.nodePositions
                 viewModel.runAutoLayout()
-                val autoLayoutState = awaitItem()
-                assertNotNull(autoLayoutState.nodePositions)
-                assertTrue(autoLayoutState.nodePositions.containsKey("n1"))
+                advanceUntilIdle()
+                assertTrue(
+                    viewModel.state.value.nodePositions
+                        .containsKey("n1"),
+                )
                 cancelAndIgnoreRemainingEvents()
             }
 
