@@ -3,8 +3,8 @@ package com.inframap.frontend.ui.topology.components
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.inframap.frontend.ui.topology.TopologyActions
-import com.inframap.frontend.ui.topology.TopologyCanvas as CoreTopologyCanvas
 import com.inframap.frontend.ui.topology.TopologyState
+import com.inframap.frontend.ui.topology.TopologyCanvas as CoreTopologyCanvas
 
 @Composable
 fun TopologyCanvas(

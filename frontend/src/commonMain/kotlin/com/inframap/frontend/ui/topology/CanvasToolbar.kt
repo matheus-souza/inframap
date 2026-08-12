@@ -55,9 +55,10 @@ fun CanvasToolbar(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, InfraMapBorder, RoundedCornerShape(12.dp)),
+        modifier =
+            modifier
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, InfraMapBorder, RoundedCornerShape(12.dp)),
         color = InfraMapSurfaceBg,
         shadowElevation = 6.dp,
     ) {
@@ -164,11 +165,12 @@ private fun ToolIconButton(
     val tint = if (isSelected) InfraMapPurple else InfraMapTextSecondary
 
     Box(
-        modifier = Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(background)
-            .clickable(onClick = onClick),
+        modifier =
+            Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(background)
+                .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -184,10 +186,11 @@ private fun ToolIconButton(
 private fun ToolbarDivider() {
     Spacer(modifier = Modifier.width(4.dp))
     Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(20.dp)
-            .background(InfraMapBorder),
+        modifier =
+            Modifier
+                .width(1.dp)
+                .height(20.dp)
+                .background(InfraMapBorder),
     )
     Spacer(modifier = Modifier.width(4.dp))
 }

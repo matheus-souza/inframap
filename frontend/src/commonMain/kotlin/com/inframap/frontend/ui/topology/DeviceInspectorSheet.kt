@@ -59,10 +59,11 @@ fun DeviceInspectorSheet(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier
-            .width(360.dp)
-            .fillMaxHeight()
-            .border(1.dp, InfraMapBorder),
+        modifier =
+            modifier
+                .width(360.dp)
+                .fillMaxHeight()
+                .border(1.dp, InfraMapBorder),
         color = InfraMapSurfaceBg,
         shadowElevation = 12.dp,
     ) {
@@ -79,10 +80,11 @@ fun DeviceInspectorSheet(
 
             // Sheet Body (Scrollable)
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 // Section 1: Network Identity
@@ -109,9 +111,10 @@ fun DeviceInspectorSheet(
                 InspectorSection(title = "Device Specs & Status", icon = Icons.Default.Lan) {
                     DetailRow(label = "Device Type", value = node.deviceType.replaceFirstChar { it.uppercase() })
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -131,9 +134,10 @@ fun DeviceInspectorSheet(
                         value = "eth0 (active), eth1 (standby)",
                     )
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -144,18 +148,20 @@ fun DeviceInspectorSheet(
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
-                                modifier = Modifier
-                                    .padding(end = 6.dp)
-                                    .width(6.dp)
-                                    .height(6.dp)
-                                    .background(StatusOnline, RoundedCornerShape(3.dp)),
+                                modifier =
+                                    Modifier
+                                        .padding(end = 6.dp)
+                                        .width(6.dp)
+                                        .height(6.dp)
+                                        .background(StatusOnline, RoundedCornerShape(3.dp)),
                             )
                             Text(
                                 text = "1.2 ms",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                ),
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
                                 color = StatusOnline,
                             )
                         }
@@ -186,9 +192,10 @@ fun DeviceInspectorSheet(
                 ) {
                     IconButton(
                         onClick = { onEditMetadata(node.id) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(SectionBg, RoundedCornerShape(8.dp)),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .background(SectionBg, RoundedCornerShape(8.dp)),
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.Center,
@@ -219,9 +226,10 @@ private fun InspectorHeader(
     onDismiss: () -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -256,11 +264,12 @@ private fun InspectorSection(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(SectionBg, RoundedCornerShape(10.dp))
-            .border(1.dp, InfraMapBorder, RoundedCornerShape(10.dp))
-            .padding(12.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(SectionBg, RoundedCornerShape(10.dp))
+                .border(1.dp, InfraMapBorder, RoundedCornerShape(10.dp))
+                .padding(12.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -289,9 +298,10 @@ private fun DetailRow(
     isMonospace: Boolean = false,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -302,11 +312,12 @@ private fun DetailRow(
         )
         Text(
             text = value,
-            style = if (isMonospace) {
-                MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
-            } else {
-                MaterialTheme.typography.bodySmall
-            },
+            style =
+                if (isMonospace) {
+                    MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                } else {
+                    MaterialTheme.typography.bodySmall
+                },
             color = InfraMapTextPrimary,
         )
     }
@@ -325,7 +336,13 @@ private fun deriveIpAddress(node: TopologyNode): String {
 }
 
 private fun deriveMacAddress(node: TopologyNode): String {
-    val hex = node.id.hashCode().toUInt().toString(16).padStart(8, '0').takeLast(6)
+    val hex =
+        node.id
+            .hashCode()
+            .toUInt()
+            .toString(16)
+            .padStart(8, '0')
+            .takeLast(6)
     return "00:1A:2B:${hex.substring(0, 2)}:${hex.substring(2, 4)}:${hex.substring(4, 6)}".uppercase()
 }
 

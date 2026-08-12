@@ -5,7 +5,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class TopologyCanvasMathTest {
-
     @Test
     fun graphToScreenTransformationCorrectlyAppliesScaleAndPan() {
         val graphPoint = Offset(100f, 200f)

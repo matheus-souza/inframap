@@ -35,4 +35,3 @@ data class TopologyActions(
     val onTriggerScan: (String) -> Unit = {},
     val onEditMetadata: (String) -> Unit = {},
 )
-

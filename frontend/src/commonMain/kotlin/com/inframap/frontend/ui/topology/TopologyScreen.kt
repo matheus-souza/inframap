@@ -36,24 +36,27 @@ fun TopologyScreen(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(InfraMapCanvasBg),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(InfraMapCanvasBg),
     ) {
         when {
             state.isLoading -> {
                 InfraMapLoadingSkeleton(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
                 )
             }
 
             state.errorMessage != null -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -73,16 +76,18 @@ fun TopologyScreen(
 
             state.graph == null || state.graph.nodes.isEmpty() -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     InfraMapEmptyState(
                         icon = Icons.Filled.AccountTree,
                         title = "Topologia vazia",
-                        subtitle = "O mapa de topologia é gerado a partir dos dispositivos no inventário. " +
-                            "Cadastre ou aprove dispositivos para visualizar as conexões.",
+                        subtitle =
+                            "O mapa de topologia é gerado a partir dos dispositivos no inventário. " +
+                                "Cadastre ou aprove dispositivos para visualizar as conexões.",
                     )
                 }
             }
@@ -97,9 +102,10 @@ fun TopologyScreen(
 
                 // Top Bar Title & Subtitle
                 Row(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(16.dp),
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column {
@@ -127,9 +133,10 @@ fun TopologyScreen(
                     onResetZoom = actions.onResetViewport,
                     onAutoLayout = actions.onAutoLayout,
                     onToggleSubnetBoundaries = actions.onToggleSubnetBoundaries,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 16.dp),
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 16.dp),
                 )
 
                 // Right Slide-Over Device Inspector Sheet (360px)

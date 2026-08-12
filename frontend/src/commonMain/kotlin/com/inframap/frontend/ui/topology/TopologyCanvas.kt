@@ -31,7 +31,6 @@ import com.inframap.frontend.designsystem.StatusOnline
 import com.inframap.frontend.designsystem.StatusStaging
 import com.inframap.frontend.designsystem.StatusWarning
 import com.inframap.frontend.domain.model.TopologyEdge
-import com.inframap.frontend.domain.model.TopologyGraph
 import com.inframap.frontend.domain.model.TopologyNode
 import kotlin.math.sqrt
 
@@ -68,32 +67,31 @@ fun TopologyCanvas(
     val textMeasurer = rememberTextMeasurer()
 
     Canvas(
-        modifier = modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    if (zoom != 1.0f) {
-                        actions.onZoom(zoom)
+        modifier =
+            modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        if (zoom != 1.0f) {
+                            actions.onZoom(zoom)
+                        }
+                        if (pan != Offset.Zero) {
+                            actions.onPan(pan)
+                        }
                     }
-                    if (pan != Offset.Zero) {
-                        actions.onPan(pan)
+                }.pointerInput(activeTool) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        actions.onPan(dragAmount)
                     }
-                }
-            }
-            .pointerInput(activeTool) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    actions.onPan(dragAmount)
-                }
-            }
-            .pointerInput(graph, positions, panOffset, zoomScale, activeTool) {
-                detectTapGestures { tapOffset ->
-                    val graphX = (tapOffset.x - panOffset.x) / zoomScale
-                    val graphY = (tapOffset.y - panOffset.y) / zoomScale
-                    val clickedNodeId = findClickedNodeId(Offset(graphX, graphY), positions)
-                    actions.onNodeSelected(clickedNodeId)
-                }
-            },
+                }.pointerInput(graph, positions, panOffset, zoomScale, activeTool) {
+                    detectTapGestures { tapOffset ->
+                        val graphX = (tapOffset.x - panOffset.x) / zoomScale
+                        val graphY = (tapOffset.y - panOffset.y) / zoomScale
+                        val clickedNodeId = findClickedNodeId(Offset(graphX, graphY), positions)
+                        actions.onNodeSelected(clickedNodeId)
+                    }
+                },
     ) {
         // 1. Draw Canvas Background (#121214)
         drawRect(color = InfraMapCanvasBg)
@@ -154,10 +152,11 @@ private fun DrawScope.drawSubnetBoundaries(
     if (nodes.isEmpty()) return
 
     // Group nodes into subnets based on IP prefix / device group
-    val groupedNodes = nodes.groupBy { node ->
-        val hash = node.id.hashCode().coerceAtLeast(0) % 2
-        if (hash == 0) "192.168.1.0/24" else "10.0.0.0/24"
-    }
+    val groupedNodes =
+        nodes.groupBy { node ->
+            val hash = node.id.hashCode().coerceAtLeast(0) % 2
+            if (hash == 0) "192.168.1.0/24" else "10.0.0.0/24"
+        }
 
     groupedNodes.forEach { (subnetCidr, groupList) ->
         var minX = Float.MAX_VALUE
@@ -191,19 +190,21 @@ private fun DrawScope.drawSubnetBoundaries(
                 topLeft = topLeft,
                 size = rectSize,
                 cornerRadius = CornerRadius(12f, 12f),
-                style = Stroke(
-                    width = 1.5f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
-                ),
+                style =
+                    Stroke(
+                        width = 1.5f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
+                    ),
             )
 
             drawText(
                 textMeasurer = textMeasurer,
                 text = "Subnet $subnetCidr",
                 topLeft = Offset(minX + 12f, minY + 8f),
-                style = TextStyle(
-                    color = InfraMapTextSecondary,
-                ),
+                style =
+                    TextStyle(
+                        color = InfraMapTextSecondary,
+                    ),
             )
         }
     }
@@ -281,9 +282,10 @@ private fun DrawScope.drawTopologyNodeCards(
             textMeasurer = textMeasurer,
             text = node.label,
             topLeft = Offset(cardTopLeft.x + 38f, cardTopLeft.y + 8f),
-            style = TextStyle(
-                color = InfraMapTextPrimary,
-            ),
+            style =
+                TextStyle(
+                    color = InfraMapTextPrimary,
+                ),
         )
 
         // Node Device Type Subtext
@@ -291,9 +293,10 @@ private fun DrawScope.drawTopologyNodeCards(
             textMeasurer = textMeasurer,
             text = node.deviceType.uppercase(),
             topLeft = Offset(cardTopLeft.x + 38f, cardTopLeft.y + 27f),
-            style = TextStyle(
-                color = InfraMapTextSecondary,
-            ),
+            style =
+                TextStyle(
+                    color = InfraMapTextSecondary,
+                ),
         )
     }
 }
@@ -314,13 +317,30 @@ private fun DrawScope.drawDeviceVectorBadge(
         "switch" -> {
             val rectTopLeft = Offset(center.x - 9f, center.y - 7f)
             drawRoundRect(badgeColor.copy(alpha = 0.2f), topLeft = rectTopLeft, size = Size(18f, 14f), cornerRadius = CornerRadius(2f))
-            drawRoundRect(badgeColor, topLeft = rectTopLeft, size = Size(18f, 14f), cornerRadius = CornerRadius(2f), style = Stroke(width = 1.5f))
+            drawRoundRect(
+                badgeColor,
+                topLeft = rectTopLeft,
+                size = Size(18f, 14f),
+                cornerRadius = CornerRadius(2f),
+                style = Stroke(width = 1.5f),
+            )
             drawLine(badgeColor, Offset(center.x - 5f, center.y - 2f), Offset(center.x + 5f, center.y - 2f), strokeWidth = 1.5f)
             drawLine(badgeColor, Offset(center.x - 5f, center.y + 2f), Offset(center.x + 5f, center.y + 2f), strokeWidth = 1.5f)
         }
         "server" -> {
-            drawRoundRect(badgeColor.copy(alpha = 0.2f), topLeft = Offset(center.x - 8f, center.y - 9f), size = Size(16f, 18f), cornerRadius = CornerRadius(2f))
-            drawRoundRect(badgeColor, topLeft = Offset(center.x - 8f, center.y - 9f), size = Size(16f, 18f), cornerRadius = CornerRadius(2f), style = Stroke(width = 1.5f))
+            drawRoundRect(
+                badgeColor.copy(alpha = 0.2f),
+                topLeft = Offset(center.x - 8f, center.y - 9f),
+                size = Size(16f, 18f),
+                cornerRadius = CornerRadius(2f),
+            )
+            drawRoundRect(
+                badgeColor,
+                topLeft = Offset(center.x - 8f, center.y - 9f),
+                size = Size(16f, 18f),
+                cornerRadius = CornerRadius(2f),
+                style = Stroke(width = 1.5f),
+            )
             drawLine(badgeColor, Offset(center.x - 5f, center.y - 3f), Offset(center.x + 5f, center.y - 3f), strokeWidth = 1.5f)
             drawLine(badgeColor, Offset(center.x - 5f, center.y + 3f), Offset(center.x + 5f, center.y + 3f), strokeWidth = 1.5f)
         }
@@ -371,13 +391,21 @@ private fun findClickedNodeId(
  * Coordinate Math Helper functions for testing & position conversion.
  */
 object CanvasMatrixMath {
-    fun graphToScreen(graphPoint: Offset, panOffset: Offset, zoomScale: Float): Offset =
+    fun graphToScreen(
+        graphPoint: Offset,
+        panOffset: Offset,
+        zoomScale: Float,
+    ): Offset =
         Offset(
             x = graphPoint.x * zoomScale + panOffset.x,
             y = graphPoint.y * zoomScale + panOffset.y,
         )
 
-    fun screenToGraph(screenPoint: Offset, panOffset: Offset, zoomScale: Float): Offset =
+    fun screenToGraph(
+        screenPoint: Offset,
+        panOffset: Offset,
+        zoomScale: Float,
+    ): Offset =
         Offset(
             x = (screenPoint.x - panOffset.x) / zoomScale,
             y = (screenPoint.y - panOffset.y) / zoomScale,
