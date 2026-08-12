@@ -33,6 +33,7 @@ import (
 	"github.com/matheussouza/inframap/modules/discovery"
 	discctrl "github.com/matheussouza/inframap/modules/discovery/controller"
 	discrepo "github.com/matheussouza/inframap/modules/discovery/repository"
+	"github.com/matheussouza/inframap/modules/discovery/scheduler"
 	discuc "github.com/matheussouza/inframap/modules/discovery/usecase"
 	"github.com/matheussouza/inframap/modules/identity"
 	identityctrl "github.com/matheussouza/inframap/modules/identity/controller"
@@ -58,10 +59,11 @@ import (
 
 // App holds all application-wide dependencies.
 type App struct {
-	Logger   *slog.Logger
-	DB       *pgxpool.Pool
-	EventBus eventbus.EventBus
-	Router   http.Handler
+	Logger    *slog.Logger
+	DB        *pgxpool.Pool
+	EventBus  eventbus.EventBus
+	Router    http.Handler
+	scheduler *scheduler.Scheduler
 }
 
 // Config holds bootstrap configuration parameters.
@@ -207,6 +209,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	discRepo := discrepo.NewPgDiscoveryRepository(pool, encryptor)
 	discUseCase := discuc.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, log)
 	discCtrl := discctrl.NewDiscoveryController(discUseCase)
+	discScheduler := scheduler.New(discUseCase, discRepo, bus, log)
 
 	// 9. Initialize Topology Module
 	queries := db.New(pool)
@@ -299,15 +302,30 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	)
 
 	return &App{
-		Logger:   log,
-		DB:       pool,
-		EventBus: bus,
-		Router:   handler,
+		Logger:    log,
+		DB:        pool,
+		EventBus:  bus,
+		Router:    handler,
+		scheduler: discScheduler,
 	}, nil
 }
 
+// Start performs post-wiring startup of background services.
+func (a *App) Start(ctx context.Context) error {
+	if a.scheduler != nil {
+		if err := a.scheduler.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start discovery scheduler: %w", err)
+		}
+	}
+	return nil
+}
+
 // Close gracefully releases application resources.
+// Order matters: scheduler → event bus → database.
 func (a *App) Close() {
+	if a.scheduler != nil {
+		a.scheduler.Stop()
+	}
 	if a.EventBus != nil {
 		_ = a.EventBus.Close()
 	}
