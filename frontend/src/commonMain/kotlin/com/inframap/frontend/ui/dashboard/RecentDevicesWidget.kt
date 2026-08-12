@@ -153,6 +153,7 @@ private fun RecentDevicesTableContent(
                 Text(
                     text = device.ipAddress ?: "-",
                     style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     color = InfraMapTextSecondary,
                     modifier = Modifier.weight(1.2f),
                 )
