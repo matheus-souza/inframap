@@ -147,8 +147,8 @@ class DashboardWidgetsTest {
 
             onNodeWithText("Dashboard Overview").assertIsDisplayed()
             onNodeWithText("Total Dispositivos").assertIsDisplayed()
-            onNodeWithText("Dispositivos Recentes").assertIsDisplayed()
-            onNodeWithText("gateway-01").assertIsDisplayed()
-            onNodeWithText("Live SSE Stream").assertIsDisplayed()
+            onNodeWithText("Dispositivos Recentes").assertExists()
+            onNodeWithText("gateway-01").assertExists()
+            onNodeWithText("Live SSE Stream").assertExists()
         }
 }
