@@ -292,6 +292,30 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("CreateSource Logs Publish Error Without Failing", func(t *testing.T) {
+		closedBus := eventbus.NewInMemoryEventBus(1, 10)
+		_ = closedBus.Close()
+
+		logBuf := &bytes.Buffer{}
+		logLogger := slog.New(slog.NewTextHandler(logBuf, nil))
+		localUC := usecase.NewDefaultDiscoveryUseCase(newMockDiscRepo(), newMockInvRepo(), closedBus, logLogger)
+
+		req := &dto.CreateDiscoverySourceRequest{
+			Name: "Publish Fail Source",
+			Type: "icmp_sweep",
+		}
+		src, err := localUC.CreateSource(ctx, req)
+		if err != nil {
+			t.Fatalf("CreateSource should succeed even when Publish fails, got %v", err)
+		}
+		if src.Name != "Publish Fail Source" {
+			t.Errorf("expected name 'Publish Fail Source', got %s", src.Name)
+		}
+		if !bytes.Contains(logBuf.Bytes(), []byte("failed to publish discovery_source.created event")) {
+			t.Error("expected log entry for publish error")
+		}
+	})
+
 	t.Run("GetSourceByID Invalid UUID", func(t *testing.T) {
 		_, err := uc.GetSourceByID(ctx, "invalid-uuid")
 		if !errors.Is(err, usecase.ErrInvalidUUID) {

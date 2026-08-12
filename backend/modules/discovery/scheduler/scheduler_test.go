@@ -393,6 +393,110 @@ func TestScheduler_EventCreatedRegistersNewCronJob(t *testing.T) {
 	}
 }
 
+func TestScheduler_EventUpdatedReRegistersCronJob(t *testing.T) {
+	srcID := uuid.New()
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{
+			{ID: srcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle"},
+		},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	waitForCalls(t, uc, 1, 3*time.Second)
+
+	// Publish update event — disable the source
+	_ = bus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.updated", map[string]interface{}{
+		"source_id":     srcID.String(),
+		"schedule_cron": "@every 1s",
+		"enabled":       false,
+	}))
+
+	time.Sleep(500 * time.Millisecond)
+	countAfterDisable := len(uc.getTriggerCalls())
+	time.Sleep(1500 * time.Millisecond)
+	countFinal := len(uc.getTriggerCalls())
+
+	if countFinal > countAfterDisable {
+		t.Errorf("source continued to fire after update event disabled it: %d → %d", countAfterDisable, countFinal)
+	}
+}
+
+func TestScheduler_EventWithInvalidPayloadIsIgnored(t *testing.T) {
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	// Non-map payload
+	_ = bus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.created", "invalid"))
+	// Invalid UUID
+	_ = bus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.created", map[string]interface{}{
+		"source_id": "not-a-uuid",
+	}))
+	// Delete with invalid payload
+	_ = bus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.deleted", "invalid"))
+	// Update with invalid payload
+	_ = bus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.updated", "invalid"))
+
+	time.Sleep(500 * time.Millisecond)
+	if calls := uc.getTriggerCalls(); len(calls) != 0 {
+		t.Errorf("expected 0 calls for invalid payloads, got %d", len(calls))
+	}
+}
+
+func TestScheduler_InvalidCronExpressionLogsError(t *testing.T) {
+	srcID := uuid.New()
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	// Publish event with invalid cron expression
+	_ = bus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.created", map[string]interface{}{
+		"source_id":     srcID.String(),
+		"schedule_cron": "not-a-cron",
+		"enabled":       true,
+	}))
+
+	time.Sleep(1200 * time.Millisecond)
+	if calls := uc.getTriggerCalls(); len(calls) != 0 {
+		t.Errorf("expected 0 calls for invalid cron expression, got %d", len(calls))
+	}
+}
+
 func TestScheduler_EventCreatedDisabledDoesNotRegister(t *testing.T) {
 	srcID := uuid.New()
 	uc := &fakeUseCase{
