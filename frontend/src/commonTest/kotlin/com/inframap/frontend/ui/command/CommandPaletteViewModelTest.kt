@@ -1,10 +1,14 @@
 package com.inframap.frontend.ui.command
 
 import app.cash.turbine.test
+import com.inframap.frontend.domain.model.CommandPaletteAction
+import com.inframap.frontend.domain.model.CommandPaletteCategory
+import com.inframap.frontend.domain.model.CommandPaletteItem
 import com.inframap.frontend.domain.usecase.command.SearchIndexUseCase
 import com.inframap.frontend.fakes.FakeDashboardRepository
 import com.inframap.frontend.fakes.FakeDeviceRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
+import com.inframap.frontend.navigation.Route
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -16,15 +20,15 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CommandPaletteViewModelTest {
-    private fun makeViewModel(scope: CoroutineScope? = null): CommandPaletteViewModel {
-        val searchUseCase =
+    private fun makeViewModel(
+        useCase: SearchIndexUseCase =
             SearchIndexUseCase(
                 FakeDeviceRepository(),
                 FakeSubnetRepository(),
                 FakeDashboardRepository(),
-            )
-        return CommandPaletteViewModel(searchUseCase, scope = scope)
-    }
+            ),
+        scope: CoroutineScope? = null,
+    ): CommandPaletteViewModel = CommandPaletteViewModel(useCase, scope = scope)
 
     @Test
     fun initialModeIsClosed() {
@@ -69,6 +73,21 @@ class CommandPaletteViewModelTest {
         }
 
     @Test
+    fun onQueryChangedUpdatesStateAndResults() =
+        runTest {
+            val vm = makeViewModel(scope = this)
+            vm.open()
+            advanceUntilIdle()
+
+            vm.onQueryChanged("Dispositivo")
+            advanceUntilIdle()
+
+            assertEquals("Dispositivo", vm.state.value.query)
+            assertEquals(0, vm.state.value.selectedIndex)
+            vm.clear()
+        }
+
+    @Test
     fun arrowKeysNavigateSelection() =
         runTest {
             val vm = makeViewModel(scope = this)
@@ -92,6 +111,29 @@ class CommandPaletteViewModelTest {
         }
 
     @Test
+    fun navigationInEmptyResultsDoesNotCrash() =
+        runTest {
+            val emptyUseCase =
+                SearchIndexUseCase(
+                    FakeDeviceRepository(),
+                    FakeSubnetRepository(),
+                    FakeDashboardRepository(),
+                )
+            val vm = CommandPaletteViewModel(emptyUseCase, scope = this)
+
+            // State has no results
+            vm.onNextItem()
+            assertEquals(0, vm.state.value.selectedIndex)
+
+            vm.onPreviousItem()
+            assertEquals(0, vm.state.value.selectedIndex)
+
+            vm.selectCurrentItem()
+            assertFalse(vm.state.value.isOpen)
+            vm.clear()
+        }
+
+    @Test
     fun selectingItemEmitsEffectAndClosesModal() =
         runTest {
             val vm = makeViewModel(scope = this)
@@ -108,6 +150,38 @@ class CommandPaletteViewModelTest {
                 val effect = awaitItem()
                 assertTrue(effect is CommandPaletteEffect.ExecuteItem)
                 assertEquals(firstItem.id, effect.item.id)
+
+                val closeEffect = awaitItem()
+                assertTrue(closeEffect is CommandPaletteEffect.ClosePalette)
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            assertFalse(vm.state.value.isOpen)
+            vm.clear()
+        }
+
+    @Test
+    fun onItemClickedDirectlyEmitsEffectAndCloses() =
+        runTest {
+            val vm = makeViewModel(scope = this)
+            vm.open()
+            advanceUntilIdle()
+
+            val testItem =
+                CommandPaletteItem(
+                    id = "test-item",
+                    title = "Test",
+                    subtitle = "Sub",
+                    category = CommandPaletteCategory.ACOES,
+                    action = CommandPaletteAction.Navigate(Route.Dashboard),
+                )
+
+            vm.effects.test {
+                vm.onItemClicked(testItem)
+
+                val effect = awaitItem()
+                assertTrue(effect is CommandPaletteEffect.ExecuteItem)
+                assertEquals("test-item", effect.item.id)
 
                 val closeEffect = awaitItem()
                 assertTrue(closeEffect is CommandPaletteEffect.ClosePalette)

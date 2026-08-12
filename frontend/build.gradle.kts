@@ -167,6 +167,8 @@ kover {
                     "com.inframap.frontend.ui.subnets.*ScreenKt*",
                     "com.inframap.frontend.ui.topology.*ScreenKt*",
                     "com.inframap.frontend.ui.topology.components.*",
+                    "com.inframap.frontend.ui.command.CommandPaletteModalKt*",
+                    "com.inframap.frontend.ui.command.CommandPaletteListenerKt*",
                     "com.inframap.frontend.ui.app.NavItem",
                     "com.inframap.frontend.ui.app.ComposableSingletons*",
                 )

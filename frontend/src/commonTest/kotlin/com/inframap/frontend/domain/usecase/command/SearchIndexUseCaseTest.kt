@@ -12,6 +12,7 @@ import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -49,8 +50,16 @@ class SearchIndexUseCaseTest {
                                             deviceType = "router",
                                             status = "online",
                                         ),
+                                        Device(
+                                            id = "d2",
+                                            hostname = "bare-device",
+                                            ipAddress = null,
+                                            macAddress = null,
+                                            deviceType = "",
+                                            status = "offline",
+                                        ),
                                     ),
-                                total = 1,
+                                total = 2,
                                 page = 1,
                                 perPage = 50,
                             ),
@@ -64,9 +73,16 @@ class SearchIndexUseCaseTest {
                             PaginatedList(
                                 items =
                                     listOf(
-                                        Subnet(id = "s1", name = "DMZ Network", cidr = "10.0.1.0/24", vlanId = 100),
+                                        Subnet(
+                                            id = "s1",
+                                            name = "DMZ Network",
+                                            cidr = "10.0.1.0/24",
+                                            vlanId = 100,
+                                            description = "DMZ zone",
+                                        ),
+                                        Subnet(id = "s2", name = "Internal", cidr = "192.168.1.0/24", vlanId = null, description = null),
                                     ),
-                                total = 1,
+                                total = 2,
                                 page = 1,
                                 perPage = 50,
                             ),
@@ -79,6 +95,7 @@ class SearchIndexUseCaseTest {
                         ApiResult.Success(
                             listOf(
                                 DiscoverySource(id = "src1", name = "NetFlow Collector", sourceType = "netflow", enabled = true),
+                                DiscoverySource(id = "src2", name = "SNMP Poller", sourceType = "snmp", enabled = false),
                             ),
                             requestId = "",
                         ),
@@ -89,11 +106,30 @@ class SearchIndexUseCaseTest {
             val routerResults = useCase("router")
             assertTrue(routerResults.any { it.title.contains("core-router-01") })
 
+            val bareDeviceResults = useCase("bare-device")
+            val bareItem = bareDeviceResults.first { it.title == "bare-device" }
+            assertNull(bareItem.subtitle)
+
             val subnetResults = useCase("DMZ")
             assertTrue(subnetResults.any { it.title.contains("DMZ Network") })
 
+            val cidrResults = useCase("192.168")
+            assertTrue(cidrResults.any { it.title.contains("Internal") })
+
+            val vlanResults = useCase("100")
+            assertTrue(vlanResults.any { it.title.contains("DMZ Network") })
+
+            val descResults = useCase("zone")
+            assertTrue(descResults.any { it.title.contains("DMZ Network") })
+
             val sourceResults = useCase("NetFlow")
             assertTrue(sourceResults.any { it.title.contains("NetFlow Collector") })
+
+            val inactiveSourceResults = useCase("snmp")
+            assertTrue(inactiveSourceResults.any { it.subtitle?.contains("(Inativo)") == true })
+
+            val subtitleActionResults = useCase("inventário")
+            assertTrue(subtitleActionResults.any { it.title == "Criar Dispositivo" })
         }
 
     @Test
