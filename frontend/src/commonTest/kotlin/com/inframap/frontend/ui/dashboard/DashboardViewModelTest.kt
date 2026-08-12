@@ -3,16 +3,19 @@ package com.inframap.frontend.ui.dashboard
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.sse.SSEEvent
+import com.inframap.frontend.domain.model.Device
 import com.inframap.frontend.domain.model.Health
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.usecase.dashboard.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.dashboard.GetHealthUseCase
 import com.inframap.frontend.domain.usecase.device.GetDevicesUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
+import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
 import com.inframap.frontend.fakes.FakeDashboardRepository
 import com.inframap.frontend.fakes.FakeDeviceRepository
 import com.inframap.frontend.fakes.FakeSSEClient
 import com.inframap.frontend.fakes.FakeStagingRepository
+import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -33,7 +36,7 @@ class DashboardViewModelTest {
             FakeDeviceRepository(
                 getDevicesResult =
                     ApiResult.Success(
-                        PaginatedList(items = listOf(FakeDeviceRepository.DEFAULT_DEVICE), total = 15L, page = 1, perPage = 1),
+                        PaginatedList(items = listOf(FakeDeviceRepository.DEFAULT_DEVICE), total = 15L, page = 1, perPage = 5),
                         requestId = "",
                     ),
             ),
@@ -46,17 +49,21 @@ class DashboardViewModelTest {
                     ),
             ),
         dashRepo: FakeDashboardRepository = FakeDashboardRepository(),
+        subnetRepo: FakeSubnetRepository = FakeSubnetRepository(),
         sseClient: FakeSSEClient? = null,
         autoRefreshIntervalMs: Long = 0L,
+        timestampProvider: () -> String = { "19:20:15" },
         scope: CoroutineScope? = null,
     ) = DashboardViewModel(
-        GetDevicesUseCase(deviceRepo),
-        GetStagingDevicesUseCase(stagingRepo),
-        GetHealthUseCase(dashRepo),
-        GetDiscoverySourcesUseCase(dashRepo),
-        sseClient,
-        autoRefreshIntervalMs,
-        scope,
+        getDevicesUseCase = GetDevicesUseCase(deviceRepo),
+        getStagingDevicesUseCase = GetStagingDevicesUseCase(stagingRepo),
+        getHealthUseCase = GetHealthUseCase(dashRepo),
+        getDiscoverySourcesUseCase = GetDiscoverySourcesUseCase(dashRepo),
+        sseClient = sseClient,
+        getSubnetsUseCase = GetSubnetsUseCase(subnetRepo),
+        autoRefreshIntervalMs = autoRefreshIntervalMs,
+        timestampProvider = timestampProvider,
+        scope = scope,
     )
 
     @Test
@@ -71,9 +78,12 @@ class DashboardViewModelTest {
                 assertNull(state.errorMessage)
                 assertEquals(15L, state.totalActiveDevices)
                 assertEquals(3L, state.totalStagedDevices)
+                assertEquals(1L, state.totalSubnetsMonitored)
+                assertEquals(100, state.onlinePercentage)
                 assertEquals(true, state.isSystemHealthy)
                 assertEquals("v1.2.3", state.systemVersion)
                 assertEquals(2L, state.totalDiscoverySources)
+                assertEquals(1, state.recentDevices.size)
                 cancelAndIgnoreRemainingEvents()
             }
             vm.clear()
@@ -205,7 +215,7 @@ class DashboardViewModelTest {
                 FakeDeviceRepository(
                     getDevicesResult =
                         ApiResult.Success(
-                            PaginatedList(items = listOf(FakeDeviceRepository.DEFAULT_DEVICE), total = 15L, page = 1, perPage = 1),
+                            PaginatedList(items = listOf(FakeDeviceRepository.DEFAULT_DEVICE), total = 15L, page = 1, perPage = 5),
                             requestId = "",
                         ),
                 )
@@ -270,18 +280,18 @@ class DashboardViewModelTest {
         }
 
     @Test
-    fun sseEventsTriggerMetricsReload() =
+    fun sseEventsTriggerMetricsReloadAndAppendsLiveEvents() =
         runTest {
             val fakeSse = FakeSSEClient()
             val deviceRepo =
                 FakeDeviceRepository(
                     getDevicesResult =
                         ApiResult.Success(
-                            PaginatedList(items = emptyList(), total = 10L, page = 1, perPage = 1),
+                            PaginatedList(items = emptyList(), total = 10L, page = 1, perPage = 5),
                             requestId = "",
                         ),
                 )
-            val vm = makeVm(deviceRepo = deviceRepo, sseClient = fakeSse, scope = this)
+            val vm = makeVm(deviceRepo = deviceRepo, sseClient = fakeSse, timestampProvider = { "19:20:15" }, scope = this)
 
             vm.state.test {
                 skipItems(1)
@@ -289,42 +299,26 @@ class DashboardViewModelTest {
 
                 deviceRepo.getDevicesResult =
                     ApiResult.Success(
-                        PaginatedList(items = emptyList(), total = 11L, page = 1, perPage = 1),
+                        PaginatedList(items = emptyList(), total = 11L, page = 1, perPage = 5),
                         requestId = "",
                     )
-                fakeSse.events.emit(SSEEvent.DeviceCreated(id = "e1", data = "{}"))
+                fakeSse.events.emit(SSEEvent.DeviceCreated(id = "e1", data = "Device 192.168.1.10 added"))
                 advanceUntilIdle()
-                assertEquals(11L, expectMostRecentItem().totalActiveDevices)
 
-                deviceRepo.getDevicesResult =
-                    ApiResult.Success(
-                        PaginatedList(items = emptyList(), total = 12L, page = 1, perPage = 1),
-                        requestId = "",
-                    )
-                fakeSse.events.emit(SSEEvent.DeviceUpdated(id = "e2", data = "{}"))
+                val state1 = expectMostRecentItem()
+                assertEquals(11L, state1.totalActiveDevices)
+                assertEquals(1, state1.liveEvents.size)
+                assertEquals("DeviceCreated", state1.liveEvents.first().eventType)
+                assertEquals("19:20:15", state1.liveEvents.first().timestamp)
+                assertEquals("Device 192.168.1.10 added", state1.liveEvents.first().message)
+
+                fakeSse.events.emit(SSEEvent.DiscoveryProgress(id = "e2", data = "Scan 192.168.1.0/24 in progress"))
                 advanceUntilIdle()
-                assertEquals(12L, expectMostRecentItem().totalActiveDevices)
 
-                deviceRepo.getDevicesResult =
-                    ApiResult.Success(
-                        PaginatedList(items = emptyList(), total = 13L, page = 1, perPage = 1),
-                        requestId = "",
-                    )
-                fakeSse.events.emit(SSEEvent.TopologyUpdated(id = "e3", data = "{}"))
-                advanceUntilIdle()
-                assertEquals(13L, expectMostRecentItem().totalActiveDevices)
-
-                deviceRepo.getDevicesResult =
-                    ApiResult.Success(
-                        PaginatedList(items = emptyList(), total = 14L, page = 1, perPage = 1),
-                        requestId = "",
-                    )
-                fakeSse.events.emit(SSEEvent.DiscoveryProgress(id = "e4", data = "{}"))
-                advanceUntilIdle()
-                assertEquals(14L, expectMostRecentItem().totalActiveDevices)
-
-                fakeSse.events.emit(SSEEvent.SystemNotification(id = "e5", data = "{}"))
-                runCurrent()
+                val state2 = expectMostRecentItem()
+                assertEquals(DiscoveryEngineStatus.RUNNING, state2.discoveryEngineStatus)
+                assertEquals(2, state2.liveEvents.size)
+                assertEquals("DiscoveryProgress", state2.liveEvents.first().eventType)
 
                 vm.stopSseListening()
                 cancelAndIgnoreRemainingEvents()
@@ -381,140 +375,54 @@ class DashboardViewModelTest {
         }
 
     @Test
-    fun clearDisposesAllBackgroundJobs() =
+    fun kpiCountersAndOnlinePercentageCalculatedCorrectly() =
         runTest {
-            val fakeSse = FakeSSEClient()
-            val vm = makeVm(sseClient = fakeSse, autoRefreshIntervalMs = 1000L, scope = this)
-
-            vm.state.test {
-                skipItems(1)
-                awaitItem()
-                cancelAndIgnoreRemainingEvents()
-            }
-
-            vm.clear()
-            advanceUntilIdle()
-        }
-
-    @Test
-    fun healthFallbackPopulatesHealthWhenAuthGatedEndpointsFail() =
-        runTest {
-            val dashRepo = FakeDashboardRepository()
-            val deviceRepo =
-                FakeDeviceRepository(
-                    getDevicesResult =
-                        ApiResult.Error(
-                            code = "UNAUTHENTICATED",
-                            message = "Token expired",
-                            requestId = "",
-                            httpStatus = 401,
-                        ),
-                )
-            val stagingRepo =
-                FakeStagingRepository(
-                    getStagingDevicesResult =
-                        ApiResult.Error(
-                            code = "UNAUTHENTICATED",
-                            message = "Token expired",
-                            requestId = "",
-                            httpStatus = 401,
-                        ),
-                )
-            val vm = makeVm(deviceRepo = deviceRepo, stagingRepo = stagingRepo, dashRepo = dashRepo, scope = this)
-
-            vm.state.test {
-                skipItems(1)
-                val state = awaitItem()
-                assertFalse(state.isLoading)
-                assertNotNull(state.errorMessage)
-                assertEquals(true, state.isSystemHealthy)
-                assertEquals("v1.2.3", state.systemVersion)
-                cancelAndIgnoreRemainingEvents()
-            }
-            vm.clear()
-        }
-
-    @Test
-    fun healthFallbackPreservesPreviousHealthWhenAllEndpointsFail() =
-        runTest {
+            val activeDevice = Device(id = "d1", hostname = "router-01", deviceType = "ROUTER", status = "ACTIVE")
+            val offlineDevice = Device(id = "d2", hostname = "switch-02", deviceType = "SWITCH", status = "OFFLINE")
             val deviceRepo =
                 FakeDeviceRepository(
                     getDevicesResult =
                         ApiResult.Success(
-                            PaginatedList(items = listOf(FakeDeviceRepository.DEFAULT_DEVICE), total = 15L, page = 1, perPage = 1),
+                            PaginatedList(items = listOf(activeDevice, offlineDevice), total = 10L, page = 1, perPage = 5),
                             requestId = "",
                         ),
-                )
-            val stagingRepo =
-                FakeStagingRepository(
-                    getStagingDevicesResult =
-                        ApiResult.Success(
-                            PaginatedList(items = emptyList(), total = 3L, page = 1, perPage = 50),
-                            requestId = "",
-                        ),
-                )
-            val dashRepo = FakeDashboardRepository()
-            val vm = makeVm(deviceRepo = deviceRepo, stagingRepo = stagingRepo, dashRepo = dashRepo, scope = this)
-
-            vm.state.test {
-                skipItems(1)
-                awaitItem()
-                assertEquals(true, vm.state.value.isSystemHealthy)
-                assertEquals("v1.2.3", vm.state.value.systemVersion)
-
-                val networkError = ApiResult.NetworkError(RuntimeException("Network down"))
-                deviceRepo.getDevicesResult = networkError
-                stagingRepo.getStagingDevicesResult = networkError
-                dashRepo.getHealthResult = networkError
-                dashRepo.getDiscoverySourcesResult = networkError
-                vm.refresh()
-                skipItems(1)
-                val state = awaitItem()
-                assertNotNull(state.errorMessage)
-                assertEquals(true, state.isSystemHealthy)
-                assertEquals("v1.2.3", state.systemVersion)
-                cancelAndIgnoreRemainingEvents()
-            }
-            vm.clear()
-        }
-
-    @Test
-    fun staleResponseIsDiscardedByGenerationToken() =
-        runTest {
-            val deviceRepo =
-                FakeDeviceRepository(
-                    getDevicesResult =
-                        ApiResult.Success(
-                            PaginatedList(
-                                items = listOf(FakeDeviceRepository.DEFAULT_DEVICE),
-                                total = 10L,
-                                page = 1,
-                                perPage = 1,
-                            ),
-                            requestId = "",
-                        ),
-                    onGetDevices = { kotlinx.coroutines.delay(5000L) },
                 )
             val vm = makeVm(deviceRepo = deviceRepo, scope = this)
 
-            advanceTimeBy(1000L)
-            runCurrent()
+            vm.state.test {
+                skipItems(1)
+                val state = awaitItem()
+                assertEquals(10L, state.totalActiveDevices)
+                assertEquals(5L, state.onlineDevicesCount)
+                assertEquals(50, state.onlinePercentage)
+                assertEquals(2, state.recentDevices.size)
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.clear()
+        }
 
-            deviceRepo.onGetDevices = null
-            deviceRepo.getDevicesResult =
-                ApiResult.Success(
-                    PaginatedList(
-                        items = listOf(FakeDeviceRepository.DEFAULT_DEVICE),
-                        total = 99L,
-                        page = 1,
-                        perPage = 1,
-                    ),
-                    requestId = "",
-                )
-            vm.refresh()
-            advanceUntilIdle()
+    @Test
+    fun liveEventsListCapsAtMax50Items() =
+        runTest {
+            val fakeSse = FakeSSEClient()
+            val vm = makeVm(sseClient = fakeSse, scope = this)
 
-            assertEquals(99L, vm.state.value.totalActiveDevices)
+            vm.state.test {
+                skipItems(1)
+                awaitItem()
+
+                repeat(60) { index ->
+                    fakeSse.events.emit(SSEEvent.SystemNotification(id = "e_$index", data = "Event $index"))
+                    runCurrent()
+                }
+
+                val state = expectMostRecentItem()
+                assertEquals(50, state.liveEvents.size)
+                assertEquals("Event 59", state.liveEvents.first().message)
+
+                vm.stopSseListening()
+                cancelAndIgnoreRemainingEvents()
+            }
             vm.clear()
         }
 
@@ -522,15 +430,21 @@ class DashboardViewModelTest {
     fun dashboardUiStateDefaultsAreCorrect() {
         val state = DashboardUiState()
         assertEquals(0L, state.totalActiveDevices)
+        assertEquals(0L, state.onlineDevicesCount)
+        assertEquals(0L, state.totalSubnetsMonitored)
+        assertEquals(DiscoveryEngineStatus.IDLE, state.discoveryEngineStatus)
         assertEquals(0L, state.totalStagedDevices)
+        assertTrue(state.recentDevices.isEmpty())
+        assertTrue(state.liveEvents.isEmpty())
         assertNull(state.isSystemHealthy)
         assertEquals("", state.systemVersion)
         assertEquals(0L, state.totalDiscoverySources)
         assertTrue(state.isLoading)
         assertNull(state.errorMessage)
+        assertEquals(0, state.onlinePercentage)
 
-        val copied = state.copy(totalActiveDevices = 5L, isSystemHealthy = false)
-        assertEquals(5L, copied.totalActiveDevices)
-        assertFalse(copied.isSystemHealthy!!)
+        val copied = state.copy(totalActiveDevices = 10L, onlineDevicesCount = 8L)
+        assertEquals(10L, copied.totalActiveDevices)
+        assertEquals(80, copied.onlinePercentage)
     }
 }

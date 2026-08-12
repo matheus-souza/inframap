@@ -26,7 +26,7 @@ val presentationModule =
         factory { SubnetsViewModel(get()) }
         factory { CreateSubnetViewModel(get()) }
 
-        factory { DashboardViewModel(get(), get(), get(), get(), getOrNull()) }
+        factory { DashboardViewModel(get(), get(), get(), get(), getOrNull(), getOrNull()) }
 
         factory { TopologyViewModel(get(), getOrNull()) }
 

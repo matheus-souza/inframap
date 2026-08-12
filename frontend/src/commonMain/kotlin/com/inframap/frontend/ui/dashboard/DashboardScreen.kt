@@ -1,8 +1,6 @@
 package com.inframap.frontend.ui.dashboard
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -12,10 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Rocket
 import androidx.compose.material3.MaterialTheme
@@ -24,27 +21,26 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.InfraMapButton
-import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapEmptyState
-import com.inframap.frontend.designsystem.InfraMapGreen
 import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
-import com.inframap.frontend.designsystem.InfraMapRed
+import com.inframap.frontend.designsystem.InfraMapTextPrimary
+import com.inframap.frontend.designsystem.InfraMapTextSecondary
 
 @Composable
 fun DashboardScreen(
     state: DashboardUiState,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
+    onDeviceClick: ((String) -> Unit)? = null,
+    onStagingClick: (() -> Unit)? = null,
 ) {
     Column(
         modifier =
             modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
     ) {
         DashboardHeader(isLoading = state.isLoading, onRefresh = onRefresh)
@@ -55,7 +51,11 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        DashboardContent(state = state)
+        DashboardContent(
+            state = state,
+            onDeviceClick = onDeviceClick,
+            onStagingClick = onStagingClick,
+        )
     }
 }
 
@@ -71,14 +71,14 @@ private fun DashboardHeader(
     ) {
         Column {
             Text(
-                text = "Dashboard",
+                text = "Dashboard Overview",
                 style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = InfraMapTextPrimary,
             )
             Text(
-                text = "Infrastructure Overview & Real-Time Metrics",
+                text = "Visão geral da infraestrutura e monitoramento em tempo real",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = InfraMapTextSecondary,
             )
         }
         InfraMapButton(
@@ -117,9 +117,12 @@ private fun DashboardErrorBanner(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DashboardContent(state: DashboardUiState) {
+private fun DashboardContent(
+    state: DashboardUiState,
+    onDeviceClick: ((String) -> Unit)?,
+    onStagingClick: (() -> Unit)?,
+) {
     val isEmpty =
         state.totalActiveDevices == 0L &&
             state.totalStagedDevices == 0L &&
@@ -139,7 +142,11 @@ private fun DashboardContent(state: DashboardUiState) {
         Spacer(modifier = Modifier.height(16.dp))
     }
 
-    DashboardMetrics(state = state)
+    DashboardOverviewLayout(
+        state = state,
+        onDeviceClick = onDeviceClick,
+        onStagingClick = onStagingClick,
+    )
 }
 
 @Composable
@@ -155,118 +162,35 @@ private fun DashboardWelcomeBanner() {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DashboardMetrics(state: DashboardUiState) {
-    FlowRow(
+private fun DashboardOverviewLayout(
+    state: DashboardUiState,
+    onDeviceClick: ((String) -> Unit)?,
+    onStagingClick: (() -> Unit)?,
+) {
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        maxItemsInEachRow = 4,
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        MetricCard(
-            title = "Active Devices",
-            value = state.totalActiveDevices.toString(),
-            subtitle = "Inventory items",
-            modifier = Modifier.width(260.dp),
+        DashboardKpiRow(
+            state = state,
+            onStagingClick = onStagingClick,
         )
-        MetricCard(
-            title = "Staged Devices",
-            value = state.totalStagedDevices.toString(),
-            subtitle = "Awaiting verification",
-            modifier = Modifier.width(260.dp),
-        )
-        HealthMetricCard(
-            isHealthy = state.isSystemHealthy,
-            version = state.systemVersion,
-            modifier = Modifier.width(260.dp),
-        )
-        MetricCard(
-            title = "Discovery Sources",
-            value = state.totalDiscoverySources.toString(),
-            subtitle = "Configured targets",
-            modifier = Modifier.width(260.dp),
-        )
-    }
-}
 
-@Composable
-private fun MetricCard(
-    title: String,
-    value: String,
-    subtitle: String,
-    modifier: Modifier = Modifier,
-) {
-    InfraMapCard(modifier = modifier) {
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            maxItemsInEachRow = 2,
+        ) {
+            RecentDevicesWidget(
+                devices = state.recentDevices,
+                onDeviceClick = onDeviceClick,
+                modifier = Modifier.weight(1.5f, fill = true),
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
 
-@Composable
-private fun HealthMetricCard(
-    isHealthy: Boolean?,
-    version: String,
-    modifier: Modifier = Modifier,
-) {
-    val statusText =
-        when (isHealthy) {
-            true -> "Healthy"
-            false -> "Degraded"
-            null -> "Checking..."
-        }
-
-    val dotColor =
-        when (isHealthy) {
-            true -> InfraMapGreen
-            false -> InfraMapRed
-            null -> MaterialTheme.colorScheme.onSurfaceVariant
-        }
-
-    InfraMapCard(modifier = modifier) {
-        Column {
-            Text(
-                text = "System Health",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(dotColor)
-                            .semantics { contentDescription = "Health indicator" },
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = if (version.isNotEmpty()) "Version: $version" else "Core platform",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            LiveEventsWidget(
+                events = state.liveEvents,
+                modifier = Modifier.weight(1f, fill = true),
             )
         }
     }
