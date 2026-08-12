@@ -301,6 +301,7 @@ private fun DrawScope.drawTopologyNodeCards(
     }
 }
 
+@Suppress("LongMethod")
 private fun DrawScope.drawDeviceVectorBadge(
     deviceType: String,
     center: Offset,
@@ -311,12 +312,28 @@ private fun DrawScope.drawDeviceVectorBadge(
         "router" -> {
             drawCircle(color = badgeColor.copy(alpha = 0.2f), radius = 10f, center = center)
             drawCircle(color = badgeColor, radius = 9f, center = center, style = Stroke(width = 1.5f))
-            drawLine(badgeColor, Offset(center.x - 5f, center.y), Offset(center.x + 5f, center.y), strokeWidth = 1.5f)
-            drawLine(badgeColor, Offset(center.x, center.y - 5f), Offset(center.x, center.y + 5f), strokeWidth = 1.5f)
+            drawLine(
+                badgeColor,
+                Offset(center.x - 5f, center.y),
+                Offset(center.x + 5f, center.y),
+                strokeWidth = 1.5f,
+            )
+            drawLine(
+                badgeColor,
+                Offset(center.x, center.y - 5f),
+                Offset(center.x, center.y + 5f),
+                strokeWidth = 1.5f,
+            )
         }
+
         "switch" -> {
             val rectTopLeft = Offset(center.x - 9f, center.y - 7f)
-            drawRoundRect(badgeColor.copy(alpha = 0.2f), topLeft = rectTopLeft, size = Size(18f, 14f), cornerRadius = CornerRadius(2f))
+            drawRoundRect(
+                badgeColor.copy(alpha = 0.2f),
+                topLeft = rectTopLeft,
+                size = Size(18f, 14f),
+                cornerRadius = CornerRadius(2f),
+            )
             drawRoundRect(
                 badgeColor,
                 topLeft = rectTopLeft,
@@ -324,9 +341,20 @@ private fun DrawScope.drawDeviceVectorBadge(
                 cornerRadius = CornerRadius(2f),
                 style = Stroke(width = 1.5f),
             )
-            drawLine(badgeColor, Offset(center.x - 5f, center.y - 2f), Offset(center.x + 5f, center.y - 2f), strokeWidth = 1.5f)
-            drawLine(badgeColor, Offset(center.x - 5f, center.y + 2f), Offset(center.x + 5f, center.y + 2f), strokeWidth = 1.5f)
+            drawLine(
+                badgeColor,
+                Offset(center.x - 5f, center.y - 2f),
+                Offset(center.x + 5f, center.y - 2f),
+                strokeWidth = 1.5f,
+            )
+            drawLine(
+                badgeColor,
+                Offset(center.x - 5f, center.y + 2f),
+                Offset(center.x + 5f, center.y + 2f),
+                strokeWidth = 1.5f,
+            )
         }
+
         "server" -> {
             drawRoundRect(
                 badgeColor.copy(alpha = 0.2f),
@@ -341,9 +369,20 @@ private fun DrawScope.drawDeviceVectorBadge(
                 cornerRadius = CornerRadius(2f),
                 style = Stroke(width = 1.5f),
             )
-            drawLine(badgeColor, Offset(center.x - 5f, center.y - 3f), Offset(center.x + 5f, center.y - 3f), strokeWidth = 1.5f)
-            drawLine(badgeColor, Offset(center.x - 5f, center.y + 3f), Offset(center.x + 5f, center.y + 3f), strokeWidth = 1.5f)
+            drawLine(
+                badgeColor,
+                Offset(center.x - 5f, center.y - 3f),
+                Offset(center.x + 5f, center.y - 3f),
+                strokeWidth = 1.5f,
+            )
+            drawLine(
+                badgeColor,
+                Offset(center.x - 5f, center.y + 3f),
+                Offset(center.x + 5f, center.y + 3f),
+                strokeWidth = 1.5f,
+            )
         }
+
         else -> {
             drawCircle(color = badgeColor.copy(alpha = 0.2f), radius = 9f, center = center)
             drawCircle(color = badgeColor, radius = 9f, center = center, style = Stroke(width = 1.5f))

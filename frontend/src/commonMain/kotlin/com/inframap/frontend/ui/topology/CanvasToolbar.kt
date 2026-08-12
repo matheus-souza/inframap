@@ -41,6 +41,7 @@ import com.inframap.frontend.designsystem.InfraMapTextPrimary
 import com.inframap.frontend.designsystem.InfraMapTextSecondary
 import kotlin.math.roundToInt
 
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun CanvasToolbar(
     activeTool: CanvasTool,

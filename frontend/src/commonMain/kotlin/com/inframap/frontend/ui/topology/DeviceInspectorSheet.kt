@@ -22,7 +22,7 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -76,7 +76,7 @@ fun DeviceInspectorSheet(
                 onDismiss = onDismiss,
             )
 
-            Divider(color = InfraMapBorder, thickness = 1.dp)
+            HorizontalDivider(color = InfraMapBorder, thickness = 1.dp)
 
             // Sheet Body (Scrollable)
             Column(
@@ -173,7 +173,7 @@ fun DeviceInspectorSheet(
                 }
             }
 
-            Divider(color = InfraMapBorder, thickness = 1.dp)
+            HorizontalDivider(color = InfraMapBorder, thickness = 1.dp)
 
             // Sheet Footer Actions
             Column(
