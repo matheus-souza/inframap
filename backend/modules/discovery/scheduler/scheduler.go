@@ -36,6 +36,10 @@ type Scheduler struct {
 	runningMu sync.Mutex
 	running   map[uuid.UUID]*sync.Mutex
 
+	inFlightMu sync.Mutex
+	inFlight   map[uuid.UUID]bool
+	wg         sync.WaitGroup
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -43,12 +47,13 @@ type Scheduler struct {
 // New creates a Scheduler. Call Start to begin scheduling.
 func New(uc SourceLister, updater StatusUpdater, bus eventbus.EventBus, logger *slog.Logger) *Scheduler {
 	return &Scheduler{
-		uc:      uc,
-		updater: updater,
-		bus:     bus,
-		logger:  logger,
-		entries: make(map[uuid.UUID]cron.EntryID),
-		running: make(map[uuid.UUID]*sync.Mutex),
+		uc:       uc,
+		updater:  updater,
+		bus:      bus,
+		logger:   logger,
+		entries:  make(map[uuid.UUID]cron.EntryID),
+		running:  make(map[uuid.UUID]*sync.Mutex),
+		inFlight: make(map[uuid.UUID]bool),
 	}
 }
 
@@ -80,13 +85,33 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop halts the cron runner and cancels the scheduler context.
+// Stop halts the cron runner, cancels in-flight scans, waits for them
+// to return, and sets their persisted status to "cancelled".
 func (s *Scheduler) Stop() {
 	if s.cron != nil {
 		s.cron.Stop()
 	}
+
+	s.inFlightMu.Lock()
+	sources := make([]uuid.UUID, 0, len(s.inFlight))
+	for id := range s.inFlight {
+		sources = append(sources, id)
+	}
+	s.inFlightMu.Unlock()
+
 	if s.cancel != nil {
 		s.cancel()
+	}
+
+	s.wg.Wait()
+
+	for _, id := range sources {
+		if _, err := s.updater.UpdateSourceStatus(context.Background(), id, "cancelled"); err != nil {
+			s.logger.Error("failed to set cancelled status on shutdown",
+				slog.String("source_id", id.String()),
+				slog.Any("error", err),
+			)
+		}
 	}
 }
 
@@ -122,9 +147,24 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 		)
 		return
 	}
-	defer mu.Unlock()
+
+	s.wg.Add(1)
+	s.inFlightMu.Lock()
+	s.inFlight[sourceID] = true
+	s.inFlightMu.Unlock()
+
+	defer func() {
+		s.inFlightMu.Lock()
+		delete(s.inFlight, sourceID)
+		s.inFlightMu.Unlock()
+		mu.Unlock()
+		s.wg.Done()
+	}()
 
 	if _, err := s.uc.TriggerRun(s.ctx, sourceID.String()); err != nil {
+		if s.ctx.Err() != nil {
+			return
+		}
 		s.logger.Error("scheduled scan failed",
 			slog.String("source_id", sourceID.String()),
 			slog.Any("error", err),

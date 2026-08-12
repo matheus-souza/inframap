@@ -14,11 +14,12 @@ import (
 )
 
 type fakeUseCase struct {
-	mu           sync.Mutex
-	sources      []*dto.DiscoverySourceResponse
-	triggerCalls []string
-	triggerDelay time.Duration
-	triggerErr   error
+	mu             sync.Mutex
+	sources        []*dto.DiscoverySourceResponse
+	triggerCalls   []string
+	triggerDelay   time.Duration
+	triggerErr     error
+	onTriggerStart func()
 }
 
 func (f *fakeUseCase) ListSources(_ context.Context) ([]*dto.DiscoverySourceResponse, error) {
@@ -30,6 +31,9 @@ func (f *fakeUseCase) ListSources(_ context.Context) ([]*dto.DiscoverySourceResp
 }
 
 func (f *fakeUseCase) TriggerRun(ctx context.Context, sourceID string) (*dto.DiscoverySourceResponse, error) {
+	if f.onTriggerStart != nil {
+		f.onTriggerStart()
+	}
 	if f.triggerDelay > 0 {
 		select {
 		case <-time.After(f.triggerDelay):
@@ -228,6 +232,125 @@ func TestScheduler_BootCleanupResetsStaleStatuses(t *testing.T) {
 	}
 	if _, ok := updater.getStatus(idleID); ok {
 		t.Error("idle source should not have been updated")
+	}
+}
+
+func TestScheduler_ShutdownCancelsInFlightScan(t *testing.T) {
+	srcID := uuid.New()
+	scanStarted := make(chan struct{})
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{
+			{ID: srcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle"},
+		},
+		triggerDelay: 30 * time.Second,
+		onTriggerStart: func() {
+			select {
+			case scanStarted <- struct{}{}:
+			default:
+			}
+		},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	select {
+	case <-scanStarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("scan did not start within 3s")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		s.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop() did not return within 5s")
+	}
+}
+
+func TestScheduler_ShutdownSetsCancelledStatus(t *testing.T) {
+	srcID := uuid.New()
+	scanStarted := make(chan struct{})
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{
+			{ID: srcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle"},
+		},
+		triggerDelay: 30 * time.Second,
+		onTriggerStart: func() {
+			select {
+			case scanStarted <- struct{}{}:
+			default:
+			}
+		},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	select {
+	case <-scanStarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("scan did not start within 3s")
+	}
+
+	s.Stop()
+
+	status, ok := updater.getStatus(srcID)
+	if !ok {
+		t.Fatal("expected status update for in-flight source after shutdown")
+	}
+	if status != "cancelled" {
+		t.Errorf("expected status 'cancelled', got %q", status)
+	}
+}
+
+func TestScheduler_ShutdownCompletesWhenNoScansRunning(t *testing.T) {
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		s.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop() should return immediately when no scans are running")
 	}
 }
 
