@@ -62,8 +62,9 @@ fun DiscoveryListScreen(
         if (state.sourceToDelete != null) {
             InfraMapConfirmDialog(
                 title = "Excluir Fonte de Descoberta",
-                message = "Tem certeza que deseja excluir a fonte '${state.sourceToDelete.name}'? " +
-                    "Os agendamentos associados serão removidos.",
+                message =
+                    "Tem certeza que deseja excluir a fonte '${state.sourceToDelete.name}'? " +
+                        "Os agendamentos associados serão removidos.",
                 confirmText = "Excluir",
                 dismissText = "Cancelar",
                 onConfirm = actions.onConfirmDelete,
@@ -133,8 +134,9 @@ private fun DiscoveryTableCard(
         InfraMapEmptyState(
             icon = Icons.Filled.Radar,
             title = "Nenhuma fonte de descoberta configurada",
-            subtitle = "Fontes de descoberta escaneiam sua rede automaticamente " +
-                "para encontrar dispositivos. Crie sua primeira fonte para comecar.",
+            subtitle =
+                "Fontes de descoberta escaneiam sua rede automaticamente " +
+                    "para encontrar dispositivos. Crie sua primeira fonte para comecar.",
             ctaLabel = "Criar Fonte de Descoberta",
             onCtaClick = actions.onCreateSourceClicked,
         )

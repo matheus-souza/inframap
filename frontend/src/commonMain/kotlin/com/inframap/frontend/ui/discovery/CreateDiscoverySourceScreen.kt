@@ -206,13 +206,14 @@ private fun ScheduleDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val isPreset = schedulePresets.any { it.first == selectedCron }
-    val displayLabel = if (isPreset) {
-        schedulePresets.first { it.first == selectedCron }.second
-    } else if (selectedCron.isNotEmpty()) {
-        "Personalizado: $selectedCron"
-    } else {
-        schedulePresets.first().second
-    }
+    val displayLabel =
+        if (isPreset) {
+            schedulePresets.first { it.first == selectedCron }.second
+        } else if (selectedCron.isNotEmpty()) {
+            "Personalizado: $selectedCron"
+        } else {
+            schedulePresets.first().second
+        }
 
     ExposedDropdownMenuBox(
         expanded = expanded,

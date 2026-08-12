@@ -62,11 +62,12 @@ class CreateDiscoverySourceViewModel(
 
         updateState { it.copy(isSubmitting = true, errorMessage = null, isSuccess = false) }
 
-        val config = if (stateVal.configCidr.trim().isNotEmpty()) {
-            mapOf("cidr" to stateVal.configCidr.trim())
-        } else {
-            null
-        }
+        val config =
+            if (stateVal.configCidr.trim().isNotEmpty()) {
+                mapOf("cidr" to stateVal.configCidr.trim())
+            } else {
+                null
+            }
 
         launchJob("submit") {
             when (

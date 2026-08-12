@@ -7,6 +7,5 @@ import com.inframap.frontend.domain.usecase.UseCase
 class DeleteDiscoverySourceUseCase(
     private val discoveryRepository: DiscoveryRepository,
 ) : UseCase<String, ApiResult<Unit>> {
-    override suspend fun invoke(params: String): ApiResult<Unit> =
-        discoveryRepository.deleteSource(params)
+    override suspend fun invoke(params: String): ApiResult<Unit> = discoveryRepository.deleteSource(params)
 }

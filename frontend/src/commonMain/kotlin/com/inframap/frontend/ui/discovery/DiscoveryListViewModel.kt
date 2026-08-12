@@ -65,16 +65,17 @@ class DiscoveryListViewModel(
                 is ApiResult.Success -> {
                     updateState {
                         it.copy(
-                            sources = it.sources.map { src ->
-                                if (src.id == sourceId) {
-                                    src.copy(
-                                        lastStatus = result.data.lastStatus,
-                                        lastRunAt = result.data.lastRunAt,
-                                    )
-                                } else {
-                                    src
-                                }
-                            },
+                            sources =
+                                it.sources.map { src ->
+                                    if (src.id == sourceId) {
+                                        src.copy(
+                                            lastStatus = result.data.lastStatus,
+                                            lastRunAt = result.data.lastRunAt,
+                                        )
+                                    } else {
+                                        src
+                                    }
+                                },
                             toastMessage = UiText.Resource(Res.string.discovery_run_triggered),
                         )
                     }

@@ -8,6 +8,5 @@ import com.inframap.frontend.domain.usecase.UseCase
 class TriggerDiscoveryRunUseCase(
     private val discoveryRepository: DiscoveryRepository,
 ) : UseCase<String, ApiResult<DiscoverySource>> {
-    override suspend fun invoke(params: String): ApiResult<DiscoverySource> =
-        discoveryRepository.triggerRun(params)
+    override suspend fun invoke(params: String): ApiResult<DiscoverySource> = discoveryRepository.triggerRun(params)
 }

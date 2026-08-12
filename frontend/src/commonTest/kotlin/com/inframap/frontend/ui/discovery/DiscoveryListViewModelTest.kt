@@ -180,7 +180,11 @@ class DiscoveryListViewModelTest {
                 awaitItem()
 
                 vm.confirmDeleteSource(sampleSource)
-                assertEquals("src-1", vm.state.value.sourceToDelete?.id)
+                assertEquals(
+                    "src-1",
+                    vm.state.value.sourceToDelete
+                        ?.id,
+                )
 
                 vm.deleteSource()
                 advanceUntilIdle()

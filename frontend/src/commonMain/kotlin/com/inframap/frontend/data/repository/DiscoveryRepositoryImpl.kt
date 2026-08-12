@@ -15,16 +15,21 @@ class DiscoveryRepositoryImpl(
     private val apiClient: ApiClient,
 ) : DiscoveryRepository {
     override suspend fun getSources(): ApiResult<PaginatedList<DiscoverySource>> =
-        apiClient.get<DiscoveryListResponse>("/api/v1/discovery/sources").map { DiscoveryMapper.toPaginatedList(it) }
+        apiClient
+            .get<DiscoveryListResponse>("/api/v1/discovery/sources")
+            .map { DiscoveryMapper.toPaginatedList(it) }
 
     override suspend fun createSource(request: CreateDiscoverySourceRequest): ApiResult<DiscoverySource> =
-        apiClient.post<DiscoverySourceDto, CreateDiscoverySourceRequest>("/api/v1/discovery/sources", request)
+        apiClient
+            .post<DiscoverySourceDto, CreateDiscoverySourceRequest>("/api/v1/discovery/sources", request)
             .map { DiscoveryMapper.toDomain(it) }
 
     override suspend fun triggerRun(sourceId: String): ApiResult<DiscoverySource> =
-        apiClient.post<DiscoverySourceDto>("/api/v1/discovery/sources/$sourceId/run")
+        apiClient
+            .post<DiscoverySourceDto>("/api/v1/discovery/sources/$sourceId/run")
             .map { DiscoveryMapper.toDomain(it) }
 
     override suspend fun deleteSource(sourceId: String): ApiResult<Unit> =
-        apiClient.delete("/api/v1/discovery/sources/$sourceId")
+        apiClient
+            .delete("/api/v1/discovery/sources/$sourceId")
 }

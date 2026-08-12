@@ -49,12 +49,6 @@ import com.inframap.frontend.navigation.Route
 import com.inframap.frontend.ui.dashboard.DashboardScreen
 import com.inframap.frontend.ui.dashboard.DashboardViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceActions
-import com.inframap.frontend.ui.discovery.CreateDiscoverySourceActions
-import com.inframap.frontend.ui.discovery.CreateDiscoverySourceScreen
-import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
-import com.inframap.frontend.ui.discovery.DiscoveryListActions
-import com.inframap.frontend.ui.discovery.DiscoveryListScreen
-import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceScreen
 import com.inframap.frontend.ui.devices.CreateDeviceViewModel
 import com.inframap.frontend.ui.devices.DeviceDetailActions
@@ -66,6 +60,12 @@ import com.inframap.frontend.ui.devices.DeviceListViewModel
 import com.inframap.frontend.ui.devices.EditDeviceActions
 import com.inframap.frontend.ui.devices.EditDeviceScreen
 import com.inframap.frontend.ui.devices.EditDeviceViewModel
+import com.inframap.frontend.ui.discovery.CreateDiscoverySourceActions
+import com.inframap.frontend.ui.discovery.CreateDiscoverySourceScreen
+import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
+import com.inframap.frontend.ui.discovery.DiscoveryListActions
+import com.inframap.frontend.ui.discovery.DiscoveryListScreen
+import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
 import com.inframap.frontend.ui.staging.StagingActions
 import com.inframap.frontend.ui.staging.StagingScreen
 import com.inframap.frontend.ui.staging.StagingViewModel

@@ -55,7 +55,10 @@ class CreateDiscoverySourceViewModelTest {
             vm.onSourceTypeChanged("icmp")
 
             assertTrue(vm.validate())
-            assertTrue(vm.state.value.validationErrors.isEmpty())
+            assertTrue(
+                vm.state.value.validationErrors
+                    .isEmpty(),
+            )
             vm.clear()
         }
 
@@ -69,7 +72,10 @@ class CreateDiscoverySourceViewModelTest {
             vm.onConfigCidrChanged("not-a-cidr")
 
             assertFalse(vm.validate())
-            assertTrue(vm.state.value.validationErrors.containsKey("cidr"))
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("cidr"),
+            )
             vm.clear()
         }
 
@@ -83,7 +89,10 @@ class CreateDiscoverySourceViewModelTest {
             vm.onConfigCidrChanged("192.168.1.0/24")
 
             assertTrue(vm.validate())
-            assertTrue(vm.state.value.validationErrors.isEmpty())
+            assertTrue(
+                vm.state.value.validationErrors
+                    .isEmpty(),
+            )
             vm.clear()
         }
 
@@ -116,10 +125,16 @@ class CreateDiscoverySourceViewModelTest {
             val vm = makeVm(scope = this)
 
             vm.validate()
-            assertTrue(vm.state.value.validationErrors.containsKey("name"))
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("name"),
+            )
 
             vm.onNameChanged("Fixed")
-            assertFalse(vm.state.value.validationErrors.containsKey("name"))
+            assertFalse(
+                vm.state.value.validationErrors
+                    .containsKey("name"),
+            )
 
             vm.clear()
         }
@@ -229,7 +244,10 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.createSource()
             assertFalse(vm.state.value.isSubmitting)
-            assertTrue(vm.state.value.validationErrors.isNotEmpty())
+            assertTrue(
+                vm.state.value.validationErrors
+                    .isNotEmpty(),
+            )
 
             vm.clear()
         }
@@ -242,7 +260,10 @@ class CreateDiscoverySourceViewModelTest {
             vm.onSourceTypeChanged("icmp")
 
             assertFalse(vm.validate())
-            assertTrue(vm.state.value.validationErrors.containsKey("name"))
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("name"),
+            )
             vm.clear()
         }
 }
