@@ -1,5 +1,6 @@
 package com.inframap.frontend.di
 
+import com.inframap.frontend.ui.command.CommandPaletteViewModel
 import com.inframap.frontend.ui.dashboard.DashboardViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceViewModel
 import com.inframap.frontend.ui.devices.DeviceDetailViewModel
@@ -36,6 +37,8 @@ val presentationModule =
         factory { DashboardViewModel(get(), get(), get(), get(), getOrNull()) }
 
         factory { TopologyViewModel(get(), getOrNull()) }
+
+        factory { CommandPaletteViewModel(get()) }
 
         factory { LoginViewModel(get()) }
         factory { OnboardingViewModel(get()) }

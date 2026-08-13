@@ -26,8 +26,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.domain.model.CommandPaletteAction
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
+import com.inframap.frontend.ui.command.CommandPaletteActions
+import com.inframap.frontend.ui.command.CommandPaletteEffect
+import com.inframap.frontend.ui.command.CommandPaletteListener
+import com.inframap.frontend.ui.command.CommandPaletteModal
+import com.inframap.frontend.ui.command.CommandPaletteViewModel
 import com.inframap.frontend.ui.dashboard.DashboardScreen
 import com.inframap.frontend.ui.dashboard.DashboardViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceActions
@@ -86,16 +92,68 @@ fun MainScaffold(
     isHealthy: Boolean?,
     onHealthChanged: (Boolean?) -> Unit = {},
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(isHealthy = isHealthy)
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+    val commandPaletteViewModel: CommandPaletteViewModel = koinInject()
+    val commandPaletteState by commandPaletteViewModel.state.collectAsState()
+
+    DisposableEffect(commandPaletteViewModel) {
+        onDispose { commandPaletteViewModel.clear() }
+    }
+
+    LaunchedEffect(Unit) {
+        commandPaletteViewModel.effects.collect { effect ->
+            when (effect) {
+                is CommandPaletteEffect.ExecuteItem -> {
+                    when (val action = effect.item.action) {
+                        is CommandPaletteAction.Navigate -> navigator.navigateTo(action.route)
+                        CommandPaletteAction.RefreshData -> {}
+                    }
+                }
+                CommandPaletteEffect.ClosePalette -> {}
+            }
+        }
+    }
+
+    CommandPaletteListener(onTogglePalette = commandPaletteViewModel::toggle) {
+        MainScaffoldContent(
+            currentRoute = currentRoute,
+            navigator = navigator,
+            isHealthy = isHealthy,
+            onHealthChanged = onHealthChanged,
+            onOpenCommandPalette = commandPaletteViewModel::open,
         )
+        val paletteActions =
+            CommandPaletteActions(
+                onQueryChanged = commandPaletteViewModel::onQueryChanged,
+                onNextItem = commandPaletteViewModel::onNextItem,
+                onPreviousItem = commandPaletteViewModel::onPreviousItem,
+                onSelectItem = commandPaletteViewModel::selectCurrentItem,
+                onItemClicked = commandPaletteViewModel::onItemClicked,
+                onDismiss = commandPaletteViewModel::close,
+            )
+        CommandPaletteModal(
+            state = commandPaletteState,
+            actions = paletteActions,
+        )
+    }
+}
+
+@Composable
+private fun MainScaffoldContent(
+    currentRoute: Route,
+    navigator: Navigator,
+    isHealthy: Boolean?,
+    onHealthChanged: (Boolean?) -> Unit,
+    onOpenCommandPalette: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        AppTopBar(
+            isHealthy = isHealthy,
+            onOpenCommandPalette = onOpenCommandPalette,
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         Row(modifier = Modifier.weight(1f)) {
             AppNavRail(currentRoute = currentRoute, navigator = navigator)
-            VerticalDivider(
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-            )
+            VerticalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             Box(
                 modifier =
                     Modifier
@@ -114,12 +172,15 @@ fun MainScaffold(
 }
 
 @Composable
-private fun AppTopBar(isHealthy: Boolean?) {
+private fun AppTopBar(
+    isHealthy: Boolean?,
+    onOpenCommandPalette: () -> Unit = {},
+) {
     com.inframap.frontend.designsystem.InfraMapTopBar(
         title = "InfraMap",
         isHealthy = isHealthy,
         isSseConnected = isHealthy ?: true,
-        onSearchClicked = {},
+        onSearchClicked = onOpenCommandPalette,
     )
 }
 
