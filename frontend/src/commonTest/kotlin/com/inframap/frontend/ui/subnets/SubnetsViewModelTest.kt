@@ -2,17 +2,22 @@ package com.inframap.frontend.ui.subnets
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
+import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SubnetsViewModelTest {
@@ -29,14 +34,35 @@ class SubnetsViewModelTest {
     private val pagedSubnets =
         PaginatedList(items = listOf(sampleSubnet), total = 1, page = 1, perPage = 50)
 
+    private val sampleInterface =
+        NetworkInterface(
+            name = "eth0",
+            ip = "192.168.18.5",
+            cidr = "192.168.18.0/24",
+            mac = "aa:bb:cc:dd:ee:ff",
+            gateway = "192.168.18.1",
+        )
+
+    private fun makeVm(
+        subnetRepo: FakeSubnetRepository =
+            FakeSubnetRepository(
+                getSubnetsResult = ApiResult.Success(pagedSubnets, requestId = ""),
+            ),
+        networkRepo: FakeNetworkRepository =
+            FakeNetworkRepository(
+                getInterfacesResult = ApiResult.Success(listOf(sampleInterface), requestId = ""),
+            ),
+        scope: kotlinx.coroutines.CoroutineScope,
+    ) = SubnetsViewModel(
+        GetSubnetsUseCase(subnetRepo),
+        GetNetworkInterfacesUseCase(networkRepo),
+        scope = scope,
+    )
+
     @Test
     fun loadSubnetsPopulatesListSuccessfully() =
         runTest {
-            val repo =
-                FakeSubnetRepository(
-                    getSubnetsResult = ApiResult.Success(pagedSubnets, requestId = ""),
-                )
-            val vm = SubnetsViewModel(GetSubnetsUseCase(repo), scope = this)
+            val vm = makeVm(scope = this)
 
             vm.state.test {
                 skipItems(1)
@@ -58,7 +84,7 @@ class SubnetsViewModelTest {
     @Test
     fun loadSubnetsHandlesApiError() =
         runTest {
-            val repo =
+            val subnetRepo =
                 FakeSubnetRepository(
                     getSubnetsResult =
                         ApiResult.Error(
@@ -68,7 +94,7 @@ class SubnetsViewModelTest {
                             httpStatus = 500,
                         ),
                 )
-            val vm = SubnetsViewModel(GetSubnetsUseCase(repo), scope = this)
+            val vm = makeVm(subnetRepo = subnetRepo, scope = this)
 
             vm.state.test {
                 skipItems(1)
@@ -84,11 +110,11 @@ class SubnetsViewModelTest {
     @Test
     fun loadSubnetsHandlesNetworkError() =
         runTest {
-            val repo =
+            val subnetRepo =
                 FakeSubnetRepository(
                     getSubnetsResult = ApiResult.NetworkError(RuntimeException("Network failure")),
                 )
-            val vm = SubnetsViewModel(GetSubnetsUseCase(repo), scope = this)
+            val vm = makeVm(subnetRepo = subnetRepo, scope = this)
 
             vm.state.test {
                 skipItems(1)
@@ -98,6 +124,35 @@ class SubnetsViewModelTest {
                 assertNotNull(state.errorMessage)
                 cancelAndIgnoreRemainingEvents()
             }
+            vm.clear()
+        }
+
+    @Test
+    fun loadNetworkInterfacesPopulatesDetectedInterfaces() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertEquals(1, state.detectedInterfaces.size)
+            assertEquals("eth0", state.detectedInterfaces.first().name)
+            assertEquals("192.168.18.0/24", state.detectedInterfaces.first().cidr)
+            vm.clear()
+        }
+
+    @Test
+    fun loadNetworkInterfacesSilentlyIgnoresError() =
+        runTest {
+            val networkRepo =
+                FakeNetworkRepository(
+                    getInterfacesResult = ApiResult.NetworkError(RuntimeException("no network")),
+                )
+            val vm = makeVm(networkRepo = networkRepo, scope = this)
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertTrue(state.detectedInterfaces.isEmpty())
+            assertNull(state.errorMessage)
             vm.clear()
         }
 }

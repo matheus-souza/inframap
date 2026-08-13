@@ -13,6 +13,7 @@ import com.inframap.frontend.domain.usecase.device.DeleteDeviceUseCase
 import com.inframap.frontend.domain.usecase.device.GetDeviceByIdUseCase
 import com.inframap.frontend.domain.usecase.device.GetDevicesUseCase
 import com.inframap.frontend.domain.usecase.device.UpdateDeviceUseCase
+import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
@@ -35,6 +36,8 @@ val domainModule =
 
         factory { GetSubnetsUseCase(get()) }
         factory { CreateSubnetUseCase(get()) }
+
+        factory { GetNetworkInterfacesUseCase(get()) }
 
         factory { GetSetupStatusUseCase(get()) }
         factory { LoginUseCase(get()) }
