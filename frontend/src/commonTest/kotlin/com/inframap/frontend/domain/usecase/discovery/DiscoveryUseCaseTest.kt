@@ -54,6 +54,7 @@ class DiscoveryUseCaseTest {
                 )
 
             assertIs<ApiResult.Success<*>>(result)
+            assertEquals(1, repo.createSourceCallCount)
         }
 
     @Test
@@ -65,6 +66,7 @@ class DiscoveryUseCaseTest {
             val result = useCase("src-1")
 
             assertIs<ApiResult.Success<*>>(result)
+            assertEquals(1, repo.triggerRunCallCount)
         }
 
     @Test

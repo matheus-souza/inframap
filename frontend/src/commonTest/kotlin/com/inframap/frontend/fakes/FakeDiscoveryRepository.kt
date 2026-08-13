@@ -17,6 +17,8 @@ class FakeDiscoveryRepository(
     var deleteSourceResult: ApiResult<Unit> = ApiResult.Success(Unit, requestId = ""),
 ) : DiscoveryRepository {
     var getSourcesCallCount = 0
+    var createSourceCallCount = 0
+    var triggerRunCallCount = 0
     var deleteSourceCallCount = 0
 
     override suspend fun getSources(): ApiResult<PaginatedList<DiscoverySource>> {
@@ -24,9 +26,15 @@ class FakeDiscoveryRepository(
         return getSourcesResult
     }
 
-    override suspend fun createSource(request: CreateDiscoverySourceRequest) = createSourceResult
+    override suspend fun createSource(request: CreateDiscoverySourceRequest): ApiResult<DiscoverySource> {
+        createSourceCallCount++
+        return createSourceResult
+    }
 
-    override suspend fun triggerRun(sourceId: String) = triggerRunResult
+    override suspend fun triggerRun(sourceId: String): ApiResult<DiscoverySource> {
+        triggerRunCallCount++
+        return triggerRunResult
+    }
 
     override suspend fun deleteSource(sourceId: String): ApiResult<Unit> {
         deleteSourceCallCount++

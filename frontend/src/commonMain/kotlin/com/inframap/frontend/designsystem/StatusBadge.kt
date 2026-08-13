@@ -46,10 +46,10 @@ fun InfraMapStatusBadge(
 ) {
     val (backgroundColor, label) =
         when (status) {
-            SourceStatus.IDLE -> InfraMapComment to "Idle"
-            SourceStatus.RUNNING -> InfraMapGreen to "Running"
-            SourceStatus.ERROR -> InfraMapRed to "Error"
-            SourceStatus.CANCELLED -> InfraMapOrange to "Cancelled"
+            SourceStatus.IDLE -> InfraMapComment to "Inativa"
+            SourceStatus.RUNNING -> InfraMapGreen to "Em execução"
+            SourceStatus.ERROR -> InfraMapRed to "Erro"
+            SourceStatus.CANCELLED -> InfraMapOrange to "Cancelada"
         }
     StatusBadgeContent(backgroundColor = backgroundColor, label = label, modifier = modifier)
 }
