@@ -60,7 +60,7 @@ class SearchIndexUseCase(
                 title = "Criar Subrede",
                 subtitle = "Cadastrar uma nova faixa de subrede",
                 category = CommandPaletteCategory.ACOES,
-                action = CommandPaletteAction.Navigate(Route.CreateSubnet),
+                action = CommandPaletteAction.Navigate(Route.CreateSubnet()),
             ),
             CommandPaletteItem(
                 id = "action-topology",
