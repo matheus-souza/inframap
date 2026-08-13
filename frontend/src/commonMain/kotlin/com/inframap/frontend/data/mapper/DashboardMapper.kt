@@ -12,11 +12,5 @@ object DashboardMapper {
             version = dto.version,
         )
 
-    fun toDomain(dto: DiscoverySourceDto): DiscoverySource =
-        DiscoverySource(
-            id = dto.id,
-            name = dto.name,
-            sourceType = dto.sourceType,
-            enabled = dto.enabled,
-        )
+    fun toDomain(dto: DiscoverySourceDto): DiscoverySource = DiscoveryMapper.toDomain(dto)
 }

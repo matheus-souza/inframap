@@ -25,6 +25,7 @@ type mockDiscoveryUseCase struct {
 	failListSources         bool
 	failTriggerRun          bool
 	failTriggerScan         bool
+	failDeleteSource        bool
 	failListRecordsByDevice bool
 }
 
@@ -101,6 +102,23 @@ func (m *mockDiscoveryUseCase) IngestNormalizedDevice(_ context.Context, _ uuid.
 	return nil, nil
 }
 
+func (m *mockDiscoveryUseCase) DeleteSource(_ context.Context, idStr string) error {
+	if m.failDeleteSource {
+		return errors.New("internal delete error")
+	}
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return usecase.ErrInvalidUUID
+	}
+	for i, s := range m.sources {
+		if s.ID == id {
+			m.sources = append(m.sources[:i], m.sources[i+1:]...)
+			return nil
+		}
+	}
+	return repository.ErrSourceNotFound
+}
+
 func (m *mockDiscoveryUseCase) ListRecordsByDevice(_ context.Context, idStr string) ([]*dto.DiscoveryRecordResponse, error) {
 	if m.failListRecordsByDevice {
 		return nil, errors.New("internal list records error")
@@ -121,6 +139,7 @@ func TestDiscoveryController_Unit(t *testing.T) {
 	mux.HandleFunc("GET /api/v1/discovery/sources/{id}", ctrl.GetSourceByID)
 	mux.HandleFunc("POST /api/v1/discovery/sources/{id}/run", ctrl.TriggerRun)
 	mux.HandleFunc("POST /api/v1/discovery/scan", ctrl.TriggerScan)
+	mux.HandleFunc("DELETE /api/v1/discovery/sources/{id}", ctrl.DeleteSource)
 	mux.HandleFunc("GET /api/v1/discovery/devices/{id}/records", ctrl.ListRecordsByDevice)
 
 
@@ -334,6 +353,53 @@ func TestDiscoveryController_Unit(t *testing.T) {
 			t.Errorf("expected 500 Internal Server Error, got %d", rec.Code)
 		}
 		uc.failListRecordsByDevice = false
+	})
+
+	t.Run("DeleteSource Success", func(t *testing.T) {
+		deleteID := src.ID.String()
+		req := httptest.NewRequest("DELETE", "/api/v1/discovery/sources/"+deleteID, nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("expected 200 OK, got %d", rec.Code)
+		}
+	})
+
+	t.Run("DeleteSource Invalid UUID", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/v1/discovery/sources/invalid-uuid", nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request, got %d", rec.Code)
+		}
+	})
+
+	t.Run("DeleteSource NotFound", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/v1/discovery/sources/"+uuid.New().String(), nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("expected 404 Not Found, got %d", rec.Code)
+		}
+	})
+
+	t.Run("DeleteSource Internal Error", func(t *testing.T) {
+		uc.failDeleteSource = true
+		req := httptest.NewRequest("DELETE", "/api/v1/discovery/sources/"+uuid.New().String(), nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500 Internal Server Error, got %d", rec.Code)
+		}
+		uc.failDeleteSource = false
 	})
 
 	t.Run("TriggerScan Success", func(t *testing.T) {

@@ -165,6 +165,7 @@ kover {
                     "com.inframap.frontend.ui.devices.*ScreenKt*",
                     "com.inframap.frontend.ui.staging.*ScreenKt*",
                     "com.inframap.frontend.ui.subnets.*ScreenKt*",
+                    "com.inframap.frontend.ui.discovery.*ScreenKt*",
                     "com.inframap.frontend.ui.topology.*ScreenKt*",
                     "com.inframap.frontend.ui.topology.CanvasToolbarKt*",
                     "com.inframap.frontend.ui.topology.DeviceInspectorSheetKt*",

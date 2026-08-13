@@ -260,6 +260,48 @@ object Res {
                 "onboarding_error_generic",
                 setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
             )
+        val discovery_error_load: StringResource =
+            StringResource(
+                "string:discovery_error_load",
+                "discovery_error_load",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val discovery_error_create: StringResource =
+            StringResource(
+                "string:discovery_error_create",
+                "discovery_error_create",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val discovery_error_delete: StringResource =
+            StringResource(
+                "string:discovery_error_delete",
+                "discovery_error_delete",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val discovery_error_trigger: StringResource =
+            StringResource(
+                "string:discovery_error_trigger",
+                "discovery_error_trigger",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val discovery_run_triggered: StringResource =
+            StringResource(
+                "string:discovery_run_triggered",
+                "discovery_run_triggered",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val validation_discovery_name_required: StringResource =
+            StringResource(
+                "string:validation_discovery_name_required",
+                "validation_discovery_name_required",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val validation_discovery_type_required: StringResource =
+            StringResource(
+                "string:validation_discovery_type_required",
+                "validation_discovery_type_required",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
         val topology_title: StringResource =
             StringResource(
                 "string:topology_title",
