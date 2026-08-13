@@ -25,7 +25,10 @@ sealed interface Route {
 
     data object Subnets : Route
 
-    data object CreateSubnet : Route
+    data class CreateSubnet(
+        val prefilledCidr: String? = null,
+        val prefilledName: String? = null,
+    ) : Route
 
     data object DiscoverySources : Route
 

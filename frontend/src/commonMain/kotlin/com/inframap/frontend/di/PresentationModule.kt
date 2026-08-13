@@ -25,8 +25,10 @@ val presentationModule =
 
         factory { StagingViewModel(get(), get(), get()) }
 
-        factory { SubnetsViewModel(get()) }
-        factory { CreateSubnetViewModel(get()) }
+        factory { SubnetsViewModel(get(), get()) }
+        factory { (prefilledCidr: String?, prefilledName: String?) ->
+            CreateSubnetViewModel(get(), get(), prefilledCidr, prefilledName)
+        }
 
         factory { DiscoveryListViewModel(get(), get(), get()) }
         factory { CreateDiscoverySourceViewModel(get()) }
