@@ -18,7 +18,7 @@ class DashboardMapperTest {
 
     @Test
     fun discoverySourceToDomainMapsCorrectly() {
-        val dto = DiscoverySourceDto(id = "src-1", name = "Docker Discovery", sourceType = "docker", enabled = true)
+        val dto = DiscoverySourceDto(id = "src-1", name = "Docker Discovery", type = "docker", enabled = true)
         val domain = DashboardMapper.toDomain(dto)
 
         assertEquals("src-1", domain.id)

@@ -5,6 +5,8 @@ import com.inframap.frontend.ui.devices.CreateDeviceViewModel
 import com.inframap.frontend.ui.devices.DeviceDetailViewModel
 import com.inframap.frontend.ui.devices.DeviceListViewModel
 import com.inframap.frontend.ui.devices.EditDeviceViewModel
+import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
+import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
 import com.inframap.frontend.ui.login.LoginViewModel
 import com.inframap.frontend.ui.onboarding.OnboardingViewModel
 import com.inframap.frontend.ui.splash.SplashViewModel
@@ -27,6 +29,9 @@ val presentationModule =
         factory { (prefilledCidr: String?, prefilledName: String?) ->
             CreateSubnetViewModel(get(), get(), prefilledCidr, prefilledName)
         }
+
+        factory { DiscoveryListViewModel(get(), get(), get()) }
+        factory { CreateDiscoverySourceViewModel(get()) }
 
         factory { DashboardViewModel(get(), get(), get(), get(), getOrNull()) }
 

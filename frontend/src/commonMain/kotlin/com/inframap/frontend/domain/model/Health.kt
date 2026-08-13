@@ -6,10 +6,3 @@ data class Health(
 ) {
     val isHealthy: Boolean get() = status == "ok"
 }
-
-data class DiscoverySource(
-    val id: String = "",
-    val name: String = "",
-    val sourceType: String = "",
-    val enabled: Boolean = true,
-)

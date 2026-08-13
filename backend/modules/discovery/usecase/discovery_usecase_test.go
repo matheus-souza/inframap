@@ -554,6 +554,60 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("DeleteSource Invalid UUID", func(t *testing.T) {
+		err := uc.DeleteSource(ctx, "not-a-uuid")
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
+			t.Errorf("expected ErrInvalidUUID, got %v", err)
+		}
+	})
+
+	t.Run("DeleteSource Success", func(t *testing.T) {
+		deleteID := uuid.New()
+		discRepo.sources[deleteID] = &dto.DiscoverySourceResponse{ID: deleteID, Name: "to-delete"}
+
+		err := uc.DeleteSource(ctx, deleteID.String())
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if _, exists := discRepo.sources[deleteID]; exists {
+			t.Error("expected source to be removed from repo")
+		}
+	})
+
+	t.Run("DeleteSource Publishes Event", func(t *testing.T) {
+		localBus := eventbus.NewInMemoryEventBus(1, 10)
+		defer func() { _ = localBus.Close() }()
+
+		received := make(chan eventbus.DomainEvent, 1)
+		_ = localBus.Subscribe("discovery_source.deleted", func(_ context.Context, e eventbus.DomainEvent) error {
+			received <- e
+			return nil
+		})
+
+		deleteID := uuid.New()
+		localRepo := newMockDiscRepo()
+		localRepo.sources[deleteID] = &dto.DiscoverySourceResponse{ID: deleteID, Name: "evt-src"}
+		localUC := usecase.NewDefaultDiscoveryUseCase(localRepo, newMockInvRepo(), localBus, slog.Default())
+
+		err := localUC.DeleteSource(ctx, deleteID.String())
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+
+		select {
+		case evt := <-received:
+			payload, ok := evt.Payload().(map[string]interface{})
+			if !ok {
+				t.Fatal("event payload is not map[string]interface{}")
+			}
+			if payload["source_id"] != deleteID.String() {
+				t.Errorf("expected source_id %s, got %v", deleteID, payload["source_id"])
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("discovery_source.deleted event was not received within 2s")
+		}
+	})
+
 	t.Run("TriggerScan Validations and Execution", func(t *testing.T) {
 		_, err := uc.TriggerScan(ctx, nil)
 		if !errors.Is(err, usecase.ErrInvalidInput) {
