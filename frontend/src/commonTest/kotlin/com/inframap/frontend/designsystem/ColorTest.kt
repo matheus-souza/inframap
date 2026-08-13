@@ -7,59 +7,59 @@ import kotlin.test.assertEquals
 class ColorTest {
     @Test
     fun colorSchemePrimaryMatchesDesignSpec() {
-        assertEquals(Color(0xFFbd93f9), InfraMapColorScheme.primary)
+        assertEquals(Color(0xFF8b5cf6), InfraMapColorScheme.primary)
     }
 
     @Test
     fun colorSchemeSecondaryMatchesDesignSpec() {
-        assertEquals(Color(0xFF8be9fd), InfraMapColorScheme.secondary)
+        assertEquals(Color(0xFF10b981), InfraMapColorScheme.secondary)
     }
 
     @Test
     fun colorSchemeBackgroundMatchesDesignSpec() {
-        assertEquals(Color(0xFF1e1f29), InfraMapColorScheme.background)
+        assertEquals(Color(0xFF121214), InfraMapColorScheme.background)
     }
 
     @Test
     fun colorSchemeSurfaceMatchesDesignSpec() {
-        assertEquals(Color(0xFF282a36), InfraMapColorScheme.surface)
+        assertEquals(Color(0xFF18181b), InfraMapColorScheme.surface)
     }
 
     @Test
     fun colorSchemeErrorMatchesDesignSpec() {
-        assertEquals(Color(0xFFff5555), InfraMapColorScheme.error)
+        assertEquals(Color(0xFFef4444), InfraMapColorScheme.error)
     }
 
     @Test
     fun colorSchemeOnBackgroundMatchesDesignSpec() {
-        assertEquals(Color(0xFFf8f8f2), InfraMapColorScheme.onBackground)
+        assertEquals(Color(0xFFf4f4f5), InfraMapColorScheme.onBackground)
     }
 
     @Test
     fun colorSchemeOnSurfaceMatchesDesignSpec() {
-        assertEquals(Color(0xFFf8f8f2), InfraMapColorScheme.onSurface)
+        assertEquals(Color(0xFFf4f4f5), InfraMapColorScheme.onSurface)
     }
 
     @Test
     fun colorSchemeOutlineMatchesDesignSpec() {
-        assertEquals(Color(0xFF6272a4), InfraMapColorScheme.outline)
+        assertEquals(Color(0xFF3f3f46), InfraMapColorScheme.outline)
     }
 
     @Test
     fun colorSchemeOnPrimaryMatchesDesignSpec() {
-        assertEquals(Color(0xFF1e1f29), InfraMapColorScheme.onPrimary)
+        assertEquals(Color.Black, InfraMapColorScheme.onPrimary)
     }
 
     @Test
     fun colorSchemeOnSecondaryMatchesDesignSpec() {
-        assertEquals(Color(0xFF1e1f29), InfraMapColorScheme.onSecondary)
+        assertEquals(Color.Black, InfraMapColorScheme.onSecondary)
     }
 
     @Test
     fun additionalColorConstantsMatchDesignSpec() {
-        assertEquals(Color(0xFF50fa7b), InfraMapGreen)
-        assertEquals(Color(0xFFffb86c), InfraMapOrange)
-        assertEquals(Color(0xFFf1fa8c), InfraMapYellow)
-        assertEquals(Color(0xFF6272a4), InfraMapComment)
+        assertEquals(Color(0xFF10b981), InfraMapGreen)
+        assertEquals(Color(0xFFf59e0b), InfraMapOrange)
+        assertEquals(Color(0xFFfacc15), InfraMapYellow)
+        assertEquals(Color(0xFF3f3f46), InfraMapComment)
     }
 }
