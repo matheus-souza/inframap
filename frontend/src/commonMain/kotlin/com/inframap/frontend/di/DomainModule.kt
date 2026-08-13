@@ -13,6 +13,9 @@ import com.inframap.frontend.domain.usecase.device.DeleteDeviceUseCase
 import com.inframap.frontend.domain.usecase.device.GetDeviceByIdUseCase
 import com.inframap.frontend.domain.usecase.device.GetDevicesUseCase
 import com.inframap.frontend.domain.usecase.device.UpdateDeviceUseCase
+import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.discovery.DeleteDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
@@ -21,6 +24,7 @@ import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
 import com.inframap.frontend.domain.usecase.topology.GetTopologyGraphUseCase
 import org.koin.dsl.module
+import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase as GetDiscoverySources
 
 val domainModule =
     module {
@@ -50,4 +54,9 @@ val domainModule =
         factory { GetDiscoverySourcesUseCase(get()) }
 
         factory { GetTopologyGraphUseCase(get()) }
+
+        factory { GetDiscoverySources(get()) }
+        factory { CreateDiscoverySourceUseCase(get()) }
+        factory { TriggerDiscoveryRunUseCase(get()) }
+        factory { DeleteDiscoverySourceUseCase(get()) }
     }

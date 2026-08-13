@@ -97,6 +97,28 @@ func (c *DiscoveryController) TriggerRun(w http.ResponseWriter, r *http.Request)
 	httputil.WriteJSON(w, r, http.StatusOK, resp)
 }
 
+// DeleteSource handles DELETE /api/v1/discovery/sources/{id}
+func (c *DiscoveryController) DeleteSource(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	err := c.uc.DeleteSource(r.Context(), idStr)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
+			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid discovery source UUID format", nil)
+			return
+		}
+		if errors.Is(err, repository.ErrSourceNotFound) {
+			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Discovery source not found", nil)
+			return
+		}
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete discovery source", nil)
+		return
+	}
+
+	httputil.WriteJSON(w, r, http.StatusOK, map[string]string{
+		"message": "discovery source deleted successfully",
+	})
+}
+
 // ListRecordsByDevice handles GET /api/v1/discovery/devices/{id}/records
 func (c *DiscoveryController) ListRecordsByDevice(w http.ResponseWriter, r *http.Request) {
 	deviceIDStr := r.PathValue("id")

@@ -14,6 +14,7 @@ import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class ApiClientTest {
     private fun mockClient(
@@ -122,8 +123,8 @@ class ApiClientTest {
                 mapOf("page" to "1", "per_page" to "50"),
             )
 
-            assert(capturedUrl.contains("page=1"))
-            assert(capturedUrl.contains("per_page=50"))
+            assertTrue(capturedUrl.contains("page=1"))
+            assertTrue(capturedUrl.contains("per_page=50"))
         }
 
     @Test

@@ -43,6 +43,15 @@
     <string name="validation_vlan_invalid">VLAN ID deve ser um número entre 1 e 4094.</string>
     <string name="validation_gateway_invalid">Endereço IP de Gateway inválido.</string>
     
+    <!-- Discovery -->
+    <string name="discovery_error_load">Falha ao carregar fontes de descoberta.</string>
+    <string name="discovery_error_create">Falha ao criar fonte de descoberta.</string>
+    <string name="discovery_error_delete">Falha ao excluir fonte de descoberta.</string>
+    <string name="discovery_error_trigger">Falha ao disparar varredura.</string>
+    <string name="discovery_run_triggered">Varredura disparada com sucesso.</string>
+    <string name="validation_discovery_name_required">Nome da fonte de descoberta é obrigatório.</string>
+    <string name="validation_discovery_type_required">Tipo da fonte é obrigatório.</string>
+
     <!-- Auth -->
     <string name="login_title">Login</string>
     <string name="login_error_credentials">Usuário e senha são obrigatórios.</string>

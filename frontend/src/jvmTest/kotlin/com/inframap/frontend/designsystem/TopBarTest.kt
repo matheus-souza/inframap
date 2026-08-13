@@ -2,6 +2,7 @@ package com.inframap.frontend.designsystem
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import org.junit.jupiter.api.Test
@@ -50,5 +51,18 @@ class TopBarTest {
                 }
             }
             onNodeWithText("InfraMap").assertIsDisplayed()
+        }
+
+    @Test
+    fun topBarRendersSearchBadgeAndSseStatus() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapTopBar(title = "InfraMap", isSseConnected = true)
+                }
+            }
+            onNodeWithText("⌘K").assertIsDisplayed()
+            onNodeWithText("Live SSE").assertIsDisplayed()
+            onNodeWithContentDescription("Search trigger button").assertIsDisplayed()
         }
 }
