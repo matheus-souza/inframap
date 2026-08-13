@@ -1,5 +1,9 @@
 package com.inframap.frontend.ui.subnets
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,8 +13,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +32,7 @@ import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapTextField
+import com.inframap.frontend.domain.model.NetworkInterface
 
 @Composable
 fun CreateSubnetScreen(
@@ -84,6 +96,15 @@ private fun CreateSubnetFormFields(
             modifier = Modifier.fillMaxWidth(),
         )
 
+        if (state.detectedInterfaces.isNotEmpty()) {
+            InterfaceSuggestionsPanel(
+                interfaces = state.detectedInterfaces,
+                isExpanded = state.showInterfaceSuggestions,
+                onToggle = actions.onToggleSuggestions,
+                onInterfaceSelected = actions.onInterfaceSelected,
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         CreateSubnetVlanGatewayInputs(state = state, actions = actions)
@@ -103,6 +124,95 @@ private fun CreateSubnetFormFields(
             discoveryEnabled = state.discoveryEnabled,
             onDiscoveryEnabledChanged = actions.onDiscoveryEnabledChanged,
         )
+    }
+}
+
+@Composable
+private fun InterfaceSuggestionsPanel(
+    interfaces: List<NetworkInterface>,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+    onInterfaceSelected: (NetworkInterface) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Sensors,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "Preencher a partir de interface detectada",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector =
+                    if (isExpanded) {
+                        Icons.Filled.KeyboardArrowUp
+                    } else {
+                        Icons.Filled.KeyboardArrowDown
+                    },
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically(),
+        ) {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+            ) {
+                interfaces.forEach { iface ->
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    InterfaceSuggestionRow(
+                        iface = iface,
+                        onSelected = { onInterfaceSelected(iface) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InterfaceSuggestionRow(
+    iface: NetworkInterface,
+    onSelected: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onSelected)
+                .padding(vertical = 6.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "${iface.name} — ${iface.cidr}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "IP: ${iface.ip}  |  MAC: ${iface.mac}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            )
+        }
     }
 }
 
