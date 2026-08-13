@@ -16,6 +16,8 @@ class SetupWizardViewModel(
     private val localStorage: LocalStorage,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<SetupWizardUiState>(SetupWizardUiState(), scope) {
+    private val createdCidrs = mutableSetOf<String>()
+
     fun checkShouldShow(
         totalSubnets: Long,
         totalActiveDevices: Long,
@@ -23,7 +25,9 @@ class SetupWizardViewModel(
         val dismissed = localStorage.get(KEY_WIZARD_DISMISSED) != null
         val completed = localStorage.get(KEY_WIZARD_COMPLETED) != null
         val isFreshInstall = totalSubnets == 0L && totalActiveDevices == 0L
-        updateState { it.copy(isVisible = isFreshInstall && !dismissed && !completed) }
+        val shouldShow = isFreshInstall && !dismissed && !completed
+        updateState { it.copy(isVisible = shouldShow) }
+        if (shouldShow) loadInterfaces()
     }
 
     fun show() {
@@ -96,19 +100,28 @@ class SetupWizardViewModel(
         updateState { it.copy(errorMessage = null) }
     }
 
+    @Suppress("ReturnCount")
     private fun createSubnetsAndAdvance() {
+        if (currentState.isLoading) return
+
         val selected =
-            currentState.detectedInterfaces.filter { it.cidr in currentState.selectedCidrs }
-        if (selected.isEmpty()) {
+            currentState.detectedInterfaces
+                .filter { it.cidr in currentState.selectedCidrs }
+                .distinctBy { it.cidr }
+                .filter { it.cidr !in createdCidrs }
+        if (selected.isEmpty() && createdCidrs.isEmpty()) {
             updateState {
                 it.copy(errorMessage = UiText.DynamicString("Selecione ao menos uma rede."))
             }
             return
         }
+        if (selected.isEmpty()) {
+            updateState { it.copy(currentStep = 2, createdSubnetCount = createdCidrs.size) }
+            return
+        }
 
         launchJob("create_subnets") {
             updateState { it.copy(isLoading = true, errorMessage = null) }
-            var created = 0
             for (iface in selected) {
                 val result =
                     createSubnetUseCase(
@@ -120,12 +133,12 @@ class SetupWizardViewModel(
                         ),
                     )
                 when (result) {
-                    is ApiResult.Success -> created++
+                    is ApiResult.Success -> createdCidrs.add(iface.cidr)
                     else -> {
                         updateState {
                             it.copy(
                                 isLoading = false,
-                                createdSubnetCount = created,
+                                createdSubnetCount = createdCidrs.size,
                                 errorMessage = mapError(result),
                             )
                         }
@@ -136,7 +149,7 @@ class SetupWizardViewModel(
             updateState {
                 it.copy(
                     isLoading = false,
-                    createdSubnetCount = created,
+                    createdSubnetCount = createdCidrs.size,
                     currentStep = 2,
                 )
             }

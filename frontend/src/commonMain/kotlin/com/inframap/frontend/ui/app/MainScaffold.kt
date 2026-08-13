@@ -288,8 +288,8 @@ private fun DashboardRoute(onHealthChanged: (Boolean?) -> Unit = {}) {
     LaunchedEffect(state.isSystemHealthy) {
         onHealthChanged(state.isSystemHealthy)
     }
-    LaunchedEffect(state.isLoading, state.totalSubnets, state.totalActiveDevices) {
-        if (!state.isLoading) {
+    LaunchedEffect(state.isLoading, state.errorMessage, state.totalSubnets, state.totalActiveDevices) {
+        if (!state.isLoading && state.errorMessage == null) {
             wizardViewModel.checkShouldShow(state.totalSubnets, state.totalActiveDevices)
         }
     }

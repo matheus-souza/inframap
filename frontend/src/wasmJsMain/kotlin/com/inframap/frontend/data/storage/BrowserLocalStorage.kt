@@ -13,12 +13,33 @@ private external fun jsSetItem(
 private external fun jsRemoveItem(key: String)
 
 class BrowserLocalStorage : LocalStorage {
-    override fun get(key: String): String? = jsGetItem(key)
+    private val fallback = mutableMapOf<String, String>()
+
+    override fun get(key: String): String? =
+        try {
+            jsGetItem(key) ?: fallback[key]
+        } catch (_: Throwable) {
+            fallback[key]
+        }
 
     override fun set(
         key: String,
         value: String,
-    ) = jsSetItem(key, value)
+    ) {
+        try {
+            jsSetItem(key, value)
+        } catch (_: Throwable) {
+            // browser storage unavailable
+        }
+        fallback[key] = value
+    }
 
-    override fun remove(key: String) = jsRemoveItem(key)
+    override fun remove(key: String) {
+        try {
+            jsRemoveItem(key)
+        } catch (_: Throwable) {
+            // browser storage unavailable
+        }
+        fallback.remove(key)
+    }
 }

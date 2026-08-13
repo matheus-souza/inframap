@@ -68,12 +68,18 @@ class SetupWizardViewModelTest {
     }
 
     @Test
-    fun checkShouldShowMakesVisibleOnFreshInstall() {
-        val vm = makeVm()
-        vm.checkShouldShow(totalSubnets = 0, totalActiveDevices = 0)
-        assertTrue(vm.state.value.isVisible)
-        vm.clear()
-    }
+    fun checkShouldShowMakesVisibleAndLoadsInterfaces() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.checkShouldShow(totalSubnets = 0, totalActiveDevices = 0)
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertTrue(state.isVisible)
+            assertEquals(2, state.detectedInterfaces.size)
+            assertEquals(setOf("192.168.18.0/24", "10.0.0.0/24"), state.selectedCidrs)
+            vm.clear()
+        }
 
     @Test
     fun checkShouldShowHidesWhenSubnetsExist() {
@@ -112,17 +118,19 @@ class SetupWizardViewModelTest {
     }
 
     @Test
-    fun dismissSetsLocalStorageAndHides() {
-        val storage = FakeLocalStorage()
-        val vm = makeVm(localStorage = storage)
-        vm.checkShouldShow(totalSubnets = 0, totalActiveDevices = 0)
-        assertTrue(vm.state.value.isVisible)
+    fun dismissSetsLocalStorageAndHides() =
+        runTest {
+            val storage = FakeLocalStorage()
+            val vm = makeVm(localStorage = storage, scope = this)
+            vm.checkShouldShow(totalSubnets = 0, totalActiveDevices = 0)
+            advanceUntilIdle()
+            assertTrue(vm.state.value.isVisible)
 
-        vm.dismiss()
-        assertFalse(vm.state.value.isVisible)
-        assertNotNull(storage.get(SetupWizardViewModel.KEY_WIZARD_DISMISSED))
-        vm.clear()
-    }
+            vm.dismiss()
+            assertFalse(vm.state.value.isVisible)
+            assertNotNull(storage.get(SetupWizardViewModel.KEY_WIZARD_DISMISSED))
+            vm.clear()
+        }
 
     @Test
     fun completeSetsLocalStorageAndHides() {
@@ -256,6 +264,51 @@ class SetupWizardViewModelTest {
             assertEquals(1, state.currentStep)
             assertNotNull(state.errorMessage)
             assertFalse(state.isLoading)
+            vm.clear()
+        }
+
+    @Test
+    fun nextStepDeduplicatesByCidr() =
+        runTest {
+            val eth1 =
+                NetworkInterface(
+                    name = "eth1",
+                    ip = "192.168.18.10",
+                    cidr = "192.168.18.0/24",
+                    mac = "ff:ee:dd:cc:bb:aa",
+                    gateway = "192.168.18.1",
+                )
+            val networkRepo =
+                FakeNetworkRepository(
+                    getInterfacesResult =
+                        ApiResult.Success(listOf(eth0, eth1), requestId = ""),
+                )
+            val vm = makeVm(networkRepo = networkRepo, scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.nextStep()
+            advanceUntilIdle()
+
+            assertEquals(2, vm.state.value.currentStep)
+            assertEquals(1, vm.state.value.createdSubnetCount)
+            vm.clear()
+        }
+
+    @Test
+    fun nextStepIsBlockedWhileLoading() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.toggleInterface(wlan0)
+            vm.nextStep()
+            vm.nextStep()
+            advanceUntilIdle()
+
+            assertEquals(2, vm.state.value.currentStep)
+            assertEquals(1, vm.state.value.createdSubnetCount)
             vm.clear()
         }
 

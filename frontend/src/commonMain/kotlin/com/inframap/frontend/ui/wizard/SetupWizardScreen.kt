@@ -51,6 +51,7 @@ fun SetupWizardScreen(
                     selectedCidrs = state.selectedCidrs,
                     onToggle = actions.onToggleInterface,
                     errorMessage = state.errorMessage?.asString(),
+                    onDismissError = actions.onDismissError,
                 )
         }
     }
@@ -62,6 +63,7 @@ private fun StepOneContent(
     selectedCidrs: Set<String>,
     onToggle: (NetworkInterface) -> Unit,
     errorMessage: String?,
+    onDismissError: () -> Unit,
 ) {
     Column {
         Text(
@@ -94,6 +96,7 @@ private fun StepOneContent(
                 text = errorMessage,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.clickable(onClick = onDismissError),
             )
         }
     }
