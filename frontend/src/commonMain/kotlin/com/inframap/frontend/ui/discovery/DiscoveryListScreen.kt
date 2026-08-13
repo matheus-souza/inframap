@@ -14,8 +14,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -24,8 +27,10 @@ import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapConfirmDialog
 import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
+import com.inframap.frontend.designsystem.InfraMapSnackbarHost
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
+import com.inframap.frontend.designsystem.SnackbarType
 import com.inframap.frontend.designsystem.SourceStatus
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.DiscoverySource
@@ -36,6 +41,11 @@ fun DiscoveryListScreen(
     actions: DiscoveryListActions,
     modifier: Modifier = Modifier,
 ) {
+    val successSnackbar = remember { SnackbarHostState() }
+    val errorSnackbar = remember { SnackbarHostState() }
+
+    DiscoveryFeedbackEffects(state, actions, successSnackbar, errorSnackbar)
+
     Box(modifier = modifier.fillMaxSize().padding(24.dp)) {
         Column(modifier = Modifier.fillMaxSize()) {
             DiscoveryListHeader(onCreateClicked = actions.onCreateSourceClicked)
@@ -59,6 +69,18 @@ fun DiscoveryListScreen(
             }
         }
 
+        InfraMapSnackbarHost(
+            hostState = successSnackbar,
+            type = SnackbarType.SUCCESS,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+
+        InfraMapSnackbarHost(
+            hostState = errorSnackbar,
+            type = SnackbarType.ERROR,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+
         if (state.sourceToDelete != null) {
             InfraMapConfirmDialog(
                 title = "Excluir Fonte de Descoberta",
@@ -70,6 +92,35 @@ fun DiscoveryListScreen(
                 onConfirm = actions.onConfirmDelete,
                 onDismiss = actions.onCancelDelete,
             )
+        }
+    }
+}
+
+@Composable
+private fun DiscoveryFeedbackEffects(
+    state: DiscoveryListUiState,
+    actions: DiscoveryListActions,
+    successSnackbar: SnackbarHostState,
+    errorSnackbar: SnackbarHostState,
+) {
+    LaunchedEffect(state.toastMessage) {
+        state.toastMessage?.let {
+            successSnackbar.showSnackbar(it.asStringAsync())
+            actions.onDismissToast()
+        }
+    }
+
+    LaunchedEffect(state.deleteError) {
+        state.deleteError?.let {
+            errorSnackbar.showSnackbar(it.asStringAsync())
+            actions.onDismissDeleteError()
+        }
+    }
+
+    LaunchedEffect(state.triggerRunError) {
+        state.triggerRunError?.let {
+            errorSnackbar.showSnackbar(it.asStringAsync())
+            actions.onDismissTriggerRunError()
         }
     }
 }
