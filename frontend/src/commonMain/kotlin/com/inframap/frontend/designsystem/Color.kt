@@ -2,38 +2,41 @@ package com.inframap.frontend.designsystem
 
 import androidx.compose.ui.graphics.Color
 
-val InfraMapCanvasBg = Color(0xFF121214)
-val InfraMapSurfaceBg = Color(0xFF18181B)
-val InfraMapSurfaceElevated = Color(0xFF27272A)
-val InfraMapBorder = Color(0xFF27272A)
-val InfraMapTextPrimary = Color(0xFFF4F4F5)
-val InfraMapTextSecondary = Color(0xFFA1A1AA)
+// Excalidraw Dark Slate Core Color Palette (RFC-019 / ADR-006)
+val InfraMapCanvasBg = Color(0xFF121214) // Deep Charcoal Black
+val InfraMapSurfaceBg = Color(0xFF18181b) // Container Surface
+val InfraMapSurfaceElevated = Color(0xFF27272a) // Elevated Surfaces & Borders
+val InfraMapBorder = Color(0xFF27272a) // Borders
+val InfraMapTextPrimary = Color(0xFFf4f4f5) // High-contrast body & header text
+val InfraMapTextSecondary = Color(0xFFa1a1aa) // Subtitles & Icons
 
-internal val InfraMapPurple = Color(0xFFbd93f9)
-internal val InfraMapCyan = Color(0xFF8be9fd)
-internal val InfraMapBackground = Color(0xFF1e1f29)
-internal val InfraMapSurface = Color(0xFF282a36)
-internal val InfraMapForeground = Color(0xFFf8f8f2)
-internal val InfraMapComment = Color(0xFF6272a4)
-internal val InfraMapRed = Color(0xFFff5555)
-internal val InfraMapGreen = Color(0xFF50fa7b)
-internal val InfraMapOrange = Color(0xFFffb86c)
-internal val InfraMapYellow = Color(0xFFf1fa8c)
-internal val InfraMapSurfaceVariant = Color(0xFF2d2f3d)
-internal val InfraMapOnSurfaceVariant = Color(0xFF9ba3b5)
-internal val InfraMapErrorContainer = Color(0xFF442233)
-internal val InfraMapOnErrorContainer = Color(0xFFffb3b3)
-internal val InfraMapOnError = Color(0xFF1a0a0a)
-internal val InfraMapSurfaceContainerHighest = Color(0xFF353849)
+val InfraMapElectricViolet = Color(0xFF8b5cf6) // Primary / Active Accent (#8b5cf6)
+val InfraMapEmeraldGreen = Color(0xFF10b981) // Secondary / Status Online (#10b981)
+val InfraMapAmberWarm = Color(0xFFf59e0b) // Tertiary / Status Warning (#f59e0b)
+val InfraMapRubyRed = Color(0xFFef4444) // Error / Status Offline (#ef4444)
 
-// RFC-019 Dark Theme Canvas Tokens
-val InfraMapCanvasBg = Color(0xFF121214)
-val InfraMapSurfaceBg = Color(0xFF18181B)
-val InfraMapSurfaceElevated = Color(0xFF27272A)
-val InfraMapBorder = Color(0xFF27272A)
-val InfraMapTextPrimary = Color(0xFFF4F4F5)
-val InfraMapTextSecondary = Color(0xFFA1A1AA)
-val StatusOnline = Color(0xFF10B981)
-val StatusWarning = Color(0xFFF59E0B)
-val StatusOffline = Color(0xFFEF4444)
-val StatusStaging = Color(0xFF8B5CF6)
+// Functional Status Tokens
+val StatusOnline = InfraMapEmeraldGreen
+val StatusWarning = InfraMapAmberWarm
+val StatusOffline = InfraMapRubyRed
+val StatusStaging = InfraMapElectricViolet
+
+// Convenience & backward-compatible aliases
+internal val InfraMapBackground = InfraMapCanvasBg
+internal val InfraMapSurface = InfraMapSurfaceBg
+internal val InfraMapSurfaceVariant = InfraMapSurfaceElevated
+internal val InfraMapOnSurfaceVariant = InfraMapTextSecondary
+internal val InfraMapForeground = InfraMapTextPrimary
+
+internal val InfraMapPurple = InfraMapElectricViolet
+internal val InfraMapCyan = InfraMapEmeraldGreen
+internal val InfraMapGreen = InfraMapEmeraldGreen
+internal val InfraMapOrange = InfraMapAmberWarm
+internal val InfraMapYellow = Color(0xFFfacc15)
+internal val InfraMapRed = InfraMapRubyRed
+internal val InfraMapComment = Color(0xFF3f3f46)
+
+internal val InfraMapErrorContainer = Color(0xFF450a0a)
+internal val InfraMapOnErrorContainer = Color(0xFFfca5a5)
+internal val InfraMapOnError = InfraMapCanvasBg
+internal val InfraMapSurfaceContainerHighest = InfraMapSurfaceElevated
