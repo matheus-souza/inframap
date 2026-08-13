@@ -221,6 +221,22 @@ class CreateSubnetViewModelTest {
         }
 
     @Test
+    fun loadNetworkInterfacesSilentlyIgnoresError() =
+        runTest {
+            val networkRepo =
+                FakeNetworkRepository(
+                    getInterfacesResult = ApiResult.NetworkError(RuntimeException("no network")),
+                )
+            val vm = makeVm(networkRepo = networkRepo, scope = this)
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertTrue(state.detectedInterfaces.isEmpty())
+            assertNull(state.errorMessage)
+            vm.clear()
+        }
+
+    @Test
     fun onInterfaceSelectedClearsGatewayValidationError() =
         runTest {
             val vm = makeVm(scope = this)
