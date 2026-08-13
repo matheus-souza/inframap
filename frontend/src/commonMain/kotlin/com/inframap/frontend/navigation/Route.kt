@@ -30,5 +30,9 @@ sealed interface Route {
         val prefilledName: String? = null,
     ) : Route
 
+    data object DiscoverySources : Route
+
+    data object CreateDiscoverySource : Route
+
     data object Topology : Route
 }
