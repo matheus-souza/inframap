@@ -152,6 +152,24 @@ object Res {
                 "subnets_error_create",
                 setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
             )
+        val subnets_detected_interfaces_title: StringResource =
+            StringResource(
+                "string:subnets_detected_interfaces_title",
+                "subnets_detected_interfaces_title",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val subnets_detected_interfaces_subtitle: StringResource =
+            StringResource(
+                "string:subnets_detected_interfaces_subtitle",
+                "subnets_detected_interfaces_subtitle",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val subnets_fill_from_interface: StringResource =
+            StringResource(
+                "string:subnets_fill_from_interface",
+                "subnets_fill_from_interface",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
         val validation_subnet_name_required: StringResource =
             StringResource(
                 "string:validation_subnet_name_required",
