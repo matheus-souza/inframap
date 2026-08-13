@@ -170,8 +170,7 @@ kover {
                     "com.inframap.frontend.ui.topology.DeviceInspectorSheetKt*",
                     "com.inframap.frontend.ui.topology.TopologyCanvasKt*",
                     "com.inframap.frontend.ui.topology.components.*",
-                    "com.inframap.frontend.ui.command.CommandPaletteModalKt*",
-                    "com.inframap.frontend.ui.command.CommandPaletteListenerKt*",
+                    "com.inframap.frontend.ui.command.*",
                     "com.inframap.frontend.ui.app.NavItem",
                     "com.inframap.frontend.ui.app.ComposableSingletons*",
                 )
