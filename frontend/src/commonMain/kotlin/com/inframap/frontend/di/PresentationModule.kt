@@ -15,6 +15,7 @@ import com.inframap.frontend.ui.staging.StagingViewModel
 import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
 import com.inframap.frontend.ui.topology.TopologyViewModel
+import com.inframap.frontend.ui.wizard.SetupWizardViewModel
 import org.koin.dsl.module
 
 val presentationModule =
@@ -34,7 +35,9 @@ val presentationModule =
         factory { DiscoveryListViewModel(get(), get(), get()) }
         factory { CreateDiscoverySourceViewModel(get()) }
 
-        factory { DashboardViewModel(get(), get(), get(), get(), getOrNull()) }
+        factory { DashboardViewModel(get(), get(), get(), get(), get(), getOrNull()) }
+
+        factory { SetupWizardViewModel(get(), get(), get()) }
 
         factory { TopologyViewModel(get(), getOrNull()) }
 

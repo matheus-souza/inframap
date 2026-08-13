@@ -7,6 +7,7 @@ import com.inframap.frontend.ui.util.UiText
 data class DashboardUiState(
     val totalActiveDevices: Long = 0,
     val totalStagedDevices: Long = 0,
+    val totalSubnets: Long = 0,
     val isSystemHealthy: Boolean? = null,
     val systemVersion: String = "",
     val totalDiscoverySources: Long = 0,

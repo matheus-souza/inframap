@@ -9,10 +9,12 @@ import com.inframap.frontend.domain.usecase.dashboard.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.dashboard.GetHealthUseCase
 import com.inframap.frontend.domain.usecase.device.GetDevicesUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
+import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
 import com.inframap.frontend.fakes.FakeDashboardRepository
 import com.inframap.frontend.fakes.FakeDeviceRepository
 import com.inframap.frontend.fakes.FakeSSEClient
 import com.inframap.frontend.fakes.FakeStagingRepository
+import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -46,6 +48,7 @@ class DashboardViewModelTest {
                     ),
             ),
         dashRepo: FakeDashboardRepository = FakeDashboardRepository(),
+        subnetRepo: FakeSubnetRepository = FakeSubnetRepository(),
         sseClient: FakeSSEClient? = null,
         autoRefreshIntervalMs: Long = 0L,
         scope: CoroutineScope? = null,
@@ -54,6 +57,7 @@ class DashboardViewModelTest {
         GetStagingDevicesUseCase(stagingRepo),
         GetHealthUseCase(dashRepo),
         GetDiscoverySourcesUseCase(dashRepo),
+        GetSubnetsUseCase(subnetRepo),
         sseClient,
         autoRefreshIntervalMs,
         scope,

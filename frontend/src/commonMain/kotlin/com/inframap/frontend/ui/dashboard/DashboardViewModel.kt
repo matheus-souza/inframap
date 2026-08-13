@@ -8,6 +8,7 @@ import com.inframap.frontend.domain.usecase.dashboard.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.dashboard.GetHealthUseCase
 import com.inframap.frontend.domain.usecase.device.GetDevicesUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
+import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +22,7 @@ class DashboardViewModel(
     private val getStagingDevicesUseCase: GetStagingDevicesUseCase,
     private val getHealthUseCase: GetHealthUseCase,
     private val getDiscoverySourcesUseCase: GetDiscoverySourcesUseCase,
+    private val getSubnetsUseCase: GetSubnetsUseCase,
     private val sseClient: SSEClient? = null,
     private val autoRefreshIntervalMs: Long = 30_000L,
     scope: CoroutineScope? = null,
@@ -66,15 +68,17 @@ class DashboardViewModel(
             val stagingDeferred = async { getStagingDevicesUseCase(page = 1, perPage = 1) }
             val healthDeferred = async { getHealthUseCase() }
             val sourcesDeferred = async { getDiscoverySourcesUseCase() }
+            val subnetsDeferred = async { getSubnetsUseCase() }
 
             val devicesResult = devicesDeferred.await()
             val stagingResult = stagingDeferred.await()
             val healthResult = healthDeferred.await()
             val sourcesResult = sourcesDeferred.await()
+            val subnetsResult = subnetsDeferred.await()
 
             if (generation != metricsGeneration) return@coroutineScope
 
-            val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult)
+            val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult, subnetsResult)
 
             val networkError = results.firstOrNull { it is ApiResult.NetworkError }
             if (networkError != null) {
@@ -98,11 +102,13 @@ class DashboardViewModel(
             val stagedTotal = (stagingResult as? ApiResult.Success)?.data?.total ?: 0L
             val healthData = (healthResult as? ApiResult.Success)?.data
             val sourcesTotal = (sourcesResult as? ApiResult.Success)?.data?.size?.toLong() ?: 0L
+            val subnetsTotal = (subnetsResult as? ApiResult.Success)?.data?.total ?: 0L
 
             updateState {
                 it.copy(
                     totalActiveDevices = activeTotal,
                     totalStagedDevices = stagedTotal,
+                    totalSubnets = subnetsTotal,
                     isSystemHealthy = healthData?.isHealthy,
                     systemVersion = healthData?.version ?: "",
                     totalDiscoverySources = sourcesTotal,

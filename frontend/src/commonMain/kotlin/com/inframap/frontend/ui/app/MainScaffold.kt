@@ -66,6 +66,9 @@ import com.inframap.frontend.ui.subnets.SubnetsViewModel
 import com.inframap.frontend.ui.topology.TopologyActions
 import com.inframap.frontend.ui.topology.TopologyScreen
 import com.inframap.frontend.ui.topology.TopologyViewModel
+import com.inframap.frontend.ui.wizard.SetupWizardActions
+import com.inframap.frontend.ui.wizard.SetupWizardScreen
+import com.inframap.frontend.ui.wizard.SetupWizardViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
@@ -272,17 +275,42 @@ private fun RouteContent(
 @Composable
 private fun DashboardRoute(onHealthChanged: (Boolean?) -> Unit = {}) {
     val viewModel: DashboardViewModel = koinInject()
+    val wizardViewModel: SetupWizardViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
+    DisposableEffect(wizardViewModel) {
+        onDispose { wizardViewModel.clear() }
+    }
     val state by viewModel.state.collectAsState()
+    val wizardState by wizardViewModel.state.collectAsState()
+
     LaunchedEffect(state.isSystemHealthy) {
         onHealthChanged(state.isSystemHealthy)
     }
-    DashboardScreen(
-        state = state,
-        onRefresh = viewModel::refresh,
-    )
+    LaunchedEffect(state.isLoading, state.errorMessage, state.totalSubnets, state.totalActiveDevices) {
+        if (!state.isLoading && state.errorMessage == null) {
+            wizardViewModel.checkShouldShow(state.totalSubnets, state.totalActiveDevices)
+        }
+    }
+
+    Box {
+        DashboardScreen(
+            state = state,
+            onRefresh = viewModel::refresh,
+        )
+        SetupWizardScreen(
+            state = wizardState,
+            actions =
+                SetupWizardActions(
+                    onDismiss = wizardViewModel::dismiss,
+                    onNext = wizardViewModel::nextStep,
+                    onBack = wizardViewModel::previousStep,
+                    onToggleInterface = wizardViewModel::toggleInterface,
+                    onDismissError = wizardViewModel::dismissError,
+                ),
+        )
+    }
 }
 
 @Composable
