@@ -43,11 +43,8 @@ test.describe('InfraMap WASM WebApp Visual Regression', () => {
     await page.goto('/topology', { waitUntil: 'networkidle' });
     
     // Verify canvas is present and visible
-    const canvas = page.locator('canvas');
-    if (await canvas.count() > 0) {
-      await expect(canvas.first()).toBeVisible();
-    }
-    
+    const canvas = page.locator('canvas').first();
+    await expect(canvas).toBeVisible();
     await expect(page).toHaveScreenshot('07-topology-map.png');
   });
 });
