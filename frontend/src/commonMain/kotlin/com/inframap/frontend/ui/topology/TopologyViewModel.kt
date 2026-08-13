@@ -88,6 +88,20 @@ class TopologyViewModel(
         updateState { it.copy(panOffset = Offset.Zero, zoomScale = 1.0f) }
     }
 
+    fun selectTool(tool: CanvasTool) {
+        updateState { it.copy(activeTool = tool) }
+    }
+
+    fun runAutoLayout() {
+        val currentGraph = state.value.graph ?: return
+        val newPositions = ForceDirectedLayout.calculatePositions(currentGraph)
+        updateState { it.copy(nodePositions = newPositions) }
+    }
+
+    fun toggleSubnetBoundaries() {
+        updateState { it.copy(showSubnetBoundaries = !it.showSubnetBoundaries) }
+    }
+
     private fun setupSseListening() {
         val client = sseClient ?: return
         launchJob("sse_listening") {
