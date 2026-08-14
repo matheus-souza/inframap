@@ -1,9 +1,11 @@
 package com.inframap.frontend.ui.wizard
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
 import com.inframap.frontend.data.dto.CreateSubnetRequest
 import com.inframap.frontend.data.storage.LocalStorage
 import com.inframap.frontend.domain.model.NetworkInterface
+import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
 import com.inframap.frontend.ui.base.BaseViewModel
@@ -13,10 +15,12 @@ import kotlinx.coroutines.CoroutineScope
 class SetupWizardViewModel(
     private val getNetworkInterfacesUseCase: GetNetworkInterfacesUseCase,
     private val createSubnetUseCase: CreateSubnetUseCase,
+    private val createDiscoverySourceUseCase: CreateDiscoverySourceUseCase,
     private val localStorage: LocalStorage,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<SetupWizardUiState>(SetupWizardUiState(), scope) {
     private val createdCidrs = mutableSetOf<String>()
+    private val createdSourceCidrs = mutableSetOf<String>()
 
     fun checkShouldShow(
         totalSubnets: Long,
@@ -83,9 +87,18 @@ class SetupWizardViewModel(
         }
     }
 
+    fun selectScanType(scanType: ScanType) {
+        updateState { it.copy(scanType = scanType) }
+    }
+
+    fun selectFrequency(frequency: ScheduleFrequency) {
+        updateState { it.copy(scheduleFrequency = frequency) }
+    }
+
     fun nextStep() {
         when (currentState.currentStep) {
             1 -> createSubnetsAndAdvance()
+            2 -> createSourcesAndAdvance()
             else -> updateState { it.copy(currentStep = it.currentStep + 1) }
         }
     }
@@ -151,6 +164,66 @@ class SetupWizardViewModel(
                     isLoading = false,
                     createdSubnetCount = createdCidrs.size,
                     currentStep = 2,
+                )
+            }
+        }
+    }
+
+    @Suppress("ReturnCount")
+    private fun createSourcesAndAdvance() {
+        if (currentState.isLoading) return
+
+        val cidrsToCreate = createdCidrs.filter { it !in createdSourceCidrs }
+        if (cidrsToCreate.isEmpty() && createdSourceCidrs.isNotEmpty()) {
+            updateState { it.copy(currentStep = 3) }
+            return
+        }
+        if (cidrsToCreate.isEmpty()) {
+            updateState {
+                it.copy(errorMessage = UiText.DynamicString("Nenhuma rede configurada."))
+            }
+            return
+        }
+
+        val scanType = currentState.scanType
+        val cron = currentState.scheduleFrequency.cron
+
+        launchJob("create_sources") {
+            updateState { it.copy(isLoading = true, errorMessage = null) }
+            val newSourceIds = mutableListOf<String>()
+            for (cidr in cidrsToCreate) {
+                val result =
+                    createDiscoverySourceUseCase(
+                        CreateDiscoverySourceRequest(
+                            name = "${scanType.label.substringBefore(" —")} — $cidr",
+                            type = scanType.apiType,
+                            enabled = true,
+                            scheduleCron = cron,
+                            config = mapOf("cidr" to cidr),
+                        ),
+                    )
+                when (result) {
+                    is ApiResult.Success -> {
+                        createdSourceCidrs.add(cidr)
+                        newSourceIds.add(result.data.id)
+                    }
+                    else -> {
+                        updateState {
+                            it.copy(
+                                isLoading = false,
+                                createdSourceIds = it.createdSourceIds + newSourceIds,
+                                errorMessage = mapError(result),
+                            )
+                        }
+                        return@launchJob
+                    }
+                }
+            }
+            updateState {
+                it.copy(
+                    isLoading = false,
+                    createdSourceIds = it.createdSourceIds + newSourceIds,
+                    currentStep = 3,
                 )
             }
         }
