@@ -1,6 +1,6 @@
 module github.com/matheussouza/inframap
 
-go 1.25.7
+go 1.25.13
 
 require (
 	github.com/google/uuid v1.6.0
