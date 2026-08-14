@@ -156,6 +156,7 @@ private fun DrawScope.drawDotMatrixGrid(
     }
 }
 
+@Suppress("LongMethod")
 @OptIn(ExperimentalTextApi::class)
 private fun DrawScope.drawEmptyCanvasNodePreview(
     textMeasurer: TextMeasurer,
