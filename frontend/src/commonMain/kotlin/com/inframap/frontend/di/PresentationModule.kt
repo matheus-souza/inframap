@@ -38,7 +38,7 @@ val presentationModule =
 
         factory { DashboardViewModel(get(), get(), get(), get(), get(), getOrNull()) }
 
-        factory { SetupWizardViewModel(get(), get(), get()) }
+        factory { SetupWizardViewModel(get(), get(), get(), get()) }
 
         factory { ProductTourViewModel(get()) }
 
