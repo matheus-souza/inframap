@@ -66,4 +66,7 @@
     <string name="topology_retry">Retry</string>
     <string name="topology_close">Close</string>
     <string name="topology_error_load">Failed to load network topology.</string>
+    <string name="topology_preview_router">Preview-Router</string>
+    <string name="topology_preview_switch">Preview-Switch</string>
+    <string name="topology_preview_server">Preview-Server</string>
 </resources>

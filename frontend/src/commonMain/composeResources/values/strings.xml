@@ -78,4 +78,7 @@
     <string name="topology_retry">Tentar novamente</string>
     <string name="topology_close">Fechar</string>
     <string name="topology_error_load">Falha ao carregar topologia de rede.</string>
+    <string name="topology_preview_router">Prévia Roteador</string>
+    <string name="topology_preview_switch">Prévia Switch</string>
+    <string name="topology_preview_server">Prévia Servidor</string>
 </resources>

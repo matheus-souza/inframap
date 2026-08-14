@@ -368,5 +368,23 @@ object Res {
                 "topology_error_load",
                 setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
             )
+        val topology_preview_router: StringResource =
+            StringResource(
+                "string:topology_preview_router",
+                "topology_preview_router",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_preview_switch: StringResource =
+            StringResource(
+                "string:topology_preview_switch",
+                "topology_preview_switch",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_preview_server: StringResource =
+            StringResource(
+                "string:topology_preview_server",
+                "topology_preview_server",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
     }
 }
