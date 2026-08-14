@@ -65,4 +65,19 @@ class TopBarTest {
             onNodeWithText("Live SSE").assertIsDisplayed()
             onNodeWithContentDescription("Search trigger button").assertIsDisplayed()
         }
+
+    @Test
+    fun topBarRendersRestartTourButtonWhenCallbackProvided() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapTopBar(
+                        title = "InfraMap",
+                        onRestartTourClicked = {},
+                    )
+                }
+            }
+            onNodeWithText("Refazer Tour Guiado").assertIsDisplayed()
+            onNodeWithContentDescription("Refazer Tour Guiado button").assertIsDisplayed()
+        }
 }

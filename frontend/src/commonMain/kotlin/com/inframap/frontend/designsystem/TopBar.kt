@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -41,6 +42,7 @@ fun InfraMapTopBar(
     isHealthy: Boolean? = null,
     isSseConnected: Boolean = true,
     onSearchClicked: () -> Unit = {},
+    onRestartTourClicked: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     TopAppBar(
@@ -51,6 +53,7 @@ fun InfraMapTopBar(
             TopBarActions(
                 isSseConnected = isSseConnected,
                 onSearchClicked = onSearchClicked,
+                onRestartTourClicked = onRestartTourClicked,
             )
         },
     )
@@ -87,14 +90,53 @@ private fun TopBarTitle(
 private fun TopBarActions(
     isSseConnected: Boolean,
     onSearchClicked: () -> Unit,
+    onRestartTourClicked: (() -> Unit)? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(end = 16.dp),
     ) {
+        if (onRestartTourClicked != null) {
+            RestartTourButton(onRestartTourClicked = onRestartTourClicked)
+            Spacer(modifier = Modifier.width(12.dp))
+        }
         SearchTriggerButton(onSearchClicked = onSearchClicked)
         Spacer(modifier = Modifier.width(12.dp))
         SseConnectionBadge(isSseConnected = isSseConnected)
+    }
+}
+
+@Composable
+private fun RestartTourButton(onRestartTourClicked: () -> Unit) {
+    Surface(
+        onClick = onRestartTourClicked,
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier =
+            Modifier
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(8.dp),
+                ).semantics { contentDescription = "Refazer Tour Guiado button" },
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Explore,
+                contentDescription = "Tour icon",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Refazer Tour Guiado",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
     }
 }
 

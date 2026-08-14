@@ -175,6 +175,7 @@ kover {
                     "com.inframap.frontend.ui.topology.components.*",
                     "com.inframap.frontend.ui.command.*",
                     "com.inframap.frontend.ui.wizard.*ScreenKt*",
+                    "com.inframap.frontend.ui.tour.*OverlayKt*",
                     "com.inframap.frontend.ui.app.NavItem",
                     "com.inframap.frontend.ui.app.ComposableSingletons*",
                 )
