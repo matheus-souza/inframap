@@ -314,6 +314,8 @@ private fun DashboardRoute(onHealthChanged: (Boolean?) -> Unit = {}) {
                     onBack = wizardViewModel::previousStep,
                     onToggleInterface = wizardViewModel::toggleInterface,
                     onDismissError = wizardViewModel::dismissError,
+                    onSelectScanType = wizardViewModel::selectScanType,
+                    onSelectFrequency = wizardViewModel::selectFrequency,
                 ),
         )
     }
