@@ -58,9 +58,15 @@
     <string name="topology_title">Network Topology</string>
     <string name="topology_subtitle">Interactive force-directed graph view</string>
     <string name="topology_empty">No devices discovered yet</string>
+    <string name="topology_empty_title">Empty Topology</string>
+    <string name="topology_empty_subtitle">The topology map is generated from inventory devices. Register or configure a discovery source to visualize connections.</string>
+    <string name="topology_configure_discovery">Configure Discovery Source</string>
     <string name="topology_reset_view">Reset View</string>
     <string name="topology_refresh">Refresh</string>
     <string name="topology_retry">Retry</string>
     <string name="topology_close">Close</string>
     <string name="topology_error_load">Failed to load network topology.</string>
+    <string name="topology_preview_router">Preview-Router</string>
+    <string name="topology_preview_switch">Preview-Switch</string>
+    <string name="topology_preview_server">Preview-Server</string>
 </resources>

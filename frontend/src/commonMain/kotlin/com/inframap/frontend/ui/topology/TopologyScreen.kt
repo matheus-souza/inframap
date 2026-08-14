@@ -1,6 +1,11 @@
 package com.inframap.frontend.ui.topology
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
@@ -11,8 +16,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -74,19 +80,29 @@ fun TopologyScreen(
             }
 
             state.graph == null || state.graph.nodes.isEmpty() -> {
+                // Interactive Topology Canvas showing clean ghost preview grid
+                TopologyCanvas(
+                    state = state,
+                    actions = actions,
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+                // Overlay explicit empty state container with icon & CTA button
                 Box(
                     modifier =
                         Modifier
                             .fillMaxSize()
-                            .padding(16.dp),
+                            .background(InfraMapCanvasBg.copy(alpha = 0.65f))
+                            .padding(32.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     InfraMapEmptyState(
-                        icon = Icons.Filled.AccountTree,
-                        title = "Topologia vazia",
-                        subtitle =
-                            "O mapa de topologia é gerado a partir dos dispositivos no inventário. " +
-                                "Cadastre ou aprove dispositivos para visualizar as conexões.",
+                        icon = Icons.Filled.Radar,
+                        title = stringResource(Res.string.topology_empty_title),
+                        subtitle = stringResource(Res.string.topology_empty_subtitle),
+                        ctaLabel = stringResource(Res.string.topology_configure_discovery),
+                        onCtaClick = actions.onConfigureDiscovery,
+                        modifier = Modifier.widthIn(max = 480.dp),
                     )
                 }
             }
@@ -141,8 +157,16 @@ fun TopologyScreen(
                 // Right Slide-Over Device Inspector Sheet (360px)
                 AnimatedVisibility(
                     visible = state.selectedNode != null,
-                    enter = slideInHorizontally(initialOffsetX = { it }),
-                    exit = slideOutHorizontally(targetOffsetX = { it }),
+                    enter =
+                        slideInHorizontally(
+                            initialOffsetX = { fullWidth -> fullWidth },
+                            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+                        ) + fadeIn(animationSpec = tween(durationMillis = 300)),
+                    exit =
+                        slideOutHorizontally(
+                            targetOffsetX = { fullWidth -> fullWidth },
+                            animationSpec = tween(durationMillis = 250, easing = FastOutLinearInEasing),
+                        ) + fadeOut(animationSpec = tween(durationMillis = 250)),
                     modifier = Modifier.align(Alignment.TopEnd),
                 ) {
                     state.selectedNode?.let { node ->

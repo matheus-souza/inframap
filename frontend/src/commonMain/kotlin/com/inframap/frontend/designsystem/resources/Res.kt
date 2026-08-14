@@ -320,6 +320,24 @@ object Res {
                 "topology_empty",
                 setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
             )
+        val topology_empty_title: StringResource =
+            StringResource(
+                "string:topology_empty_title",
+                "topology_empty_title",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_empty_subtitle: StringResource =
+            StringResource(
+                "string:topology_empty_subtitle",
+                "topology_empty_subtitle",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_configure_discovery: StringResource =
+            StringResource(
+                "string:topology_configure_discovery",
+                "topology_configure_discovery",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
         val topology_reset_view: StringResource =
             StringResource(
                 "string:topology_reset_view",
@@ -348,6 +366,24 @@ object Res {
             StringResource(
                 "string:topology_error_load",
                 "topology_error_load",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_preview_router: StringResource =
+            StringResource(
+                "string:topology_preview_router",
+                "topology_preview_router",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_preview_switch: StringResource =
+            StringResource(
+                "string:topology_preview_switch",
+                "topology_preview_switch",
+                setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
+            )
+        val topology_preview_server: StringResource =
+            StringResource(
+                "string:topology_preview_server",
+                "topology_preview_server",
                 setOf(ResourceItem(emptySet(), "values/strings.commonMain.cvr", 0, 0)),
             )
     }

@@ -1,6 +1,7 @@
 package com.inframap.frontend.ui.topology
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -30,8 +32,11 @@ import com.inframap.frontend.designsystem.StatusOffline
 import com.inframap.frontend.designsystem.StatusOnline
 import com.inframap.frontend.designsystem.StatusStaging
 import com.inframap.frontend.designsystem.StatusWarning
+import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.model.TopologyEdge
 import com.inframap.frontend.domain.model.TopologyNode
+import com.inframap.frontend.ui.topology.CanvasTool
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.sqrt
 
 // Link Type Edge Colors
@@ -58,7 +63,7 @@ fun TopologyCanvas(
     actions: TopologyActions,
     modifier: Modifier = Modifier,
 ) {
-    val graph = state.graph ?: return
+    val graph = state.graph
     val positions = state.nodePositions
     val panOffset = state.panOffset
     val zoomScale = state.zoomScale
@@ -66,16 +71,19 @@ fun TopologyCanvas(
     val activeTool = state.activeTool
     val textMeasurer = rememberTextMeasurer()
 
+    val routerLabel = stringResource(Res.string.topology_preview_router)
+    val switchLabel = stringResource(Res.string.topology_preview_switch)
+    val serverLabel = stringResource(Res.string.topology_preview_server)
+
     Canvas(
         modifier =
             modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
+                .background(InfraMapCanvasBg)
+                .pointerInput(activeTool) {
                     detectTransformGestures { _, pan, zoom, _ ->
-                        if (zoom != 1.0f) {
+                        if (activeTool == CanvasTool.HAND) {
                             actions.onZoom(zoom)
-                        }
-                        if (pan != Offset.Zero) {
                             actions.onPan(pan)
                         }
                     }
@@ -103,16 +111,21 @@ fun TopologyCanvas(
             translate(panOffset.x, panOffset.y)
             scale(zoomScale, zoomScale, pivot = Offset.Zero)
         }) {
-            // 3. Subnet Boundary Boxes
-            if (state.showSubnetBoundaries) {
-                drawSubnetBoundaries(graph.nodes, positions, textMeasurer)
+            if (graph == null || graph.nodes.isEmpty()) {
+                // Clean canvas node preview when empty
+                drawEmptyCanvasNodePreview(textMeasurer, routerLabel, switchLabel, serverLabel)
+            } else {
+                // 3. Subnet Boundary Boxes
+                if (state.showSubnetBoundaries) {
+                    drawSubnetBoundaries(graph.nodes, positions, textMeasurer)
+                }
+
+                // 4. Edges
+                drawTopologyEdges(graph.edges, positions, zoomScale)
+
+                // 5. Sleek Node Cards with Vector Icons & Status Glow & Selection Indicator
+                drawTopologyNodeCards(graph.nodes, positions, selectedNodeId, zoomScale, textMeasurer)
             }
-
-            // 4. Edges
-            drawTopologyEdges(graph.edges, positions, zoomScale)
-
-            // 5. Sleek Node Cards with Vector Icons & Status Glow
-            drawTopologyNodeCards(graph.nodes, positions, selectedNodeId, zoomScale, textMeasurer)
         }
     }
 }
@@ -143,11 +156,87 @@ private fun DrawScope.drawDotMatrixGrid(
     }
 }
 
+@Suppress("LongMethod")
+@OptIn(ExperimentalTextApi::class)
+private fun DrawScope.drawEmptyCanvasNodePreview(
+    textMeasurer: TextMeasurer,
+    routerLabel: String,
+    switchLabel: String,
+    serverLabel: String,
+) {
+    val center = Offset(size.width / 2f, size.height / 2f)
+    val ghostNodes =
+        listOf(
+            Triple(center + Offset(0f, -70f), routerLabel, "router"),
+            Triple(center + Offset(-130f, 60f), switchLabel, "switch"),
+            Triple(center + Offset(130f, 60f), serverLabel, "server"),
+        )
+
+    val dashedStroke =
+        Stroke(
+            width = 1.5f,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f),
+        )
+
+    val node1Pos = ghostNodes[0].first
+    val node2Pos = ghostNodes[1].first
+    val node3Pos = ghostNodes[2].first
+
+    drawLine(
+        color = PhysicalEdgeColor.copy(alpha = 0.3f),
+        start = node1Pos,
+        end = node2Pos,
+        strokeWidth = 1.5f,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f),
+    )
+    drawLine(
+        color = VirtualEdgeColor.copy(alpha = 0.3f),
+        start = node1Pos,
+        end = node3Pos,
+        strokeWidth = 1.5f,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f),
+    )
+
+    ghostNodes.forEach { (pos, label, deviceType) ->
+        val cardTopLeft = Offset(pos.x - CARD_WIDTH / 2, pos.y - CARD_HEIGHT / 2)
+        val cardSize = Size(CARD_WIDTH, CARD_HEIGHT)
+        val ghostAlphaColor = InfraMapCyan.copy(alpha = 0.3f)
+
+        drawRoundRect(
+            color = InfraMapSurfaceBg.copy(alpha = 0.35f),
+            topLeft = cardTopLeft,
+            size = cardSize,
+            cornerRadius = CornerRadius(8f, 8f),
+        )
+
+        drawRoundRect(
+            color = InfraMapBorder.copy(alpha = 0.4f),
+            topLeft = cardTopLeft,
+            size = cardSize,
+            cornerRadius = CornerRadius(8f, 8f),
+            style = dashedStroke,
+        )
+
+        val iconCenter = Offset(cardTopLeft.x + 18f, cardTopLeft.y + CARD_HEIGHT / 2)
+        drawDeviceVectorBadge(deviceType, iconCenter, ghostAlphaColor)
+
+        drawText(
+            textMeasurer = textMeasurer,
+            text = label,
+            topLeft = Offset(cardTopLeft.x + 38f, cardTopLeft.y + 16f),
+            style =
+                TextStyle(
+                    color = InfraMapTextSecondary.copy(alpha = 0.45f),
+                ),
+        )
+    }
+}
+
 @OptIn(ExperimentalTextApi::class)
 private fun DrawScope.drawSubnetBoundaries(
     nodes: List<TopologyNode>,
     positions: Map<String, Offset>,
-    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    textMeasurer: TextMeasurer,
 ) {
     if (nodes.isEmpty()) return
 
@@ -230,13 +319,39 @@ private fun DrawScope.drawTopologyEdges(
     }
 }
 
+private fun DrawScope.drawNodeSelectionGlow(
+    cardTopLeft: Offset,
+    zoomScale: Float,
+) {
+    val glowMargin = 5f / zoomScale
+    drawRoundRect(
+        color = InfraMapCyan.copy(alpha = 0.25f),
+        topLeft = Offset(cardTopLeft.x - glowMargin, cardTopLeft.y - glowMargin),
+        size = Size(CARD_WIDTH + glowMargin * 2, CARD_HEIGHT + glowMargin * 2),
+        cornerRadius = CornerRadius(11f, 11f),
+    )
+}
+
+private fun DrawScope.drawNodeSelectionTopBar(
+    cardTopLeft: Offset,
+    zoomScale: Float,
+) {
+    drawRoundRect(
+        color = InfraMapCyan,
+        topLeft = cardTopLeft,
+        size = Size(CARD_WIDTH, 3.5f / zoomScale),
+        cornerRadius = CornerRadius(8f, 8f),
+    )
+}
+
+@Suppress("LongMethod")
 @OptIn(ExperimentalTextApi::class)
 private fun DrawScope.drawTopologyNodeCards(
     nodes: List<TopologyNode>,
     positions: Map<String, Offset>,
     selectedNodeId: String?,
     zoomScale: Float,
-    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    textMeasurer: TextMeasurer,
 ) {
     nodes.forEach { node ->
         val pos = positions[node.id] ?: return@forEach
@@ -246,9 +361,15 @@ private fun DrawScope.drawTopologyNodeCards(
         val cardTopLeft = Offset(pos.x - CARD_WIDTH / 2, pos.y - CARD_HEIGHT / 2)
         val cardSize = Size(CARD_WIDTH, CARD_HEIGHT)
 
-        // Card Surface (#18181b)
+        // 1. Draw outer selection glow BEFORE surface fill
+        if (isSelected) {
+            drawNodeSelectionGlow(cardTopLeft, zoomScale)
+        }
+
+        // 2. Card Surface (#18181b or elevated dark surface when selected)
+        val surfaceColor = if (isSelected) Color(0xFF27272A) else InfraMapSurfaceBg
         drawRoundRect(
-            color = InfraMapSurfaceBg,
+            color = surfaceColor,
             topLeft = cardTopLeft,
             size = cardSize,
             cornerRadius = CornerRadius(8f, 8f),
@@ -264,6 +385,11 @@ private fun DrawScope.drawTopologyNodeCards(
             cornerRadius = CornerRadius(8f, 8f),
             style = Stroke(width = borderWidth),
         )
+
+        // 4. Draw cyan accent top bar AFTER surface fill so it remains visible
+        if (isSelected) {
+            drawNodeSelectionTopBar(cardTopLeft, zoomScale)
+        }
 
         // Vector Device Icon Badge (Left side)
         val iconCenter = Offset(cardTopLeft.x + 18f, cardTopLeft.y + CARD_HEIGHT / 2)
