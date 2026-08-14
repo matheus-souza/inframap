@@ -40,7 +40,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
           ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
       - name: Determine & Auto-Create Release Tag
@@ -51,8 +50,6 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           REF_TYPE: ${{ github.ref_type }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPOSITORY: ${{ github.repository }}
         run: |
           git fetch --tags origin
 
@@ -80,7 +77,7 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             if ! git rev-parse "$TAG" >/dev/null 2>&1; then
               git tag -a "$TAG" -m "Automated release candidate $TAG"
-              git -c http.extraHeader="Authorization: Basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64)" push origin "$TAG"
+              git push origin "$TAG"
             fi
           elif [ "$TARGET_BRANCH" = "main" ]; then
             LATEST_RC=$(git tag -l "v*-rc.*" | sort -V | tail -n 1)
@@ -99,7 +96,7 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             if ! git rev-parse "$TAG" >/dev/null 2>&1; then
               git tag -a "$TAG" -m "Automated official release $TAG"
-              git -c http.extraHeader="Authorization: Basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64)" push origin "$TAG"
+              git push origin "$TAG"
             fi
           else
             echo "Error: Unsupported ref $TARGET_BRANCH"
