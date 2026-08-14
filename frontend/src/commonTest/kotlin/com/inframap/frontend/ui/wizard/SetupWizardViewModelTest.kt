@@ -514,6 +514,40 @@ class SetupWizardViewModelTest {
         }
 
     @Test
+    fun step2SkipsDeselectedCidrs() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                )
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.currentStep)
+            assertEquals(2, vm.state.value.createdSubnetCount)
+
+            vm.previousStep()
+            assertEquals(1, vm.state.value.currentStep)
+
+            vm.toggleInterface(wlan0)
+            assertEquals(setOf("192.168.18.0/24"), vm.state.value.selectedCidrs)
+
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.currentStep)
+
+            vm.nextStep()
+            advanceUntilIdle()
+
+            assertEquals(3, vm.state.value.currentStep)
+            assertEquals(1, discoveryRepo.createSourceCallCount)
+            vm.clear()
+        }
+
+    @Test
     fun step2ReentrancyGuard() =
         runTest {
             val discoveryRepo =

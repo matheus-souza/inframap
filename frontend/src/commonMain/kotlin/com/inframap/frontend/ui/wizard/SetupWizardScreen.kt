@@ -141,7 +141,7 @@ private fun StepTwoContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Frequencia de varredura:",
+            text = "Frequência de varredura:",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

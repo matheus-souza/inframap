@@ -22,7 +22,7 @@ enum class ScanType(
     val label: String,
     val apiType: String,
 ) {
-    ICMP("ICMP Sweep (ping) — rapido, basico", "icmp"),
+    ICMP("Varredura ICMP (ping) — rápida, básica", "icmp"),
     ARP_DNS("ARP + DNS — mais detalhes, mais lento", "arp_dns"),
     FULL("Completo (ICMP+ARP+DNS) — recomendado", "full"),
 }

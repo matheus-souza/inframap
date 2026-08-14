@@ -133,8 +133,9 @@ class SetupWizardViewModel(
             return
         }
 
+        updateState { it.copy(isLoading = true, errorMessage = null) }
+
         launchJob("create_subnets") {
-            updateState { it.copy(isLoading = true, errorMessage = null) }
             for (iface in selected) {
                 val result =
                     createSubnetUseCase(
@@ -173,7 +174,8 @@ class SetupWizardViewModel(
     private fun createSourcesAndAdvance() {
         if (currentState.isLoading) return
 
-        val cidrsToCreate = createdCidrs.filter { it !in createdSourceCidrs }
+        val activeCidrs = createdCidrs.intersect(currentState.selectedCidrs)
+        val cidrsToCreate = activeCidrs.filter { it !in createdSourceCidrs }
         if (cidrsToCreate.isEmpty() && createdSourceCidrs.isNotEmpty()) {
             updateState { it.copy(currentStep = 3) }
             return
@@ -187,9 +189,9 @@ class SetupWizardViewModel(
 
         val scanType = currentState.scanType
         val cron = currentState.scheduleFrequency.cron
+        updateState { it.copy(isLoading = true, errorMessage = null) }
 
         launchJob("create_sources") {
-            updateState { it.copy(isLoading = true, errorMessage = null) }
             val newSourceIds = mutableListOf<String>()
             for (cidr in cidrsToCreate) {
                 val result =
