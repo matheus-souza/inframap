@@ -290,7 +290,7 @@ private fun RouteContent(
     onHealthChanged: (Boolean?) -> Unit = {},
 ) {
     when (currentRoute) {
-        Route.Dashboard -> DashboardRoute(onHealthChanged)
+        Route.Dashboard -> DashboardRoute(onHealthChanged, navigator)
         Route.Devices -> DeviceListRoute(navigator = navigator)
         is Route.DeviceDetail ->
             DeviceDetailRoute(
@@ -321,7 +321,10 @@ private fun RouteContent(
 }
 
 @Composable
-private fun DashboardRoute(onHealthChanged: (Boolean?) -> Unit = {}) {
+private fun DashboardRoute(
+    onHealthChanged: (Boolean?) -> Unit = {},
+    navigator: Navigator,
+) {
     val viewModel: DashboardViewModel = koinInject()
     val wizardViewModel: SetupWizardViewModel = koinInject()
     DisposableEffect(viewModel) {
@@ -358,6 +361,11 @@ private fun DashboardRoute(onHealthChanged: (Boolean?) -> Unit = {}) {
                     onDismissError = wizardViewModel::dismissError,
                     onSelectScanType = wizardViewModel::selectScanType,
                     onSelectFrequency = wizardViewModel::selectFrequency,
+                    onStartScan = wizardViewModel::startScan,
+                    onComplete = {
+                        wizardViewModel.complete()
+                        navigator.navigateTo(Route.Staging)
+                    },
                 ),
         )
     }
