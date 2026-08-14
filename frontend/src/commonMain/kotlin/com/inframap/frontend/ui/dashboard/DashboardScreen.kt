@@ -1,5 +1,6 @@
 package com.inframap.frontend.ui.dashboard
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,11 +18,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Rocket
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +50,8 @@ fun DashboardScreen(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var isErrorDismissed by remember(state.errorMessage) { mutableStateOf(false) }
+
     Column(
         modifier =
             modifier
@@ -50,8 +61,12 @@ fun DashboardScreen(
         DashboardHeader(isLoading = state.isLoading, onRefresh = onRefresh)
         Spacer(modifier = Modifier.height(24.dp))
 
-        if (state.errorMessage != null) {
-            DashboardErrorBanner(errorMessage = state.errorMessage.asString(), onRefresh = onRefresh)
+        if (state.errorMessage != null && !isErrorDismissed) {
+            DashboardErrorToast(
+                errorMessage = state.errorMessage.asString(),
+                onRefresh = onRefresh,
+                onDismiss = { isErrorDismissed = true },
+            )
             Spacer(modifier = Modifier.height(24.dp))
         }
 
@@ -90,29 +105,53 @@ private fun DashboardHeader(
 }
 
 @Composable
-private fun DashboardErrorBanner(
+private fun DashboardErrorToast(
     errorMessage: String,
     onRefresh: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.errorContainer,
+        color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = errorMessage,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            InfraMapButton(
-                text = "Retry",
-                onClick = onRefresh,
-            )
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ErrorOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                InfraMapButton(
+                    text = "Retry",
+                    onClick = onRefresh,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "Fechar",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }

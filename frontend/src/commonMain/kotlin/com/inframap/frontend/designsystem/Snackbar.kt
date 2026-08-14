@@ -27,7 +27,12 @@ fun InfraMapSnackbarHost(
     val containerColor =
         when (type) {
             SnackbarType.SUCCESS -> InfraMapGreen.copy(alpha = 0.9f)
-            SnackbarType.ERROR -> InfraMapRed.copy(alpha = 0.9f)
+            SnackbarType.ERROR -> MaterialTheme.colorScheme.surfaceVariant
+        }
+    val contentColor =
+        when (type) {
+            SnackbarType.SUCCESS -> MaterialTheme.colorScheme.background
+            SnackbarType.ERROR -> MaterialTheme.colorScheme.onBackground
         }
     SnackbarHost(
         hostState = hostState,
@@ -35,14 +40,19 @@ fun InfraMapSnackbarHost(
     ) { data ->
         Snackbar(
             containerColor = containerColor,
-            contentColor = MaterialTheme.colorScheme.background,
+            contentColor = contentColor,
             dismissAction =
-                data.visuals.actionLabel?.let {
+                data.visuals.actionLabel?.let { actionLabel ->
                     {
                         TextButton(onClick = { data.performAction() }) {
                             Text(
-                                text = it,
-                                color = MaterialTheme.colorScheme.background,
+                                text = actionLabel,
+                                color =
+                                    if (type == SnackbarType.ERROR) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        contentColor
+                                    },
                             )
                         }
                     }
