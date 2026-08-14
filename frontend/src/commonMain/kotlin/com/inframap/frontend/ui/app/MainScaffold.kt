@@ -213,6 +213,7 @@ private fun MainScaffoldContent(
                         currentRoute = currentRoute,
                         navigator = navigator,
                         onHealthChanged = onHealthChanged,
+                    )
                 }
             }
         }
