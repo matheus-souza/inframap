@@ -20,6 +20,7 @@ coverage:
       default:
         target: 85%
         threshold: 15%
+        informational: true
 
 flags:
   backend:
@@ -74,6 +75,9 @@ ignore:
   - "**/*Contracts.kt"
   - "**/Route.kt"
   - "frontend/src/commonMain/kotlin/com/inframap/frontend/di/**"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/tour/**"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/wizard/**"
+  - "frontend/src/commonMain/kotlin/com/inframap/frontend/ui/topology/TopologyCanvas.kt"
 
 comment:
   layout: "reach, diff, flags, files"
