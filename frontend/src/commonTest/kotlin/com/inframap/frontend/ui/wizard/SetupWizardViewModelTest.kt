@@ -3,15 +3,22 @@ package com.inframap.frontend.ui.wizard
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.NetworkInterface
+import com.inframap.frontend.domain.model.PaginatedList
+import com.inframap.frontend.domain.model.StagingDevice
 import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.usecase.dashboard.GetStagingSummaryUseCase
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase
+import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
+import com.inframap.frontend.fakes.FakeDashboardRepository
 import com.inframap.frontend.fakes.FakeDiscoveryRepository
 import com.inframap.frontend.fakes.FakeLocalStorage
 import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -60,12 +67,16 @@ class SetupWizardViewModelTest {
             FakeDiscoveryRepository(
                 createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
             ),
+        dashboardRepo: FakeDashboardRepository = FakeDashboardRepository(),
         localStorage: FakeLocalStorage = FakeLocalStorage(),
         scope: kotlinx.coroutines.CoroutineScope? = null,
     ) = SetupWizardViewModel(
         getNetworkInterfacesUseCase = GetNetworkInterfacesUseCase(networkRepo),
         createSubnetUseCase = CreateSubnetUseCase(subnetRepo),
         createDiscoverySourceUseCase = CreateDiscoverySourceUseCase(discoveryRepo),
+        triggerDiscoveryRunUseCase = TriggerDiscoveryRunUseCase(discoveryRepo),
+        getDiscoverySourcesUseCase = GetDiscoverySourcesUseCase(discoveryRepo),
+        getStagingSummaryUseCase = GetStagingSummaryUseCase(dashboardRepo),
         localStorage = localStorage,
         scope = scope,
     )
@@ -569,6 +580,251 @@ class SetupWizardViewModelTest {
 
             assertEquals(3, vm.state.value.currentStep)
             assertEquals(1, discoveryRepo.createSourceCallCount)
+            vm.clear()
+        }
+
+    // -- Step 3 tests --
+
+    private fun advanceToStep3(
+        discoveryRepo: FakeDiscoveryRepository =
+            FakeDiscoveryRepository(
+                createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+            ),
+        dashboardRepo: FakeDashboardRepository = FakeDashboardRepository(),
+        scope: kotlinx.coroutines.CoroutineScope,
+    ): Pair<SetupWizardViewModel, FakeDiscoveryRepository> {
+        val vm =
+            makeVm(
+                discoveryRepo = discoveryRepo,
+                dashboardRepo = dashboardRepo,
+                scope = scope,
+            )
+        vm.show()
+        return vm to discoveryRepo
+    }
+
+    private suspend fun kotlinx.coroutines.test.TestScope.goToStep3(vm: SetupWizardViewModel) {
+        advanceUntilIdle()
+        vm.toggleInterface(wlan0)
+        vm.nextStep()
+        advanceUntilIdle()
+        vm.nextStep()
+        advanceUntilIdle()
+        assertEquals(3, vm.state.value.currentStep)
+    }
+
+    @Test
+    fun startScanTriggersRunAndPollsUntilDone() =
+        runTest {
+            val idleSource =
+                DiscoverySource(
+                    id = "src-1",
+                    name = "test",
+                    sourceType = "full",
+                    lastStatus = "idle",
+                )
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                    triggerRunResult = ApiResult.Success(sampleSource, requestId = ""),
+                    getSourcesResult =
+                        ApiResult.Success(
+                            PaginatedList(
+                                items = listOf(idleSource),
+                                total = 1L,
+                                page = 1,
+                                perPage = 50,
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val stagingDevice =
+                StagingDevice(
+                    id = "dev-1",
+                    hostname = "router",
+                    deviceType = "network",
+                )
+            val dashboardRepo =
+                FakeDashboardRepository(
+                    getStagingSummaryResult =
+                        ApiResult.Success(
+                            PaginatedList(
+                                items = listOf(stagingDevice),
+                                total = 1,
+                                page = 1,
+                                perPage = 50,
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val (vm, repo) = advanceToStep3(discoveryRepo, dashboardRepo, this)
+            goToStep3(vm)
+
+            vm.startScan()
+            advanceTimeBy(SetupWizardViewModel.POLL_INTERVAL_MS + 100)
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertTrue(state.scanCompleted)
+            assertFalse(state.isLoading)
+            assertEquals(1, state.discoveredDeviceCount)
+            assertEquals(1, repo.triggerRunCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun startScanHandlesTriggerError() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                    triggerRunResult =
+                        ApiResult.Error(
+                            code = "SERVER_ERROR",
+                            message = "Scan failed",
+                            requestId = "",
+                            httpStatus = 500,
+                        ),
+                )
+            val (vm, _) = advanceToStep3(discoveryRepo, scope = this)
+            goToStep3(vm)
+
+            vm.startScan()
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertEquals(3, state.currentStep)
+            assertNotNull(state.errorMessage)
+            assertFalse(state.isLoading)
+            assertFalse(state.scanStarted)
+            assertFalse(state.scanCompleted)
+            vm.clear()
+        }
+
+    @Test
+    fun startScanDetectsScanError() =
+        runTest {
+            val errorSource =
+                DiscoverySource(
+                    id = "src-1",
+                    name = "test",
+                    sourceType = "full",
+                    lastStatus = "error",
+                )
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                    triggerRunResult = ApiResult.Success(sampleSource, requestId = ""),
+                    getSourcesResult =
+                        ApiResult.Success(
+                            PaginatedList(
+                                items = listOf(errorSource),
+                                total = 1L,
+                                page = 1,
+                                perPage = 50,
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val (vm, _) = advanceToStep3(discoveryRepo, scope = this)
+            goToStep3(vm)
+
+            vm.startScan()
+            advanceTimeBy(SetupWizardViewModel.POLL_INTERVAL_MS + 100)
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertNotNull(state.errorMessage)
+            assertFalse(state.isLoading)
+            assertFalse(state.scanStarted)
+            assertFalse(state.scanCompleted)
+            vm.clear()
+        }
+
+    @Test
+    fun startScanReentrancyGuard() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                    triggerRunResult = ApiResult.Success(sampleSource, requestId = ""),
+                    getSourcesResult =
+                        ApiResult.Success(
+                            PaginatedList(
+                                items =
+                                    listOf(
+                                        DiscoverySource(
+                                            id = "src-1",
+                                            lastStatus = "idle",
+                                        ),
+                                    ),
+                                total = 1L,
+                                page = 1,
+                                perPage = 50,
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val (vm, repo) = advanceToStep3(discoveryRepo, scope = this)
+            goToStep3(vm)
+
+            vm.startScan()
+            vm.startScan()
+            advanceTimeBy(SetupWizardViewModel.POLL_INTERVAL_MS + 100)
+            advanceUntilIdle()
+
+            assertEquals(1, repo.triggerRunCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun completeSetsFlagAndHides() =
+        runTest {
+            val storage = FakeLocalStorage()
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                )
+            val vm =
+                makeVm(
+                    discoveryRepo = discoveryRepo,
+                    localStorage = storage,
+                    scope = this,
+                )
+            vm.show()
+            goToStep3(vm)
+
+            vm.complete()
+            assertFalse(vm.state.value.isVisible)
+            assertNotNull(storage.get(SetupWizardViewModel.KEY_WIZARD_COMPLETED))
+            vm.clear()
+        }
+
+    @Test
+    fun backFromStep3PreservesState() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                )
+            val (vm, _) = advanceToStep3(discoveryRepo, scope = this)
+            goToStep3(vm)
+
+            assertTrue(
+                vm.state.value.createdSourceIds
+                    .isNotEmpty(),
+            )
+
+            vm.previousStep()
+            assertEquals(2, vm.state.value.currentStep)
+
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(3, vm.state.value.currentStep)
+            assertTrue(
+                vm.state.value.createdSourceIds
+                    .isNotEmpty(),
+            )
             vm.clear()
         }
 }

@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -19,6 +22,7 @@ import com.inframap.frontend.designsystem.InfraMapWizardOverlay
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.ui.wizard.SetupWizardViewModel.Companion.TOTAL_STEPS
 
+@Suppress("CyclomaticComplexMethod")
 @Composable
 fun SetupWizardScreen(
     state: SetupWizardUiState,
@@ -34,16 +38,23 @@ fun SetupWizardScreen(
             else -> ""
         }
 
+    val nextEnabled =
+        when (state.currentStep) {
+            1 -> state.selectedCidrs.isNotEmpty()
+            3 -> state.scanCompleted
+            else -> true
+        }
+
     InfraMapWizardOverlay(
         currentStep = state.currentStep,
         totalSteps = TOTAL_STEPS,
         title = title,
         onDismiss = actions.onDismiss,
-        onBack = if (state.currentStep > 1) actions.onBack else null,
-        onNext = actions.onNext,
+        onBack = if (state.currentStep > 1 && !state.isLoading) actions.onBack else null,
+        onNext = if (state.currentStep == TOTAL_STEPS) actions.onComplete else actions.onNext,
         nextLabel = if (state.currentStep == TOTAL_STEPS) "Concluir" else "Proximo",
-        nextEnabled = state.currentStep != 1 || state.selectedCidrs.isNotEmpty(),
-        isLoading = state.isLoading,
+        nextEnabled = nextEnabled,
+        isLoading = state.isLoading && state.currentStep != TOTAL_STEPS,
     ) {
         when (state.currentStep) {
             1 ->
@@ -61,6 +72,12 @@ fun SetupWizardScreen(
                     scheduleFrequency = state.scheduleFrequency,
                     onSelectFrequency = actions.onSelectFrequency,
                     errorMessage = state.errorMessage?.asString(),
+                    onDismissError = actions.onDismissError,
+                )
+            3 ->
+                StepThreeContent(
+                    state = state,
+                    onStartScan = actions.onStartScan,
                     onDismissError = actions.onDismissError,
                 )
         }
@@ -156,6 +173,70 @@ private fun StepTwoContent(
             )
         }
 
+        if (errorMessage != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.clickable(onClick = onDismissError),
+            )
+        }
+    }
+}
+
+@Composable
+private fun StepThreeContent(
+    state: SetupWizardUiState,
+    onStartScan: () -> Unit,
+    onDismissError: () -> Unit,
+) {
+    Column {
+        when {
+            state.scanCompleted -> {
+                Text(
+                    text = "Varredura concluída!",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Encontrados: ${state.discoveredDeviceCount} dispositivos",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Clique em \"Concluir\" para ir à tela de Staging e revisar os dispositivos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            state.isLoading -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Text(
+                        text = "Escaneando sua rede...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 12.dp),
+                    )
+                }
+            }
+            else -> {
+                Text(
+                    text = "Tudo pronto! Vamos descobrir sua rede.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(onClick = onStartScan) {
+                    Text("Iniciar Scan")
+                }
+            }
+        }
+
+        val errorMessage = state.errorMessage?.asString()
         if (errorMessage != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
