@@ -18,8 +18,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.MoveToInbox
+import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Rocket
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -205,23 +210,27 @@ private fun DashboardMetrics(state: DashboardUiState) {
             title = "Active Devices",
             value = state.totalActiveDevices.toString(),
             subtitle = "Inventory items",
+            icon = Icons.Filled.Dns,
             modifier = Modifier.width(260.dp),
         )
         MetricCard(
             title = "Staged Devices",
             value = state.totalStagedDevices.toString(),
             subtitle = "Awaiting verification",
+            icon = Icons.Filled.MoveToInbox,
             modifier = Modifier.width(260.dp),
         )
         HealthMetricCard(
             isHealthy = state.isSystemHealthy,
             version = state.systemVersion,
+            icon = Icons.Filled.CheckCircle,
             modifier = Modifier.width(260.dp),
         )
         MetricCard(
             title = "Discovery Sources",
             value = state.totalDiscoverySources.toString(),
             subtitle = "Configured targets",
+            icon = Icons.Filled.Radar,
             modifier = Modifier.width(260.dp),
         )
     }
@@ -232,15 +241,28 @@ private fun MetricCard(
     title: String,
     value: String,
     subtitle: String,
+    icon: ImageVector,
     modifier: Modifier = Modifier,
 ) {
     InfraMapCard(modifier = modifier) {
         Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.semantics { contentDescription = "$title KPI Card" },
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = "$title icon",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = value,
@@ -261,6 +283,7 @@ private fun MetricCard(
 private fun HealthMetricCard(
     isHealthy: Boolean?,
     version: String,
+    icon: ImageVector = Icons.Filled.CheckCircle,
     modifier: Modifier = Modifier,
 ) {
     val statusText =
@@ -279,11 +302,23 @@ private fun HealthMetricCard(
 
     InfraMapCard(modifier = modifier) {
         Column {
-            Text(
-                text = "System Health",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.semantics { contentDescription = "System Health KPI Card" },
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = "System Health icon",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "System Health",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
