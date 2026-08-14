@@ -67,6 +67,10 @@ import com.inframap.frontend.ui.subnets.SubnetsViewModel
 import com.inframap.frontend.ui.topology.TopologyActions
 import com.inframap.frontend.ui.topology.TopologyScreen
 import com.inframap.frontend.ui.topology.TopologyViewModel
+import com.inframap.frontend.ui.tour.ProductTourActions
+import com.inframap.frontend.ui.tour.ProductTourOverlay
+import com.inframap.frontend.ui.tour.ProductTourUiState
+import com.inframap.frontend.ui.tour.ProductTourViewModel
 import com.inframap.frontend.ui.wizard.SetupWizardActions
 import com.inframap.frontend.ui.wizard.SetupWizardScreen
 import com.inframap.frontend.ui.wizard.SetupWizardViewModel
@@ -98,12 +102,18 @@ fun MainScaffold(
 ) {
     val commandPaletteViewModel: CommandPaletteViewModel = koinInject()
     val commandPaletteState by commandPaletteViewModel.state.collectAsState()
+    val tourViewModel: ProductTourViewModel = koinInject()
+    val tourState by tourViewModel.state.collectAsState()
 
     DisposableEffect(commandPaletteViewModel) {
         onDispose { commandPaletteViewModel.clear() }
     }
+    DisposableEffect(tourViewModel) {
+        onDispose { tourViewModel.clear() }
+    }
 
     LaunchedEffect(Unit) {
+        tourViewModel.checkShouldShow()
         commandPaletteViewModel.effects.collect { effect ->
             when (effect) {
                 is CommandPaletteEffect.ExecuteItem -> {
@@ -124,21 +134,49 @@ fun MainScaffold(
             isHealthy = isHealthy,
             onHealthChanged = onHealthChanged,
             onOpenCommandPalette = commandPaletteViewModel::open,
+            onRestartTourClicked = tourViewModel::startTour,
         )
-        val paletteActions =
-            CommandPaletteActions(
-                onQueryChanged = commandPaletteViewModel::onQueryChanged,
-                onNextItem = commandPaletteViewModel::onNextItem,
-                onPreviousItem = commandPaletteViewModel::onPreviousItem,
-                onSelectItem = commandPaletteViewModel::selectCurrentItem,
-                onItemClicked = commandPaletteViewModel::onItemClicked,
-                onDismiss = commandPaletteViewModel::close,
-            )
-        CommandPaletteModal(
-            state = commandPaletteState,
-            actions = paletteActions,
+        MainScaffoldOverlays(
+            commandPaletteState = commandPaletteState,
+            commandPaletteViewModel = commandPaletteViewModel,
+            tourState = tourState,
+            tourViewModel = tourViewModel,
         )
     }
+}
+
+@Composable
+private fun MainScaffoldOverlays(
+    commandPaletteState: com.inframap.frontend.ui.command.CommandPaletteUiState,
+    commandPaletteViewModel: CommandPaletteViewModel,
+    tourState: ProductTourUiState,
+    tourViewModel: ProductTourViewModel,
+) {
+    val paletteActions =
+        CommandPaletteActions(
+            onQueryChanged = commandPaletteViewModel::onQueryChanged,
+            onNextItem = commandPaletteViewModel::onNextItem,
+            onPreviousItem = commandPaletteViewModel::onPreviousItem,
+            onSelectItem = commandPaletteViewModel::selectCurrentItem,
+            onItemClicked = commandPaletteViewModel::onItemClicked,
+            onDismiss = commandPaletteViewModel::close,
+        )
+    CommandPaletteModal(
+        state = commandPaletteState,
+        actions = paletteActions,
+    )
+
+    val tourActions =
+        ProductTourActions(
+            onDismiss = tourViewModel::dismissTour,
+            onNext = tourViewModel::nextStep,
+            onBack = tourViewModel::previousStep,
+            onRestart = tourViewModel::startTour,
+        )
+    ProductTourOverlay(
+        state = tourState,
+        actions = tourActions,
+    )
 }
 
 @Composable
@@ -148,6 +186,7 @@ private fun MainScaffoldContent(
     isHealthy: Boolean?,
     onHealthChanged: (Boolean?) -> Unit,
     onOpenCommandPalette: () -> Unit,
+    onRestartTourClicked: () -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -157,6 +196,7 @@ private fun MainScaffoldContent(
             AppTopBar(
                 isHealthy = isHealthy,
                 onOpenCommandPalette = onOpenCommandPalette,
+                onRestartTourClicked = onRestartTourClicked,
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             Row(modifier = Modifier.weight(1f)) {
@@ -184,12 +224,14 @@ private fun MainScaffoldContent(
 private fun AppTopBar(
     isHealthy: Boolean?,
     onOpenCommandPalette: () -> Unit = {},
+    onRestartTourClicked: () -> Unit = {},
 ) {
     com.inframap.frontend.designsystem.InfraMapTopBar(
         title = "InfraMap",
         isHealthy = isHealthy,
         isSseConnected = isHealthy ?: true,
         onSearchClicked = onOpenCommandPalette,
+        onRestartTourClicked = onRestartTourClicked,
     )
 }
 
