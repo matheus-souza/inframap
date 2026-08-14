@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -148,27 +149,32 @@ private fun MainScaffoldContent(
     onHealthChanged: (Boolean?) -> Unit,
     onOpenCommandPalette: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(
-            isHealthy = isHealthy,
-            onOpenCommandPalette = onOpenCommandPalette,
-        )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-        Row(modifier = Modifier.weight(1f)) {
-            AppNavRail(currentRoute = currentRoute, navigator = navigator)
-            VerticalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-            Box(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(16.dp),
-            ) {
-                RouteContent(
-                    currentRoute = currentRoute,
-                    navigator = navigator,
-                    onHealthChanged = onHealthChanged,
-                )
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            AppTopBar(
+                isHealthy = isHealthy,
+                onOpenCommandPalette = onOpenCommandPalette,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            Row(modifier = Modifier.weight(1f)) {
+                AppNavRail(currentRoute = currentRoute, navigator = navigator)
+                VerticalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                Box(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(16.dp),
+                ) {
+                    RouteContent(
+                        currentRoute = currentRoute,
+                        navigator = navigator,
+                        onHealthChanged = onHealthChanged,
+                    )
+                }
             }
         }
     }
@@ -308,6 +314,8 @@ private fun DashboardRoute(onHealthChanged: (Boolean?) -> Unit = {}) {
                     onBack = wizardViewModel::previousStep,
                     onToggleInterface = wizardViewModel::toggleInterface,
                     onDismissError = wizardViewModel::dismissError,
+                    onSelectScanType = wizardViewModel::selectScanType,
+                    onSelectFrequency = wizardViewModel::selectFrequency,
                 ),
         )
     }

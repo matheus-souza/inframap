@@ -1,10 +1,13 @@
 package com.inframap.frontend.ui.wizard
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
+import com.inframap.frontend.fakes.FakeDiscoveryRepository
 import com.inframap.frontend.fakes.FakeLocalStorage
 import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
@@ -41,6 +44,9 @@ class SetupWizardViewModelTest {
     private val sampleSubnet =
         Subnet(id = "sub1", name = "eth0", cidr = "192.168.18.0/24")
 
+    private val sampleSource =
+        DiscoverySource(id = "src-1", name = "Full — 192.168.18.0/24", sourceType = "full")
+
     private fun makeVm(
         networkRepo: FakeNetworkRepository =
             FakeNetworkRepository(
@@ -50,14 +56,21 @@ class SetupWizardViewModelTest {
             FakeSubnetRepository(
                 createSubnetResult = ApiResult.Success(sampleSubnet, requestId = ""),
             ),
+        discoveryRepo: FakeDiscoveryRepository =
+            FakeDiscoveryRepository(
+                createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+            ),
         localStorage: FakeLocalStorage = FakeLocalStorage(),
         scope: kotlinx.coroutines.CoroutineScope? = null,
     ) = SetupWizardViewModel(
         getNetworkInterfacesUseCase = GetNetworkInterfacesUseCase(networkRepo),
         createSubnetUseCase = CreateSubnetUseCase(subnetRepo),
+        createDiscoverySourceUseCase = CreateDiscoverySourceUseCase(discoveryRepo),
         localStorage = localStorage,
         scope = scope,
     )
+
+    // -- Step 1 tests --
 
     @Test
     fun initialStateIsHidden() {
@@ -356,6 +369,206 @@ class SetupWizardViewModelTest {
 
             vm.dismissError()
             assertNull(vm.state.value.errorMessage)
+            vm.clear()
+        }
+
+    // -- Step 2 tests --
+
+    @Test
+    fun selectScanTypeUpdatesState() {
+        val vm = makeVm()
+        assertEquals(ScanType.FULL, vm.state.value.scanType)
+
+        vm.selectScanType(ScanType.ICMP)
+        assertEquals(ScanType.ICMP, vm.state.value.scanType)
+
+        vm.selectScanType(ScanType.ARP_DNS)
+        assertEquals(ScanType.ARP_DNS, vm.state.value.scanType)
+        vm.clear()
+    }
+
+    @Test
+    fun selectFrequencyUpdatesState() {
+        val vm = makeVm()
+        assertEquals(ScheduleFrequency.EVERY_HOUR, vm.state.value.scheduleFrequency)
+
+        vm.selectFrequency(ScheduleFrequency.EVERY_15_MIN)
+        assertEquals(ScheduleFrequency.EVERY_15_MIN, vm.state.value.scheduleFrequency)
+        assertEquals("*/15 * * * *", vm.state.value.scheduleFrequency.cron)
+
+        vm.selectFrequency(ScheduleFrequency.MANUAL)
+        assertEquals(ScheduleFrequency.MANUAL, vm.state.value.scheduleFrequency)
+        assertNull(vm.state.value.scheduleFrequency.cron)
+        vm.clear()
+    }
+
+    @Test
+    fun step2CreatesSourcesAndAdvancesToStep3() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                )
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.toggleInterface(wlan0)
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.currentStep)
+
+            vm.nextStep()
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertEquals(3, state.currentStep)
+            assertEquals(1, state.createdSourceIds.size)
+            assertFalse(state.isLoading)
+            assertNull(state.errorMessage)
+            assertEquals(1, discoveryRepo.createSourceCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun step2CreatesOneSourcePerSubnet() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                )
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.currentStep)
+            assertEquals(2, vm.state.value.createdSubnetCount)
+
+            vm.nextStep()
+            advanceUntilIdle()
+
+            assertEquals(3, vm.state.value.currentStep)
+            assertEquals(2, discoveryRepo.createSourceCallCount)
+            assertEquals(2, vm.state.value.createdSourceIds.size)
+            vm.clear()
+        }
+
+    @Test
+    fun step2HandlesCreateSourceError() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult =
+                        ApiResult.Error(
+                            code = "SERVER_ERROR",
+                            message = "Failed",
+                            requestId = "",
+                            httpStatus = 500,
+                        ),
+                )
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.toggleInterface(wlan0)
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.currentStep)
+
+            vm.nextStep()
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertEquals(2, state.currentStep)
+            assertNotNull(state.errorMessage)
+            assertFalse(state.isLoading)
+            vm.clear()
+        }
+
+    @Test
+    fun step2BackPreservesSelections() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.toggleInterface(wlan0)
+            vm.selectScanType(ScanType.ICMP)
+            vm.selectFrequency(ScheduleFrequency.EVERY_24_HOURS)
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.currentStep)
+
+            vm.previousStep()
+            assertEquals(1, vm.state.value.currentStep)
+
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.currentStep)
+
+            assertEquals(ScanType.ICMP, vm.state.value.scanType)
+            assertEquals(ScheduleFrequency.EVERY_24_HOURS, vm.state.value.scheduleFrequency)
+            vm.clear()
+        }
+
+    @Test
+    fun step2SkipsDeselectedCidrs() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                )
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.currentStep)
+            assertEquals(2, vm.state.value.createdSubnetCount)
+
+            vm.previousStep()
+            assertEquals(1, vm.state.value.currentStep)
+
+            vm.toggleInterface(wlan0)
+            assertEquals(setOf("192.168.18.0/24"), vm.state.value.selectedCidrs)
+
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.currentStep)
+
+            vm.nextStep()
+            advanceUntilIdle()
+
+            assertEquals(3, vm.state.value.currentStep)
+            assertEquals(1, discoveryRepo.createSourceCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun step2ReentrancyGuard() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                )
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.toggleInterface(wlan0)
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.currentStep)
+
+            vm.nextStep()
+            vm.nextStep()
+            advanceUntilIdle()
+
+            assertEquals(3, vm.state.value.currentStep)
+            assertEquals(1, discoveryRepo.createSourceCallCount)
             vm.clear()
         }
 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -50,6 +51,15 @@ fun SetupWizardScreen(
                     interfaces = state.detectedInterfaces,
                     selectedCidrs = state.selectedCidrs,
                     onToggle = actions.onToggleInterface,
+                    errorMessage = state.errorMessage?.asString(),
+                    onDismissError = actions.onDismissError,
+                )
+            2 ->
+                StepTwoContent(
+                    scanType = state.scanType,
+                    onSelectScanType = actions.onSelectScanType,
+                    scheduleFrequency = state.scheduleFrequency,
+                    onSelectFrequency = actions.onSelectFrequency,
                     errorMessage = state.errorMessage?.asString(),
                     onDismissError = actions.onDismissError,
                 )
@@ -99,6 +109,86 @@ private fun StepOneContent(
                 modifier = Modifier.clickable(onClick = onDismissError),
             )
         }
+    }
+}
+
+@Composable
+private fun StepTwoContent(
+    scanType: ScanType,
+    onSelectScanType: (ScanType) -> Unit,
+    scheduleFrequency: ScheduleFrequency,
+    onSelectFrequency: (ScheduleFrequency) -> Unit,
+    errorMessage: String?,
+    onDismissError: () -> Unit,
+) {
+    Column {
+        Text(
+            text = "Escolha o tipo de varredura:",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        ScanType.entries.forEach { type ->
+            RadioRow(
+                label = type.label,
+                selected = scanType == type,
+                onClick = { onSelectScanType(type) },
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Frequência de varredura:",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        ScheduleFrequency.entries.forEach { freq ->
+            RadioRow(
+                label = freq.label,
+                selected = scheduleFrequency == freq,
+                onClick = { onSelectFrequency(freq) },
+            )
+        }
+
+        if (errorMessage != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.clickable(onClick = onDismissError),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RadioRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(start = 4.dp),
+        )
     }
 }
 

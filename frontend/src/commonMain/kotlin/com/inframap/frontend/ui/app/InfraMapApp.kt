@@ -1,5 +1,8 @@
 package com.inframap.frontend.ui.app
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -8,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
@@ -29,17 +33,22 @@ fun InfraMapApp() {
     var isHealthy by remember { mutableStateOf<Boolean?>(null) }
 
     InfraMapTheme {
-        when (currentRoute) {
-            Route.Splash -> SplashRoute(navigator)
-            Route.Login -> LoginRoute(navigator)
-            Route.Onboarding -> OnboardingRoute(navigator)
-            else ->
-                MainScaffold(
-                    currentRoute = currentRoute,
-                    navigator = navigator,
-                    isHealthy = isHealthy,
-                    onHealthChanged = { isHealthy = it },
-                )
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
+        ) {
+            when (currentRoute) {
+                Route.Splash -> SplashRoute(navigator)
+                Route.Login -> LoginRoute(navigator)
+                Route.Onboarding -> OnboardingRoute(navigator)
+                else ->
+                    MainScaffold(
+                        currentRoute = currentRoute,
+                        navigator = navigator,
+                        isHealthy = isHealthy,
+                        onHealthChanged = { isHealthy = it },
+                    )
+            }
         }
     }
 }

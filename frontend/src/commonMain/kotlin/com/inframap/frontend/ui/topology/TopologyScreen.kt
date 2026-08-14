@@ -29,7 +29,6 @@ import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCanvasBg
 import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
-import com.inframap.frontend.designsystem.InfraMapTextPrimary
 import com.inframap.frontend.designsystem.InfraMapTextSecondary
 import com.inframap.frontend.designsystem.resources.Res
 import org.jetbrains.compose.resources.stringResource
@@ -128,7 +127,7 @@ fun TopologyScreen(
                         Text(
                             text = stringResource(Res.string.topology_title),
                             style = MaterialTheme.typography.headlineSmall,
-                            color = InfraMapTextPrimary,
+                            color = MaterialTheme.colorScheme.onBackground,
                         )
                         Text(
                             text = stringResource(Res.string.topology_subtitle),
