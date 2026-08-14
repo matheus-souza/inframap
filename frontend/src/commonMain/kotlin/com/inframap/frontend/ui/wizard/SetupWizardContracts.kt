@@ -16,6 +16,9 @@ data class SetupWizardUiState(
     val scanType: ScanType = ScanType.FULL,
     val scheduleFrequency: ScheduleFrequency = ScheduleFrequency.EVERY_HOUR,
     val createdSourceIds: List<String> = emptyList(),
+    val scanStarted: Boolean = false,
+    val scanCompleted: Boolean = false,
+    val discoveredDeviceCount: Int = 0,
 )
 
 enum class ScanType(
@@ -46,4 +49,6 @@ data class SetupWizardActions(
     val onDismissError: () -> Unit,
     val onSelectScanType: (ScanType) -> Unit,
     val onSelectFrequency: (ScheduleFrequency) -> Unit,
+    val onStartScan: () -> Unit,
+    val onComplete: () -> Unit,
 )

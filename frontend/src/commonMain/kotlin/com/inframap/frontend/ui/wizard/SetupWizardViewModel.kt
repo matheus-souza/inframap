@@ -5,17 +5,25 @@ import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
 import com.inframap.frontend.data.dto.CreateSubnetRequest
 import com.inframap.frontend.data.storage.LocalStorage
 import com.inframap.frontend.domain.model.NetworkInterface
+import com.inframap.frontend.domain.usecase.dashboard.GetStagingSummaryUseCase
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase
+import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 
+@Suppress("TooManyFunctions")
 class SetupWizardViewModel(
     private val getNetworkInterfacesUseCase: GetNetworkInterfacesUseCase,
     private val createSubnetUseCase: CreateSubnetUseCase,
     private val createDiscoverySourceUseCase: CreateDiscoverySourceUseCase,
+    private val triggerDiscoveryRunUseCase: TriggerDiscoveryRunUseCase,
+    private val getDiscoverySourcesUseCase: GetDiscoverySourcesUseCase,
+    private val getStagingSummaryUseCase: GetStagingSummaryUseCase,
     private val localStorage: LocalStorage,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<SetupWizardUiState>(SetupWizardUiState(), scope) {
@@ -111,6 +119,94 @@ class SetupWizardViewModel(
 
     fun dismissError() {
         updateState { it.copy(errorMessage = null) }
+    }
+
+    fun startScan() {
+        if (currentState.isLoading || currentState.scanStarted) return
+        updateState { it.copy(isLoading = true, errorMessage = null, scanStarted = true) }
+
+        launchJob("trigger_scans") {
+            val sourceIds = currentState.createdSourceIds
+            for (sourceId in sourceIds) {
+                when (val result = triggerDiscoveryRunUseCase(sourceId)) {
+                    is ApiResult.Success -> {}
+                    else -> {
+                        updateState {
+                            it.copy(
+                                isLoading = false,
+                                scanStarted = false,
+                                errorMessage = mapError(result),
+                            )
+                        }
+                        return@launchJob
+                    }
+                }
+            }
+            pollScanStatus(sourceIds)
+        }
+    }
+
+    @Suppress("ReturnCount")
+    private suspend fun pollScanStatus(sourceIds: List<String>) {
+        while (true) {
+            delay(POLL_INTERVAL_MS)
+            when (val result = getDiscoverySourcesUseCase()) {
+                is ApiResult.Success -> {
+                    val sources = result.data.items.filter { it.id in sourceIds }
+                    val allDone = sources.none { it.lastStatus == "running" }
+                    val anyError = sources.any { it.lastStatus == "error" }
+
+                    if (anyError) {
+                        updateState {
+                            it.copy(
+                                isLoading = false,
+                                scanStarted = false,
+                                errorMessage =
+                                    UiText.DynamicString("Erro durante a varredura. Tente novamente."),
+                            )
+                        }
+                        return
+                    }
+                    if (allDone) {
+                        fetchStagingCount()
+                        return
+                    }
+                }
+                else -> {
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            scanStarted = false,
+                            errorMessage = mapError(result),
+                        )
+                    }
+                    return
+                }
+            }
+        }
+    }
+
+    private suspend fun fetchStagingCount() {
+        when (val result = getStagingSummaryUseCase()) {
+            is ApiResult.Success -> {
+                updateState {
+                    it.copy(
+                        isLoading = false,
+                        scanCompleted = true,
+                        discoveredDeviceCount = result.data.items.size,
+                    )
+                }
+            }
+            else -> {
+                updateState {
+                    it.copy(
+                        isLoading = false,
+                        scanCompleted = true,
+                        discoveredDeviceCount = 0,
+                    )
+                }
+            }
+        }
     }
 
     @Suppress("ReturnCount")
@@ -235,5 +331,6 @@ class SetupWizardViewModel(
         const val KEY_WIZARD_DISMISSED = "inframap_wizard_dismissed"
         const val KEY_WIZARD_COMPLETED = "inframap_wizard_completed"
         const val TOTAL_STEPS = 3
+        const val POLL_INTERVAL_MS = 3000L
     }
 }
