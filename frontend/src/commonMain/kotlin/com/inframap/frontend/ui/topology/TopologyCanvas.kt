@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -58,7 +59,7 @@ fun TopologyCanvas(
     actions: TopologyActions,
     modifier: Modifier = Modifier,
 ) {
-    val graph = state.graph ?: return
+    val graph = state.graph
     val positions = state.nodePositions
     val panOffset = state.panOffset
     val zoomScale = state.zoomScale
@@ -103,16 +104,21 @@ fun TopologyCanvas(
             translate(panOffset.x, panOffset.y)
             scale(zoomScale, zoomScale, pivot = Offset.Zero)
         }) {
-            // 3. Subnet Boundary Boxes
-            if (state.showSubnetBoundaries) {
-                drawSubnetBoundaries(graph.nodes, positions, textMeasurer)
+            if (graph == null || graph.nodes.isEmpty()) {
+                // Clean canvas node preview when empty
+                drawEmptyCanvasNodePreview(textMeasurer)
+            } else {
+                // 3. Subnet Boundary Boxes
+                if (state.showSubnetBoundaries) {
+                    drawSubnetBoundaries(graph.nodes, positions, textMeasurer)
+                }
+
+                // 4. Edges
+                drawTopologyEdges(graph.edges, positions, zoomScale)
+
+                // 5. Sleek Node Cards with Vector Icons & Status Glow & Selection Indicator
+                drawTopologyNodeCards(graph.nodes, positions, selectedNodeId, zoomScale, textMeasurer)
             }
-
-            // 4. Edges
-            drawTopologyEdges(graph.edges, positions, zoomScale)
-
-            // 5. Sleek Node Cards with Vector Icons & Status Glow
-            drawTopologyNodeCards(graph.nodes, positions, selectedNodeId, zoomScale, textMeasurer)
         }
     }
 }
@@ -144,10 +150,79 @@ private fun DrawScope.drawDotMatrixGrid(
 }
 
 @OptIn(ExperimentalTextApi::class)
+private fun DrawScope.drawEmptyCanvasNodePreview(textMeasurer: TextMeasurer) {
+    val ghostNodes =
+        listOf(
+            Triple(Offset(0f, -70f), "Preview-Router", "router"),
+            Triple(Offset(-130f, 60f), "Preview-Switch", "switch"),
+            Triple(Offset(130f, 60f), "Preview-Server", "server"),
+        )
+
+    val dashedStroke =
+        Stroke(
+            width = 1.5f,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f),
+        )
+
+    val node1Pos = ghostNodes[0].first
+    val node2Pos = ghostNodes[1].first
+    val node3Pos = ghostNodes[2].first
+
+    drawLine(
+        color = PhysicalEdgeColor.copy(alpha = 0.3f),
+        start = node1Pos,
+        end = node2Pos,
+        strokeWidth = 1.5f,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f),
+    )
+    drawLine(
+        color = VirtualEdgeColor.copy(alpha = 0.3f),
+        start = node1Pos,
+        end = node3Pos,
+        strokeWidth = 1.5f,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f),
+    )
+
+    ghostNodes.forEach { (pos, label, deviceType) ->
+        val cardTopLeft = Offset(pos.x - CARD_WIDTH / 2, pos.y - CARD_HEIGHT / 2)
+        val cardSize = Size(CARD_WIDTH, CARD_HEIGHT)
+        val ghostAlphaColor = InfraMapCyan.copy(alpha = 0.3f)
+
+        drawRoundRect(
+            color = InfraMapSurfaceBg.copy(alpha = 0.35f),
+            topLeft = cardTopLeft,
+            size = cardSize,
+            cornerRadius = CornerRadius(8f, 8f),
+        )
+
+        drawRoundRect(
+            color = InfraMapBorder.copy(alpha = 0.4f),
+            topLeft = cardTopLeft,
+            size = cardSize,
+            cornerRadius = CornerRadius(8f, 8f),
+            style = dashedStroke,
+        )
+
+        val iconCenter = Offset(cardTopLeft.x + 18f, cardTopLeft.y + CARD_HEIGHT / 2)
+        drawDeviceVectorBadge(deviceType, iconCenter, ghostAlphaColor)
+
+        drawText(
+            textMeasurer = textMeasurer,
+            text = label,
+            topLeft = Offset(cardTopLeft.x + 38f, cardTopLeft.y + 16f),
+            style =
+                TextStyle(
+                    color = InfraMapTextSecondary.copy(alpha = 0.45f),
+                ),
+        )
+    }
+}
+
+@OptIn(ExperimentalTextApi::class)
 private fun DrawScope.drawSubnetBoundaries(
     nodes: List<TopologyNode>,
     positions: Map<String, Offset>,
-    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    textMeasurer: TextMeasurer,
 ) {
     if (nodes.isEmpty()) return
 
@@ -230,13 +305,33 @@ private fun DrawScope.drawTopologyEdges(
     }
 }
 
+private fun DrawScope.drawNodeSelectionIndicator(
+    cardTopLeft: Offset,
+    zoomScale: Float,
+) {
+    val glowMargin = 5f / zoomScale
+    drawRoundRect(
+        color = InfraMapCyan.copy(alpha = 0.25f),
+        topLeft = Offset(cardTopLeft.x - glowMargin, cardTopLeft.y - glowMargin),
+        size = Size(CARD_WIDTH + glowMargin * 2, CARD_HEIGHT + glowMargin * 2),
+        cornerRadius = CornerRadius(11f, 11f),
+    )
+    drawRoundRect(
+        color = InfraMapCyan,
+        topLeft = cardTopLeft,
+        size = Size(CARD_WIDTH, 3.5f / zoomScale),
+        cornerRadius = CornerRadius(8f, 8f),
+    )
+}
+
+@Suppress("LongMethod")
 @OptIn(ExperimentalTextApi::class)
 private fun DrawScope.drawTopologyNodeCards(
     nodes: List<TopologyNode>,
     positions: Map<String, Offset>,
     selectedNodeId: String?,
     zoomScale: Float,
-    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    textMeasurer: TextMeasurer,
 ) {
     nodes.forEach { node ->
         val pos = positions[node.id] ?: return@forEach
@@ -246,9 +341,15 @@ private fun DrawScope.drawTopologyNodeCards(
         val cardTopLeft = Offset(pos.x - CARD_WIDTH / 2, pos.y - CARD_HEIGHT / 2)
         val cardSize = Size(CARD_WIDTH, CARD_HEIGHT)
 
-        // Card Surface (#18181b)
+        // Node Selection Indicator
+        if (isSelected) {
+            drawNodeSelectionIndicator(cardTopLeft, zoomScale)
+        }
+
+        // Card Surface (#18181b or elevated dark surface when selected)
+        val surfaceColor = if (isSelected) Color(0xFF27272A) else InfraMapSurfaceBg
         drawRoundRect(
-            color = InfraMapSurfaceBg,
+            color = surfaceColor,
             topLeft = cardTopLeft,
             size = cardSize,
             cornerRadius = CornerRadius(8f, 8f),

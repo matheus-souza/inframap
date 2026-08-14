@@ -34,4 +34,5 @@ data class TopologyActions(
     val onToggleSubnetBoundaries: () -> Unit = {},
     val onTriggerScan: (String) -> Unit = {},
     val onEditMetadata: (String) -> Unit = {},
+    val onConfigureDiscovery: () -> Unit = {},
 )

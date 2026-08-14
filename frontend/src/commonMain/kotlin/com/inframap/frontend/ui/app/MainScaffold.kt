@@ -267,7 +267,7 @@ private fun RouteContent(
             )
         Route.DiscoverySources -> DiscoveryListRoute(navigator = navigator)
         Route.CreateDiscoverySource -> CreateDiscoverySourceRoute(navigator = navigator)
-        Route.Topology -> TopologyRoute()
+        Route.Topology -> TopologyRoute(navigator = navigator)
         else -> PlaceholderScreen("")
     }
 }
@@ -583,7 +583,7 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
 }
 
 @Composable
-private fun TopologyRoute() {
+private fun TopologyRoute(navigator: Navigator) {
     val viewModel: TopologyViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
@@ -597,6 +597,7 @@ private fun TopologyRoute() {
             onPan = viewModel::onPan,
             onZoom = viewModel::onZoom,
             onResetViewport = viewModel::resetViewport,
+            onConfigureDiscovery = { navigator.navigateTo(Route.DiscoverySources) },
         )
     TopologyScreen(
         state = state,

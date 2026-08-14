@@ -70,6 +70,9 @@
     <string name="topology_title">Topologia de Rede</string>
     <string name="topology_subtitle">Visualização interativa da topologia em grafo</string>
     <string name="topology_empty">Nenhum dispositivo descoberto ainda</string>
+    <string name="topology_empty_title">Topologia Vazia</string>
+    <string name="topology_empty_subtitle">O mapa de topologia é gerado a partir dos dispositivos no inventário. Cadastre ou configure uma fonte de descoberta para visualizar as conexões.</string>
+    <string name="topology_configure_discovery">Configurar Fonte de Descoberta</string>
     <string name="topology_reset_view">Resetar Visão</string>
     <string name="topology_refresh">Atualizar</string>
     <string name="topology_retry">Tentar novamente</string>
