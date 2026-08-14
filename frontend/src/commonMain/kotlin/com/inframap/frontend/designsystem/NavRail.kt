@@ -173,6 +173,7 @@ private fun NavRailHoverTooltip(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(6.dp),
                 shadowElevation = 6.dp,
+                modifier = Modifier.semantics { contentDescription = "${item.label} tooltip" },
             ) {
                 Text(
                     text = item.label,
