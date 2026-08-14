@@ -61,7 +61,7 @@ class TopBarTest {
                     InfraMapTopBar(title = "InfraMap", isSseConnected = true)
                 }
             }
-            onNodeWithText("⌘K").assertIsDisplayed()
+            onNodeWithText("K").assertIsDisplayed()
             onNodeWithText("Live SSE").assertIsDisplayed()
             onNodeWithContentDescription("Search trigger button").assertIsDisplayed()
         }
