@@ -1,6 +1,7 @@
 package com.inframap.frontend.di
 
 import com.inframap.frontend.ui.command.CommandPaletteViewModel
+import com.inframap.frontend.ui.dashboard.AutoSetupCoordinator
 import com.inframap.frontend.ui.dashboard.DashboardViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceViewModel
 import com.inframap.frontend.ui.devices.DeviceDetailViewModel
@@ -37,7 +38,9 @@ val presentationModule =
         factory { DiscoveryListViewModel(get(), get(), get()) }
         factory { CreateDiscoverySourceViewModel(get()) }
 
-        factory { DashboardViewModel(get(), get(), get(), get(), get(), getOrNull()) }
+        single { AutoSetupCoordinator(get(), get(), get(), get(), get(), get(), get()) }
+
+        factory { DashboardViewModel(get(), get(), get(), get(), get(), get(), getOrNull()) }
 
         factory { SetupWizardViewModel(get(), get(), get(), get(), get(), get(), get()) }
 

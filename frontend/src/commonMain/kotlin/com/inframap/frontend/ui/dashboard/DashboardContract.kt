@@ -2,6 +2,7 @@
 
 package com.inframap.frontend.ui.dashboard
 
+import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.ui.util.UiText
 
 data class DashboardUiState(
@@ -14,4 +15,21 @@ data class DashboardUiState(
     val isLoading: Boolean = true,
     val errorMessage: UiText? = null,
     val isErrorDismissed: Boolean = false,
+    val autoSetup: AutoSetupState = AutoSetupState(),
 )
+
+data class AutoSetupState(
+    val isVisible: Boolean = false,
+    val detectedInterfaces: List<NetworkInterface> = emptyList(),
+    val phase: AutoSetupPhase = AutoSetupPhase.IDLE,
+    val discoveredDeviceCount: Int = 0,
+    val errorMessage: UiText? = null,
+)
+
+enum class AutoSetupPhase {
+    IDLE,
+    CREATING_SUBNETS,
+    CREATING_SOURCES,
+    SCANNING,
+    COMPLETED,
+}
