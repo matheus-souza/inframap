@@ -343,6 +343,7 @@ private fun DashboardRoute(
         DashboardScreen(
             state = state,
             onRefresh = viewModel::refresh,
+            onDismissError = viewModel::dismissError,
         )
         SetupWizardScreen(
             state = wizardState,
