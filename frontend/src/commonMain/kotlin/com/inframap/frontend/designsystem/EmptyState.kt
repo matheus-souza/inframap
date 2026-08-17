@@ -2,11 +2,13 @@ package com.inframap.frontend.designsystem
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,7 +27,7 @@ fun InfraMapEmptyState(
     modifier: Modifier = Modifier,
     ctaLabel: String? = null,
     onCtaClick: (() -> Unit)? = null,
-    hint: (@Composable () -> Unit)? = null,
+    extraActions: @Composable (() -> Unit)? = null,
 ) {
     InfraMapCard(modifier = modifier.fillMaxWidth()) {
         Column(
@@ -53,13 +55,17 @@ fun InfraMapEmptyState(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center,
             )
-            if (hint != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                hint()
-            }
             if (ctaLabel != null && onCtaClick != null) {
                 Spacer(modifier = Modifier.height(20.dp))
-                InfraMapButton(text = ctaLabel, onClick = onCtaClick)
+                if (extraActions != null) {
+                    Row(horizontalArrangement = Arrangement.Center) {
+                        InfraMapButton(text = ctaLabel, onClick = onCtaClick)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        extraActions()
+                    }
+                } else {
+                    InfraMapButton(text = ctaLabel, onClick = onCtaClick)
+                }
             }
         }
     }

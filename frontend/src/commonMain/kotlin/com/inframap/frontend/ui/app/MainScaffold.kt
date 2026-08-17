@@ -344,6 +344,8 @@ private fun DashboardRoute(
             state = state,
             onRefresh = viewModel::refresh,
             onDismissError = viewModel::dismissError,
+            onNavigateToSubnets = { navigator.navigateTo(Route.Subnets) },
+            onNavigateToDiscovery = { navigator.navigateTo(Route.DiscoverySources) },
         )
         SetupWizardScreen(
             state = wizardState,

@@ -6,7 +6,27 @@
     
     <!-- Dashboard -->
     <string name="dashboard_title">Dashboard</string>
+    <string name="dashboard_subtitle">Visão Geral da Infraestrutura</string>
     <string name="dashboard_error_load">Falha ao carregar métricas do dashboard.</string>
+    <string name="dashboard_refresh">Atualizar</string>
+    <string name="dashboard_retry">Tentar novamente</string>
+    <string name="dashboard_close">Fechar</string>
+    <string name="dashboard_active_devices">Dispositivos Ativos</string>
+    <string name="dashboard_active_devices_subtitle">Itens no inventário</string>
+    <string name="dashboard_staged_devices">Dispositivos em Staging</string>
+    <string name="dashboard_staged_devices_subtitle">Aguardando verificação</string>
+    <string name="dashboard_system_health">Saúde do Sistema</string>
+    <string name="dashboard_health_healthy">Saudável</string>
+    <string name="dashboard_health_degraded">Degradado</string>
+    <string name="dashboard_health_checking">Verificando...</string>
+    <string name="dashboard_health_version">Versão: %1$s</string>
+    <string name="dashboard_health_core">Plataforma principal</string>
+    <string name="dashboard_discovery_sources">Fontes de Descoberta</string>
+    <string name="dashboard_discovery_sources_subtitle">Alvos configurados</string>
+    <string name="dashboard_welcome_title">Bem-vindo ao InfraMap</string>
+    <string name="dashboard_welcome_subtitle">Para começar, cadastre uma sub-rede e configure uma fonte de descoberta para escanear sua rede automaticamente.</string>
+    <string name="dashboard_welcome_cta_subnet">Cadastrar Sub-rede</string>
+    <string name="dashboard_welcome_cta_discovery">Configurar Descoberta</string>
     
     <!-- Devices -->
     <string name="devices_title">Dispositivos</string>
