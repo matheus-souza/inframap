@@ -13,6 +13,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +23,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -52,28 +57,137 @@ fun InfraMapNavRail(
     items: List<NavRailItem>,
     selectedRoute: String,
     onItemSelected: (String) -> Unit,
+    isExpanded: Boolean = true,
+    onToggleExpanded: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val railWidth = if (isExpanded) 200.dp else 56.dp
+
     Surface(
-        modifier = modifier.width(56.dp).fillMaxHeight(),
+        modifier = modifier.width(railWidth).fillMaxHeight(),
         color = MaterialTheme.colorScheme.surface,
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = if (isExpanded) Alignment.Start else Alignment.CenterHorizontally,
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
+            NavRailToggleButton(isExpanded = isExpanded, onToggle = onToggleExpanded)
             items.forEach { item ->
                 val isSelected = item.route == selectedRoute
-                SlimNavRailItem(
-                    item = item,
-                    isSelected = isSelected,
-                    onClick = { onItemSelected(item.route) },
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                if (isExpanded) {
+                    ExpandedNavRailItem(
+                        item = item,
+                        isSelected = isSelected,
+                        onClick = { onItemSelected(item.route) },
+                    )
+                } else {
+                    SlimNavRailItem(
+                        item = item,
+                        isSelected = isSelected,
+                        onClick = { onItemSelected(item.route) },
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
             }
         }
     }
+}
+
+@Composable
+private fun NavRailToggleButton(
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .padding(horizontal = 8.dp),
+        contentAlignment = if (isExpanded) Alignment.CenterEnd else Alignment.Center,
+    ) {
+        IconButton(onClick = onToggle) {
+            Icon(
+                imageVector =
+                    if (isExpanded) {
+                        Icons.AutoMirrored.Filled.KeyboardArrowLeft
+                    } else {
+                        Icons.Filled.Menu
+                    },
+                contentDescription = if (isExpanded) "Collapse menu" else "Expand menu",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExpandedNavRailItem(
+    item: NavRailItem,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val accentColor = MaterialTheme.colorScheme.primary
+    val backgroundColor =
+        when {
+            isSelected -> accentColor.copy(alpha = 0.15f)
+            isHovered -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+            else -> Color.Transparent
+        }
+    val foreground = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .padding(horizontal = 8.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(backgroundColor)
+                .hoverable(interactionSource)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick,
+                ).semantics { contentDescription = item.label },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Spacer(modifier = Modifier.width(12.dp))
+        ExpandedNavRailItemContent(item = item, isSelected = isSelected, foreground = foreground)
+    }
+}
+
+@Composable
+private fun ExpandedNavRailItemContent(
+    item: NavRailItem,
+    isSelected: Boolean,
+    foreground: Color,
+) {
+    if (isSelected) {
+        Box(
+            modifier =
+                Modifier
+                    .width(3.dp)
+                    .height(20.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.primary),
+        )
+        Spacer(modifier = Modifier.width(9.dp))
+    }
+    Icon(
+        imageVector = item.icon,
+        contentDescription = null,
+        modifier = Modifier.size(20.dp),
+        tint = foreground,
+    )
+    Spacer(modifier = Modifier.width(12.dp))
+    Text(
+        text = item.label,
+        style = MaterialTheme.typography.labelLarge,
+        color = if (isSelected) foreground else MaterialTheme.colorScheme.onSurface,
+    )
 }
 
 @Composable
