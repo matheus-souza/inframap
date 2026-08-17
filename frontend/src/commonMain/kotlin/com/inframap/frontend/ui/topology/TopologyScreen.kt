@@ -29,7 +29,13 @@ import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
 import com.inframap.frontend.designsystem.InfraMapTextSecondary
-import com.inframap.frontend.designsystem.resources.Res
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.topology_configure_discovery
+import com.inframap.frontend.generated.resources.topology_empty_subtitle
+import com.inframap.frontend.generated.resources.topology_empty_title
+import com.inframap.frontend.generated.resources.topology_retry
+import com.inframap.frontend.generated.resources.topology_subtitle
+import com.inframap.frontend.generated.resources.topology_title
 import org.jetbrains.compose.resources.stringResource
 
 @Suppress("LongMethod")

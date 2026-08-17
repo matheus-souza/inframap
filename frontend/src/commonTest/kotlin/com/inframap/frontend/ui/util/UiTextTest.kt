@@ -1,6 +1,7 @@
 package com.inframap.frontend.ui.util
 
-import com.inframap.frontend.designsystem.resources.Res
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.loading
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

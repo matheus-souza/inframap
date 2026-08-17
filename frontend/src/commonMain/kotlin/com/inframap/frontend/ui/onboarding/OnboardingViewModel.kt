@@ -1,8 +1,13 @@
 package com.inframap.frontend.ui.onboarding
 
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.usecase.auth.OnboardUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.onboarding_error_generic
+import com.inframap.frontend.generated.resources.validation_email_invalid
+import com.inframap.frontend.generated.resources.validation_password_min
+import com.inframap.frontend.generated.resources.validation_password_mismatch
+import com.inframap.frontend.generated.resources.validation_username_min
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope

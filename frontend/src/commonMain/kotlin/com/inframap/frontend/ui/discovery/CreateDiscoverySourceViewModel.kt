@@ -2,8 +2,12 @@ package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.discovery_error_create
+import com.inframap.frontend.generated.resources.validation_cidr_invalid
+import com.inframap.frontend.generated.resources.validation_discovery_name_required
+import com.inframap.frontend.generated.resources.validation_discovery_type_required
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
