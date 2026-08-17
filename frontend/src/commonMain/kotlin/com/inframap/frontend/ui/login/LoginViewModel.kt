@@ -1,8 +1,11 @@
 package com.inframap.frontend.ui.login
 
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.usecase.auth.LoginUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.login_error_credentials
+import com.inframap.frontend.generated.resources.login_error_network
+import com.inframap.frontend.generated.resources.login_error_rate_limit
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope

@@ -1,9 +1,11 @@
 package com.inframap.frontend.ui.devices
 
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.usecase.device.DeleteDeviceUseCase
 import com.inframap.frontend.domain.usecase.device.GetDeviceByIdUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.devices_error_delete
+import com.inframap.frontend.generated.resources.devices_error_load_detail
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
