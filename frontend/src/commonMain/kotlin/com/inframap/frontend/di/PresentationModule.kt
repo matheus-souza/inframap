@@ -9,6 +9,7 @@ import com.inframap.frontend.ui.devices.EditDeviceViewModel
 import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
 import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
 import com.inframap.frontend.ui.login.LoginViewModel
+import com.inframap.frontend.ui.onboarding.OnboardingCoordinator
 import com.inframap.frontend.ui.onboarding.OnboardingViewModel
 import com.inframap.frontend.ui.splash.SplashViewModel
 import com.inframap.frontend.ui.staging.StagingViewModel
@@ -45,6 +46,8 @@ val presentationModule =
         factory { TopologyViewModel(get(), getOrNull()) }
 
         factory { CommandPaletteViewModel(get()) }
+
+        single { OnboardingCoordinator(get()) }
 
         factory { LoginViewModel(get()) }
         factory { OnboardingViewModel(get()) }
