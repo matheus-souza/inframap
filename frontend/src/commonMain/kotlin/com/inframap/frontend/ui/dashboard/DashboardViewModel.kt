@@ -37,12 +37,16 @@ class DashboardViewModel(
 
     fun loadData() {
         metricsGeneration++
-        updateState { it.copy(isLoading = true, errorMessage = null) }
+        updateState { it.copy(isLoading = true, errorMessage = null, isErrorDismissed = false) }
         triggerFetchMetrics()
     }
 
     fun refresh() {
         loadData()
+    }
+
+    fun dismissError() {
+        updateState { it.copy(isErrorDismissed = true) }
     }
 
     private fun triggerFetchMetrics() {
