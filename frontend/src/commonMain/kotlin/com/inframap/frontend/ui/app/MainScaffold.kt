@@ -49,6 +49,7 @@ import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
 import com.inframap.frontend.ui.discovery.DiscoveryListActions
 import com.inframap.frontend.ui.discovery.DiscoveryListScreen
 import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
+import com.inframap.frontend.ui.onboarding.OnboardingCoordinator
 import com.inframap.frontend.ui.staging.StagingActions
 import com.inframap.frontend.ui.staging.StagingScreen
 import com.inframap.frontend.ui.staging.StagingViewModel
@@ -98,6 +99,7 @@ fun MainScaffold(
     val commandPaletteState by commandPaletteViewModel.state.collectAsState()
     val tourViewModel: ProductTourViewModel = koinInject()
     val tourState by tourViewModel.state.collectAsState()
+    val onboardingCoordinator: OnboardingCoordinator = koinInject()
 
     DisposableEffect(commandPaletteViewModel) {
         onDispose { commandPaletteViewModel.clear() }
@@ -107,7 +109,9 @@ fun MainScaffold(
     }
 
     LaunchedEffect(Unit) {
-        tourViewModel.checkShouldShow()
+        if (onboardingCoordinator.shouldShowTour()) {
+            tourViewModel.checkShouldShow()
+        }
         commandPaletteViewModel.effects.collect { effect ->
             when (effect) {
                 is CommandPaletteEffect.ExecuteItem -> {
@@ -129,6 +133,7 @@ fun MainScaffold(
             onHealthChanged = onHealthChanged,
             onOpenCommandPalette = commandPaletteViewModel::open,
             onRestartTourClicked = tourViewModel::startTour,
+            onWizardCompleted = tourViewModel::startTour,
         )
         MainScaffoldOverlays(
             commandPaletteState = commandPaletteState,
@@ -181,6 +186,7 @@ private fun MainScaffoldContent(
     onHealthChanged: (Boolean?) -> Unit,
     onOpenCommandPalette: () -> Unit,
     onRestartTourClicked: () -> Unit,
+    onWizardCompleted: () -> Unit = {},
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -207,6 +213,7 @@ private fun MainScaffoldContent(
                         currentRoute = currentRoute,
                         navigator = navigator,
                         onHealthChanged = onHealthChanged,
+                        onWizardCompleted = onWizardCompleted,
                     )
                 }
             }
@@ -282,9 +289,10 @@ private fun RouteContent(
     currentRoute: Route,
     navigator: Navigator,
     onHealthChanged: (Boolean?) -> Unit = {},
+    onWizardCompleted: () -> Unit = {},
 ) {
     when (currentRoute) {
-        Route.Dashboard -> DashboardRoute(onHealthChanged, navigator)
+        Route.Dashboard -> DashboardRoute(onHealthChanged, onWizardCompleted, navigator)
         Route.Devices -> DeviceListRoute(navigator = navigator)
         is Route.DeviceDetail ->
             DeviceDetailRoute(
@@ -317,10 +325,12 @@ private fun RouteContent(
 @Composable
 private fun DashboardRoute(
     onHealthChanged: (Boolean?) -> Unit = {},
+    onWizardCompleted: () -> Unit = {},
     navigator: Navigator,
 ) {
     val viewModel: DashboardViewModel = koinInject()
     val wizardViewModel: SetupWizardViewModel = koinInject()
+    val coordinator: OnboardingCoordinator = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -335,7 +345,9 @@ private fun DashboardRoute(
     }
     LaunchedEffect(state.isLoading, state.errorMessage, state.totalSubnets, state.totalActiveDevices) {
         if (!state.isLoading && state.errorMessage == null) {
-            wizardViewModel.checkShouldShow(state.totalSubnets, state.totalActiveDevices)
+            if (coordinator.shouldShowWizard(state.totalSubnets, state.totalActiveDevices)) {
+                wizardViewModel.checkShouldShow(state.totalSubnets, state.totalActiveDevices)
+            }
         }
     }
 
@@ -362,6 +374,8 @@ private fun DashboardRoute(
                     onStartScan = wizardViewModel::startScan,
                     onComplete = {
                         wizardViewModel.complete()
+                        coordinator.onWizardCompleted()
+                        onWizardCompleted()
                         navigator.navigateTo(Route.Staging)
                     },
                 ),
