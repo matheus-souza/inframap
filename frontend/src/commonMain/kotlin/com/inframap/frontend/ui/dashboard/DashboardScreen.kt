@@ -44,6 +44,27 @@ import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapRed
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.common_close
+import com.inframap.frontend.generated.resources.common_refresh
+import com.inframap.frontend.generated.resources.common_retry
+import com.inframap.frontend.generated.resources.dashboard_active_devices
+import com.inframap.frontend.generated.resources.dashboard_active_devices_subtitle
+import com.inframap.frontend.generated.resources.dashboard_discovery_sources
+import com.inframap.frontend.generated.resources.dashboard_discovery_sources_subtitle
+import com.inframap.frontend.generated.resources.dashboard_health_checking
+import com.inframap.frontend.generated.resources.dashboard_health_core
+import com.inframap.frontend.generated.resources.dashboard_health_degraded
+import com.inframap.frontend.generated.resources.dashboard_health_healthy
+import com.inframap.frontend.generated.resources.dashboard_health_version
+import com.inframap.frontend.generated.resources.dashboard_staged_devices
+import com.inframap.frontend.generated.resources.dashboard_staged_devices_subtitle
+import com.inframap.frontend.generated.resources.dashboard_subtitle
+import com.inframap.frontend.generated.resources.dashboard_system_health
+import com.inframap.frontend.generated.resources.dashboard_title
+import com.inframap.frontend.generated.resources.dashboard_welcome_subtitle
+import com.inframap.frontend.generated.resources.dashboard_welcome_title
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun DashboardScreen(
@@ -94,18 +115,18 @@ private fun DashboardHeader(
     ) {
         Column {
             Text(
-                text = "Dashboard",
+                text = stringResource(Res.string.dashboard_title),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = "Infrastructure Overview & Real-Time Metrics",
+                text = stringResource(Res.string.dashboard_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         InfraMapButton(
-            text = "Refresh",
+            text = stringResource(Res.string.common_refresh),
             onClick = onRefresh,
             enabled = !isLoading,
         )
@@ -148,14 +169,15 @@ private fun DashboardErrorToast(
             Spacer(modifier = Modifier.width(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InfraMapButton(
-                    text = "Retry",
+                    text = stringResource(Res.string.common_retry),
                     onClick = onRefresh,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Filled.Close,
-                        contentDescription = "Fechar",
+                        contentDescription =
+                            stringResource(Res.string.common_close),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -366,10 +388,8 @@ private fun AutoSetupCompletedCard(
 private fun DashboardWelcomeBanner() {
     InfraMapEmptyState(
         icon = Icons.Filled.Rocket,
-        title = "Bem-vindo ao InfraMap",
-        subtitle =
-            "Para começar, cadastre uma subrede na seção Subredes e configure " +
-                "uma fonte de descoberta para escanear sua rede automaticamente.",
+        title = stringResource(Res.string.dashboard_welcome_title),
+        subtitle = stringResource(Res.string.dashboard_welcome_subtitle),
     )
 }
 
@@ -383,16 +403,16 @@ private fun DashboardMetrics(state: DashboardUiState) {
         maxItemsInEachRow = 4,
     ) {
         MetricCard(
-            title = "Active Devices",
+            title = stringResource(Res.string.dashboard_active_devices),
             value = state.totalActiveDevices.toString(),
-            subtitle = "Inventory items",
+            subtitle = stringResource(Res.string.dashboard_active_devices_subtitle),
             icon = InfraMapIcons.Dns,
             modifier = Modifier.width(260.dp),
         )
         MetricCard(
-            title = "Staged Devices",
+            title = stringResource(Res.string.dashboard_staged_devices),
             value = state.totalStagedDevices.toString(),
-            subtitle = "Awaiting verification",
+            subtitle = stringResource(Res.string.dashboard_staged_devices_subtitle),
             icon = InfraMapIcons.MoveToInbox,
             modifier = Modifier.width(260.dp),
         )
@@ -403,9 +423,10 @@ private fun DashboardMetrics(state: DashboardUiState) {
             modifier = Modifier.width(260.dp),
         )
         MetricCard(
-            title = "Discovery Sources",
+            title = stringResource(Res.string.dashboard_discovery_sources),
             value = state.totalDiscoverySources.toString(),
-            subtitle = "Configured targets",
+            subtitle =
+                stringResource(Res.string.dashboard_discovery_sources_subtitle),
             icon = InfraMapIcons.Radar,
             modifier = Modifier.width(260.dp),
         )
@@ -428,7 +449,7 @@ private fun MetricCard(
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = "$title icon",
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp),
                 )
@@ -462,13 +483,13 @@ private fun HealthMetricCard(
     icon: ImageVector = Icons.Filled.CheckCircle,
     modifier: Modifier = Modifier,
 ) {
+    val healthTitle = stringResource(Res.string.dashboard_system_health)
     val statusText =
         when (isHealthy) {
-            true -> "Healthy"
-            false -> "Degraded"
-            null -> "Checking..."
+            true -> stringResource(Res.string.dashboard_health_healthy)
+            false -> stringResource(Res.string.dashboard_health_degraded)
+            null -> stringResource(Res.string.dashboard_health_checking)
         }
-
     val dotColor =
         when (isHealthy) {
             true -> InfraMapGreen
@@ -480,44 +501,64 @@ private fun HealthMetricCard(
         Column {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.semantics { contentDescription = "System Health KPI Card" },
+                modifier =
+                    Modifier.semantics {
+                        contentDescription = "$healthTitle KPI Card"
+                    },
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = "System Health icon",
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "System Health",
+                    text = healthTitle,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(dotColor)
-                            .semantics { contentDescription = "Health indicator" },
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = if (version.isNotEmpty()) "Version: $version" else "Core platform",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            HealthStatusRow(
+                statusText = statusText,
+                dotColor = dotColor,
+                version = version,
             )
         }
     }
+}
+
+@Composable
+private fun HealthStatusRow(
+    statusText: String,
+    dotColor: androidx.compose.ui.graphics.Color,
+    version: String,
+) {
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier =
+                Modifier
+                    .size(12.dp)
+                    .clip(CircleShape)
+                    .background(dotColor),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = statusText,
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        text =
+            if (version.isNotEmpty()) {
+                stringResource(Res.string.dashboard_health_version, version)
+            } else {
+                stringResource(Res.string.dashboard_health_core)
+            },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
