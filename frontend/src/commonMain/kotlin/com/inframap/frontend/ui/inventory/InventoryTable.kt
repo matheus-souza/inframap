@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Router
@@ -44,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.inframap.frontend.designsystem.InfraMapIcons
 
 val JetBrainsMonoFontFamily: FontFamily = FontFamily.Monospace
 
@@ -341,7 +341,7 @@ fun InventoryStatusPill(
 private fun getDeviceTypeIcon(deviceType: String): ImageVector =
     when (deviceType.lowercase()) {
         "router" -> Icons.Filled.Router
-        "switch", "server" -> Icons.Filled.Dns
+        "switch", "server" -> InfraMapIcons.Dns
         "firewall" -> Icons.Filled.Security
         "storage" -> Icons.Filled.Storage
         "workstation", "pc" -> Icons.Filled.Computer

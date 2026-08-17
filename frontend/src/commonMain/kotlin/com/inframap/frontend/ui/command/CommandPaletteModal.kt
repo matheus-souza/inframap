@@ -23,9 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Hub
-import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -57,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.inframap.frontend.designsystem.InfraMapBorder
+import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapSurfaceBg
 import com.inframap.frontend.designsystem.InfraMapSurfaceElevated
 import com.inframap.frontend.designsystem.InfraMapTextPrimary
@@ -346,8 +345,8 @@ private fun CommandPaletteItemRow(
     val bgModifier = if (isSelected) Modifier.background(InfraMapSurfaceElevated) else Modifier
     val icon: ImageVector =
         when (item.category) {
-            CommandPaletteCategory.DISPOSITIVOS -> Icons.Default.Dns
-            CommandPaletteCategory.SUBREDES -> Icons.Default.Lan
+            CommandPaletteCategory.DISPOSITIVOS -> InfraMapIcons.Dns
+            CommandPaletteCategory.SUBREDES -> InfraMapIcons.Lan
             CommandPaletteCategory.FONTES -> Icons.Default.Hub
             CommandPaletteCategory.ACOES -> Icons.Default.Bolt
         }

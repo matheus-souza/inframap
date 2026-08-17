@@ -18,10 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Lan
-import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapBorder
 import com.inframap.frontend.designsystem.InfraMapButton
+import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapPurple
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapSurfaceBg
@@ -88,7 +86,7 @@ fun DeviceInspectorSheet(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 // Section 1: Network Identity
-                InspectorSection(title = "Network Identity", icon = Icons.Default.Dns) {
+                InspectorSection(title = "Network Identity", icon = InfraMapIcons.Dns) {
                     DetailRow(label = "Hostname", value = node.label)
                     DetailRow(
                         label = "IP Address",
@@ -108,7 +106,7 @@ fun DeviceInspectorSheet(
                 }
 
                 // Section 2: Hardware & Status
-                InspectorSection(title = "Device Specs & Status", icon = Icons.Default.Lan) {
+                InspectorSection(title = "Device Specs & Status", icon = InfraMapIcons.Lan) {
                     DetailRow(label = "Device Type", value = node.deviceType.replaceFirstChar { it.uppercase() })
                     Row(
                         modifier =
@@ -128,7 +126,7 @@ fun DeviceInspectorSheet(
                 }
 
                 // Section 3: Active Interfaces & Latency
-                InspectorSection(title = "Active Interfaces & Health", icon = Icons.Default.Radar) {
+                InspectorSection(title = "Active Interfaces & Health", icon = InfraMapIcons.Radar) {
                     DetailRow(
                         label = "Interfaces",
                         value = "eth0 (active), eth1 (standby)",
