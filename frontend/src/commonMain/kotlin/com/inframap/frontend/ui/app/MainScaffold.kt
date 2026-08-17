@@ -17,9 +17,13 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.data.storage.LocalStorage
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.domain.model.CommandPaletteAction
 import com.inframap.frontend.navigation.Navigator
@@ -76,6 +80,8 @@ data class NavItem(
     val icon: ImageVector,
     val route: Route,
 )
+
+private const val KEY_NAVRAIL_COLLAPSED = "inframap_navrail_collapsed"
 
 private val navItems =
     listOf(
@@ -182,6 +188,11 @@ private fun MainScaffoldContent(
     onOpenCommandPalette: () -> Unit,
     onRestartTourClicked: () -> Unit,
 ) {
+    val localStorage: LocalStorage = koinInject()
+    var isNavRailExpanded by remember {
+        mutableStateOf(localStorage.get(KEY_NAVRAIL_COLLAPSED) == null)
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -194,7 +205,19 @@ private fun MainScaffoldContent(
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             Row(modifier = Modifier.weight(1f)) {
-                AppNavRail(currentRoute = currentRoute, navigator = navigator)
+                AppNavRail(
+                    currentRoute = currentRoute,
+                    navigator = navigator,
+                    isExpanded = isNavRailExpanded,
+                    onToggleExpanded = {
+                        isNavRailExpanded = !isNavRailExpanded
+                        if (isNavRailExpanded) {
+                            localStorage.remove(KEY_NAVRAIL_COLLAPSED)
+                        } else {
+                            localStorage.set(KEY_NAVRAIL_COLLAPSED, "true")
+                        }
+                    },
+                )
                 VerticalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                 Box(
                     modifier =
@@ -233,6 +256,8 @@ private fun AppTopBar(
 private fun AppNavRail(
     currentRoute: Route,
     navigator: Navigator,
+    isExpanded: Boolean = true,
+    onToggleExpanded: () -> Unit = {},
 ) {
     val items =
         navItems.map { navItem ->
@@ -274,6 +299,8 @@ private fun AppNavRail(
                 navigator.navigateTo(targetNavItem.route)
             }
         },
+        isExpanded = isExpanded,
+        onToggleExpanded = onToggleExpanded,
     )
 }
 
