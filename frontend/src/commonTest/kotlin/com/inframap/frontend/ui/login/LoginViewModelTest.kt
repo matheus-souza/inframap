@@ -2,10 +2,11 @@ package com.inframap.frontend.ui.login
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.model.LoginResult
 import com.inframap.frontend.domain.usecase.auth.LoginUseCase
 import com.inframap.frontend.fakes.FakeAuthRepository
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.login_error_credentials
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle

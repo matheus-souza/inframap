@@ -2,10 +2,16 @@ package com.inframap.frontend.ui.subnets
 
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CreateSubnetRequest
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.subnets_error_create
+import com.inframap.frontend.generated.resources.validation_cidr_invalid
+import com.inframap.frontend.generated.resources.validation_cidr_required
+import com.inframap.frontend.generated.resources.validation_gateway_invalid
+import com.inframap.frontend.generated.resources.validation_subnet_name_required
+import com.inframap.frontend.generated.resources.validation_vlan_invalid
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope

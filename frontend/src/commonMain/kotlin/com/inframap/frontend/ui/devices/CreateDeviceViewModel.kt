@@ -1,8 +1,11 @@
 package com.inframap.frontend.ui.devices
 
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.usecase.device.CreateDeviceUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.devices_error_create
+import com.inframap.frontend.generated.resources.validation_device_type_required
+import com.inframap.frontend.generated.resources.validation_hostname_required
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope

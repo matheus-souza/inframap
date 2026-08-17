@@ -1,11 +1,16 @@
 package com.inframap.frontend.ui.staging
 
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.model.StagingDevice
 import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.staging_approve_success
+import com.inframap.frontend.generated.resources.staging_dismiss_success
+import com.inframap.frontend.generated.resources.staging_error_approve
+import com.inframap.frontend.generated.resources.staging_error_dismiss
+import com.inframap.frontend.generated.resources.staging_error_load
 import com.inframap.frontend.ui.base.BaseListViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope

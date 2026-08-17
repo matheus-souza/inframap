@@ -1,11 +1,15 @@
 package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.usecase.discovery.DeleteDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.discovery_error_delete
+import com.inframap.frontend.generated.resources.discovery_error_load
+import com.inframap.frontend.generated.resources.discovery_error_trigger
+import com.inframap.frontend.generated.resources.discovery_run_triggered
 import com.inframap.frontend.ui.base.BaseListViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
