@@ -79,7 +79,20 @@ class DashboardViewModel(
             it.copy(autoSetup = it.autoSetup.copy(phase = AutoSetupPhase.CREATING_SOURCES))
         }
 
-        when (val result = autoSetupCoordinator.createSourcesAndScan(interfaces)) {
+        val sourceIds =
+            when (val result = autoSetupCoordinator.createSourcesAndTriggerScan(interfaces)) {
+                is ApiResult.Success -> result.data
+                else -> {
+                    updateAutoSetupError(mapError(result))
+                    return
+                }
+            }
+
+        updateState {
+            it.copy(autoSetup = it.autoSetup.copy(phase = AutoSetupPhase.SCANNING))
+        }
+
+        when (val result = autoSetupCoordinator.pollScanAndCount(sourceIds)) {
             is ApiResult.Success -> {
                 updateState {
                     it.copy(

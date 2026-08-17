@@ -44,7 +44,8 @@ class AutoSetupCoordinator(
                 )
             when (result) {
                 is ApiResult.Success -> Unit
-                is ApiResult.Error -> return result
+                is ApiResult.Error ->
+                    if (result.httpStatus != CONFLICT_STATUS) return result
                 is ApiResult.NetworkError -> return result
             }
         }
@@ -52,7 +53,7 @@ class AutoSetupCoordinator(
     }
 
     @Suppress("ReturnCount")
-    suspend fun createSourcesAndScan(interfaces: List<NetworkInterface>): ApiResult<Int> {
+    suspend fun createSourcesAndTriggerScan(interfaces: List<NetworkInterface>): ApiResult<List<String>> {
         val sourceIds = mutableListOf<String>()
         for (iface in interfaces) {
             val result =
@@ -67,7 +68,8 @@ class AutoSetupCoordinator(
                 )
             when (result) {
                 is ApiResult.Success -> sourceIds.add(result.data.id)
-                is ApiResult.Error -> return result
+                is ApiResult.Error ->
+                    if (result.httpStatus != CONFLICT_STATUS) return result
                 is ApiResult.NetworkError -> return result
             }
         }
@@ -78,13 +80,16 @@ class AutoSetupCoordinator(
                 is ApiResult.NetworkError -> return result
             }
         }
-        return pollScanAndCount(sourceIds)
+        return ApiResult.Success(sourceIds, "")
     }
 
     @Suppress("ReturnCount")
-    private suspend fun pollScanAndCount(sourceIds: List<String>): ApiResult<Int> {
-        while (true) {
+    suspend fun pollScanAndCount(sourceIds: List<String>): ApiResult<Int> {
+        if (sourceIds.isEmpty()) return fetchStagingCount()
+        var attempts = 0
+        while (attempts < MAX_POLL_ATTEMPTS) {
             delay(POLL_INTERVAL_MS)
+            attempts++
             when (val result = getDiscoverySourcesUseCase()) {
                 is ApiResult.Success -> {
                     val sources = result.data.items.filter { it.id in sourceIds }
@@ -104,16 +109,25 @@ class AutoSetupCoordinator(
                 is ApiResult.NetworkError -> return result
             }
         }
+        return ApiResult.Error(
+            code = "SCAN_TIMEOUT",
+            message = "Tempo limite de varredura excedido.",
+            requestId = "",
+            httpStatus = 408,
+        )
     }
 
     private suspend fun fetchStagingCount(): ApiResult<Int> =
         when (val result = getStagingSummaryUseCase()) {
             is ApiResult.Success -> ApiResult.Success(result.data.items.size, result.requestId)
-            else -> ApiResult.Success(0, "")
+            is ApiResult.Error -> result
+            is ApiResult.NetworkError -> result
         }
 
     companion object {
         const val KEY_DISMISSED = "inframap_auto_setup_dismissed"
         private const val POLL_INTERVAL_MS = 3000L
+        private const val MAX_POLL_ATTEMPTS = 60
+        private const val CONFLICT_STATUS = 409
     }
 }
