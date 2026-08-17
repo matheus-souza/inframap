@@ -29,4 +29,5 @@ data class StagingActions(
     val onDismissActionError: () -> Unit,
     val onDismissToast: () -> Unit,
     val onRetryClicked: () -> Unit,
+    val onConfigureDiscovery: () -> Unit,
 )
