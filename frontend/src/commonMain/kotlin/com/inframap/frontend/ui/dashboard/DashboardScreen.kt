@@ -32,8 +32,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,10 +51,9 @@ import com.inframap.frontend.designsystem.InfraMapRed
 fun DashboardScreen(
     state: DashboardUiState,
     onRefresh: () -> Unit,
+    onDismissError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var isErrorDismissed by remember(state.errorMessage) { mutableStateOf(false) }
-
     Column(
         modifier =
             modifier
@@ -66,11 +63,11 @@ fun DashboardScreen(
         DashboardHeader(isLoading = state.isLoading, onRefresh = onRefresh)
         Spacer(modifier = Modifier.height(24.dp))
 
-        if (state.errorMessage != null && !isErrorDismissed) {
+        if (state.errorMessage != null && !state.isErrorDismissed) {
             DashboardErrorToast(
                 errorMessage = state.errorMessage.asString(),
                 onRefresh = onRefresh,
-                onDismiss = { isErrorDismissed = true },
+                onDismiss = onDismissError,
             )
             Spacer(modifier = Modifier.height(24.dp))
         }

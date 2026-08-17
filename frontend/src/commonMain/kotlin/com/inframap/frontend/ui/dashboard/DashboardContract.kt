@@ -13,4 +13,5 @@ data class DashboardUiState(
     val totalDiscoverySources: Long = 0,
     val isLoading: Boolean = true,
     val errorMessage: UiText? = null,
+    val isErrorDismissed: Boolean = false,
 )
