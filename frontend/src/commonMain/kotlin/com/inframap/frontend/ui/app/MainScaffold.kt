@@ -307,7 +307,7 @@ private fun RouteContent(
                 navigator = navigator,
             )
 
-        Route.Staging -> StagingRoute()
+        Route.Staging -> StagingRoute(navigator = navigator)
         Route.Subnets -> SubnetsRoute(navigator = navigator)
         is Route.CreateSubnet ->
             CreateSubnetRoute(
@@ -502,7 +502,7 @@ private fun EditDeviceRoute(
 }
 
 @Composable
-private fun StagingRoute() {
+private fun StagingRoute(navigator: Navigator) {
     val viewModel: StagingViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
@@ -518,6 +518,7 @@ private fun StagingRoute() {
             onDismissActionError = viewModel::dismissActionError,
             onDismissToast = viewModel::dismissToast,
             onRetryClicked = { viewModel.loadPage(1) },
+            onConfigureDiscovery = { navigator.navigateTo(Route.DiscoverySources) },
         )
     StagingScreen(
         state = state,
