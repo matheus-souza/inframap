@@ -133,6 +133,8 @@ private fun StagingTableCard(
             subtitle =
                 "Dispositivos descobertos automaticamente aparecem aqui para revisão. " +
                     "Configure uma fonte de descoberta e execute um scan para começar.",
+            ctaLabel = "Configurar Descoberta",
+            onCtaClick = actions.onConfigureDiscovery,
         )
     } else {
         val columns =
