@@ -3,12 +3,13 @@ package com.inframap.frontend.ui.dashboard
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.data.sse.SSEEvent
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.usecase.dashboard.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.dashboard.GetHealthUseCase
 import com.inframap.frontend.domain.usecase.device.GetDevicesUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.dashboard_error_load
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope

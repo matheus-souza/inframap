@@ -1,9 +1,10 @@
 package com.inframap.frontend.ui.subnets
 
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.subnets_error_load
 import com.inframap.frontend.ui.base.BaseListViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope

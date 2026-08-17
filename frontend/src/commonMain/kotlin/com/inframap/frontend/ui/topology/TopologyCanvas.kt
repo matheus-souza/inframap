@@ -32,9 +32,12 @@ import com.inframap.frontend.designsystem.StatusOffline
 import com.inframap.frontend.designsystem.StatusOnline
 import com.inframap.frontend.designsystem.StatusStaging
 import com.inframap.frontend.designsystem.StatusWarning
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.model.TopologyEdge
 import com.inframap.frontend.domain.model.TopologyNode
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.topology_preview_router
+import com.inframap.frontend.generated.resources.topology_preview_server
+import com.inframap.frontend.generated.resources.topology_preview_switch
 import com.inframap.frontend.ui.topology.CanvasTool
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.sqrt
