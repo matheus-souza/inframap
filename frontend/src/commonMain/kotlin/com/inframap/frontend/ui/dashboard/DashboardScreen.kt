@@ -20,10 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.MoveToInbox
-import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Rocket
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +41,7 @@ import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapGreen
+import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
 import com.inframap.frontend.designsystem.InfraMapRed
 
@@ -207,14 +205,14 @@ private fun DashboardMetrics(state: DashboardUiState) {
             title = "Active Devices",
             value = state.totalActiveDevices.toString(),
             subtitle = "Inventory items",
-            icon = Icons.Filled.Dns,
+            icon = InfraMapIcons.Dns,
             modifier = Modifier.width(260.dp),
         )
         MetricCard(
             title = "Staged Devices",
             value = state.totalStagedDevices.toString(),
             subtitle = "Awaiting verification",
-            icon = Icons.Filled.MoveToInbox,
+            icon = InfraMapIcons.MoveToInbox,
             modifier = Modifier.width(260.dp),
         )
         HealthMetricCard(
@@ -227,7 +225,7 @@ private fun DashboardMetrics(state: DashboardUiState) {
             title = "Discovery Sources",
             value = state.totalDiscoverySources.toString(),
             subtitle = "Configured targets",
-            icon = Icons.Filled.Radar,
+            icon = InfraMapIcons.Radar,
             modifier = Modifier.width(260.dp),
         )
     }

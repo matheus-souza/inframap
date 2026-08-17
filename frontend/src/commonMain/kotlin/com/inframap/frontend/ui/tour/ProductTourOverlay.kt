@@ -22,11 +22,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.MoveToInbox
-import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +42,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.InfraMapButton
+import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 
 @Composable
@@ -176,9 +174,9 @@ private fun TourStepContent(step: ProductTourStep) {
         when (step) {
             ProductTourStep.WELCOME_NAV -> Icons.Default.Explore
             ProductTourStep.COMMAND_PALETTE -> Icons.Default.Search
-            ProductTourStep.DISCOVERY_SOURCES -> Icons.Default.Radar
-            ProductTourStep.STAGING_QUEUE -> Icons.Default.MoveToInbox
-            ProductTourStep.TOPOLOGY_CANVAS -> Icons.Default.AccountTree
+            ProductTourStep.DISCOVERY_SOURCES -> InfraMapIcons.Radar
+            ProductTourStep.STAGING_QUEUE -> InfraMapIcons.MoveToInbox
+            ProductTourStep.TOPOLOGY_CANVAS -> InfraMapIcons.AccountTree
         }
 
     Surface(

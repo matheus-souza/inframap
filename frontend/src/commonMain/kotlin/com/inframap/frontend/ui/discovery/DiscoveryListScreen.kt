@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -26,6 +24,7 @@ import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapConfirmDialog
 import com.inframap.frontend.designsystem.InfraMapEmptyState
+import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapSnackbarHost
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
@@ -183,7 +182,7 @@ private fun DiscoveryTableCard(
 ) {
     if (state.sources.isEmpty()) {
         InfraMapEmptyState(
-            icon = Icons.Filled.Radar,
+            icon = InfraMapIcons.Radar,
             title = "Nenhuma fonte de descoberta configurada",
             subtitle =
                 "Fontes de descoberta escaneiam sua rede automaticamente " +

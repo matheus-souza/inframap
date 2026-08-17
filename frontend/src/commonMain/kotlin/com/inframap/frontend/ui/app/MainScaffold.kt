@@ -8,13 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Lan
-import androidx.compose.material.icons.filled.MoveToInbox
-import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -27,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.domain.model.CommandPaletteAction
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
@@ -85,12 +79,12 @@ data class NavItem(
 
 private val navItems =
     listOf(
-        NavItem("Dashboard", Icons.Filled.SpaceDashboard, Route.Dashboard),
-        NavItem("Devices", Icons.Filled.Dns, Route.Devices),
-        NavItem("Staging", Icons.Filled.MoveToInbox, Route.Staging),
-        NavItem("Subnets", Icons.Filled.Lan, Route.Subnets),
-        NavItem("Discovery", Icons.Filled.Radar, Route.DiscoverySources),
-        NavItem("Topology", Icons.Filled.AccountTree, Route.Topology),
+        NavItem("Dashboard", InfraMapIcons.Dashboard, Route.Dashboard),
+        NavItem("Devices", InfraMapIcons.Dns, Route.Devices),
+        NavItem("Staging", InfraMapIcons.MoveToInbox, Route.Staging),
+        NavItem("Subnets", InfraMapIcons.Lan, Route.Subnets),
+        NavItem("Discovery", InfraMapIcons.Radar, Route.DiscoverySources),
+        NavItem("Topology", InfraMapIcons.AccountTree, Route.Topology),
     )
 
 @Composable
