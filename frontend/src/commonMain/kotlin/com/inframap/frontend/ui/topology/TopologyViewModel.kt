@@ -4,8 +4,9 @@ import androidx.compose.ui.geometry.Offset
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.data.sse.SSEEvent
-import com.inframap.frontend.designsystem.resources.Res
 import com.inframap.frontend.domain.usecase.topology.GetTopologyGraphUseCase
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.topology_error_load
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.topology.layout.ForceDirectedLayout
 import com.inframap.frontend.ui.util.UiText
