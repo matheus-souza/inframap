@@ -344,6 +344,9 @@ private fun DashboardRoute(
             state = state,
             onRefresh = viewModel::refresh,
             onDismissError = viewModel::dismissError,
+            onStartAutoSetup = viewModel::startAutoSetup,
+            onDismissAutoSetup = viewModel::dismissAutoSetup,
+            onNavigateToStaging = { navigator.navigateTo(Route.Staging) },
         )
         SetupWizardScreen(
             state = wizardState,

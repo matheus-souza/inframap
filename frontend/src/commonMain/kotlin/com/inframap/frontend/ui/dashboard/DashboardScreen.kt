@@ -22,14 +22,13 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Rocket
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,6 +42,7 @@ import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapGreen
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
+import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapRed
 
 @Composable
@@ -50,6 +50,9 @@ fun DashboardScreen(
     state: DashboardUiState,
     onRefresh: () -> Unit,
     onDismissError: () -> Unit,
+    onStartAutoSetup: () -> Unit,
+    onDismissAutoSetup: () -> Unit,
+    onNavigateToStaging: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -70,7 +73,12 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        DashboardContent(state = state)
+        DashboardContent(
+            state = state,
+            onStartAutoSetup = onStartAutoSetup,
+            onDismissAutoSetup = onDismissAutoSetup,
+            onNavigateToStaging = onNavigateToStaging,
+        )
     }
 }
 
@@ -158,7 +166,12 @@ private fun DashboardErrorToast(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DashboardContent(state: DashboardUiState) {
+private fun DashboardContent(
+    state: DashboardUiState,
+    onStartAutoSetup: () -> Unit,
+    onDismissAutoSetup: () -> Unit,
+    onNavigateToStaging: () -> Unit,
+) {
     val isEmpty =
         state.totalActiveDevices == 0L &&
             state.totalStagedDevices == 0L &&
@@ -173,12 +186,180 @@ private fun DashboardContent(state: DashboardUiState) {
         return
     }
 
-    if (isEmpty && state.errorMessage == null) {
+    if (state.autoSetup.isVisible) {
+        AutoSetupBanner(
+            autoSetup = state.autoSetup,
+            onStart = onStartAutoSetup,
+            onDismiss = onDismissAutoSetup,
+            onNavigateToStaging = onNavigateToStaging,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+    } else if (isEmpty && state.errorMessage == null) {
         DashboardWelcomeBanner()
         Spacer(modifier = Modifier.height(16.dp))
     }
 
     DashboardMetrics(state = state)
+}
+
+@Composable
+private fun AutoSetupBanner(
+    autoSetup: AutoSetupState,
+    onStart: () -> Unit,
+    onDismiss: () -> Unit,
+    onNavigateToStaging: () -> Unit,
+) {
+    when (autoSetup.phase) {
+        AutoSetupPhase.COMPLETED ->
+            AutoSetupCompletedCard(
+                deviceCount = autoSetup.discoveredDeviceCount,
+                onNavigateToStaging = onNavigateToStaging,
+            )
+        else ->
+            AutoSetupIdleCard(
+                autoSetup = autoSetup,
+                onStart = onStart,
+                onDismiss = onDismiss,
+            )
+    }
+}
+
+@Composable
+private fun AutoSetupIdleCard(
+    autoSetup: AutoSetupState,
+    onStart: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val isInProgress = autoSetup.phase != AutoSetupPhase.IDLE
+    val networkCount = autoSetup.detectedInterfaces.size
+    val phaseText =
+        when (autoSetup.phase) {
+            AutoSetupPhase.CREATING_SUBNETS -> "Criando sub-redes..."
+            AutoSetupPhase.CREATING_SOURCES -> "Configurando descoberta..."
+            AutoSetupPhase.SCANNING -> "Escaneando redes..."
+            else -> null
+        }
+
+    InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = InfraMapIcons.Lan,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Detectamos $networkCount rede${if (networkCount > 1) "s" else ""} no servidor",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            AutoSetupIdleCardActions(
+                autoSetup = autoSetup,
+                isInProgress = isInProgress,
+                phaseText = phaseText,
+                onStart = onStart,
+                onDismiss = onDismiss,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AutoSetupIdleCardActions(
+    autoSetup: AutoSetupState,
+    isInProgress: Boolean,
+    phaseText: String?,
+    onStart: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Text(
+        text = "Deseja configurar a descoberta automática de dispositivos?",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (autoSetup.errorMessage != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = autoSetup.errorMessage.asString(),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+    Spacer(modifier = Modifier.height(16.dp))
+    if (isInProgress && phaseText != null) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = phaseText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            InfraMapButton(
+                text = "Configurar Automaticamente",
+                onClick = onStart,
+            )
+            InfraMapOutlinedButton(
+                text = "Agora não",
+                onClick = onDismiss,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AutoSetupCompletedCard(
+    deviceCount: Int,
+    onNavigateToStaging: () -> Unit,
+) {
+    InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = InfraMapGreen,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Configuração concluída!",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            val plural = if (deviceCount > 1) "s" else ""
+            val subtitle =
+                if (deviceCount > 0) {
+                    "$deviceCount dispositivo$plural encontrado$plural"
+                } else {
+                    "Nenhum dispositivo encontrado ainda — " +
+                        "a descoberta continuará automaticamente."
+                }
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (deviceCount > 0) {
+                Spacer(modifier = Modifier.height(16.dp))
+                InfraMapButton(
+                    text = "Ver Dispositivos em Staging",
+                    onClick = onNavigateToStaging,
+                )
+            }
+        }
+    }
 }
 
 @Composable

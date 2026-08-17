@@ -7,11 +7,19 @@ import com.inframap.frontend.domain.model.Health
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.usecase.dashboard.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.dashboard.GetHealthUseCase
+import com.inframap.frontend.domain.usecase.dashboard.GetStagingSummaryUseCase
 import com.inframap.frontend.domain.usecase.device.GetDevicesUseCase
+import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
+import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
+import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
 import com.inframap.frontend.fakes.FakeDashboardRepository
 import com.inframap.frontend.fakes.FakeDeviceRepository
+import com.inframap.frontend.fakes.FakeDiscoveryRepository
+import com.inframap.frontend.fakes.FakeLocalStorage
+import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSSEClient
 import com.inframap.frontend.fakes.FakeStagingRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
@@ -49,19 +57,36 @@ class DashboardViewModelTest {
             ),
         dashRepo: FakeDashboardRepository = FakeDashboardRepository(),
         subnetRepo: FakeSubnetRepository = FakeSubnetRepository(),
+        discoveryRepo: FakeDiscoveryRepository = FakeDiscoveryRepository(),
+        networkRepo: FakeNetworkRepository = FakeNetworkRepository(),
+        localStorage: FakeLocalStorage = FakeLocalStorage(),
         sseClient: FakeSSEClient? = null,
         autoRefreshIntervalMs: Long = 0L,
         scope: CoroutineScope? = null,
-    ) = DashboardViewModel(
-        GetDevicesUseCase(deviceRepo),
-        GetStagingDevicesUseCase(stagingRepo),
-        GetHealthUseCase(dashRepo),
-        GetDiscoverySourcesUseCase(dashRepo),
-        GetSubnetsUseCase(subnetRepo),
-        sseClient,
-        autoRefreshIntervalMs,
-        scope,
-    )
+    ): DashboardViewModel {
+        val coordinator =
+            AutoSetupCoordinator(
+                GetNetworkInterfacesUseCase(networkRepo),
+                CreateSubnetUseCase(subnetRepo),
+                CreateDiscoverySourceUseCase(discoveryRepo),
+                TriggerDiscoveryRunUseCase(discoveryRepo),
+                com.inframap.frontend.domain.usecase.discovery
+                    .GetDiscoverySourcesUseCase(discoveryRepo),
+                GetStagingSummaryUseCase(dashRepo),
+                localStorage,
+            )
+        return DashboardViewModel(
+            GetDevicesUseCase(deviceRepo),
+            GetStagingDevicesUseCase(stagingRepo),
+            GetHealthUseCase(dashRepo),
+            GetDiscoverySourcesUseCase(dashRepo),
+            GetSubnetsUseCase(subnetRepo),
+            coordinator,
+            sseClient,
+            autoRefreshIntervalMs,
+            scope,
+        )
+    }
 
     @Test
     fun loadDataPopulatesMetricsSuccessfully() =
