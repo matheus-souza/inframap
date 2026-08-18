@@ -383,6 +383,8 @@ private fun DashboardRoute(
             state = state,
             onRefresh = viewModel::refresh,
             onDismissError = viewModel::dismissError,
+            onNavigateToSubnets = { navigator.navigateTo(Route.Subnets) },
+            onNavigateToDiscovery = { navigator.navigateTo(Route.DiscoverySources) },
             onStartAutoSetup = viewModel::startAutoSetup,
             onDismissAutoSetup = viewModel::dismissAutoSetup,
             onNavigateToStaging = { navigator.navigateTo(Route.Staging) },

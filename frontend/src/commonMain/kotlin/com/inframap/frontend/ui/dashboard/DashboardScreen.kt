@@ -62,10 +62,13 @@ import com.inframap.frontend.generated.resources.dashboard_staged_devices_subtit
 import com.inframap.frontend.generated.resources.dashboard_subtitle
 import com.inframap.frontend.generated.resources.dashboard_system_health
 import com.inframap.frontend.generated.resources.dashboard_title
+import com.inframap.frontend.generated.resources.dashboard_welcome_cta_discovery
+import com.inframap.frontend.generated.resources.dashboard_welcome_cta_subnet
 import com.inframap.frontend.generated.resources.dashboard_welcome_subtitle
 import com.inframap.frontend.generated.resources.dashboard_welcome_title
 import org.jetbrains.compose.resources.stringResource
 
+@Suppress("LongParameterList")
 @Composable
 fun DashboardScreen(
     state: DashboardUiState,
@@ -73,6 +76,8 @@ fun DashboardScreen(
     onDismissError: () -> Unit,
     onStartAutoSetup: () -> Unit,
     onDismissAutoSetup: () -> Unit,
+    onNavigateToSubnets: () -> Unit,
+    onNavigateToDiscovery: () -> Unit,
     onNavigateToStaging: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -98,6 +103,8 @@ fun DashboardScreen(
             state = state,
             onStartAutoSetup = onStartAutoSetup,
             onDismissAutoSetup = onDismissAutoSetup,
+            onNavigateToSubnets = onNavigateToSubnets,
+            onNavigateToDiscovery = onNavigateToDiscovery,
             onNavigateToStaging = onNavigateToStaging,
         )
     }
@@ -192,6 +199,8 @@ private fun DashboardContent(
     state: DashboardUiState,
     onStartAutoSetup: () -> Unit,
     onDismissAutoSetup: () -> Unit,
+    onNavigateToSubnets: () -> Unit,
+    onNavigateToDiscovery: () -> Unit,
     onNavigateToStaging: () -> Unit,
 ) {
     val isEmpty =
@@ -217,7 +226,10 @@ private fun DashboardContent(
         )
         Spacer(modifier = Modifier.height(16.dp))
     } else if (isEmpty && state.errorMessage == null) {
-        DashboardWelcomeBanner()
+        DashboardWelcomeBanner(
+            onNavigateToSubnets = onNavigateToSubnets,
+            onNavigateToDiscovery = onNavigateToDiscovery,
+        )
         Spacer(modifier = Modifier.height(16.dp))
     }
 
@@ -385,11 +397,22 @@ private fun AutoSetupCompletedCard(
 }
 
 @Composable
-private fun DashboardWelcomeBanner() {
+private fun DashboardWelcomeBanner(
+    onNavigateToSubnets: () -> Unit,
+    onNavigateToDiscovery: () -> Unit,
+) {
     InfraMapEmptyState(
         icon = Icons.Filled.Rocket,
         title = stringResource(Res.string.dashboard_welcome_title),
         subtitle = stringResource(Res.string.dashboard_welcome_subtitle),
+        ctaLabel = stringResource(Res.string.dashboard_welcome_cta_subnet),
+        onCtaClick = onNavigateToSubnets,
+        extraActions = {
+            InfraMapOutlinedButton(
+                text = stringResource(Res.string.dashboard_welcome_cta_discovery),
+                onClick = onNavigateToDiscovery,
+            )
+        },
     )
 }
 

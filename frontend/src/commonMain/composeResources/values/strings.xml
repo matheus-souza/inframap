@@ -30,6 +30,8 @@
     <string name="dashboard_discovery_sources_subtitle">Alvos configurados</string>
     <string name="dashboard_welcome_title">Bem-vindo ao InfraMap</string>
     <string name="dashboard_welcome_subtitle">Para começar, cadastre uma subrede na seção Subredes e configure uma fonte de descoberta para escanear sua rede automaticamente.</string>
+    <string name="dashboard_welcome_cta_subnet">Cadastrar Sub-rede</string>
+    <string name="dashboard_welcome_cta_discovery">Configurar Descoberta</string>
 
     <!-- Login -->
     <string name="login_title">Login</string>
