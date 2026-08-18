@@ -17,9 +17,13 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.data.storage.LocalStorage
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.domain.model.CommandPaletteAction
 import com.inframap.frontend.navigation.Navigator
@@ -49,6 +53,7 @@ import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
 import com.inframap.frontend.ui.discovery.DiscoveryListActions
 import com.inframap.frontend.ui.discovery.DiscoveryListScreen
 import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
+import com.inframap.frontend.ui.onboarding.OnboardingCoordinator
 import com.inframap.frontend.ui.staging.StagingActions
 import com.inframap.frontend.ui.staging.StagingScreen
 import com.inframap.frontend.ui.staging.StagingViewModel
@@ -77,6 +82,8 @@ data class NavItem(
     val route: Route,
 )
 
+private const val KEY_NAVRAIL_COLLAPSED = "inframap_navrail_collapsed"
+
 private val navItems =
     listOf(
         NavItem("Dashboard", InfraMapIcons.Dashboard, Route.Dashboard),
@@ -98,6 +105,7 @@ fun MainScaffold(
     val commandPaletteState by commandPaletteViewModel.state.collectAsState()
     val tourViewModel: ProductTourViewModel = koinInject()
     val tourState by tourViewModel.state.collectAsState()
+    val onboardingCoordinator: OnboardingCoordinator = koinInject()
 
     DisposableEffect(commandPaletteViewModel) {
         onDispose { commandPaletteViewModel.clear() }
@@ -107,7 +115,9 @@ fun MainScaffold(
     }
 
     LaunchedEffect(Unit) {
-        tourViewModel.checkShouldShow()
+        if (onboardingCoordinator.shouldShowTour()) {
+            tourViewModel.checkShouldShow()
+        }
         commandPaletteViewModel.effects.collect { effect ->
             when (effect) {
                 is CommandPaletteEffect.ExecuteItem -> {
@@ -129,6 +139,7 @@ fun MainScaffold(
             onHealthChanged = onHealthChanged,
             onOpenCommandPalette = commandPaletteViewModel::open,
             onRestartTourClicked = tourViewModel::startTour,
+            onWizardCompleted = tourViewModel::startTour,
         )
         MainScaffoldOverlays(
             commandPaletteState = commandPaletteState,
@@ -181,7 +192,13 @@ private fun MainScaffoldContent(
     onHealthChanged: (Boolean?) -> Unit,
     onOpenCommandPalette: () -> Unit,
     onRestartTourClicked: () -> Unit,
+    onWizardCompleted: () -> Unit = {},
 ) {
+    val localStorage: LocalStorage = koinInject()
+    var isNavRailExpanded by remember {
+        mutableStateOf(localStorage.get(KEY_NAVRAIL_COLLAPSED) == null)
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -194,7 +211,19 @@ private fun MainScaffoldContent(
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             Row(modifier = Modifier.weight(1f)) {
-                AppNavRail(currentRoute = currentRoute, navigator = navigator)
+                AppNavRail(
+                    currentRoute = currentRoute,
+                    navigator = navigator,
+                    isExpanded = isNavRailExpanded,
+                    onToggleExpanded = {
+                        isNavRailExpanded = !isNavRailExpanded
+                        if (isNavRailExpanded) {
+                            localStorage.remove(KEY_NAVRAIL_COLLAPSED)
+                        } else {
+                            localStorage.set(KEY_NAVRAIL_COLLAPSED, "true")
+                        }
+                    },
+                )
                 VerticalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                 Box(
                     modifier =
@@ -207,6 +236,7 @@ private fun MainScaffoldContent(
                         currentRoute = currentRoute,
                         navigator = navigator,
                         onHealthChanged = onHealthChanged,
+                        onWizardCompleted = onWizardCompleted,
                     )
                 }
             }
@@ -233,6 +263,8 @@ private fun AppTopBar(
 private fun AppNavRail(
     currentRoute: Route,
     navigator: Navigator,
+    isExpanded: Boolean = true,
+    onToggleExpanded: () -> Unit = {},
 ) {
     val items =
         navItems.map { navItem ->
@@ -274,6 +306,8 @@ private fun AppNavRail(
                 navigator.navigateTo(targetNavItem.route)
             }
         },
+        isExpanded = isExpanded,
+        onToggleExpanded = onToggleExpanded,
     )
 }
 
@@ -282,9 +316,10 @@ private fun RouteContent(
     currentRoute: Route,
     navigator: Navigator,
     onHealthChanged: (Boolean?) -> Unit = {},
+    onWizardCompleted: () -> Unit = {},
 ) {
     when (currentRoute) {
-        Route.Dashboard -> DashboardRoute(onHealthChanged, navigator)
+        Route.Dashboard -> DashboardRoute(onHealthChanged, onWizardCompleted, navigator)
         Route.Devices -> DeviceListRoute(navigator = navigator)
         is Route.DeviceDetail ->
             DeviceDetailRoute(
@@ -299,7 +334,7 @@ private fun RouteContent(
                 navigator = navigator,
             )
 
-        Route.Staging -> StagingRoute()
+        Route.Staging -> StagingRoute(navigator = navigator)
         Route.Subnets -> SubnetsRoute(navigator = navigator)
         is Route.CreateSubnet ->
             CreateSubnetRoute(
@@ -317,10 +352,12 @@ private fun RouteContent(
 @Composable
 private fun DashboardRoute(
     onHealthChanged: (Boolean?) -> Unit = {},
+    onWizardCompleted: () -> Unit = {},
     navigator: Navigator,
 ) {
     val viewModel: DashboardViewModel = koinInject()
     val wizardViewModel: SetupWizardViewModel = koinInject()
+    val coordinator: OnboardingCoordinator = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -335,7 +372,9 @@ private fun DashboardRoute(
     }
     LaunchedEffect(state.isLoading, state.errorMessage, state.totalSubnets, state.totalActiveDevices) {
         if (!state.isLoading && state.errorMessage == null) {
-            wizardViewModel.checkShouldShow(state.totalSubnets, state.totalActiveDevices)
+            if (coordinator.shouldShowWizard(state.totalSubnets, state.totalActiveDevices)) {
+                wizardViewModel.checkShouldShow(state.totalSubnets, state.totalActiveDevices)
+            }
         }
     }
 
@@ -346,6 +385,9 @@ private fun DashboardRoute(
             onDismissError = viewModel::dismissError,
             onNavigateToSubnets = { navigator.navigateTo(Route.Subnets) },
             onNavigateToDiscovery = { navigator.navigateTo(Route.DiscoverySources) },
+            onStartAutoSetup = viewModel::startAutoSetup,
+            onDismissAutoSetup = viewModel::dismissAutoSetup,
+            onNavigateToStaging = { navigator.navigateTo(Route.Staging) },
         )
         SetupWizardScreen(
             state = wizardState,
@@ -361,6 +403,8 @@ private fun DashboardRoute(
                     onStartScan = wizardViewModel::startScan,
                     onComplete = {
                         wizardViewModel.complete()
+                        coordinator.onWizardCompleted()
+                        onWizardCompleted()
                         navigator.navigateTo(Route.Staging)
                     },
                 ),
@@ -490,7 +534,7 @@ private fun EditDeviceRoute(
 }
 
 @Composable
-private fun StagingRoute() {
+private fun StagingRoute(navigator: Navigator) {
     val viewModel: StagingViewModel = koinInject()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
@@ -506,6 +550,7 @@ private fun StagingRoute() {
             onDismissActionError = viewModel::dismissActionError,
             onDismissToast = viewModel::dismissToast,
             onRetryClicked = { viewModel.loadPage(1) },
+            onConfigureDiscovery = { navigator.navigateTo(Route.DiscoverySources) },
         )
     StagingScreen(
         state = state,

@@ -3,16 +3,21 @@
     <string name="error_network">Erro de rede. Não foi possível conectar ao servidor.</string>
     <string name="error_generic">Ocorreu um erro inesperado.</string>
     <string name="loading">Carregando...</string>
-    
+    <string name="common_retry">Tentar Novamente</string>
+    <string name="common_close">Fechar</string>
+    <string name="common_cancel">Cancelar</string>
+    <string name="common_refresh">Atualizar</string>
+
+    <!-- App -->
+    <string name="app_name">InfraMap</string>
+    <string name="app_tagline">Descoberta e Mapeamento de Infraestrutura</string>
+
     <!-- Dashboard -->
     <string name="dashboard_title">Dashboard</string>
     <string name="dashboard_subtitle">Visão Geral da Infraestrutura</string>
     <string name="dashboard_error_load">Falha ao carregar métricas do dashboard.</string>
-    <string name="dashboard_refresh">Atualizar</string>
-    <string name="dashboard_retry">Tentar novamente</string>
-    <string name="dashboard_close">Fechar</string>
     <string name="dashboard_active_devices">Dispositivos Ativos</string>
-    <string name="dashboard_active_devices_subtitle">Itens no inventário</string>
+    <string name="dashboard_active_devices_subtitle">No inventário</string>
     <string name="dashboard_staged_devices">Dispositivos em Staging</string>
     <string name="dashboard_staged_devices_subtitle">Aguardando verificação</string>
     <string name="dashboard_system_health">Saúde do Sistema</string>
@@ -24,10 +29,20 @@
     <string name="dashboard_discovery_sources">Fontes de Descoberta</string>
     <string name="dashboard_discovery_sources_subtitle">Alvos configurados</string>
     <string name="dashboard_welcome_title">Bem-vindo ao InfraMap</string>
-    <string name="dashboard_welcome_subtitle">Para começar, cadastre uma sub-rede e configure uma fonte de descoberta para escanear sua rede automaticamente.</string>
+    <string name="dashboard_welcome_subtitle">Para começar, cadastre uma subrede na seção Subredes e configure uma fonte de descoberta para escanear sua rede automaticamente.</string>
     <string name="dashboard_welcome_cta_subnet">Cadastrar Sub-rede</string>
     <string name="dashboard_welcome_cta_discovery">Configurar Descoberta</string>
-    
+
+    <!-- Login -->
+    <string name="login_title">Login</string>
+    <string name="login_subtitle">Acesse sua instância</string>
+    <string name="login_username">Usuário</string>
+    <string name="login_password">Senha</string>
+    <string name="login_button">Entrar</string>
+    <string name="login_error_credentials">Usuário e senha são obrigatórios.</string>
+    <string name="login_error_rate_limit">Muitas tentativas. Aguarde antes de tentar novamente.</string>
+    <string name="login_error_network">Erro de rede. Verifique sua conexão.</string>
+
     <!-- Devices -->
     <string name="devices_title">Dispositivos</string>
     <string name="devices_error_load">Falha ao carregar dispositivos.</string>
@@ -36,20 +51,29 @@
     <string name="devices_error_load_detail">Falha ao carregar detalhes do dispositivo.</string>
     <string name="devices_error_create">Falha ao criar dispositivo.</string>
     <string name="devices_error_update">Falha ao atualizar dispositivo.</string>
-    
+    <string name="devices_empty_title">Nenhum dispositivo no inventário</string>
+    <string name="devices_empty_subtitle">Dispositivos aparecem aqui após serem aprovados na fila de staging, ou podem ser cadastrados manualmente.</string>
+    <string name="devices_create_button">Cadastrar Dispositivo</string>
+
     <!-- Validation -->
     <string name="validation_hostname_required">Nome do host é obrigatório.</string>
     <string name="validation_device_type_required">Tipo de dispositivo é obrigatório.</string>
     <string name="validation_hostname_empty">Nome do host não pode ser vazio.</string>
-    
+
     <!-- Staging -->
     <string name="staging_title">Staging</string>
+    <string name="staging_header">Fila de Staging</string>
+    <string name="staging_subtitle">Dispositivos não verificados descobertos na rede aguardando aprovação</string>
     <string name="staging_error_load">Falha ao carregar dispositivos em staging.</string>
     <string name="staging_approve_success">Dispositivo '%1$s' aprovado com sucesso.</string>
     <string name="staging_dismiss_success">Dispositivo '%1$s' descartado com sucesso.</string>
     <string name="staging_error_approve">Falha ao aprovar dispositivo.</string>
     <string name="staging_error_dismiss">Falha ao descartar dispositivo.</string>
-    
+    <string name="staging_empty_title">Nenhum dispositivo na fila de staging</string>
+    <string name="staging_empty_subtitle">Dispositivos descobertos automaticamente aparecem aqui para revisão. Configure uma fonte de descoberta e execute um scan para começar.</string>
+    <string name="staging_configure_discovery">Configurar Descoberta</string>
+    <string name="staging_dismiss_button">Descartar</string>
+
     <!-- Subnets -->
     <string name="subnets_title">Sub-redes</string>
     <string name="subnets_error_load">Falha ao carregar sub-redes.</string>
@@ -57,28 +81,34 @@
     <string name="subnets_detected_interfaces_title">Interfaces detectadas</string>
     <string name="subnets_detected_interfaces_subtitle">Interfaces de rede encontradas neste servidor. Adicione como sub-rede para iniciar a varredura.</string>
     <string name="subnets_fill_from_interface">Preencher a partir de interface detectada</string>
+    <string name="subnets_empty_title">Nenhuma subrede cadastrada</string>
+    <string name="subnets_empty_subtitle">Subredes definem as faixas de rede onde a descoberta automática de dispositivos será executada.</string>
+    <string name="subnets_create_button">Cadastrar Subrede</string>
     <string name="validation_subnet_name_required">Nome da sub-rede é obrigatório.</string>
     <string name="validation_cidr_required">CIDR é obrigatório.</string>
     <string name="validation_cidr_invalid">Formato de CIDR inválido (ex: 192.168.1.0/24).</string>
     <string name="validation_vlan_invalid">VLAN ID deve ser um número entre 1 e 4094.</string>
     <string name="validation_gateway_invalid">Endereço IP de Gateway inválido.</string>
-    
+
     <!-- Discovery -->
+    <string name="discovery_title">Fontes de Descoberta</string>
+    <string name="discovery_subtitle">Gerencie as fontes de varredura automática de rede</string>
+    <string name="discovery_create_button">+ Nova Fonte</string>
     <string name="discovery_error_load">Falha ao carregar fontes de descoberta.</string>
     <string name="discovery_error_create">Falha ao criar fonte de descoberta.</string>
     <string name="discovery_error_delete">Falha ao excluir fonte de descoberta.</string>
     <string name="discovery_error_trigger">Falha ao disparar varredura.</string>
     <string name="discovery_run_triggered">Varredura disparada com sucesso.</string>
+    <string name="discovery_empty_title">Nenhuma fonte de descoberta configurada</string>
+    <string name="discovery_empty_subtitle">Fontes de descoberta escaneiam sua rede automaticamente para encontrar dispositivos. Crie sua primeira fonte para começar.</string>
+    <string name="discovery_empty_cta">Criar Fonte de Descoberta</string>
+    <string name="discovery_action_run">Executar</string>
+    <string name="discovery_action_delete">Excluir</string>
+    <string name="discovery_source_enabled">Fonte habilitada</string>
     <string name="validation_discovery_name_required">Nome da fonte de descoberta é obrigatório.</string>
     <string name="validation_discovery_type_required">Tipo da fonte é obrigatório.</string>
 
     <!-- Auth -->
-    <string name="login_title">Login</string>
-    <string name="login_error_credentials">Usuário e senha são obrigatórios.</string>
-    <string name="login_error_rate_limit">Muitas tentativas. Aguarde antes de tentar novamente.</string>
-    <string name="login_error_network">Erro de rede. Verifique sua conexão.</string>
-    
-    <!-- Onboarding -->
     <string name="onboarding_title">Configuração Inicial</string>
     <string name="validation_username_min">Usuário deve ter pelo menos 3 caracteres.</string>
     <string name="validation_email_invalid">E-mail deve conter @.</string>

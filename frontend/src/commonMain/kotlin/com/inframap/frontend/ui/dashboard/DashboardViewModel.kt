@@ -18,12 +18,14 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
+@Suppress("TooManyFunctions")
 class DashboardViewModel(
     private val getDevicesUseCase: GetDevicesUseCase,
     private val getStagingDevicesUseCase: GetStagingDevicesUseCase,
     private val getHealthUseCase: GetHealthUseCase,
     private val getDiscoverySourcesUseCase: GetDiscoverySourcesUseCase,
     private val getSubnetsUseCase: GetSubnetsUseCase,
+    private val autoSetupCoordinator: AutoSetupCoordinator,
     private val sseClient: SSEClient? = null,
     private val autoRefreshIntervalMs: Long = 30_000L,
     scope: CoroutineScope? = null,
@@ -48,6 +50,90 @@ class DashboardViewModel(
 
     fun dismissError() {
         updateState { it.copy(isErrorDismissed = true) }
+    }
+
+    fun dismissAutoSetup() {
+        autoSetupCoordinator.dismiss()
+        updateState { it.copy(autoSetup = it.autoSetup.copy(isVisible = false)) }
+    }
+
+    fun startAutoSetup() {
+        val interfaces = currentState.autoSetup.detectedInterfaces
+        if (interfaces.isEmpty()) return
+        updateState {
+            it.copy(autoSetup = it.autoSetup.copy(phase = AutoSetupPhase.CREATING_SUBNETS, errorMessage = null))
+        }
+        launchJob("auto_setup") { executeAutoSetup(interfaces) }
+    }
+
+    private suspend fun executeAutoSetup(interfaces: List<com.inframap.frontend.domain.model.NetworkInterface>) {
+        when (val result = autoSetupCoordinator.createSubnets(interfaces)) {
+            is ApiResult.Success -> Unit
+            else -> {
+                updateAutoSetupError(mapError(result))
+                return
+            }
+        }
+
+        updateState {
+            it.copy(autoSetup = it.autoSetup.copy(phase = AutoSetupPhase.CREATING_SOURCES))
+        }
+
+        val sourceIds =
+            when (val result = autoSetupCoordinator.createSourcesAndTriggerScan(interfaces)) {
+                is ApiResult.Success -> result.data
+                else -> {
+                    updateAutoSetupError(mapError(result))
+                    return
+                }
+            }
+
+        updateState {
+            it.copy(autoSetup = it.autoSetup.copy(phase = AutoSetupPhase.SCANNING))
+        }
+
+        when (val result = autoSetupCoordinator.pollScanAndCount(sourceIds)) {
+            is ApiResult.Success -> {
+                updateState {
+                    it.copy(
+                        autoSetup =
+                            it.autoSetup.copy(
+                                phase = AutoSetupPhase.COMPLETED,
+                                discoveredDeviceCount = result.data,
+                            ),
+                    )
+                }
+                triggerFetchMetrics()
+            }
+            else -> updateAutoSetupError(mapError(result))
+        }
+    }
+
+    private fun updateAutoSetupError(errorMsg: UiText) {
+        updateState {
+            it.copy(autoSetup = it.autoSetup.copy(phase = AutoSetupPhase.IDLE, errorMessage = errorMsg))
+        }
+    }
+
+    fun checkAutoSetup() {
+        if (currentState.totalSubnets > 0 || autoSetupCoordinator.isDismissed()) return
+        launchJob("detect_interfaces") {
+            when (val result = autoSetupCoordinator.detectInterfaces()) {
+                is ApiResult.Success ->
+                    if (result.data.isNotEmpty()) {
+                        updateState {
+                            it.copy(
+                                autoSetup =
+                                    AutoSetupState(
+                                        isVisible = true,
+                                        detectedInterfaces = result.data,
+                                    ),
+                            )
+                        }
+                    }
+                else -> Unit
+            }
+        }
     }
 
     private fun triggerFetchMetrics() {
@@ -121,6 +207,8 @@ class DashboardViewModel(
                     errorMessage = null,
                 )
             }
+
+            if (subnetsTotal == 0L) checkAutoSetup()
         }
     }
 

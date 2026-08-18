@@ -1,6 +1,7 @@
 package com.inframap.frontend.di
 
 import com.inframap.frontend.ui.command.CommandPaletteViewModel
+import com.inframap.frontend.ui.dashboard.AutoSetupCoordinator
 import com.inframap.frontend.ui.dashboard.DashboardViewModel
 import com.inframap.frontend.ui.devices.CreateDeviceViewModel
 import com.inframap.frontend.ui.devices.DeviceDetailViewModel
@@ -9,6 +10,7 @@ import com.inframap.frontend.ui.devices.EditDeviceViewModel
 import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
 import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
 import com.inframap.frontend.ui.login.LoginViewModel
+import com.inframap.frontend.ui.onboarding.OnboardingCoordinator
 import com.inframap.frontend.ui.onboarding.OnboardingViewModel
 import com.inframap.frontend.ui.splash.SplashViewModel
 import com.inframap.frontend.ui.staging.StagingViewModel
@@ -36,7 +38,9 @@ val presentationModule =
         factory { DiscoveryListViewModel(get(), get(), get()) }
         factory { CreateDiscoverySourceViewModel(get()) }
 
-        factory { DashboardViewModel(get(), get(), get(), get(), get(), getOrNull()) }
+        single { AutoSetupCoordinator(get(), get(), get(), get(), get(), get(), get()) }
+
+        factory { DashboardViewModel(get(), get(), get(), get(), get(), get(), getOrNull()) }
 
         factory { SetupWizardViewModel(get(), get(), get(), get(), get(), get(), get()) }
 
@@ -45,6 +49,8 @@ val presentationModule =
         factory { TopologyViewModel(get(), getOrNull()) }
 
         factory { CommandPaletteViewModel(get()) }
+
+        single { OnboardingCoordinator(get()) }
 
         factory { LoginViewModel(get()) }
         factory { OnboardingViewModel(get()) }
