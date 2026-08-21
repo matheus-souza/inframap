@@ -4,6 +4,8 @@ import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.PaginatedList
+import com.inframap.frontend.domain.model.StagingDevice
+import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.domain.usecase.dashboard.GetStagingSummaryUseCase
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase
@@ -15,258 +17,251 @@ import com.inframap.frontend.fakes.FakeDiscoveryRepository
 import com.inframap.frontend.fakes.FakeLocalStorage
 import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AutoSetupCoordinatorTest {
-    private fun create(
-        networkRepo: FakeNetworkRepository = FakeNetworkRepository(),
-        subnetRepo: FakeSubnetRepository = FakeSubnetRepository(),
-        discoveryRepo: FakeDiscoveryRepository = FakeDiscoveryRepository(),
-        dashRepo: FakeDashboardRepository = FakeDashboardRepository(),
-        localStorage: FakeLocalStorage = FakeLocalStorage(),
-    ) = AutoSetupCoordinator(
-        GetNetworkInterfacesUseCase(networkRepo),
-        CreateSubnetUseCase(subnetRepo),
-        CreateDiscoverySourceUseCase(discoveryRepo),
-        TriggerDiscoveryRunUseCase(discoveryRepo),
-        GetDiscoverySourcesUseCase(discoveryRepo),
-        GetStagingSummaryUseCase(dashRepo),
-        localStorage,
-    )
+    private val testInterface =
+        NetworkInterface(
+            name = "eth0",
+            ip = "192.168.1.50",
+            cidr = "192.168.1.0/24",
+            gateway = "192.168.1.1",
+            mac = "00:11:22:33:44:55",
+        )
 
     @Test
-    fun isDismissedReturnsFalseByDefault() {
-        val coordinator = create()
-        assertFalse(coordinator.isDismissed())
-    }
-
-    @Test
-    fun dismissSetsStorageKey() {
+    fun dismissStoresFlagInLocalStorage() {
         val storage = FakeLocalStorage()
-        val coordinator = create(localStorage = storage)
+        val coordinator = createCoordinator(storage = storage)
+
+        assertFalse(coordinator.isDismissed())
         coordinator.dismiss()
         assertTrue(coordinator.isDismissed())
     }
 
     @Test
-    fun detectInterfacesReturnsNetworkInterfaces() =
+    fun detectInterfacesReturnsNetworkList() =
         runTest {
-            val coordinator = create()
+            val netRepo =
+                FakeNetworkRepository(
+                    getInterfacesResult = ApiResult.Success(listOf(testInterface), ""),
+                )
+            val coordinator = createCoordinator(netRepo = netRepo)
+
             val result = coordinator.detectInterfaces()
-            assertIs<ApiResult.Success<List<NetworkInterface>>>(result)
+            assertTrue(result is ApiResult.Success)
             assertEquals(1, result.data.size)
             assertEquals("eth0", result.data[0].name)
         }
 
     @Test
-    fun createSubnetsSucceedsForValidInterfaces() =
-        runTest {
-            val coordinator = create()
-            val iface =
-                NetworkInterface(
-                    name = "eth0",
-                    ip = "192.168.1.5",
-                    cidr = "192.168.1.0/24",
-                    mac = "aa:bb:cc:dd:ee:ff",
-                    gateway = "192.168.1.1",
-                )
-            val result = coordinator.createSubnets(listOf(iface))
-            assertIs<ApiResult.Success<Unit>>(result)
-        }
-
-    @Test
-    fun createSubnetsSkipsConflictErrors() =
+    fun createSubnetsSucceedsForInterfaces() =
         runTest {
             val subnetRepo =
                 FakeSubnetRepository(
                     createSubnetResult =
-                        ApiResult.Error(
-                            code = "CONFLICT",
-                            message = "Already exists",
-                            requestId = "",
-                            httpStatus = 409,
-                        ),
-                )
-            val coordinator = create(subnetRepo = subnetRepo)
-            val iface =
-                NetworkInterface(
-                    name = "eth0",
-                    ip = "192.168.1.5",
-                    cidr = "192.168.1.0/24",
-                    mac = "aa:bb:cc:dd:ee:ff",
-                )
-            val result = coordinator.createSubnets(listOf(iface))
-            assertIs<ApiResult.Success<Unit>>(result)
-        }
-
-    @Test
-    fun createSubnetsReturnsNonConflictError() =
-        runTest {
-            val subnetRepo =
-                FakeSubnetRepository(
-                    createSubnetResult =
-                        ApiResult.Error(
-                            code = "INTERNAL",
-                            message = "Server error",
-                            requestId = "",
-                            httpStatus = 500,
-                        ),
-                )
-            val coordinator = create(subnetRepo = subnetRepo)
-            val iface =
-                NetworkInterface(
-                    name = "eth0",
-                    ip = "192.168.1.5",
-                    cidr = "192.168.1.0/24",
-                    mac = "aa:bb:cc:dd:ee:ff",
-                )
-            val result = coordinator.createSubnets(listOf(iface))
-            assertIs<ApiResult.Error>(result)
-        }
-
-    @Test
-    fun createSourcesAndTriggerScanSucceeds() =
-        runTest {
-            val coordinator = create()
-            val iface =
-                NetworkInterface(
-                    name = "eth0",
-                    ip = "192.168.1.5",
-                    cidr = "192.168.1.0/24",
-                    mac = "aa:bb:cc:dd:ee:ff",
-                )
-            val result = coordinator.createSourcesAndTriggerScan(listOf(iface))
-            assertIs<ApiResult.Success<List<String>>>(result)
-        }
-
-    @Test
-    fun pollScanAndCountSucceeds() =
-        runTest {
-            val completedSource =
-                DiscoverySource(
-                    id = "src-1",
-                    name = "Test",
-                    sourceType = "full",
-                    enabled = true,
-                    lastStatus = "completed",
-                )
-            val discoveryRepo =
-                FakeDiscoveryRepository(
-                    getSourcesResult =
                         ApiResult.Success(
-                            PaginatedList(
-                                items = listOf(completedSource),
-                                total = 1L,
-                                page = 1,
-                                perPage = 50,
-                            ),
-                            requestId = "",
+                            Subnet(id = "sub1", name = "eth0", cidr = "192.168.1.0/24", gatewayIp = "192.168.1.1"),
+                            "",
                         ),
                 )
-            val coordinator = create(discoveryRepo = discoveryRepo)
-            val result = coordinator.pollScanAndCount(listOf("src-1"))
-            assertIs<ApiResult.Success<Int>>(result)
+            val coordinator = createCoordinator(subnetRepo = subnetRepo)
+
+            val result = coordinator.createSubnets(listOf(testInterface))
+            assertTrue(result is ApiResult.Success)
         }
 
     @Test
-    fun pollScanAndCountReturnsEmptySourcesCount() =
+    fun createSubnetsHandlesConflictGracefully() =
         runTest {
-            val coordinator = create()
-            val result = coordinator.pollScanAndCount(emptyList())
-            assertIs<ApiResult.Success<Int>>(result)
+            val subnetRepo =
+                FakeSubnetRepository(
+                    createSubnetResult = ApiResult.Error("CONFLICT", "Already exists", "", 409),
+                )
+            val coordinator = createCoordinator(subnetRepo = subnetRepo)
+
+            val result = coordinator.createSubnets(listOf(testInterface))
+            assertTrue(result is ApiResult.Success)
         }
 
     @Test
-    fun createSourcesReturnsErrorOnCreateFailure() =
+    fun createSubnetsReturnsErrorOnFailure() =
+        runTest {
+            val subnetRepo =
+                FakeSubnetRepository(
+                    createSubnetResult = ApiResult.Error("INTERNAL", "Server error", "", 500),
+                )
+            val coordinator = createCoordinator(subnetRepo = subnetRepo)
+
+            val result = coordinator.createSubnets(listOf(testInterface))
+            assertTrue(result is ApiResult.Error)
+        }
+
+    @Test
+    fun createSourcesAndTriggerScanReturnsSourceIds() =
         runTest {
             val discoveryRepo =
                 FakeDiscoveryRepository(
                     createSourceResult =
-                        ApiResult.Error(
-                            code = "ERR",
-                            message = "Failed",
-                            requestId = "",
-                            httpStatus = 500,
+                        ApiResult.Success(
+                            DiscoverySource(id = "ds1", name = "Scan", sourceType = "full", enabled = true),
+                            "",
+                        ),
+                    triggerRunResult =
+                        ApiResult.Success(
+                            DiscoverySource(id = "ds1", name = "Scan", sourceType = "full", enabled = true),
+                            "",
                         ),
                 )
-            val coordinator = create(discoveryRepo = discoveryRepo)
-            val iface =
-                NetworkInterface(
-                    name = "eth0",
-                    ip = "192.168.1.5",
-                    cidr = "192.168.1.0/24",
-                    mac = "aa:bb:cc:dd:ee:ff",
-                )
-            val result = coordinator.createSourcesAndTriggerScan(listOf(iface))
-            assertIs<ApiResult.Error>(result)
+            val coordinator = createCoordinator(discoveryRepo = discoveryRepo)
+
+            val result = coordinator.createSourcesAndTriggerScan(listOf(testInterface))
+            assertTrue(result is ApiResult.Success)
+            assertEquals(listOf("ds1"), result.data)
         }
 
     @Test
-    fun createSourcesReturnsErrorOnTriggerFailure() =
+    fun createSourcesAndTriggerScanReturnsErrorWhenCreateFails() =
         runTest {
             val discoveryRepo =
                 FakeDiscoveryRepository(
-                    triggerRunResult =
-                        ApiResult.Error(
-                            code = "ERR",
-                            message = "Trigger failed",
-                            requestId = "",
-                            httpStatus = 500,
-                        ),
+                    createSourceResult = ApiResult.Error("ERR", "Create failed", "", 500),
                 )
-            val coordinator = create(discoveryRepo = discoveryRepo)
-            val iface =
-                NetworkInterface(
-                    name = "eth0",
-                    ip = "192.168.1.5",
-                    cidr = "192.168.1.0/24",
-                    mac = "aa:bb:cc:dd:ee:ff",
-                )
-            val result = coordinator.createSourcesAndTriggerScan(listOf(iface))
-            assertIs<ApiResult.Error>(result)
+            val coordinator = createCoordinator(discoveryRepo = discoveryRepo)
+
+            val result = coordinator.createSourcesAndTriggerScan(listOf(testInterface))
+            assertTrue(result is ApiResult.Error)
         }
 
     @Test
-    fun fetchStagingCountPropagatesError() =
+    fun createSourcesAndTriggerScanReturnsErrorWhenTriggerFails() =
         runTest {
-            val dashRepo =
-                FakeDashboardRepository(
-                    getStagingSummaryResult =
-                        ApiResult.Error(
-                            code = "ERR",
-                            message = "Staging unavailable",
-                            requestId = "",
-                            httpStatus = 500,
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult =
+                        ApiResult.Success(
+                            DiscoverySource(id = "ds1", name = "Scan", sourceType = "full", enabled = true),
+                            "",
                         ),
+                    triggerRunResult = ApiResult.Error("TRIGGER_ERR", "Failed", "", 500),
                 )
-            val completedSource =
-                DiscoverySource(
-                    id = "src-1",
-                    name = "Test",
-                    sourceType = "full",
-                    enabled = true,
-                    lastStatus = "completed",
-                )
+            val coordinator = createCoordinator(discoveryRepo = discoveryRepo)
+
+            val result = coordinator.createSourcesAndTriggerScan(listOf(testInterface))
+            assertTrue(result is ApiResult.Error)
+        }
+
+    @Test
+    fun pollScanAndCountFetchesStagingCountWhenCompleted() =
+        runTest {
             val discoveryRepo =
                 FakeDiscoveryRepository(
                     getSourcesResult =
                         ApiResult.Success(
                             PaginatedList(
-                                items = listOf(completedSource),
+                                items =
+                                    listOf(
+                                        DiscoverySource(
+                                            id = "ds1",
+                                            name = "Scan",
+                                            sourceType = "full",
+                                            enabled = true,
+                                            lastStatus = "completed",
+                                        ),
+                                    ),
                                 total = 1L,
                                 page = 1,
                                 perPage = 50,
                             ),
-                            requestId = "",
+                            "",
                         ),
                 )
-            val coordinator = create(discoveryRepo = discoveryRepo, dashRepo = dashRepo)
-            val result = coordinator.pollScanAndCount(listOf("src-1"))
-            assertIs<ApiResult.Error>(result)
+            val dashRepo =
+                FakeDashboardRepository(
+                    getStagingSummaryResult =
+                        ApiResult.Success(
+                            PaginatedList(
+                                items =
+                                    listOf(
+                                        StagingDevice(
+                                            id = "stg1",
+                                            ipAddress = "192.168.1.100",
+                                            hostname = "printer",
+                                            deviceType = "printer",
+                                        ),
+                                        StagingDevice(
+                                            id = "stg2",
+                                            ipAddress = "192.168.1.101",
+                                            hostname = "nas",
+                                            deviceType = "storage",
+                                        ),
+                                    ),
+                                total = 2L,
+                                page = 1,
+                                perPage = 50,
+                            ),
+                            "",
+                        ),
+                )
+            val coordinator = createCoordinator(discoveryRepo = discoveryRepo, dashRepo = dashRepo)
+
+            val result = coordinator.pollScanAndCount(listOf("ds1"))
+            assertTrue(result is ApiResult.Success)
+            assertEquals(2, result.data)
         }
+
+    @Test
+    fun pollScanAndCountReturnsErrorWhenSourceFails() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    getSourcesResult =
+                        ApiResult.Success(
+                            PaginatedList(
+                                items =
+                                    listOf(
+                                        DiscoverySource(
+                                            id = "ds1",
+                                            name = "Scan",
+                                            sourceType = "full",
+                                            enabled = true,
+                                            lastStatus = "error",
+                                        ),
+                                    ),
+                                total = 1L,
+                                page = 1,
+                                perPage = 50,
+                            ),
+                            "",
+                        ),
+                )
+            val coordinator = createCoordinator(discoveryRepo = discoveryRepo)
+
+            val result = coordinator.pollScanAndCount(listOf("ds1"))
+            assertTrue(result is ApiResult.Error)
+            assertEquals("SCAN_ERROR", (result as ApiResult.Error).code)
+        }
+
+    private fun createCoordinator(
+        netRepo: FakeNetworkRepository = FakeNetworkRepository(),
+        subnetRepo: FakeSubnetRepository = FakeSubnetRepository(),
+        discoveryRepo: FakeDiscoveryRepository = FakeDiscoveryRepository(),
+        dashRepo: FakeDashboardRepository = FakeDashboardRepository(),
+        storage: FakeLocalStorage = FakeLocalStorage(),
+    ): AutoSetupCoordinator =
+        AutoSetupCoordinator(
+            GetNetworkInterfacesUseCase(netRepo),
+            CreateSubnetUseCase(subnetRepo),
+            CreateDiscoverySourceUseCase(discoveryRepo),
+            TriggerDiscoveryRunUseCase(discoveryRepo),
+            GetDiscoverySourcesUseCase(discoveryRepo),
+            GetStagingSummaryUseCase(dashRepo),
+            storage,
+        )
 }

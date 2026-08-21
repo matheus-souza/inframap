@@ -132,6 +132,18 @@
     <string name="topology_preview_switch">Prévia Switch</string>
     <string name="topology_preview_server">Prévia Servidor</string>
 
+    <!-- Dashboard Auto-Setup -->
+    <string name="dashboard_auto_setup_title">Redes Locais Detectadas</string>
+    <string name="dashboard_auto_setup_desc">Detectamos interfaces de rede ativas no servidor. Configure a descoberta automática com 1 clique.</string>
+    <string name="dashboard_auto_setup_start">Configurar e Iniciar Varredura</string>
+    <string name="dashboard_auto_setup_manual">Configuração Manual</string>
+    <string name="dashboard_auto_setup_dismiss">Agora não</string>
+    <string name="dashboard_auto_setup_creating_subnets">Criando sub-redes...</string>
+    <string name="dashboard_auto_setup_creating_sources">Configurando descoberta...</string>
+    <string name="dashboard_auto_setup_scanning">Escaneando redes ativas...</string>
+    <string name="dashboard_auto_setup_completed">Varredura concluída! %1$d dispositivos encontrados.</string>
+    <string name="dashboard_auto_setup_view_staging">Ver na Fila de Staging</string>
+
     <!-- Command Palette -->
     <string name="command_palette_category_acoes">⚡ Ações Rápidas</string>
     <string name="command_palette_category_dispositivos">🖥️ Dispositivos</string>
@@ -142,3 +154,5 @@
     <string name="command_palette_empty">Nenhum item disponível.</string>
     <string name="command_palette_empty_query">Nenhum resultado encontrado para "%1$s"</string>
 </resources>
+
+
