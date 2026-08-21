@@ -97,6 +97,7 @@ fun CommandPaletteModal(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
+                            onClickLabel = "Fechar paleta de comandos",
                             onClick = actions.onDismiss,
                         ),
             )
