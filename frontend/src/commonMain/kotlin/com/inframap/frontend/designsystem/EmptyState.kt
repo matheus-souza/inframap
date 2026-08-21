@@ -19,15 +19,18 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+@Suppress("LongParameterList")
 @Composable
 fun InfraMapEmptyState(
     icon: ImageVector,
     title: String,
-    subtitle: String,
+    description: String,
     modifier: Modifier = Modifier,
-    ctaLabel: String? = null,
-    onCtaClick: (() -> Unit)? = null,
-    extraActions: @Composable (() -> Unit)? = null,
+    primaryActionText: String? = null,
+    onPrimaryAction: (() -> Unit)? = null,
+    secondaryActionText: String? = null,
+    onSecondaryAction: (() -> Unit)? = null,
+    extraActions: (@Composable () -> Unit)? = null,
 ) {
     InfraMapCard(modifier = modifier.fillMaxWidth()) {
         Column(
@@ -50,23 +53,63 @@ fun InfraMapEmptyState(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = subtitle,
+                text = description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center,
             )
-            if (ctaLabel != null && onCtaClick != null) {
-                Spacer(modifier = Modifier.height(20.dp))
-                if (extraActions != null) {
-                    Row(horizontalArrangement = Arrangement.Center) {
-                        InfraMapButton(text = ctaLabel, onClick = onCtaClick)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        extraActions()
+
+            if (primaryActionText != null || secondaryActionText != null || extraActions != null) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (primaryActionText != null && onPrimaryAction != null) {
+                        InfraMapButton(
+                            text = primaryActionText,
+                            onClick = onPrimaryAction,
+                        )
                     }
-                } else {
-                    InfraMapButton(text = ctaLabel, onClick = onCtaClick)
+                    if (secondaryActionText != null && onSecondaryAction != null) {
+                        if (primaryActionText != null) {
+                            Spacer(modifier = Modifier.width(12.dp))
+                        }
+                        InfraMapOutlinedButton(
+                            text = secondaryActionText,
+                            onClick = onSecondaryAction,
+                        )
+                    }
+                    extraActions?.let {
+                        if (primaryActionText != null || secondaryActionText != null) {
+                            Spacer(modifier = Modifier.width(12.dp))
+                        }
+                        it()
+                    }
                 }
             }
         }
     }
+}
+
+@Suppress("LongParameterList")
+@Composable
+fun InfraMapEmptyState(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    ctaLabel: String? = null,
+    onCtaClick: (() -> Unit)? = null,
+    extraActions: (@Composable () -> Unit)? = null,
+) {
+    InfraMapEmptyState(
+        icon = icon,
+        title = title,
+        description = subtitle,
+        modifier = modifier,
+        primaryActionText = ctaLabel,
+        onPrimaryAction = onCtaClick,
+        extraActions = extraActions,
+    )
 }
