@@ -105,8 +105,13 @@ private fun ToastItem(
     toast: ToastMessage,
     onDismiss: (ToastMessage) -> Unit,
 ) {
+    var visible by remember { androidx.compose.runtime.mutableStateOf(false) }
+
     LaunchedEffect(toast.id) {
+        visible = true
         delay(toast.durationMs)
+        visible = false
+        delay(300)
         onDismiss(toast)
     }
 
@@ -119,7 +124,7 @@ private fun ToastItem(
         }
 
     AnimatedVisibility(
-        visible = true,
+        visible = visible,
         enter =
             slideInVertically(
                 initialOffsetY = { it },

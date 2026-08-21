@@ -38,9 +38,9 @@ fun Modifier.shimmerPlaceholder(
 
         val shimmerColors =
             listOf(
-                surfaceContainerHigh.copy(alpha = 0.6f),
-                outlineSubtle.copy(alpha = 0.8f),
-                surfaceContainerHigh.copy(alpha = 0.6f),
+                excalidrawSurfaceContainer,
+                excalidrawSubtleBorder,
+                excalidrawSurfaceContainer,
             )
 
         val brush =
