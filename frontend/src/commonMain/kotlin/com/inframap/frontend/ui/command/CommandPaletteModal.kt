@@ -5,6 +5,7 @@ package com.inframap.frontend.ui.command
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -84,24 +85,26 @@ fun CommandPaletteModal(
         onDismissRequest = actions.onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.TopCenter,
+        ) {
             Box(
                 modifier =
                     Modifier
-                        .fillMaxSize()
+                        .matchParentSize()
                         .background(Color.Black.copy(alpha = 0.65f))
-                        .clickable(onClick = actions.onDismiss),
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = actions.onDismiss,
+                        ),
             )
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                CommandPaletteModalContent(
-                    state = state,
-                    focusRequester = focusRequester,
-                    actions = actions,
-                )
-            }
+            CommandPaletteModalContent(
+                state = state,
+                focusRequester = focusRequester,
+                actions = actions,
+            )
         }
     }
 
