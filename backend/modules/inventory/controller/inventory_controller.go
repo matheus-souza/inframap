@@ -227,7 +227,10 @@ func (c *InventoryController) ListSubnets(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	httputil.WriteJSON(w, r, http.StatusOK, subnets)
+	httputil.WriteJSON(w, r, http.StatusOK, map[string]any{
+		"items": subnets,
+		"total": len(subnets),
+	})
 }
 
 // CreateSubnet handles POST /api/v1/subnets.

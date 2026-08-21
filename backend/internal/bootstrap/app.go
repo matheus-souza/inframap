@@ -256,7 +256,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 			httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to detect network interfaces", nil)
 			return
 		}
-		httputil.WriteJSON(w, r, http.StatusOK, map[string]interface{}{"data": ifaces})
+		httputil.WriteJSON(w, r, http.StatusOK, ifaces)
 	})
 
 	// Wire Integrations Registry & Native Providers
