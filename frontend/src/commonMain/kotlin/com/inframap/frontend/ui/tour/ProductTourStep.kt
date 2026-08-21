@@ -16,11 +16,11 @@ enum class ProductTourStep(
     ),
     COMMAND_PALETTE(
         stepNumber = 2,
-        title = "Paleta de Comandos (⌘K)",
+        title = "Paleta de Comandos (Ctrl+K)",
         description =
-            "Use o atalho ⌘K ou clique na barra de busca para pesquisar instantaneamente " +
-                "por qualquer ativo, sub-rede ou executar ações rápidas no sistema.",
-        highlightTarget = "Paleta de Comandos (⌘K)",
+            "Use o atalho Ctrl+K (ou Cmd+K no Mac) ou clique na barra de busca para pesquisar instantaneamente " +
+                "por recursos, navegar entre visualizações e executar ações.",
+        highlightTarget = "Paleta de Comandos (Ctrl+K)",
     ),
     DISCOVERY_SOURCES(
         stepNumber = 3,
