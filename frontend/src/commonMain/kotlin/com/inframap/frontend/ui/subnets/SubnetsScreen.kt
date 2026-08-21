@@ -32,6 +32,11 @@ import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.subnets_create_button
+import com.inframap.frontend.generated.resources.subnets_empty_subtitle
+import com.inframap.frontend.generated.resources.subnets_empty_title
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun SubnetsScreen(
@@ -124,12 +129,10 @@ private fun SubnetsTableCard(
         Column(modifier = Modifier.fillMaxWidth()) {
             InfraMapEmptyState(
                 icon = Icons.Filled.Hub,
-                title = "Nenhuma subrede cadastrada",
-                subtitle =
-                    "Subredes definem as faixas de rede onde a descoberta automática " +
-                        "de dispositivos será executada.",
-                ctaLabel = "Cadastrar Subrede",
-                onCtaClick = actions.onCreateSubnetClicked,
+                title = stringResource(Res.string.subnets_empty_title),
+                description = stringResource(Res.string.subnets_empty_subtitle),
+                primaryActionText = stringResource(Res.string.subnets_create_button),
+                onPrimaryAction = actions.onCreateSubnetClicked,
             )
 
             if (state.detectedInterfaces.isNotEmpty()) {
@@ -230,6 +233,7 @@ private fun DetectedInterfaceRow(
                 text = "${iface.cidr}  |  IP: ${iface.ip}  |  MAC: ${iface.mac}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             )
         }
         InfraMapOutlinedButton(
@@ -256,6 +260,7 @@ private fun SubnetRowCell(
                 text = item.cidr,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             )
         2 ->
             Text(
@@ -268,6 +273,7 @@ private fun SubnetRowCell(
                 text = item.gatewayIp ?: "-",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             )
         4 -> {
             val status = if (item.discoveryEnabled) DeviceStatus.ACTIVE else DeviceStatus.OFFLINE

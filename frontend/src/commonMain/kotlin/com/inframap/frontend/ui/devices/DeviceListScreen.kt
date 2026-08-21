@@ -30,6 +30,11 @@ import com.inframap.frontend.designsystem.InfraMapTablePagination
 import com.inframap.frontend.designsystem.InfraMapTextField
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.devices_create_button
+import com.inframap.frontend.generated.resources.devices_empty_subtitle
+import com.inframap.frontend.generated.resources.devices_empty_title
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.ceil
 
 @Composable
@@ -154,12 +159,10 @@ private fun DeviceListTableCard(
     if (state.devices.isEmpty()) {
         InfraMapEmptyState(
             icon = InfraMapIcons.Dns,
-            title = "Nenhum dispositivo no inventário",
-            subtitle =
-                "Dispositivos aparecem aqui após serem aprovados na fila de staging, " +
-                    "ou podem ser cadastrados manualmente.",
-            ctaLabel = "Cadastrar Dispositivo",
-            onCtaClick = actions.onCreateDeviceClicked,
+            title = stringResource(Res.string.devices_empty_title),
+            description = stringResource(Res.string.devices_empty_subtitle),
+            primaryActionText = stringResource(Res.string.devices_create_button),
+            onPrimaryAction = actions.onCreateDeviceClicked,
         )
     } else {
         val columns =
@@ -212,6 +215,7 @@ private fun DeviceTableRowCell(
                 text = item.ipAddress ?: "—",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             )
         2 ->
             Text(

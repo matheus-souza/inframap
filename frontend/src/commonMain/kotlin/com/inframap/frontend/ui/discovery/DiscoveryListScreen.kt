@@ -33,6 +33,11 @@ import com.inframap.frontend.designsystem.SnackbarType
 import com.inframap.frontend.designsystem.SourceStatus
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.DiscoverySource
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.discovery_empty_cta
+import com.inframap.frontend.generated.resources.discovery_empty_subtitle
+import com.inframap.frontend.generated.resources.discovery_empty_title
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun DiscoveryListScreen(
@@ -183,12 +188,10 @@ private fun DiscoveryTableCard(
     if (state.sources.isEmpty()) {
         InfraMapEmptyState(
             icon = InfraMapIcons.Radar,
-            title = "Nenhuma fonte de descoberta configurada",
-            subtitle =
-                "Fontes de descoberta escaneiam sua rede automaticamente " +
-                    "para encontrar dispositivos. Crie sua primeira fonte para comecar.",
-            ctaLabel = "Criar Fonte de Descoberta",
-            onCtaClick = actions.onCreateSourceClicked,
+            title = stringResource(Res.string.discovery_empty_title),
+            description = stringResource(Res.string.discovery_empty_subtitle),
+            primaryActionText = stringResource(Res.string.discovery_empty_cta),
+            onPrimaryAction = actions.onCreateSourceClicked,
         )
     } else {
         val columns =
@@ -239,6 +242,7 @@ private fun DiscoveryRowCell(
                 text = item.configCidr ?: "-",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             )
         3 ->
             Text(
