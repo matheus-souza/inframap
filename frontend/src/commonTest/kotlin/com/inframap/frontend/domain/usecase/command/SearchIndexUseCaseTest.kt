@@ -29,7 +29,7 @@ class SearchIndexUseCaseTest {
 
             assertTrue(results.any { it.category == CommandPaletteCategory.DISPOSITIVOS })
             assertTrue(results.any { it.category == CommandPaletteCategory.SUBREDES })
-            assertTrue(results.any { it.category == CommandPaletteCategory.FONTES })
+            assertTrue(results.any { it.category == CommandPaletteCategory.NAVEGACAO })
             assertTrue(results.any { it.category == CommandPaletteCategory.ACOES })
         }
 
@@ -143,6 +143,6 @@ class SearchIndexUseCaseTest {
             val results = useCase("Dashboard")
 
             assertTrue(results.isNotEmpty())
-            assertTrue(results.all { it.category == CommandPaletteCategory.ACOES })
+            assertTrue(results.all { it.category == CommandPaletteCategory.NAVEGACAO })
         }
 }

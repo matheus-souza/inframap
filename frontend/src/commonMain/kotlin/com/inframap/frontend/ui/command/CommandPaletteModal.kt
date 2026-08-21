@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
@@ -62,6 +63,12 @@ import com.inframap.frontend.designsystem.InfraMapTextPrimary
 import com.inframap.frontend.designsystem.InfraMapTextSecondary
 import com.inframap.frontend.domain.model.CommandPaletteCategory
 import com.inframap.frontend.domain.model.CommandPaletteItem
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.command_palette_close_label
+import com.inframap.frontend.generated.resources.command_palette_empty
+import com.inframap.frontend.generated.resources.command_palette_empty_query
+import com.inframap.frontend.generated.resources.command_palette_search_placeholder
+import org.jetbrains.compose.resources.stringResource
 
 data class CommandPaletteActions(
     val onQueryChanged: (String) -> Unit,
@@ -97,7 +104,7 @@ fun CommandPaletteModal(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClickLabel = "Fechar paleta de comandos",
+                            onClickLabel = stringResource(Res.string.command_palette_close_label),
                             onClick = actions.onDismiss,
                         ),
             )
@@ -210,7 +217,7 @@ private fun CommandPaletteSearchHeader(
             onValueChange = onQueryChanged,
             placeholder = {
                 Text(
-                    text = "Buscar dispositivos, subredes, fontes ou ações...",
+                    text = stringResource(Res.string.command_palette_search_placeholder),
                     color = InfraMapTextSecondary,
                     fontSize = 14.sp,
                 )
@@ -293,9 +300,9 @@ private fun CommandPaletteEmptyState(query: String) {
         Text(
             text =
                 if (query.isBlank()) {
-                    "Nenhum item disponível."
+                    stringResource(Res.string.command_palette_empty)
                 } else {
-                    "Nenhum resultado encontrado para \"$query\""
+                    stringResource(Res.string.command_palette_empty_query, query)
                 },
             color = InfraMapTextSecondary,
             fontSize = 14.sp,
@@ -321,7 +328,7 @@ private fun CommandPaletteResultsList(
             if (categoryItems.isNotEmpty()) {
                 item(key = "header-${category.name}") {
                     Text(
-                        text = category.displayName.uppercase(),
+                        text = stringResource(category.titleRes).uppercase(),
                         color = InfraMapTextSecondary,
                         fontSize = 11.sp,
                         style = MaterialTheme.typography.labelSmall,
@@ -350,13 +357,6 @@ private fun CommandPaletteItemRow(
     onClick: () -> Unit,
 ) {
     val bgModifier = if (isSelected) Modifier.background(InfraMapSurfaceElevated) else Modifier
-    val icon: ImageVector =
-        when (item.category) {
-            CommandPaletteCategory.DISPOSITIVOS -> InfraMapIcons.Dns
-            CommandPaletteCategory.SUBREDES -> InfraMapIcons.Lan
-            CommandPaletteCategory.FONTES -> Icons.Default.Hub
-            CommandPaletteCategory.ACOES -> Icons.Default.Bolt
-        }
 
     Row(
         modifier =
@@ -369,29 +369,20 @@ private fun CommandPaletteItemRow(
                 .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (isSelected) MaterialTheme.colorScheme.primary else InfraMapTextSecondary,
-            modifier = Modifier.size(18.dp),
-        )
+        CategoryIcon(category = item.category, isSelected = isSelected)
         Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.title,
-                color = InfraMapTextPrimary,
-                fontSize = 14.sp,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (!item.subtitle.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = item.subtitle,
-                    color = InfraMapTextSecondary,
-                    fontSize = 12.sp,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
+        ItemTitleAndSubtitle(
+            title = item.title,
+            subtitle = item.subtitle,
+            modifier = Modifier.weight(1f),
+        )
+        item.status?.let { status ->
+            ItemStatusDot(status = status)
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        item.badge?.let { badge ->
+            ItemBadgeChip(badge = badge)
+            Spacer(modifier = Modifier.width(8.dp))
         }
         if (isSelected) {
             Text(
@@ -400,5 +391,87 @@ private fun CommandPaletteItemRow(
                 fontSize = 14.sp,
             )
         }
+    }
+}
+
+@Composable
+private fun CategoryIcon(
+    category: CommandPaletteCategory,
+    isSelected: Boolean,
+) {
+    val icon: ImageVector =
+        when (category) {
+            CommandPaletteCategory.DISPOSITIVOS -> InfraMapIcons.Dns
+            CommandPaletteCategory.SUBREDES -> InfraMapIcons.Lan
+            CommandPaletteCategory.NAVEGACAO -> Icons.Default.Hub
+            CommandPaletteCategory.ACOES -> Icons.Default.Bolt
+        }
+
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = if (isSelected) MaterialTheme.colorScheme.primary else InfraMapTextSecondary,
+        modifier = Modifier.size(18.dp),
+    )
+}
+
+@Composable
+private fun ItemTitleAndSubtitle(
+    title: String,
+    subtitle: String?,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = title,
+            color = InfraMapTextPrimary,
+            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (!subtitle.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                color = InfraMapTextSecondary,
+                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ItemStatusDot(status: String) {
+    val statusColor =
+        when (status.lowercase()) {
+            "online" -> com.inframap.frontend.designsystem.StatusOnline
+            "warning" -> com.inframap.frontend.designsystem.StatusWarning
+            "alert" -> com.inframap.frontend.designsystem.StatusOffline
+            "staging" -> com.inframap.frontend.designsystem.StatusStaging
+            else -> Color.Gray
+        }
+    Box(
+        modifier =
+            Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(statusColor),
+    )
+}
+
+@Composable
+private fun ItemBadgeChip(badge: String) {
+    Box(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(InfraMapBorder)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = badge,
+            color = InfraMapTextSecondary,
+            fontSize = 10.sp,
+        )
     }
 }
