@@ -39,7 +39,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -85,20 +84,24 @@ fun CommandPaletteModal(
         onDismissRequest = actions.onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .blur(8.dp)
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .clickable(onClick = actions.onDismiss),
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            CommandPaletteModalContent(
-                state = state,
-                focusRequester = focusRequester,
-                actions = actions,
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.65f))
+                        .clickable(onClick = actions.onDismiss),
             )
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                CommandPaletteModalContent(
+                    state = state,
+                    focusRequester = focusRequester,
+                    actions = actions,
+                )
+            }
         }
     }
 
