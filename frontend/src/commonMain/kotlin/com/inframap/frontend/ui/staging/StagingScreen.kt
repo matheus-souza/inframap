@@ -15,9 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.stringResource
-import inframap.frontend.generated.resources.Res
-import inframap.frontend.generated.resources.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.DeviceStatus
@@ -32,6 +29,11 @@ import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.InfraMapTablePagination
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.StagingDevice
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.staging_configure_discovery
+import com.inframap.frontend.generated.resources.staging_empty_subtitle
+import com.inframap.frontend.generated.resources.staging_empty_title
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.ceil
 
 @Composable

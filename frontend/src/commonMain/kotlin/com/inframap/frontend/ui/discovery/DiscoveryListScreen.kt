@@ -19,9 +19,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.stringResource
-import inframap.frontend.generated.resources.Res
-import inframap.frontend.generated.resources.*
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
@@ -36,6 +33,11 @@ import com.inframap.frontend.designsystem.SnackbarType
 import com.inframap.frontend.designsystem.SourceStatus
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.DiscoverySource
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.discovery_empty_cta
+import com.inframap.frontend.generated.resources.discovery_empty_subtitle
+import com.inframap.frontend.generated.resources.discovery_empty_title
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun DiscoveryListScreen(
