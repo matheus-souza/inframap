@@ -5,6 +5,7 @@ package com.inframap.frontend.ui.command
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,7 +40,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -86,14 +86,21 @@ fun CommandPaletteModal(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .blur(8.dp)
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .clickable(onClick = actions.onDismiss),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.TopCenter,
         ) {
+            Box(
+                modifier =
+                    Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.65f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClickLabel = "Fechar paleta de comandos",
+                            onClick = actions.onDismiss,
+                        ),
+            )
             CommandPaletteModalContent(
                 state = state,
                 focusRequester = focusRequester,
