@@ -16,6 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import org.jetbrains.compose.resources.stringResource
+import inframap.frontend.generated.resources.Res
+import inframap.frontend.generated.resources.*
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
@@ -154,12 +157,10 @@ private fun DeviceListTableCard(
     if (state.devices.isEmpty()) {
         InfraMapEmptyState(
             icon = InfraMapIcons.Dns,
-            title = "Nenhum dispositivo no inventário",
-            subtitle =
-                "Dispositivos aparecem aqui após serem aprovados na fila de staging, " +
-                    "ou podem ser cadastrados manualmente.",
-            ctaLabel = "Cadastrar Dispositivo",
-            onCtaClick = actions.onCreateDeviceClicked,
+            title = stringResource(Res.string.devices_empty_title),
+            description = stringResource(Res.string.devices_empty_subtitle),
+            primaryActionText = stringResource(Res.string.devices_create_button),
+            onPrimaryAction = actions.onCreateDeviceClicked,
         )
     } else {
         val columns =
@@ -212,6 +213,7 @@ private fun DeviceTableRowCell(
                 text = item.ipAddress ?: "—",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             )
         2 ->
             Text(

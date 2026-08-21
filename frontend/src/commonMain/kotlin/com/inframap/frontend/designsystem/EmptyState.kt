@@ -23,11 +23,12 @@ import androidx.compose.ui.unit.dp
 fun InfraMapEmptyState(
     icon: ImageVector,
     title: String,
-    subtitle: String,
+    description: String,
     modifier: Modifier = Modifier,
-    ctaLabel: String? = null,
-    onCtaClick: (() -> Unit)? = null,
-    extraActions: @Composable (() -> Unit)? = null,
+    primaryActionText: String? = null,
+    onPrimaryAction: (() -> Unit)? = null,
+    secondaryActionText: String? = null,
+    onSecondaryAction: (() -> Unit)? = null
 ) {
     InfraMapCard(modifier = modifier.fillMaxWidth()) {
         Column(
@@ -50,21 +51,24 @@ fun InfraMapEmptyState(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = subtitle,
+                text = description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center,
             )
-            if (ctaLabel != null && onCtaClick != null) {
+            
+            if (primaryActionText != null && onPrimaryAction != null) {
                 Spacer(modifier = Modifier.height(20.dp))
-                if (extraActions != null) {
-                    Row(horizontalArrangement = Arrangement.Center) {
-                        InfraMapButton(text = ctaLabel, onClick = onCtaClick)
+                Row(horizontalArrangement = Arrangement.Center) {
+                    InfraMapButton(text = primaryActionText, onClick = onPrimaryAction)
+                    
+                    if (secondaryActionText != null && onSecondaryAction != null) {
                         Spacer(modifier = Modifier.width(12.dp))
-                        extraActions()
+                        InfraMapOutlinedButton(
+                            text = secondaryActionText, 
+                            onClick = onSecondaryAction
+                        )
                     }
-                } else {
-                    InfraMapButton(text = ctaLabel, onClick = onCtaClick)
                 }
             }
         }

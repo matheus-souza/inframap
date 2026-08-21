@@ -19,6 +19,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import org.jetbrains.compose.resources.stringResource
+import inframap.frontend.generated.resources.Res
+import inframap.frontend.generated.resources.*
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
@@ -183,12 +186,10 @@ private fun DiscoveryTableCard(
     if (state.sources.isEmpty()) {
         InfraMapEmptyState(
             icon = InfraMapIcons.Radar,
-            title = "Nenhuma fonte de descoberta configurada",
-            subtitle =
-                "Fontes de descoberta escaneiam sua rede automaticamente " +
-                    "para encontrar dispositivos. Crie sua primeira fonte para comecar.",
-            ctaLabel = "Criar Fonte de Descoberta",
-            onCtaClick = actions.onCreateSourceClicked,
+            title = stringResource(Res.string.discovery_empty_title),
+            description = stringResource(Res.string.discovery_empty_subtitle),
+            primaryActionText = stringResource(Res.string.discovery_empty_cta),
+            onPrimaryAction = actions.onCreateSourceClicked,
         )
     } else {
         val columns =
@@ -239,6 +240,7 @@ private fun DiscoveryRowCell(
                 text = item.configCidr ?: "-",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             )
         3 ->
             Text(

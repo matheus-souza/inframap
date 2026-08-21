@@ -15,6 +15,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import org.jetbrains.compose.resources.stringResource
+import inframap.frontend.generated.resources.Res
+import inframap.frontend.generated.resources.*
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
@@ -129,12 +133,10 @@ private fun StagingTableCard(
     if (state.devices.isEmpty()) {
         InfraMapEmptyState(
             icon = InfraMapIcons.MoveToInbox,
-            title = "Nenhum dispositivo na fila de staging",
-            subtitle =
-                "Dispositivos descobertos automaticamente aparecem aqui para revisão. " +
-                    "Configure uma fonte de descoberta e execute um scan para começar.",
-            ctaLabel = "Configurar Descoberta",
-            onCtaClick = actions.onConfigureDiscovery,
+            title = stringResource(Res.string.staging_empty_title),
+            description = stringResource(Res.string.staging_empty_subtitle),
+            primaryActionText = stringResource(Res.string.staging_configure_discovery),
+            onPrimaryAction = actions.onConfigureDiscovery,
         )
     } else {
         val columns =
@@ -192,12 +194,14 @@ private fun StagingRowCell(
                 text = item.ipAddress ?: "-",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+                fontFamily = FontFamily.Monospace,
             )
         2 ->
             Text(
                 text = item.macAddress ?: "-",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+                fontFamily = FontFamily.Monospace,
             )
         3 ->
             Text(
