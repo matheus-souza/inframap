@@ -444,10 +444,10 @@ private fun ItemTitleAndSubtitle(
 private fun ItemStatusDot(status: String) {
     val statusColor =
         when (status.lowercase()) {
-            "online" -> Color.Green
-            "warning" -> Color.Yellow
-            "alert" -> Color.Red
-            "staging" -> Color.Blue
+            "online" -> com.inframap.frontend.designsystem.StatusOnline
+            "warning" -> com.inframap.frontend.designsystem.StatusWarning
+            "alert" -> com.inframap.frontend.designsystem.StatusOffline
+            "staging" -> com.inframap.frontend.designsystem.StatusStaging
             else -> Color.Gray
         }
     Box(

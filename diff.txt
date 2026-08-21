@@ -1,0 +1,384 @@
+diff --git a/frontend/src/commonMain/composeResources/values/strings.xml b/frontend/src/commonMain/composeResources/values/strings.xml
+index d66fd18..813b6e7 100644
+--- a/frontend/src/commonMain/composeResources/values/strings.xml
++++ b/frontend/src/commonMain/composeResources/values/strings.xml
+@@ -131,4 +131,14 @@
+     <string name="topology_preview_router">Prévia Roteador</string>
+     <string name="topology_preview_switch">Prévia Switch</string>
+     <string name="topology_preview_server">Prévia Servidor</string>
++
++    <!-- Command Palette -->
++    <string name="command_palette_category_acoes">⚡ Ações Rápidas</string>
++    <string name="command_palette_category_dispositivos">🖥️ Dispositivos</string>
++    <string name="command_palette_category_subredes">🌐 Sub-redes</string>
++    <string name="command_palette_category_navegacao">🧭 Navegação</string>
++    <string name="command_palette_search_placeholder">Buscar dispositivos, sub-redes, ações...</string>
++    <string name="command_palette_close_label">Fechar paleta de comandos</string>
++    <string name="command_palette_empty">Nenhum item disponível.</string>
++    <string name="command_palette_empty_query">Nenhum resultado encontrado para "%1$s"</string>
+ </resources>
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/model/CommandPaletteItem.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/model/CommandPaletteItem.kt
+index eabfeb2..18a8459 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/model/CommandPaletteItem.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/model/CommandPaletteItem.kt
+@@ -1,14 +1,20 @@
+ package com.inframap.frontend.domain.model
+ 
++import com.inframap.frontend.generated.resources.Res
++import com.inframap.frontend.generated.resources.command_palette_category_acoes
++import com.inframap.frontend.generated.resources.command_palette_category_dispositivos
++import com.inframap.frontend.generated.resources.command_palette_category_navegacao
++import com.inframap.frontend.generated.resources.command_palette_category_subredes
+ import com.inframap.frontend.navigation.Route
++import org.jetbrains.compose.resources.StringResource
+ 
+ enum class CommandPaletteCategory(
+-    val displayName: String,
++    val titleRes: StringResource,
+ ) {
+-    DISPOSITIVOS("Dispositivos"),
+-    SUBREDES("Subredes"),
+-    FONTES("Fontes de Descoberta"),
+-    ACOES("Ações Rápidas"),
++    ACOES(Res.string.command_palette_category_acoes),
++    DISPOSITIVOS(Res.string.command_palette_category_dispositivos),
++    SUBREDES(Res.string.command_palette_category_subredes),
++    NAVEGACAO(Res.string.command_palette_category_navegacao),
+ }
+ 
+ sealed interface CommandPaletteAction {
+@@ -25,4 +31,6 @@ data class CommandPaletteItem(
+     val subtitle: String? = null,
+     val category: CommandPaletteCategory,
+     val action: CommandPaletteAction,
++    val status: String? = null,
++    val badge: String? = null,
+ )
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCase.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCase.kt
+index b994bcb..95404e9 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCase.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCase.kt
+@@ -24,14 +24,14 @@ class SearchIndexUseCase(
+                 id = "action-dashboard",
+                 title = "Ir para Dashboard",
+                 subtitle = "Visualizar estatísticas e métricas do sistema",
+-                category = CommandPaletteCategory.ACOES,
++                category = CommandPaletteCategory.NAVEGACAO,
+                 action = CommandPaletteAction.Navigate(Route.Dashboard),
+             ),
+             CommandPaletteItem(
+                 id = "action-devices",
+                 title = "Ir para Dispositivos",
+                 subtitle = "Listar e gerenciar dispositivos de rede",
+-                category = CommandPaletteCategory.ACOES,
++                category = CommandPaletteCategory.NAVEGACAO,
+                 action = CommandPaletteAction.Navigate(Route.Devices),
+             ),
+             CommandPaletteItem(
+@@ -45,19 +45,19 @@ class SearchIndexUseCase(
+                 id = "action-staging",
+                 title = "Ir para Staging",
+                 subtitle = "Analisar dispositivos descobertos pendentes",
+-                category = CommandPaletteCategory.ACOES,
++                category = CommandPaletteCategory.NAVEGACAO,
+                 action = CommandPaletteAction.Navigate(Route.Staging),
+             ),
+             CommandPaletteItem(
+                 id = "action-subnets",
+                 title = "Ir para Subredes",
+                 subtitle = "Gerenciar faixas CIDR e VLANs",
+-                category = CommandPaletteCategory.ACOES,
++                category = CommandPaletteCategory.NAVEGACAO,
+                 action = CommandPaletteAction.Navigate(Route.Subnets),
+             ),
+             CommandPaletteItem(
+                 id = "action-create-subnet",
+-                title = "Criar Subrede",
++                title = "Cadastrar Sub-rede",
+                 subtitle = "Cadastrar uma nova faixa de subrede",
+                 category = CommandPaletteCategory.ACOES,
+                 action = CommandPaletteAction.Navigate(Route.CreateSubnet()),
+@@ -66,13 +66,27 @@ class SearchIndexUseCase(
+                 id = "action-topology",
+                 title = "Ir para Topologia",
+                 subtitle = "Visualizar o mapa interativo da rede",
+-                category = CommandPaletteCategory.ACOES,
++                category = CommandPaletteCategory.NAVEGACAO,
+                 action = CommandPaletteAction.Navigate(Route.Topology),
+             ),
+             CommandPaletteItem(
+                 id = "action-refresh",
+-                title = "Atualizar Dados",
+-                subtitle = "Recarregar informações dos serviços",
++                title = "Nova Varredura",
++                subtitle = "Disparar varredura da rede",
++                category = CommandPaletteCategory.ACOES,
++                action = CommandPaletteAction.RefreshData,
++            ),
++            CommandPaletteItem(
++                id = "action-export-inventory",
++                title = "Exportar Inventário",
++                subtitle = "Baixar inventário em CSV",
++                category = CommandPaletteCategory.ACOES,
++                action = CommandPaletteAction.RefreshData,
++            ),
++            CommandPaletteItem(
++                id = "action-toggle-sidebar",
++                title = "Alternar Barra Lateral",
++                subtitle = "Expandir ou recolher o menu lateral",
+                 category = CommandPaletteCategory.ACOES,
+                 action = CommandPaletteAction.RefreshData,
+             ),
+@@ -106,6 +120,7 @@ class SearchIndexUseCase(
+                 subtitle = subtitleParts.joinToString(" • ").ifEmpty { null },
+                 category = CommandPaletteCategory.DISPOSITIVOS,
+                 action = CommandPaletteAction.Navigate(Route.DeviceDetail(dev.id)),
++                status = dev.status,
+             )
+         }
+     }
+@@ -125,6 +140,7 @@ class SearchIndexUseCase(
+                     subtitle = "CIDR: ${subnet.cidr}$vlanPart",
+                     category = CommandPaletteCategory.SUBREDES,
+                     action = CommandPaletteAction.Navigate(Route.Subnets),
++                    badge = "0", // Placeholder for host count
+                 )
+             }
+     }
+@@ -156,7 +172,7 @@ class SearchIndexUseCase(
+                     id = "source-${source.id}",
+                     title = source.name,
+                     subtitle = "Tipo: ${source.sourceType}$statusPart",
+-                    category = CommandPaletteCategory.FONTES,
++                    category = CommandPaletteCategory.NAVEGACAO,
+                     action = CommandPaletteAction.Navigate(Route.Dashboard),
+                 )
+             }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt
+index 50c56b1..9c1526b 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt
+@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.layout.widthIn
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.itemsIndexed
++import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.filled.Bolt
+@@ -62,6 +63,12 @@ import com.inframap.frontend.designsystem.InfraMapTextPrimary
+ import com.inframap.frontend.designsystem.InfraMapTextSecondary
+ import com.inframap.frontend.domain.model.CommandPaletteCategory
+ import com.inframap.frontend.domain.model.CommandPaletteItem
++import com.inframap.frontend.generated.resources.Res
++import com.inframap.frontend.generated.resources.command_palette_close_label
++import com.inframap.frontend.generated.resources.command_palette_empty
++import com.inframap.frontend.generated.resources.command_palette_empty_query
++import com.inframap.frontend.generated.resources.command_palette_search_placeholder
++import org.jetbrains.compose.resources.stringResource
+ 
+ data class CommandPaletteActions(
+     val onQueryChanged: (String) -> Unit,
+@@ -97,7 +104,7 @@ fun CommandPaletteModal(
+                         .clickable(
+                             interactionSource = remember { MutableInteractionSource() },
+                             indication = null,
+-                            onClickLabel = "Fechar paleta de comandos",
++                            onClickLabel = stringResource(Res.string.command_palette_close_label),
+                             onClick = actions.onDismiss,
+                         ),
+             )
+@@ -210,7 +217,7 @@ private fun CommandPaletteSearchHeader(
+             onValueChange = onQueryChanged,
+             placeholder = {
+                 Text(
+-                    text = "Buscar dispositivos, subredes, fontes ou ações...",
++                    text = stringResource(Res.string.command_palette_search_placeholder),
+                     color = InfraMapTextSecondary,
+                     fontSize = 14.sp,
+                 )
+@@ -293,9 +300,9 @@ private fun CommandPaletteEmptyState(query: String) {
+         Text(
+             text =
+                 if (query.isBlank()) {
+-                    "Nenhum item disponível."
++                    stringResource(Res.string.command_palette_empty)
+                 } else {
+-                    "Nenhum resultado encontrado para \"$query\""
++                    stringResource(Res.string.command_palette_empty_query, query)
+                 },
+             color = InfraMapTextSecondary,
+             fontSize = 14.sp,
+@@ -321,7 +328,7 @@ private fun CommandPaletteResultsList(
+             if (categoryItems.isNotEmpty()) {
+                 item(key = "header-${category.name}") {
+                     Text(
+-                        text = category.displayName.uppercase(),
++                        text = stringResource(category.titleRes).uppercase(),
+                         color = InfraMapTextSecondary,
+                         fontSize = 11.sp,
+                         style = MaterialTheme.typography.labelSmall,
+@@ -350,13 +357,6 @@ private fun CommandPaletteItemRow(
+     onClick: () -> Unit,
+ ) {
+     val bgModifier = if (isSelected) Modifier.background(InfraMapSurfaceElevated) else Modifier
+-    val icon: ImageVector =
+-        when (item.category) {
+-            CommandPaletteCategory.DISPOSITIVOS -> InfraMapIcons.Dns
+-            CommandPaletteCategory.SUBREDES -> InfraMapIcons.Lan
+-            CommandPaletteCategory.FONTES -> Icons.Default.Hub
+-            CommandPaletteCategory.ACOES -> Icons.Default.Bolt
+-        }
+ 
+     Row(
+         modifier =
+@@ -369,29 +369,20 @@ private fun CommandPaletteItemRow(
+                 .padding(horizontal = 12.dp, vertical = 10.dp),
+         verticalAlignment = Alignment.CenterVertically,
+     ) {
+-        Icon(
+-            imageVector = icon,
+-            contentDescription = null,
+-            tint = if (isSelected) MaterialTheme.colorScheme.primary else InfraMapTextSecondary,
+-            modifier = Modifier.size(18.dp),
+-        )
++        CategoryIcon(category = item.category, isSelected = isSelected)
+         Spacer(modifier = Modifier.width(12.dp))
+-        Column(modifier = Modifier.weight(1f)) {
+-            Text(
+-                text = item.title,
+-                color = InfraMapTextPrimary,
+-                fontSize = 14.sp,
+-                style = MaterialTheme.typography.bodyMedium,
+-            )
+-            if (!item.subtitle.isNullOrBlank()) {
+-                Spacer(modifier = Modifier.height(2.dp))
+-                Text(
+-                    text = item.subtitle,
+-                    color = InfraMapTextSecondary,
+-                    fontSize = 12.sp,
+-                    style = MaterialTheme.typography.bodySmall,
+-                )
+-            }
++        ItemTitleAndSubtitle(
++            title = item.title,
++            subtitle = item.subtitle,
++            modifier = Modifier.weight(1f),
++        )
++        item.status?.let { status ->
++            ItemStatusDot(status = status)
++            Spacer(modifier = Modifier.width(8.dp))
++        }
++        item.badge?.let { badge ->
++            ItemBadgeChip(badge = badge)
++            Spacer(modifier = Modifier.width(8.dp))
+         }
+         if (isSelected) {
+             Text(
+@@ -402,3 +393,85 @@ private fun CommandPaletteItemRow(
+         }
+     }
+ }
++
++@Composable
++private fun CategoryIcon(
++    category: CommandPaletteCategory,
++    isSelected: Boolean,
++) {
++    val icon: ImageVector =
++        when (category) {
++            CommandPaletteCategory.DISPOSITIVOS -> InfraMapIcons.Dns
++            CommandPaletteCategory.SUBREDES -> InfraMapIcons.Lan
++            CommandPaletteCategory.NAVEGACAO -> Icons.Default.Hub
++            CommandPaletteCategory.ACOES -> Icons.Default.Bolt
++        }
++
++    Icon(
++        imageVector = icon,
++        contentDescription = null,
++        tint = if (isSelected) MaterialTheme.colorScheme.primary else InfraMapTextSecondary,
++        modifier = Modifier.size(18.dp),
++    )
++}
++
++@Composable
++private fun ItemTitleAndSubtitle(
++    title: String,
++    subtitle: String?,
++    modifier: Modifier = Modifier,
++) {
++    Column(modifier = modifier) {
++        Text(
++            text = title,
++            color = InfraMapTextPrimary,
++            fontSize = 14.sp,
++            style = MaterialTheme.typography.bodyMedium,
++        )
++        if (!subtitle.isNullOrBlank()) {
++            Spacer(modifier = Modifier.height(2.dp))
++            Text(
++                text = subtitle,
++                color = InfraMapTextSecondary,
++                fontSize = 12.sp,
++                style = MaterialTheme.typography.bodySmall,
++            )
++        }
++    }
++}
++
++@Composable
++private fun ItemStatusDot(status: String) {
++    val statusColor =
++        when (status.lowercase()) {
++            "online" -> Color.Green
++            "warning" -> Color.Yellow
++            "alert" -> Color.Red
++            "staging" -> Color.Blue
++            else -> Color.Gray
++        }
++    Box(
++        modifier =
++            Modifier
++                .size(8.dp)
++                .clip(CircleShape)
++                .background(statusColor),
++    )
++}
++
++@Composable
++private fun ItemBadgeChip(badge: String) {
++    Box(
++        modifier =
++            Modifier
++                .clip(RoundedCornerShape(4.dp))
++                .background(InfraMapBorder)
++                .padding(horizontal = 4.dp, vertical = 2.dp),
++    ) {
++        Text(
++            text = badge,
++            color = InfraMapTextSecondary,
++            fontSize = 10.sp,
++        )
++    }
++}
+diff --git a/frontend/src/commonTest/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCaseTest.kt b/frontend/src/commonTest/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCaseTest.kt
+index 3c84b73..ba3ba7d 100644
+--- a/frontend/src/commonTest/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCaseTest.kt
++++ b/frontend/src/commonTest/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCaseTest.kt
+@@ -29,7 +29,7 @@ class SearchIndexUseCaseTest {
+ 
+             assertTrue(results.any { it.category == CommandPaletteCategory.DISPOSITIVOS })
+             assertTrue(results.any { it.category == CommandPaletteCategory.SUBREDES })
+-            assertTrue(results.any { it.category == CommandPaletteCategory.FONTES })
++            assertTrue(results.any { it.category == CommandPaletteCategory.NAVEGACAO })
+             assertTrue(results.any { it.category == CommandPaletteCategory.ACOES })
+         }
+ 
+@@ -143,6 +143,6 @@ class SearchIndexUseCaseTest {
+             val results = useCase("Dashboard")
+ 
+             assertTrue(results.isNotEmpty())
+-            assertTrue(results.all { it.category == CommandPaletteCategory.ACOES })
++            assertTrue(results.all { it.category == CommandPaletteCategory.NAVEGACAO })
+         }
+ }
