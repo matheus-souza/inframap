@@ -430,6 +430,26 @@ func TestInventoryController_Unit(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("expected 200 OK, got %d", w.Code)
 		}
+
+		var body map[string]any
+		if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		data, ok := body["data"].(map[string]any)
+		if !ok {
+			t.Fatal("expected data envelope")
+		}
+		if data["total"] != float64(1) {
+			t.Errorf("expected total 1, got %v", data["total"])
+		}
+		items, ok := data["items"].([]any)
+		if !ok || len(items) != 1 {
+			t.Fatalf("expected items array of length 1, got %v", data["items"])
+		}
+		item := items[0].(map[string]any)
+		if item["id"] != "sub-1" {
+			t.Errorf("expected id sub-1, got %v", item["id"])
+		}
 	})
 
 	t.Run("ListDevices InternalError", func(t *testing.T) {
