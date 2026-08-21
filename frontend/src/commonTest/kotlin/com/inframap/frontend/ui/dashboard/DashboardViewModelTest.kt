@@ -562,4 +562,226 @@ class DashboardViewModelTest {
         assertEquals(5L, copied.totalActiveDevices)
         assertFalse(copied.isSystemHealthy!!)
     }
+
+    @Test
+    fun dismissAutoSetupHidesHeroCard() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.dismissAutoSetup()
+            advanceUntilIdle()
+
+            assertFalse(vm.state.value.autoSetup.isVisible)
+            vm.clear()
+        }
+
+    @Test
+    fun checkAutoSetupWhenNoSubnetsTriggersInterfaceDetection() =
+        runTest {
+            val netRepo =
+                FakeNetworkRepository(
+                    getInterfacesResult =
+                        ApiResult.Success(
+                            listOf(
+                                com.inframap.frontend.domain.model.NetworkInterface(
+                                    name = "eth0",
+                                    ip = "192.168.1.10",
+                                    cidr = "192.168.1.0/24",
+                                    mac = "00:11:22:33:44:55",
+                                ),
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val vm =
+                makeVm(
+                    subnetRepo =
+                        FakeSubnetRepository(
+                            getSubnetsResult =
+                                ApiResult.Success(
+                                    PaginatedList(emptyList(), total = 0L, page = 1, perPage = 50),
+                                    requestId = "",
+                                ),
+                        ),
+                    networkRepo = netRepo,
+                    scope = this,
+                )
+            advanceUntilIdle()
+
+            vm.checkAutoSetup()
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value.autoSetup.isVisible)
+            assertEquals(1, vm.state.value.autoSetup.detectedInterfaces.size)
+            assertEquals(
+                "eth0",
+                vm.state.value.autoSetup.detectedInterfaces[0]
+                    .name,
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun startAutoSetupWithEmptyInterfacesReturnsImmediately() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.startAutoSetup()
+            advanceUntilIdle()
+
+            assertEquals(AutoSetupPhase.IDLE, vm.state.value.autoSetup.phase)
+            vm.clear()
+        }
+
+    @Test
+    fun startAutoSetupExecutesFullFlowToCompleted() =
+        runTest {
+            val netRepo =
+                FakeNetworkRepository(
+                    getInterfacesResult =
+                        ApiResult.Success(
+                            listOf(
+                                com.inframap.frontend.domain.model.NetworkInterface(
+                                    name = "eth0",
+                                    ip = "192.168.1.10",
+                                    cidr = "192.168.1.0/24",
+                                    mac = "00:11:22:33:44:55",
+                                ),
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val subnetRepo =
+                FakeSubnetRepository(
+                    getSubnetsResult =
+                        ApiResult.Success(
+                            PaginatedList(emptyList(), total = 0L, page = 1, perPage = 50),
+                            requestId = "",
+                        ),
+                )
+            val vm =
+                makeVm(
+                    subnetRepo = subnetRepo,
+                    networkRepo = netRepo,
+                    scope = this,
+                )
+            advanceUntilIdle()
+
+            vm.checkAutoSetup()
+            advanceUntilIdle()
+
+            subnetRepo.getSubnetsResult =
+                ApiResult.Success(
+                    PaginatedList(listOf(FakeSubnetRepository.DEFAULT_SUBNET), total = 1L, page = 1, perPage = 50),
+                    requestId = "",
+                )
+
+            vm.startAutoSetup()
+            advanceUntilIdle()
+
+            assertEquals(AutoSetupPhase.COMPLETED, vm.state.value.autoSetup.phase)
+            vm.clear()
+        }
+
+    @Test
+    fun startAutoSetupSetsErrorWhenCreateSubnetsFails() =
+        runTest {
+            val netRepo =
+                FakeNetworkRepository(
+                    getInterfacesResult =
+                        ApiResult.Success(
+                            listOf(
+                                com.inframap.frontend.domain.model.NetworkInterface(
+                                    name = "eth0",
+                                    ip = "192.168.1.10",
+                                    cidr = "192.168.1.0/24",
+                                    mac = "00:11:22:33:44:55",
+                                ),
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val subnetRepo =
+                FakeSubnetRepository(
+                    getSubnetsResult =
+                        ApiResult.Success(
+                            PaginatedList(emptyList(), total = 0L, page = 1, perPage = 50),
+                            requestId = "",
+                        ),
+                    createSubnetResult = ApiResult.Error("ERR", "Create failed", "", 500),
+                )
+            val vm =
+                makeVm(
+                    subnetRepo = subnetRepo,
+                    networkRepo = netRepo,
+                    scope = this,
+                )
+            advanceUntilIdle()
+
+            vm.checkAutoSetup()
+            advanceUntilIdle()
+
+            vm.startAutoSetup()
+            advanceUntilIdle()
+
+            assertEquals(AutoSetupPhase.IDLE, vm.state.value.autoSetup.phase)
+            kotlin.test.assertNotNull(vm.state.value.autoSetup.errorMessage)
+            vm.clear()
+        }
+
+    @Test
+    fun startAutoSetupSetsErrorWhenCreateSourcesFails() =
+        runTest {
+            val netRepo =
+                FakeNetworkRepository(
+                    getInterfacesResult =
+                        ApiResult.Success(
+                            listOf(
+                                com.inframap.frontend.domain.model.NetworkInterface(
+                                    name = "eth0",
+                                    ip = "192.168.1.10",
+                                    cidr = "192.168.1.0/24",
+                                    mac = "00:11:22:33:44:55",
+                                ),
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Error("ERR", "Source failed", "", 500),
+                )
+            val emptySubnets =
+                PaginatedList<com.inframap.frontend.domain.model.Subnet>(
+                    items = emptyList(),
+                    total = 0L,
+                    page = 1,
+                    perPage = 50,
+                )
+            val subnetRepo =
+                FakeSubnetRepository(
+                    getSubnetsResult = ApiResult.Success(emptySubnets, requestId = ""),
+                )
+            val vm =
+                makeVm(
+                    subnetRepo = subnetRepo,
+                    networkRepo = netRepo,
+                    discoveryRepo = discoveryRepo,
+                    scope = this,
+                )
+
+            advanceUntilIdle()
+
+            vm.checkAutoSetup()
+            advanceUntilIdle()
+
+            vm.startAutoSetup()
+            advanceUntilIdle()
+
+            assertEquals(AutoSetupPhase.IDLE, vm.state.value.autoSetup.phase)
+            kotlin.test.assertNotNull(vm.state.value.autoSetup.errorMessage)
+            vm.clear()
+        }
 }

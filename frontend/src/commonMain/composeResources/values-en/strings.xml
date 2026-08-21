@@ -129,4 +129,17 @@
     <string name="topology_preview_router">Preview-Router</string>
     <string name="topology_preview_switch">Preview-Switch</string>
     <string name="topology_preview_server">Preview-Server</string>
+
+    <!-- Dashboard Auto-Setup -->
+    <string name="dashboard_auto_setup_title">Local Networks Detected</string>
+    <string name="dashboard_auto_setup_desc">We detected active network interfaces on the server. Configure automated discovery with 1 click.</string>
+    <string name="dashboard_auto_setup_start">Configure &amp; Start Scan</string>
+    <string name="dashboard_auto_setup_manual">Manual Setup</string>
+    <string name="dashboard_auto_setup_dismiss">Not now</string>
+    <string name="dashboard_auto_setup_creating_subnets">Creating subnets...</string>
+    <string name="dashboard_auto_setup_creating_sources">Configuring discovery...</string>
+    <string name="dashboard_auto_setup_scanning">Scanning active networks...</string>
+    <string name="dashboard_auto_setup_completed">Scan complete! %1$d devices found.</string>
+    <string name="dashboard_auto_setup_view_staging">View in Staging Queue</string>
 </resources>
+
