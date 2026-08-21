@@ -1,8 +1,9 @@
 package com.inframap.frontend.designsystem
 
 import androidx.compose.ui.graphics.Color
+import kotlin.jvm.JvmName
 
-// Excalidraw Dark Slate Core Color Palette (RFC-019 / ADR-006)
+// Excalidraw Dark Slate Core Color Palette (RFC-019 / ADR-006 / RFC-020 / ADR-008)
 val InfraMapCanvasBg = Color(0xFF121214) // Deep Charcoal Black
 val InfraMapSurfaceBg = Color(0xFF18181b) // Container Surface
 val InfraMapSurfaceElevated = Color(0xFF27272a) // Elevated Surfaces & Borders
@@ -16,10 +17,28 @@ val InfraMapAmberWarm = Color(0xFFf59e0b) // Tertiary / Status Warning (#f59e0b)
 val InfraMapRubyRed = Color(0xFFef4444) // Error / Status Offline (#ef4444)
 
 // Functional Status Tokens
-val StatusOnline = InfraMapEmeraldGreen
-val StatusWarning = InfraMapAmberWarm
-val StatusOffline = InfraMapRubyRed
-val StatusStaging = InfraMapElectricViolet
+val StatusOnline = Color(0xFF10b981)
+val StatusWarning = Color(0xFFf59e0b)
+val StatusOffline = Color(0xFFef4444)
+val StatusStaging = Color(0xFFa78bfa)
+
+// T37 Requested Tokens
+val canvasBackground = Color(0xFF121214)
+val surfaceContainer = Color(0xFF18181b)
+val surfaceContainerHigh = Color(0xFF222226)
+val outlineSubtle = Color(0xFF27272a)
+val accentPrimary = Color(0xFF8b5cf6)
+
+@get:JvmName("getStatusOnlineLowercase")
+val statusOnline = Color(0xFF10b981)
+
+@get:JvmName("getStatusWarningLowercase")
+val statusWarning = Color(0xFFf59e0b)
+
+val statusAlert = Color(0xFFef4444)
+
+@get:JvmName("getStatusStagingLowercase")
+val statusStaging = Color(0xFFa78bfa)
 
 // Convenience & backward-compatible aliases
 internal val InfraMapBackground = InfraMapCanvasBg
