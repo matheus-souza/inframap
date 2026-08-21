@@ -131,4 +131,14 @@
     <string name="topology_preview_router">Prévia Roteador</string>
     <string name="topology_preview_switch">Prévia Switch</string>
     <string name="topology_preview_server">Prévia Servidor</string>
+
+    <!-- Command Palette -->
+    <string name="command_palette_category_acoes">⚡ Ações Rápidas</string>
+    <string name="command_palette_category_dispositivos">🖥️ Dispositivos</string>
+    <string name="command_palette_category_subredes">🌐 Sub-redes</string>
+    <string name="command_palette_category_navegacao">🧭 Navegação</string>
+    <string name="command_palette_search_placeholder">Buscar dispositivos, sub-redes, ações...</string>
+    <string name="command_palette_close_label">Fechar paleta de comandos</string>
+    <string name="command_palette_empty">Nenhum item disponível.</string>
+    <string name="command_palette_empty_query">Nenhum resultado encontrado para "%1$s"</string>
 </resources>

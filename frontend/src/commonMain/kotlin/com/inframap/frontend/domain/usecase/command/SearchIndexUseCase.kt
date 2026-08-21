@@ -24,14 +24,14 @@ class SearchIndexUseCase(
                 id = "action-dashboard",
                 title = "Ir para Dashboard",
                 subtitle = "Visualizar estatísticas e métricas do sistema",
-                category = CommandPaletteCategory.ACOES,
+                category = CommandPaletteCategory.NAVEGACAO,
                 action = CommandPaletteAction.Navigate(Route.Dashboard),
             ),
             CommandPaletteItem(
                 id = "action-devices",
                 title = "Ir para Dispositivos",
                 subtitle = "Listar e gerenciar dispositivos de rede",
-                category = CommandPaletteCategory.ACOES,
+                category = CommandPaletteCategory.NAVEGACAO,
                 action = CommandPaletteAction.Navigate(Route.Devices),
             ),
             CommandPaletteItem(
@@ -45,19 +45,19 @@ class SearchIndexUseCase(
                 id = "action-staging",
                 title = "Ir para Staging",
                 subtitle = "Analisar dispositivos descobertos pendentes",
-                category = CommandPaletteCategory.ACOES,
+                category = CommandPaletteCategory.NAVEGACAO,
                 action = CommandPaletteAction.Navigate(Route.Staging),
             ),
             CommandPaletteItem(
                 id = "action-subnets",
                 title = "Ir para Subredes",
                 subtitle = "Gerenciar faixas CIDR e VLANs",
-                category = CommandPaletteCategory.ACOES,
+                category = CommandPaletteCategory.NAVEGACAO,
                 action = CommandPaletteAction.Navigate(Route.Subnets),
             ),
             CommandPaletteItem(
                 id = "action-create-subnet",
-                title = "Criar Subrede",
+                title = "Cadastrar Sub-rede",
                 subtitle = "Cadastrar uma nova faixa de subrede",
                 category = CommandPaletteCategory.ACOES,
                 action = CommandPaletteAction.Navigate(Route.CreateSubnet()),
@@ -66,13 +66,27 @@ class SearchIndexUseCase(
                 id = "action-topology",
                 title = "Ir para Topologia",
                 subtitle = "Visualizar o mapa interativo da rede",
-                category = CommandPaletteCategory.ACOES,
+                category = CommandPaletteCategory.NAVEGACAO,
                 action = CommandPaletteAction.Navigate(Route.Topology),
             ),
             CommandPaletteItem(
                 id = "action-refresh",
-                title = "Atualizar Dados",
-                subtitle = "Recarregar informações dos serviços",
+                title = "Nova Varredura",
+                subtitle = "Disparar varredura da rede",
+                category = CommandPaletteCategory.ACOES,
+                action = CommandPaletteAction.RefreshData,
+            ),
+            CommandPaletteItem(
+                id = "action-export-inventory",
+                title = "Exportar Inventário",
+                subtitle = "Baixar inventário em CSV",
+                category = CommandPaletteCategory.ACOES,
+                action = CommandPaletteAction.RefreshData,
+            ),
+            CommandPaletteItem(
+                id = "action-toggle-sidebar",
+                title = "Alternar Barra Lateral",
+                subtitle = "Expandir ou recolher o menu lateral",
                 category = CommandPaletteCategory.ACOES,
                 action = CommandPaletteAction.RefreshData,
             ),
@@ -106,6 +120,7 @@ class SearchIndexUseCase(
                 subtitle = subtitleParts.joinToString(" • ").ifEmpty { null },
                 category = CommandPaletteCategory.DISPOSITIVOS,
                 action = CommandPaletteAction.Navigate(Route.DeviceDetail(dev.id)),
+                status = dev.status,
             )
         }
     }
@@ -125,6 +140,7 @@ class SearchIndexUseCase(
                     subtitle = "CIDR: ${subnet.cidr}$vlanPart",
                     category = CommandPaletteCategory.SUBREDES,
                     action = CommandPaletteAction.Navigate(Route.Subnets),
+                    badge = "0", // Placeholder for host count
                 )
             }
     }
@@ -156,7 +172,7 @@ class SearchIndexUseCase(
                     id = "source-${source.id}",
                     title = source.name,
                     subtitle = "Tipo: ${source.sourceType}$statusPart",
-                    category = CommandPaletteCategory.FONTES,
+                    category = CommandPaletteCategory.NAVEGACAO,
                     action = CommandPaletteAction.Navigate(Route.Dashboard),
                 )
             }
