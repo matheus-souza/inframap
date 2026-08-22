@@ -13,8 +13,8 @@ on:
     inputs:
       version:
         description: 'Semantic Version Tag (e.g. v1.0.0-rc.26)'
-        required: true
-        default: 'v1.0.0-rc.26'
+        required: false
+        default: ''
 
 concurrency:
   group: release-pipeline
@@ -58,7 +58,7 @@ jobs:
             TARGET_BRANCH="$BASE_REF"
           fi
 
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_VERSION" ]; then
             TAG="$INPUT_VERSION"
           elif [ "$REF_TYPE" = "tag" ]; then
             TAG="$REF_NAME"
