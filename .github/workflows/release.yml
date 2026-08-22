@@ -2,6 +2,9 @@ name: Release Pipeline
 
 on:
   push:
+    branches:
+      - develop
+      - main
     tags:
       - 'v*.*.*'
   pull_request:
@@ -13,8 +16,8 @@ on:
     inputs:
       version:
         description: 'Semantic Version Tag (e.g. v1.0.0-rc.26)'
-        required: true
-        default: 'v1.0.0-rc.26'
+        required: false
+        default: ''
 
 concurrency:
   group: release-pipeline
@@ -25,10 +28,10 @@ jobs:
     name: Build, Scan & Publish Release Artifacts
     runs-on: ubuntu-latest
     if: >-
+      (github.event_name == 'push' &&
+       (github.ref_name == 'develop' || github.ref_name == 'main' || github.ref_type == 'tag')) ||
       (github.event_name == 'pull_request' &&
        github.event.pull_request.merged == true) ||
-      (github.event_name == 'push' &&
-       github.ref_type == 'tag') ||
       (github.event_name == 'workflow_dispatch' &&
        (github.ref_name == 'develop' || github.ref_name == 'main'))
     permissions:
@@ -58,7 +61,7 @@ jobs:
             TARGET_BRANCH="$BASE_REF"
           fi
 
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_VERSION" ]; then
             TAG="$INPUT_VERSION"
           elif [ "$REF_TYPE" = "tag" ]; then
             TAG="$REF_NAME"
