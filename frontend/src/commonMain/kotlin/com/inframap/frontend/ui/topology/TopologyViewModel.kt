@@ -110,7 +110,8 @@ class TopologyViewModel(
         val client = sseClient ?: return
         launchJob("sse_listening") {
             while (isActive) {
-                client.connect("/api/v1/events/stream")
+                client
+                    .connect("/api/v1/events/stream")
                     .takeWhile { it !is SSEEvent.Disconnected }
                     .collect { event ->
                         if (event is SSEEvent.TopologyUpdated || event is SSEEvent.DeviceCreated) {
