@@ -1,384 +1,351 @@
-diff --git a/frontend/src/commonMain/composeResources/values/strings.xml b/frontend/src/commonMain/composeResources/values/strings.xml
-index d66fd18..813b6e7 100644
---- a/frontend/src/commonMain/composeResources/values/strings.xml
-+++ b/frontend/src/commonMain/composeResources/values/strings.xml
-@@ -131,4 +131,14 @@
-     <string name="topology_preview_router">Prévia Roteador</string>
-     <string name="topology_preview_switch">Prévia Switch</string>
-     <string name="topology_preview_server">Prévia Servidor</string>
-+
-+    <!-- Command Palette -->
-+    <string name="command_palette_category_acoes">⚡ Ações Rápidas</string>
-+    <string name="command_palette_category_dispositivos">🖥️ Dispositivos</string>
-+    <string name="command_palette_category_subredes">🌐 Sub-redes</string>
-+    <string name="command_palette_category_navegacao">🧭 Navegação</string>
-+    <string name="command_palette_search_placeholder">Buscar dispositivos, sub-redes, ações...</string>
-+    <string name="command_palette_close_label">Fechar paleta de comandos</string>
-+    <string name="command_palette_empty">Nenhum item disponível.</string>
-+    <string name="command_palette_empty_query">Nenhum resultado encontrado para "%1$s"</string>
- </resources>
-diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/model/CommandPaletteItem.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/model/CommandPaletteItem.kt
-index eabfeb2..18a8459 100644
---- a/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/model/CommandPaletteItem.kt
-+++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/model/CommandPaletteItem.kt
-@@ -1,14 +1,20 @@
- package com.inframap.frontend.domain.model
+diff --git a/CONTEXT.md b/CONTEXT.md
+index ad6cddc..92119b3 100644
+--- a/CONTEXT.md
++++ b/CONTEXT.md
+@@ -198,5 +198,5 @@ Guidelines below are continuously updated from internal code reviews, CodeRabbit
+ 125. **Compose Resource Accessor Imports Must Use Full Package Prefix**: In Kotlin Multiplatform Compose Resources, imports MUST explicitly specify the full package prefix (e.g. `import com.inframap.frontend.generated.resources.Res` and `import com.inframap.frontend.generated.resources.<string_name>`). Never use wildcard imports (`import ...resources.*`) which violate ktlint `standard:no-wildcard-imports`, and never omit the root domain (`com.inframap`).
+ 126. **Compose Skeleton Shimmer Components Must Use Theme Tokens**: Loading skeletons and shimmer animations MUST derive their linear gradient stops from the design system theme tokens (`MaterialTheme.colorScheme.surfaceContainer` and `outlineSubtle` or `surfaceContainerHigh`) rather than hardcoding static light theme colors (such as `Color.LightGray`), ensuring consistent visual fidelity in dark mode.
+ 127. **Network Technical Identifiers Must Use Monospace Font**: All network-specific technical data including IP addresses (IPv4/IPv6), subnet CIDR blocks, MAC addresses, and port numbers MUST be styled using `FontFamily.Monospace` (JetBrains Mono) across inventory tables, detail drawers, empty state samples, chips, and command palette items to ensure tabular alignment and clear legibility of numeric identifiers.
+-
+-
++128. **Compose ViewModel Injections Must Be Scoped with `remember` / `currentKoinScope`**: When resolving ViewModels declared as `factory` in Koin within Composable functions, the injection MUST be scoped using `remember { currentKoinScope().get<ViewModel>() }` (or `remember(key) { currentKoinScope().get { parametersOf(key) } }`). Calling `koinInject()` directly inside a Composable body causes a new ViewModel instance to be created on every recomposition, triggering `DisposableEffect(viewModel)` to dispose and cancel active coroutines/scopes repeatedly and creating an infinite recomposition loop that starves input dispatch and freezes loading states.
++129. **Surface Borders Must Use `border = BorderStroke(...)` Parameter**: Clickable Material3 `Surface(onClick = ...)` composables MUST specify borders via the `border = BorderStroke(...)` constructor parameter rather than `Modifier.border(...)`. Applying `Modifier.border` to a `Surface` causes the border to wrap the outer interactive minimum touch target bounding box (48dp x 48dp) rather than the measured intrinsic shape of the surface, creating visible ghost border boxes around buttons.
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/TopBar.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/TopBar.kt
+index 2528873..7c06c9a 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/TopBar.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/TopBar.kt
+@@ -8,8 +8,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
+ import androidx.compose.animation.core.tween
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
++import androidx.compose.foundation.BorderStroke
+ import androidx.compose.foundation.background
+-import androidx.compose.foundation.border
+ import androidx.compose.foundation.hoverable
+ import androidx.compose.foundation.interaction.MutableInteractionSource
+ import androidx.compose.foundation.interaction.collectIsHoveredAsState
+@@ -123,13 +123,8 @@ private fun RestartTourButton(onRestartTourClicked: () -> Unit) {
+         onClick = onRestartTourClicked,
+         shape = RoundedCornerShape(8.dp),
+         color = MaterialTheme.colorScheme.surfaceVariant,
+-        modifier =
+-            Modifier
+-                .border(
+-                    width = 1.dp,
+-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+-                    shape = RoundedCornerShape(8.dp),
+-                ).semantics { contentDescription = "Refazer Tour Guiado button" },
++        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
++        modifier = Modifier.semantics { contentDescription = "Refazer Tour Guiado button" },
+     ) {
+         Row(
+             verticalAlignment = Alignment.CenterVertically,
+@@ -162,14 +157,11 @@ private fun SearchTriggerButton(onSearchClicked: () -> Unit) {
+             onClick = onSearchClicked,
+             shape = RoundedCornerShape(8.dp),
+             color = MaterialTheme.colorScheme.surfaceVariant,
++            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+             modifier =
+                 Modifier
+                     .hoverable(interactionSource)
+-                    .border(
+-                        width = 1.dp,
+-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+-                        shape = RoundedCornerShape(8.dp),
+-                    ).semantics { contentDescription = "Search trigger button" },
++                    .semantics { contentDescription = "Search trigger button" },
+         ) {
+             Row(
+                 verticalAlignment = Alignment.CenterVertically,
+@@ -251,6 +243,7 @@ private fun SseConnectionBadge(isSseConnected: Boolean) {
+         Surface(
+             shape = RoundedCornerShape(16.dp),
+             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
++            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+             modifier =
+                 Modifier
+                     .hoverable(interactionSource)
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/InfraMapApp.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/InfraMapApp.kt
+index 9d0662f..ab96194 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/InfraMapApp.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/InfraMapApp.kt
+@@ -24,7 +24,7 @@ import com.inframap.frontend.ui.onboarding.OnboardingViewModel
+ import com.inframap.frontend.ui.splash.SplashEffect
+ import com.inframap.frontend.ui.splash.SplashScreen
+ import com.inframap.frontend.ui.splash.SplashViewModel
+-import org.koin.compose.koinInject
++import org.koin.compose.currentKoinScope
  
-+import com.inframap.frontend.generated.resources.Res
-+import com.inframap.frontend.generated.resources.command_palette_category_acoes
-+import com.inframap.frontend.generated.resources.command_palette_category_dispositivos
-+import com.inframap.frontend.generated.resources.command_palette_category_navegacao
-+import com.inframap.frontend.generated.resources.command_palette_category_subredes
- import com.inframap.frontend.navigation.Route
-+import org.jetbrains.compose.resources.StringResource
+ @Composable
+ fun InfraMapApp() {
+@@ -55,7 +55,8 @@ fun InfraMapApp() {
  
- enum class CommandPaletteCategory(
--    val displayName: String,
-+    val titleRes: StringResource,
+ @Composable
+ private fun SplashRoute(navigator: Navigator) {
+-    val viewModel: SplashViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: SplashViewModel = remember { koinScope.get() }
+     SplashScreen()
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+@@ -74,7 +75,8 @@ private fun SplashRoute(navigator: Navigator) {
+ 
+ @Composable
+ private fun LoginRoute(navigator: Navigator) {
+-    val viewModel: LoginViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: LoginViewModel = remember { koinScope.get() }
+     val loginState by viewModel.state.collectAsState()
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+@@ -96,7 +98,8 @@ private fun LoginRoute(navigator: Navigator) {
+ 
+ @Composable
+ private fun OnboardingRoute(navigator: Navigator) {
+-    val viewModel: OnboardingViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: OnboardingViewModel = remember { koinScope.get() }
+     val onboardingState by viewModel.state.collectAsState()
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/MainScaffold.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/MainScaffold.kt
+index 4336d34..91d9efc 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/MainScaffold.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/MainScaffold.kt
+@@ -73,7 +73,7 @@ import com.inframap.frontend.ui.tour.ProductTourViewModel
+ import com.inframap.frontend.ui.wizard.SetupWizardActions
+ import com.inframap.frontend.ui.wizard.SetupWizardScreen
+ import com.inframap.frontend.ui.wizard.SetupWizardViewModel
+-import org.koin.compose.koinInject
++import org.koin.compose.currentKoinScope
+ import org.koin.core.parameter.parametersOf
+ 
+ data class NavItem(
+@@ -101,11 +101,12 @@ fun MainScaffold(
+     isHealthy: Boolean?,
+     onHealthChanged: (Boolean?) -> Unit = {},
  ) {
--    DISPOSITIVOS("Dispositivos"),
--    SUBREDES("Subredes"),
--    FONTES("Fontes de Descoberta"),
--    ACOES("Ações Rápidas"),
-+    ACOES(Res.string.command_palette_category_acoes),
-+    DISPOSITIVOS(Res.string.command_palette_category_dispositivos),
-+    SUBREDES(Res.string.command_palette_category_subredes),
-+    NAVEGACAO(Res.string.command_palette_category_navegacao),
- }
+-    val commandPaletteViewModel: CommandPaletteViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val commandPaletteViewModel: CommandPaletteViewModel = remember { koinScope.get() }
+     val commandPaletteState by commandPaletteViewModel.state.collectAsState()
+-    val tourViewModel: ProductTourViewModel = koinInject()
++    val tourViewModel: ProductTourViewModel = remember { koinScope.get() }
+     val tourState by tourViewModel.state.collectAsState()
+-    val onboardingCoordinator: OnboardingCoordinator = koinInject()
++    val onboardingCoordinator: OnboardingCoordinator = remember { koinScope.get() }
  
- sealed interface CommandPaletteAction {
-@@ -25,4 +31,6 @@ data class CommandPaletteItem(
-     val subtitle: String? = null,
-     val category: CommandPaletteCategory,
-     val action: CommandPaletteAction,
-+    val status: String? = null,
-+    val badge: String? = null,
- )
-diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCase.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCase.kt
-index b994bcb..95404e9 100644
---- a/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCase.kt
-+++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCase.kt
-@@ -24,14 +24,14 @@ class SearchIndexUseCase(
-                 id = "action-dashboard",
-                 title = "Ir para Dashboard",
-                 subtitle = "Visualizar estatísticas e métricas do sistema",
--                category = CommandPaletteCategory.ACOES,
-+                category = CommandPaletteCategory.NAVEGACAO,
-                 action = CommandPaletteAction.Navigate(Route.Dashboard),
-             ),
-             CommandPaletteItem(
-                 id = "action-devices",
-                 title = "Ir para Dispositivos",
-                 subtitle = "Listar e gerenciar dispositivos de rede",
--                category = CommandPaletteCategory.ACOES,
-+                category = CommandPaletteCategory.NAVEGACAO,
-                 action = CommandPaletteAction.Navigate(Route.Devices),
-             ),
-             CommandPaletteItem(
-@@ -45,19 +45,19 @@ class SearchIndexUseCase(
-                 id = "action-staging",
-                 title = "Ir para Staging",
-                 subtitle = "Analisar dispositivos descobertos pendentes",
--                category = CommandPaletteCategory.ACOES,
-+                category = CommandPaletteCategory.NAVEGACAO,
-                 action = CommandPaletteAction.Navigate(Route.Staging),
-             ),
-             CommandPaletteItem(
-                 id = "action-subnets",
-                 title = "Ir para Subredes",
-                 subtitle = "Gerenciar faixas CIDR e VLANs",
--                category = CommandPaletteCategory.ACOES,
-+                category = CommandPaletteCategory.NAVEGACAO,
-                 action = CommandPaletteAction.Navigate(Route.Subnets),
-             ),
-             CommandPaletteItem(
-                 id = "action-create-subnet",
--                title = "Criar Subrede",
-+                title = "Cadastrar Sub-rede",
-                 subtitle = "Cadastrar uma nova faixa de subrede",
-                 category = CommandPaletteCategory.ACOES,
-                 action = CommandPaletteAction.Navigate(Route.CreateSubnet()),
-@@ -66,13 +66,27 @@ class SearchIndexUseCase(
-                 id = "action-topology",
-                 title = "Ir para Topologia",
-                 subtitle = "Visualizar o mapa interativo da rede",
--                category = CommandPaletteCategory.ACOES,
-+                category = CommandPaletteCategory.NAVEGACAO,
-                 action = CommandPaletteAction.Navigate(Route.Topology),
-             ),
-             CommandPaletteItem(
-                 id = "action-refresh",
--                title = "Atualizar Dados",
--                subtitle = "Recarregar informações dos serviços",
-+                title = "Nova Varredura",
-+                subtitle = "Disparar varredura da rede",
-+                category = CommandPaletteCategory.ACOES,
-+                action = CommandPaletteAction.RefreshData,
-+            ),
-+            CommandPaletteItem(
-+                id = "action-export-inventory",
-+                title = "Exportar Inventário",
-+                subtitle = "Baixar inventário em CSV",
-+                category = CommandPaletteCategory.ACOES,
-+                action = CommandPaletteAction.RefreshData,
-+            ),
-+            CommandPaletteItem(
-+                id = "action-toggle-sidebar",
-+                title = "Alternar Barra Lateral",
-+                subtitle = "Expandir ou recolher o menu lateral",
-                 category = CommandPaletteCategory.ACOES,
-                 action = CommandPaletteAction.RefreshData,
-             ),
-@@ -106,6 +120,7 @@ class SearchIndexUseCase(
-                 subtitle = subtitleParts.joinToString(" • ").ifEmpty { null },
-                 category = CommandPaletteCategory.DISPOSITIVOS,
-                 action = CommandPaletteAction.Navigate(Route.DeviceDetail(dev.id)),
-+                status = dev.status,
-             )
+     DisposableEffect(commandPaletteViewModel) {
+         onDispose { commandPaletteViewModel.clear() }
+@@ -194,7 +195,8 @@ private fun MainScaffoldContent(
+     onRestartTourClicked: () -> Unit,
+     onWizardCompleted: () -> Unit = {},
+ ) {
+-    val localStorage: LocalStorage = koinInject()
++    val koinScope = currentKoinScope()
++    val localStorage: LocalStorage = remember { koinScope.get() }
+     var isNavRailExpanded by remember {
+         mutableStateOf(localStorage.get(KEY_NAVRAIL_COLLAPSED) == null)
+     }
+@@ -355,9 +357,10 @@ private fun DashboardRoute(
+     onWizardCompleted: () -> Unit = {},
+     navigator: Navigator,
+ ) {
+-    val viewModel: DashboardViewModel = koinInject()
+-    val wizardViewModel: SetupWizardViewModel = koinInject()
+-    val coordinator: OnboardingCoordinator = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: DashboardViewModel = remember { koinScope.get() }
++    val wizardViewModel: SetupWizardViewModel = remember { koinScope.get() }
++    val coordinator: OnboardingCoordinator = remember { koinScope.get() }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+     }
+@@ -414,7 +417,8 @@ private fun DashboardRoute(
+ 
+ @Composable
+ private fun DeviceListRoute(navigator: Navigator) {
+-    val viewModel: DeviceListViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: DeviceListViewModel = remember { koinScope.get() }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+     }
+@@ -444,7 +448,8 @@ private fun DeviceDetailRoute(
+     deviceId: String,
+     navigator: Navigator,
+ ) {
+-    val viewModel: DeviceDetailViewModel = koinInject { parametersOf(deviceId) }
++    val koinScope = currentKoinScope()
++    val viewModel: DeviceDetailViewModel = remember(deviceId) { koinScope.get { parametersOf(deviceId) } }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+     }
+@@ -468,7 +473,8 @@ private fun DeviceDetailRoute(
+ 
+ @Composable
+ private fun CreateDeviceRoute(navigator: Navigator) {
+-    val viewModel: CreateDeviceViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: CreateDeviceViewModel = remember { koinScope.get() }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+     }
+@@ -502,7 +508,8 @@ private fun EditDeviceRoute(
+     deviceId: String,
+     navigator: Navigator,
+ ) {
+-    val viewModel: EditDeviceViewModel = koinInject { parametersOf(deviceId) }
++    val koinScope = currentKoinScope()
++    val viewModel: EditDeviceViewModel = remember(deviceId) { koinScope.get { parametersOf(deviceId) } }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+     }
+@@ -535,7 +542,8 @@ private fun EditDeviceRoute(
+ 
+ @Composable
+ private fun StagingRoute(navigator: Navigator) {
+-    val viewModel: StagingViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: StagingViewModel = remember { koinScope.get() }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+     }
+@@ -560,7 +568,8 @@ private fun StagingRoute(navigator: Navigator) {
+ 
+ @Composable
+ private fun SubnetsRoute(navigator: Navigator) {
+-    val viewModel: SubnetsViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: SubnetsViewModel = remember { koinScope.get() }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+     }
+@@ -591,9 +600,10 @@ private fun CreateSubnetRoute(
+     prefilledName: String? = null,
+     navigator: Navigator,
+ ) {
++    val koinScope = currentKoinScope()
+     val viewModel: CreateSubnetViewModel =
+-        koinInject {
+-            parametersOf(prefilledCidr, prefilledName)
++        remember(prefilledCidr, prefilledName) {
++            koinScope.get { parametersOf(prefilledCidr, prefilledName) }
          }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+@@ -624,7 +634,8 @@ private fun CreateSubnetRoute(
+ 
+ @Composable
+ private fun DiscoveryListRoute(navigator: Navigator) {
+-    val viewModel: DiscoveryListViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: DiscoveryListViewModel = remember { koinScope.get() }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
      }
-@@ -125,6 +140,7 @@ class SearchIndexUseCase(
-                     subtitle = "CIDR: ${subnet.cidr}$vlanPart",
-                     category = CommandPaletteCategory.SUBREDES,
-                     action = CommandPaletteAction.Navigate(Route.Subnets),
-+                    badge = "0", // Placeholder for host count
-                 )
-             }
+@@ -649,7 +660,8 @@ private fun DiscoveryListRoute(navigator: Navigator) {
+ 
+ @Composable
+ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
+-    val viewModel: CreateDiscoverySourceViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: CreateDiscoverySourceViewModel = remember { koinScope.get() }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
      }
-@@ -156,7 +172,7 @@ class SearchIndexUseCase(
-                     id = "source-${source.id}",
-                     title = source.name,
-                     subtitle = "Tipo: ${source.sourceType}$statusPart",
--                    category = CommandPaletteCategory.FONTES,
-+                    category = CommandPaletteCategory.NAVEGACAO,
-                     action = CommandPaletteAction.Navigate(Route.Dashboard),
-                 )
-             }
+@@ -684,7 +696,8 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
+ 
+ @Composable
+ private fun TopologyRoute(navigator: Navigator) {
+-    val viewModel: TopologyViewModel = koinInject()
++    val koinScope = currentKoinScope()
++    val viewModel: TopologyViewModel = remember { koinScope.get() }
+     DisposableEffect(viewModel) {
+         onDispose { viewModel.clear() }
+     }
 diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt
-index 50c56b1..9c1526b 100644
+index aebe700..adbe00c 100644
 --- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt
 +++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt
-@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
- import androidx.compose.foundation.layout.widthIn
- import androidx.compose.foundation.lazy.LazyColumn
- import androidx.compose.foundation.lazy.itemsIndexed
-+import androidx.compose.foundation.shape.CircleShape
- import androidx.compose.foundation.shape.RoundedCornerShape
- import androidx.compose.material.icons.Icons
- import androidx.compose.material.icons.filled.Bolt
-@@ -62,6 +63,12 @@ import com.inframap.frontend.designsystem.InfraMapTextPrimary
- import com.inframap.frontend.designsystem.InfraMapTextSecondary
- import com.inframap.frontend.domain.model.CommandPaletteCategory
- import com.inframap.frontend.domain.model.CommandPaletteItem
-+import com.inframap.frontend.generated.resources.Res
-+import com.inframap.frontend.generated.resources.command_palette_close_label
-+import com.inframap.frontend.generated.resources.command_palette_empty
-+import com.inframap.frontend.generated.resources.command_palette_empty_query
-+import com.inframap.frontend.generated.resources.command_palette_search_placeholder
-+import org.jetbrains.compose.resources.stringResource
+@@ -2,8 +2,8 @@
  
- data class CommandPaletteActions(
-     val onQueryChanged: (String) -> Unit,
-@@ -97,7 +104,7 @@ fun CommandPaletteModal(
-                         .clickable(
-                             interactionSource = remember { MutableInteractionSource() },
-                             indication = null,
--                            onClickLabel = "Fechar paleta de comandos",
-+                            onClickLabel = stringResource(Res.string.command_palette_close_label),
-                             onClick = actions.onDismiss,
-                         ),
-             )
-@@ -210,7 +217,7 @@ private fun CommandPaletteSearchHeader(
-             onValueChange = onQueryChanged,
-             placeholder = {
-                 Text(
--                    text = "Buscar dispositivos, subredes, fontes ou ações...",
-+                    text = stringResource(Res.string.command_palette_search_placeholder),
-                     color = InfraMapTextSecondary,
-                     fontSize = 14.sp,
-                 )
-@@ -293,9 +300,9 @@ private fun CommandPaletteEmptyState(query: String) {
-         Text(
-             text =
-                 if (query.isBlank()) {
--                    "Nenhum item disponível."
-+                    stringResource(Res.string.command_palette_empty)
-                 } else {
--                    "Nenhum resultado encontrado para \"$query\""
-+                    stringResource(Res.string.command_palette_empty_query, query)
+ package com.inframap.frontend.ui.command
+ 
++import androidx.compose.foundation.BorderStroke
+ import androidx.compose.foundation.background
+-import androidx.compose.foundation.border
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.interaction.MutableInteractionSource
+ import androidx.compose.foundation.layout.Box
+@@ -133,14 +133,13 @@ private fun CommandPaletteModalContent(
+                 .padding(top = 80.dp, start = 16.dp, end = 16.dp)
+                 .widthIn(max = 640.dp)
+                 .fillMaxWidth()
+-                .clip(RoundedCornerShape(16.dp))
+-                .border(1.dp, InfraMapBorder, RoundedCornerShape(16.dp))
+                 .clickable(enabled = false, onClick = {})
+                 .onPreviewKeyEvent { event ->
+                     handleKeyEvent(event, actions)
                  },
-             color = InfraMapTextSecondary,
-             fontSize = 14.sp,
-@@ -321,7 +328,7 @@ private fun CommandPaletteResultsList(
-             if (categoryItems.isNotEmpty()) {
-                 item(key = "header-${category.name}") {
-                     Text(
--                        text = category.displayName.uppercase(),
-+                        text = stringResource(category.titleRes).uppercase(),
-                         color = InfraMapTextSecondary,
-                         fontSize = 11.sp,
-                         style = MaterialTheme.typography.labelSmall,
-@@ -350,13 +357,6 @@ private fun CommandPaletteItemRow(
-     onClick: () -> Unit,
- ) {
-     val bgModifier = if (isSelected) Modifier.background(InfraMapSurfaceElevated) else Modifier
--    val icon: ImageVector =
--        when (item.category) {
--            CommandPaletteCategory.DISPOSITIVOS -> InfraMapIcons.Dns
--            CommandPaletteCategory.SUBREDES -> InfraMapIcons.Lan
--            CommandPaletteCategory.FONTES -> Icons.Default.Hub
--            CommandPaletteCategory.ACOES -> Icons.Default.Bolt
--        }
- 
-     Row(
-         modifier =
-@@ -369,29 +369,20 @@ private fun CommandPaletteItemRow(
-                 .padding(horizontal = 12.dp, vertical = 10.dp),
-         verticalAlignment = Alignment.CenterVertically,
+         color = InfraMapSurfaceBg,
+         shape = RoundedCornerShape(16.dp),
++        border = BorderStroke(1.dp, InfraMapBorder),
      ) {
--        Icon(
--            imageVector = icon,
--            contentDescription = null,
--            tint = if (isSelected) MaterialTheme.colorScheme.primary else InfraMapTextSecondary,
--            modifier = Modifier.size(18.dp),
--        )
-+        CategoryIcon(category = item.category, isSelected = isSelected)
-         Spacer(modifier = Modifier.width(12.dp))
--        Column(modifier = Modifier.weight(1f)) {
--            Text(
--                text = item.title,
--                color = InfraMapTextPrimary,
--                fontSize = 14.sp,
--                style = MaterialTheme.typography.bodyMedium,
--            )
--            if (!item.subtitle.isNullOrBlank()) {
--                Spacer(modifier = Modifier.height(2.dp))
--                Text(
--                    text = item.subtitle,
--                    color = InfraMapTextSecondary,
--                    fontSize = 12.sp,
--                    style = MaterialTheme.typography.bodySmall,
--                )
--            }
-+        ItemTitleAndSubtitle(
-+            title = item.title,
-+            subtitle = item.subtitle,
-+            modifier = Modifier.weight(1f),
-+        )
-+        item.status?.let { status ->
-+            ItemStatusDot(status = status)
-+            Spacer(modifier = Modifier.width(8.dp))
-+        }
-+        item.badge?.let { badge ->
-+            ItemBadgeChip(badge = badge)
-+            Spacer(modifier = Modifier.width(8.dp))
-         }
-         if (isSelected) {
-             Text(
-@@ -402,3 +393,85 @@ private fun CommandPaletteItemRow(
-         }
-     }
- }
-+
-+@Composable
-+private fun CategoryIcon(
-+    category: CommandPaletteCategory,
-+    isSelected: Boolean,
-+) {
-+    val icon: ImageVector =
-+        when (category) {
-+            CommandPaletteCategory.DISPOSITIVOS -> InfraMapIcons.Dns
-+            CommandPaletteCategory.SUBREDES -> InfraMapIcons.Lan
-+            CommandPaletteCategory.NAVEGACAO -> Icons.Default.Hub
-+            CommandPaletteCategory.ACOES -> Icons.Default.Bolt
-+        }
-+
-+    Icon(
-+        imageVector = icon,
-+        contentDescription = null,
-+        tint = if (isSelected) MaterialTheme.colorScheme.primary else InfraMapTextSecondary,
-+        modifier = Modifier.size(18.dp),
-+    )
-+}
-+
-+@Composable
-+private fun ItemTitleAndSubtitle(
-+    title: String,
-+    subtitle: String?,
-+    modifier: Modifier = Modifier,
-+) {
-+    Column(modifier = modifier) {
-+        Text(
-+            text = title,
-+            color = InfraMapTextPrimary,
-+            fontSize = 14.sp,
-+            style = MaterialTheme.typography.bodyMedium,
-+        )
-+        if (!subtitle.isNullOrBlank()) {
-+            Spacer(modifier = Modifier.height(2.dp))
-+            Text(
-+                text = subtitle,
-+                color = InfraMapTextSecondary,
-+                fontSize = 12.sp,
-+                style = MaterialTheme.typography.bodySmall,
-+            )
-+        }
-+    }
-+}
-+
-+@Composable
-+private fun ItemStatusDot(status: String) {
-+    val statusColor =
-+        when (status.lowercase()) {
-+            "online" -> Color.Green
-+            "warning" -> Color.Yellow
-+            "alert" -> Color.Red
-+            "staging" -> Color.Blue
-+            else -> Color.Gray
-+        }
-+    Box(
-+        modifier =
-+            Modifier
-+                .size(8.dp)
-+                .clip(CircleShape)
-+                .background(statusColor),
-+    )
-+}
-+
-+@Composable
-+private fun ItemBadgeChip(badge: String) {
-+    Box(
-+        modifier =
-+            Modifier
-+                .clip(RoundedCornerShape(4.dp))
-+                .background(InfraMapBorder)
-+                .padding(horizontal = 4.dp, vertical = 2.dp),
-+    ) {
-+        Text(
-+            text = badge,
-+            color = InfraMapTextSecondary,
-+            fontSize = 10.sp,
-+        )
-+    }
-+}
-diff --git a/frontend/src/commonTest/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCaseTest.kt b/frontend/src/commonTest/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCaseTest.kt
-index 3c84b73..ba3ba7d 100644
---- a/frontend/src/commonTest/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCaseTest.kt
-+++ b/frontend/src/commonTest/kotlin/com/inframap/frontend/domain/usecase/command/SearchIndexUseCaseTest.kt
-@@ -29,7 +29,7 @@ class SearchIndexUseCaseTest {
+         Column {
+             CommandPaletteSearchHeader(
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/topology/DeviceInspectorSheet.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/topology/DeviceInspectorSheet.kt
+index 2a365e1..4a28f89 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/topology/DeviceInspectorSheet.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/topology/DeviceInspectorSheet.kt
+@@ -1,5 +1,6 @@
+ package com.inframap.frontend.ui.topology
  
-             assertTrue(results.any { it.category == CommandPaletteCategory.DISPOSITIVOS })
-             assertTrue(results.any { it.category == CommandPaletteCategory.SUBREDES })
--            assertTrue(results.any { it.category == CommandPaletteCategory.FONTES })
-+            assertTrue(results.any { it.category == CommandPaletteCategory.NAVEGACAO })
-             assertTrue(results.any { it.category == CommandPaletteCategory.ACOES })
-         }
- 
-@@ -143,6 +143,6 @@ class SearchIndexUseCaseTest {
-             val results = useCase("Dashboard")
- 
-             assertTrue(results.isNotEmpty())
--            assertTrue(results.all { it.category == CommandPaletteCategory.ACOES })
-+            assertTrue(results.all { it.category == CommandPaletteCategory.NAVEGACAO })
-         }
- }
++import androidx.compose.foundation.BorderStroke
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.border
+ import androidx.compose.foundation.layout.Arrangement
+@@ -60,10 +61,10 @@ fun DeviceInspectorSheet(
+         modifier =
+             modifier
+                 .width(360.dp)
+-                .fillMaxHeight()
+-                .border(1.dp, InfraMapBorder),
++                .fillMaxHeight(),
+         color = InfraMapSurfaceBg,
+         shadowElevation = 12.dp,
++        border = BorderStroke(1.dp, InfraMapBorder),
+     ) {
+         Column(
+             modifier = Modifier.fillMaxHeight(),
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/tour/ProductTourOverlay.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/tour/ProductTourOverlay.kt
+index 8c0363c..cebbc4e 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/tour/ProductTourOverlay.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/tour/ProductTourOverlay.kt
+@@ -4,8 +4,8 @@ import androidx.compose.animation.AnimatedContent
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
+ import androidx.compose.animation.togetherWith
++import androidx.compose.foundation.BorderStroke
+ import androidx.compose.foundation.background
+-import androidx.compose.foundation.border
+ import androidx.compose.foundation.gestures.detectTapGestures
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+@@ -182,14 +182,8 @@ private fun TourStepContent(step: ProductTourStep) {
+     Surface(
+         shape = RoundedCornerShape(16.dp),
+         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+-        modifier =
+-            Modifier
+-                .fillMaxWidth()
+-                .border(
+-                    width = 1.dp,
+-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+-                    shape = RoundedCornerShape(16.dp),
+-                ),
++        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
++        modifier = Modifier.fillMaxWidth(),
+     ) {
+         Column(modifier = Modifier.padding(20.dp)) {
+             Row(verticalAlignment = Alignment.CenterVertically) {

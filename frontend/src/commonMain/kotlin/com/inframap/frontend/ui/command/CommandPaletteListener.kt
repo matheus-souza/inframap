@@ -1,13 +1,9 @@
 package com.inframap.frontend.ui.command
 
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -30,13 +26,10 @@ fun CommandPaletteListener(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val focusRequester = remember { FocusRequester() }
-
     Box(
         modifier =
             modifier
-                .focusRequester(focusRequester)
-                .focusable()
+                .fillMaxSize()
                 .onPreviewKeyEvent { event ->
                     if (isCommandPaletteShortcut(event)) {
                         onTogglePalette()
@@ -47,9 +40,5 @@ fun CommandPaletteListener(
                 },
     ) {
         content()
-    }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
     }
 }

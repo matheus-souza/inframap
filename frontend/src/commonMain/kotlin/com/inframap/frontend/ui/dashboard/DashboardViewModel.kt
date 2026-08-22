@@ -257,7 +257,7 @@ class DashboardViewModel(
         val client = sseClient ?: return
         launchJob("sse_listening") {
             while (isActive) {
-                client.connect("/api/v1/events").collect { event ->
+                client.connect("/api/v1/events/stream").collect { event ->
                     when (event) {
                         is SSEEvent.DeviceCreated,
                         is SSEEvent.DeviceUpdated,

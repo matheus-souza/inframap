@@ -61,7 +61,11 @@
     <script src="inframap.js"></script>
     <script>
         window.infraMapReady = function() {
-            document.getElementById('loading-screen').classList.add('hidden');
+            var screen = document.getElementById('loading-screen');
+            screen.classList.add('hidden');
+            setTimeout(function() {
+                screen.style.display = 'none';
+            }, 350);
         };
         setTimeout(function() {
             var screen = document.getElementById('loading-screen');

@@ -106,7 +106,7 @@ class TopologyViewModel(
     private fun setupSseListening() {
         val client = sseClient ?: return
         launchJob("sse_listening") {
-            client.connect("/api/v1/events").collect { event ->
+            client.connect("/api/v1/events/stream").collect { event ->
                 if (event is SSEEvent.TopologyUpdated || event is SSEEvent.DeviceCreated) {
                     loadGraph()
                 }
