@@ -70,9 +70,6 @@ import com.inframap.frontend.ui.tour.ProductTourActions
 import com.inframap.frontend.ui.tour.ProductTourOverlay
 import com.inframap.frontend.ui.tour.ProductTourUiState
 import com.inframap.frontend.ui.tour.ProductTourViewModel
-import com.inframap.frontend.ui.wizard.SetupWizardActions
-import com.inframap.frontend.ui.wizard.SetupWizardScreen
-import com.inframap.frontend.ui.wizard.SetupWizardViewModel
 import org.koin.compose.currentKoinScope
 import org.koin.core.parameter.parametersOf
 
@@ -140,7 +137,6 @@ fun MainScaffold(
             onHealthChanged = onHealthChanged,
             onOpenCommandPalette = commandPaletteViewModel::open,
             onRestartTourClicked = tourViewModel::startTour,
-            onWizardCompleted = tourViewModel::startTour,
         )
         MainScaffoldOverlays(
             commandPaletteState = commandPaletteState,
@@ -193,7 +189,6 @@ private fun MainScaffoldContent(
     onHealthChanged: (Boolean?) -> Unit,
     onOpenCommandPalette: () -> Unit,
     onRestartTourClicked: () -> Unit,
-    onWizardCompleted: () -> Unit = {},
 ) {
     val koinScope = currentKoinScope()
     val localStorage: LocalStorage = remember { koinScope.get() }
@@ -238,7 +233,6 @@ private fun MainScaffoldContent(
                         currentRoute = currentRoute,
                         navigator = navigator,
                         onHealthChanged = onHealthChanged,
-                        onWizardCompleted = onWizardCompleted,
                     )
                 }
             }
@@ -318,10 +312,9 @@ private fun RouteContent(
     currentRoute: Route,
     navigator: Navigator,
     onHealthChanged: (Boolean?) -> Unit = {},
-    onWizardCompleted: () -> Unit = {},
 ) {
     when (currentRoute) {
-        Route.Dashboard -> DashboardRoute(onHealthChanged, onWizardCompleted, navigator)
+        Route.Dashboard -> DashboardRoute(onHealthChanged, navigator)
         Route.Devices -> DeviceListRoute(navigator = navigator)
         is Route.DeviceDetail ->
             DeviceDetailRoute(
@@ -354,65 +347,29 @@ private fun RouteContent(
 @Composable
 private fun DashboardRoute(
     onHealthChanged: (Boolean?) -> Unit = {},
-    onWizardCompleted: () -> Unit = {},
     navigator: Navigator,
 ) {
     val koinScope = currentKoinScope()
     val viewModel: DashboardViewModel = remember { koinScope.get() }
-    val wizardViewModel: SetupWizardViewModel = remember { koinScope.get() }
-    val coordinator: OnboardingCoordinator = remember { koinScope.get() }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
-    DisposableEffect(wizardViewModel) {
-        onDispose { wizardViewModel.clear() }
-    }
     val state by viewModel.state.collectAsState()
-    val wizardState by wizardViewModel.state.collectAsState()
 
     LaunchedEffect(state.isSystemHealthy) {
         onHealthChanged(state.isSystemHealthy)
     }
-    LaunchedEffect(state.isLoading, state.errorMessage, state.totalSubnets, state.totalActiveDevices) {
-        if (!state.isLoading && state.errorMessage == null) {
-            if (coordinator.shouldShowWizard(state.totalSubnets, state.totalActiveDevices)) {
-                wizardViewModel.checkShouldShow(state.totalSubnets, state.totalActiveDevices)
-            }
-        }
-    }
 
-    Box {
-        DashboardScreen(
-            state = state,
-            onRefresh = viewModel::refresh,
-            onDismissError = viewModel::dismissError,
-            onNavigateToSubnets = { navigator.navigateTo(Route.Subnets) },
-            onNavigateToDiscovery = { navigator.navigateTo(Route.DiscoverySources) },
-            onStartAutoSetup = viewModel::startAutoSetup,
-            onDismissAutoSetup = viewModel::dismissAutoSetup,
-            onNavigateToStaging = { navigator.navigateTo(Route.Staging) },
-        )
-        SetupWizardScreen(
-            state = wizardState,
-            actions =
-                SetupWizardActions(
-                    onDismiss = wizardViewModel::dismiss,
-                    onNext = wizardViewModel::nextStep,
-                    onBack = wizardViewModel::previousStep,
-                    onToggleInterface = wizardViewModel::toggleInterface,
-                    onDismissError = wizardViewModel::dismissError,
-                    onSelectScanType = wizardViewModel::selectScanType,
-                    onSelectFrequency = wizardViewModel::selectFrequency,
-                    onStartScan = wizardViewModel::startScan,
-                    onComplete = {
-                        wizardViewModel.complete()
-                        coordinator.onWizardCompleted()
-                        onWizardCompleted()
-                        navigator.navigateTo(Route.Staging)
-                    },
-                ),
-        )
-    }
+    DashboardScreen(
+        state = state,
+        onRefresh = viewModel::refresh,
+        onDismissError = viewModel::dismissError,
+        onNavigateToSubnets = { navigator.navigateTo(Route.Subnets) },
+        onNavigateToDiscovery = { navigator.navigateTo(Route.DiscoverySources) },
+        onStartAutoSetup = viewModel::startAutoSetup,
+        onDismissAutoSetup = viewModel::dismissAutoSetup,
+        onNavigateToStaging = { navigator.navigateTo(Route.Staging) },
+    )
 }
 
 @Composable

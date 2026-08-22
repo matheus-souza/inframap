@@ -11,6 +11,9 @@ import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.topology.layout.ForceDirectedLayout
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.takeWhile
+import kotlinx.coroutines.isActive
 
 @Suppress("TooManyFunctions")
 class TopologyViewModel(
@@ -106,10 +109,17 @@ class TopologyViewModel(
     private fun setupSseListening() {
         val client = sseClient ?: return
         launchJob("sse_listening") {
-            client.connect("/api/v1/events").collect { event ->
-                if (event is SSEEvent.TopologyUpdated || event is SSEEvent.DeviceCreated) {
-                    loadGraph()
-                }
+            while (isActive) {
+                client
+                    .connect("/api/v1/events/stream")
+                    .takeWhile { it !is SSEEvent.Disconnected }
+                    .collect { event ->
+                        if (event is SSEEvent.TopologyUpdated || event is SSEEvent.DeviceCreated) {
+                            loadGraph()
+                        }
+                    }
+                client.disconnect()
+                delay(5000L)
             }
         }
     }

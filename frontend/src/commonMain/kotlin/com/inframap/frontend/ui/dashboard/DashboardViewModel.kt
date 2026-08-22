@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.isActive
 
 @Suppress("TooManyFunctions")
@@ -257,22 +258,21 @@ class DashboardViewModel(
         val client = sseClient ?: return
         launchJob("sse_listening") {
             while (isActive) {
-                client.connect("/api/v1/events").collect { event ->
-                    when (event) {
-                        is SSEEvent.DeviceCreated,
-                        is SSEEvent.DeviceUpdated,
-                        is SSEEvent.TopologyUpdated,
-                        is SSEEvent.DiscoveryProgress,
-                        -> {
-                            triggerFetchMetrics()
+                client
+                    .connect("/api/v1/events/stream")
+                    .takeWhile { it !is SSEEvent.Disconnected }
+                    .collect { event ->
+                        when (event) {
+                            is SSEEvent.DeviceCreated,
+                            is SSEEvent.DeviceUpdated,
+                            is SSEEvent.TopologyUpdated,
+                            is SSEEvent.DiscoveryProgress,
+                            -> triggerFetchMetrics()
+                            else -> Unit
                         }
-                        is SSEEvent.Disconnected -> {
-                            delay(5000L)
-                            startSseListening()
-                        }
-                        else -> Unit
                     }
-                }
+                client.disconnect()
+                delay(5000L)
             }
         }
     }
