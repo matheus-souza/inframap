@@ -73,7 +73,7 @@ import com.inframap.frontend.ui.tour.ProductTourViewModel
 import com.inframap.frontend.ui.wizard.SetupWizardActions
 import com.inframap.frontend.ui.wizard.SetupWizardScreen
 import com.inframap.frontend.ui.wizard.SetupWizardViewModel
-import org.koin.compose.koinInject
+import org.koin.compose.currentKoinScope
 import org.koin.core.parameter.parametersOf
 
 data class NavItem(
@@ -101,11 +101,12 @@ fun MainScaffold(
     isHealthy: Boolean?,
     onHealthChanged: (Boolean?) -> Unit = {},
 ) {
-    val commandPaletteViewModel: CommandPaletteViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val commandPaletteViewModel: CommandPaletteViewModel = remember { koinScope.get() }
     val commandPaletteState by commandPaletteViewModel.state.collectAsState()
-    val tourViewModel: ProductTourViewModel = koinInject()
+    val tourViewModel: ProductTourViewModel = remember { koinScope.get() }
     val tourState by tourViewModel.state.collectAsState()
-    val onboardingCoordinator: OnboardingCoordinator = koinInject()
+    val onboardingCoordinator: OnboardingCoordinator = remember { koinScope.get() }
 
     DisposableEffect(commandPaletteViewModel) {
         onDispose { commandPaletteViewModel.clear() }
@@ -194,7 +195,8 @@ private fun MainScaffoldContent(
     onRestartTourClicked: () -> Unit,
     onWizardCompleted: () -> Unit = {},
 ) {
-    val localStorage: LocalStorage = koinInject()
+    val koinScope = currentKoinScope()
+    val localStorage: LocalStorage = remember { koinScope.get() }
     var isNavRailExpanded by remember {
         mutableStateOf(localStorage.get(KEY_NAVRAIL_COLLAPSED) == null)
     }
@@ -355,9 +357,10 @@ private fun DashboardRoute(
     onWizardCompleted: () -> Unit = {},
     navigator: Navigator,
 ) {
-    val viewModel: DashboardViewModel = koinInject()
-    val wizardViewModel: SetupWizardViewModel = koinInject()
-    val coordinator: OnboardingCoordinator = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: DashboardViewModel = remember { koinScope.get() }
+    val wizardViewModel: SetupWizardViewModel = remember { koinScope.get() }
+    val coordinator: OnboardingCoordinator = remember { koinScope.get() }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -414,7 +417,8 @@ private fun DashboardRoute(
 
 @Composable
 private fun DeviceListRoute(navigator: Navigator) {
-    val viewModel: DeviceListViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: DeviceListViewModel = remember { koinScope.get() }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -444,7 +448,8 @@ private fun DeviceDetailRoute(
     deviceId: String,
     navigator: Navigator,
 ) {
-    val viewModel: DeviceDetailViewModel = koinInject { parametersOf(deviceId) }
+    val koinScope = currentKoinScope()
+    val viewModel: DeviceDetailViewModel = remember(deviceId) { koinScope.get { parametersOf(deviceId) } }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -468,7 +473,8 @@ private fun DeviceDetailRoute(
 
 @Composable
 private fun CreateDeviceRoute(navigator: Navigator) {
-    val viewModel: CreateDeviceViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: CreateDeviceViewModel = remember { koinScope.get() }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -502,7 +508,8 @@ private fun EditDeviceRoute(
     deviceId: String,
     navigator: Navigator,
 ) {
-    val viewModel: EditDeviceViewModel = koinInject { parametersOf(deviceId) }
+    val koinScope = currentKoinScope()
+    val viewModel: EditDeviceViewModel = remember(deviceId) { koinScope.get { parametersOf(deviceId) } }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -535,7 +542,8 @@ private fun EditDeviceRoute(
 
 @Composable
 private fun StagingRoute(navigator: Navigator) {
-    val viewModel: StagingViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: StagingViewModel = remember { koinScope.get() }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -560,7 +568,8 @@ private fun StagingRoute(navigator: Navigator) {
 
 @Composable
 private fun SubnetsRoute(navigator: Navigator) {
-    val viewModel: SubnetsViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: SubnetsViewModel = remember { koinScope.get() }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -591,9 +600,10 @@ private fun CreateSubnetRoute(
     prefilledName: String? = null,
     navigator: Navigator,
 ) {
+    val koinScope = currentKoinScope()
     val viewModel: CreateSubnetViewModel =
-        koinInject {
-            parametersOf(prefilledCidr, prefilledName)
+        remember(prefilledCidr, prefilledName) {
+            koinScope.get { parametersOf(prefilledCidr, prefilledName) }
         }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
@@ -624,7 +634,8 @@ private fun CreateSubnetRoute(
 
 @Composable
 private fun DiscoveryListRoute(navigator: Navigator) {
-    val viewModel: DiscoveryListViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: DiscoveryListViewModel = remember { koinScope.get() }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -649,7 +660,8 @@ private fun DiscoveryListRoute(navigator: Navigator) {
 
 @Composable
 private fun CreateDiscoverySourceRoute(navigator: Navigator) {
-    val viewModel: CreateDiscoverySourceViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: CreateDiscoverySourceViewModel = remember { koinScope.get() }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }
@@ -684,7 +696,8 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
 
 @Composable
 private fun TopologyRoute(navigator: Navigator) {
-    val viewModel: TopologyViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: TopologyViewModel = remember { koinScope.get() }
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
     }

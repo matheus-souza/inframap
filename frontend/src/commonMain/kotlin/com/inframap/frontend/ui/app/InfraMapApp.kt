@@ -24,7 +24,7 @@ import com.inframap.frontend.ui.onboarding.OnboardingViewModel
 import com.inframap.frontend.ui.splash.SplashEffect
 import com.inframap.frontend.ui.splash.SplashScreen
 import com.inframap.frontend.ui.splash.SplashViewModel
-import org.koin.compose.koinInject
+import org.koin.compose.currentKoinScope
 
 @Composable
 fun InfraMapApp() {
@@ -55,7 +55,8 @@ fun InfraMapApp() {
 
 @Composable
 private fun SplashRoute(navigator: Navigator) {
-    val viewModel: SplashViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: SplashViewModel = remember { koinScope.get() }
     SplashScreen()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
@@ -74,7 +75,8 @@ private fun SplashRoute(navigator: Navigator) {
 
 @Composable
 private fun LoginRoute(navigator: Navigator) {
-    val viewModel: LoginViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: LoginViewModel = remember { koinScope.get() }
     val loginState by viewModel.state.collectAsState()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
@@ -96,7 +98,8 @@ private fun LoginRoute(navigator: Navigator) {
 
 @Composable
 private fun OnboardingRoute(navigator: Navigator) {
-    val viewModel: OnboardingViewModel = koinInject()
+    val koinScope = currentKoinScope()
+    val viewModel: OnboardingViewModel = remember { koinScope.get() }
     val onboardingState by viewModel.state.collectAsState()
     DisposableEffect(viewModel) {
         onDispose { viewModel.clear() }
