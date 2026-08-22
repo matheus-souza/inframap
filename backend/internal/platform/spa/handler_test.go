@@ -222,6 +222,19 @@ func TestSPAHandler_CacheControlScriptNoCache(t *testing.T) {
 	}
 }
 
+func TestSPAHandler_CacheControlJSONNoCache(t *testing.T) {
+	handler := spa.NewSPAHandler(testFS())
+
+	req := httptest.NewRequest(http.MethodGet, "/manifest.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	expected := "no-cache, must-revalidate"
+	if got := rec.Header().Get("Cache-Control"); got != expected {
+		t.Fatalf("expected %q for manifest.json, got %q", expected, got)
+	}
+}
+
 func TestSPAHandler_CacheControlStaticImmutable(t *testing.T) {
 	handler := spa.NewSPAHandler(testFS())
 
