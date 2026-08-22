@@ -203,15 +203,29 @@ func TestSPAHandler_CacheControlIndexNoCache(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
-		t.Fatalf("expected no-cache for index.html, got %q", got)
+	expected := "no-cache, no-store, must-revalidate"
+	if got := rec.Header().Get("Cache-Control"); got != expected {
+		t.Fatalf("expected %q for index.html, got %q", expected, got)
+	}
+}
+
+func TestSPAHandler_CacheControlScriptNoCache(t *testing.T) {
+	handler := spa.NewSPAHandler(testFS())
+
+	req := httptest.NewRequest(http.MethodGet, "/inframap.js", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	expected := "no-cache, must-revalidate"
+	if got := rec.Header().Get("Cache-Control"); got != expected {
+		t.Fatalf("expected %q for inframap.js, got %q", expected, got)
 	}
 }
 
 func TestSPAHandler_CacheControlStaticImmutable(t *testing.T) {
 	handler := spa.NewSPAHandler(testFS())
 
-	req := httptest.NewRequest(http.MethodGet, "/inframap.js", nil)
+	req := httptest.NewRequest(http.MethodGet, "/style.css", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -228,8 +242,9 @@ func TestSPAHandler_FallbackAlsoGetsCacheNoCache(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
-		t.Fatalf("expected no-cache for SPA fallback, got %q", got)
+	expected := "no-cache, no-store, must-revalidate"
+	if got := rec.Header().Get("Cache-Control"); got != expected {
+		t.Fatalf("expected %q for SPA fallback, got %q", expected, got)
 	}
 }
 

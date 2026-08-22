@@ -60,11 +60,12 @@ func NewSPAHandler(fsys fs.FS) http.Handler {
 
 func setCacheHeaders(w http.ResponseWriter, filePath string) {
 	if filePath == "index.html" {
-		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		return
 	}
-	if filepath.Ext(filePath) == ".wasm" {
-		w.Header().Set("Cache-Control", "public, no-cache")
+	ext := filepath.Ext(filePath)
+	if ext == ".wasm" || ext == ".js" || ext == ".json" {
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		return
 	}
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
