@@ -270,7 +270,7 @@ func TestSPAHandler_WASMCacheRevalidation(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	expected := "public, no-cache"
+	expected := "no-cache, must-revalidate"
 	if got := rec.Header().Get("Cache-Control"); got != expected {
 		t.Fatalf("expected %q for WASM cache, got %q", expected, got)
 	}
