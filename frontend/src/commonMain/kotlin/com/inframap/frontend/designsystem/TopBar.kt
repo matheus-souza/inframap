@@ -8,8 +8,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -123,13 +123,8 @@ private fun RestartTourButton(onRestartTourClicked: () -> Unit) {
         onClick = onRestartTourClicked,
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier =
-            Modifier
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(8.dp),
-                ).semantics { contentDescription = "Refazer Tour Guiado button" },
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+        modifier = Modifier.semantics { contentDescription = "Refazer Tour Guiado button" },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -162,14 +157,11 @@ private fun SearchTriggerButton(onSearchClicked: () -> Unit) {
             onClick = onSearchClicked,
             shape = RoundedCornerShape(8.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
             modifier =
                 Modifier
                     .hoverable(interactionSource)
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(8.dp),
-                    ).semantics { contentDescription = "Search trigger button" },
+                    .semantics { contentDescription = "Search trigger button" },
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -251,6 +243,7 @@ private fun SseConnectionBadge(isSseConnected: Boolean) {
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
             modifier =
                 Modifier
                     .hoverable(interactionSource)

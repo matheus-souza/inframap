@@ -2,8 +2,8 @@
 
 package com.inframap.frontend.ui.command
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -133,14 +133,13 @@ private fun CommandPaletteModalContent(
                 .padding(top = 80.dp, start = 16.dp, end = 16.dp)
                 .widthIn(max = 640.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .border(1.dp, InfraMapBorder, RoundedCornerShape(16.dp))
                 .clickable(enabled = false, onClick = {})
                 .onPreviewKeyEvent { event ->
                     handleKeyEvent(event, actions)
                 },
         color = InfraMapSurfaceBg,
         shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, InfraMapBorder),
     ) {
         Column {
             CommandPaletteSearchHeader(

@@ -1,5 +1,6 @@
 package com.inframap.frontend.ui.topology
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -60,10 +61,10 @@ fun DeviceInspectorSheet(
         modifier =
             modifier
                 .width(360.dp)
-                .fillMaxHeight()
-                .border(1.dp, InfraMapBorder),
+                .fillMaxHeight(),
         color = InfraMapSurfaceBg,
         shadowElevation = 12.dp,
+        border = BorderStroke(1.dp, InfraMapBorder),
     ) {
         Column(
             modifier = Modifier.fillMaxHeight(),
