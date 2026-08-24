@@ -212,6 +212,8 @@ class DashboardViewModel(
 
                 if (subnetsTotal == 0L) checkAutoSetup()
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (t: Throwable) {
             updateState {
                 it.copy(
