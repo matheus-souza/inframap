@@ -92,7 +92,7 @@ class ApiClient(
                     httpStatus = response.status.value,
                 )
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             ApiResult.NetworkError(throwable = e)
         }
 }

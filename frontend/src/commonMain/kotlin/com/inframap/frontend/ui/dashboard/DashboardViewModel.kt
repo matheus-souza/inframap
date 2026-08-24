@@ -152,64 +152,73 @@ class DashboardViewModel(
         sseClient?.disconnect()
     }
 
-    @Suppress("LongMethod")
+    @Suppress("LongMethod", "TooGenericExceptionCaught", "SwallowedException")
     private suspend fun fetchMetrics() {
         val generation = metricsGeneration
-        coroutineScope {
-            val devicesDeferred = async { getDevicesUseCase(page = 1, perPage = 1) }
-            val stagingDeferred = async { getStagingDevicesUseCase(page = 1, perPage = 1) }
-            val healthDeferred = async { getHealthUseCase() }
-            val sourcesDeferred = async { getDiscoverySourcesUseCase() }
-            val subnetsDeferred = async { getSubnetsUseCase() }
+        try {
+            coroutineScope {
+                val devicesDeferred = async { getDevicesUseCase(page = 1, perPage = 1) }
+                val stagingDeferred = async { getStagingDevicesUseCase(page = 1, perPage = 1) }
+                val healthDeferred = async { getHealthUseCase() }
+                val sourcesDeferred = async { getDiscoverySourcesUseCase() }
+                val subnetsDeferred = async { getSubnetsUseCase() }
 
-            val devicesResult = devicesDeferred.await()
-            val stagingResult = stagingDeferred.await()
-            val healthResult = healthDeferred.await()
-            val sourcesResult = sourcesDeferred.await()
-            val subnetsResult = subnetsDeferred.await()
+                val devicesResult = devicesDeferred.await()
+                val stagingResult = stagingDeferred.await()
+                val healthResult = healthDeferred.await()
+                val sourcesResult = sourcesDeferred.await()
+                val subnetsResult = subnetsDeferred.await()
 
-            if (generation != metricsGeneration) return@coroutineScope
+                if (generation != metricsGeneration) return@coroutineScope
 
-            val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult, subnetsResult)
+                val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult, subnetsResult)
 
-            val networkError = results.firstOrNull { it is ApiResult.NetworkError }
-            if (networkError != null) {
-                handleMetricsError(
-                    mapError(networkError, UiText.Resource(Res.string.dashboard_error_load)),
-                    healthResult,
-                )
-                return@coroutineScope
+                val networkError = results.firstOrNull { it is ApiResult.NetworkError }
+                if (networkError != null) {
+                    handleMetricsError(
+                        mapError(networkError, UiText.Resource(Res.string.dashboard_error_load)),
+                        healthResult,
+                    )
+                    return@coroutineScope
+                }
+
+                val errorResult = results.firstOrNull { it is ApiResult.Error }
+                if (errorResult != null) {
+                    handleMetricsError(
+                        mapError(errorResult, UiText.Resource(Res.string.dashboard_error_load)),
+                        healthResult,
+                    )
+                    return@coroutineScope
+                }
+
+                val activeTotal = (devicesResult as? ApiResult.Success)?.data?.total ?: 0L
+                val stagedTotal = (stagingResult as? ApiResult.Success)?.data?.total ?: 0L
+                val healthData = (healthResult as? ApiResult.Success)?.data
+                val sourcesTotal = (sourcesResult as? ApiResult.Success)?.data?.size?.toLong() ?: 0L
+                val subnetsTotal = (subnetsResult as? ApiResult.Success)?.data?.total ?: 0L
+
+                updateState {
+                    it.copy(
+                        totalActiveDevices = activeTotal,
+                        totalStagedDevices = stagedTotal,
+                        totalSubnets = subnetsTotal,
+                        isSystemHealthy = healthData?.isHealthy,
+                        systemVersion = healthData?.version ?: "",
+                        totalDiscoverySources = sourcesTotal,
+                        isLoading = false,
+                        errorMessage = null,
+                    )
+                }
+
+                if (subnetsTotal == 0L) checkAutoSetup()
             }
-
-            val errorResult = results.firstOrNull { it is ApiResult.Error }
-            if (errorResult != null) {
-                handleMetricsError(
-                    mapError(errorResult, UiText.Resource(Res.string.dashboard_error_load)),
-                    healthResult,
-                )
-                return@coroutineScope
-            }
-
-            val activeTotal = (devicesResult as? ApiResult.Success)?.data?.total ?: 0L
-            val stagedTotal = (stagingResult as? ApiResult.Success)?.data?.total ?: 0L
-            val healthData = (healthResult as? ApiResult.Success)?.data
-            val sourcesTotal = (sourcesResult as? ApiResult.Success)?.data?.size?.toLong() ?: 0L
-            val subnetsTotal = (subnetsResult as? ApiResult.Success)?.data?.total ?: 0L
-
+        } catch (t: Throwable) {
             updateState {
                 it.copy(
-                    totalActiveDevices = activeTotal,
-                    totalStagedDevices = stagedTotal,
-                    totalSubnets = subnetsTotal,
-                    isSystemHealthy = healthData?.isHealthy,
-                    systemVersion = healthData?.version ?: "",
-                    totalDiscoverySources = sourcesTotal,
                     isLoading = false,
-                    errorMessage = null,
+                    errorMessage = UiText.Resource(Res.string.dashboard_error_load),
                 )
             }
-
-            if (subnetsTotal == 0L) checkAutoSetup()
         }
     }
 

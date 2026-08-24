@@ -26,6 +26,8 @@ fun CommandPaletteListener(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
+    PlatformGlobalShortcuts(onTogglePalette)
+
     Box(
         modifier =
             modifier

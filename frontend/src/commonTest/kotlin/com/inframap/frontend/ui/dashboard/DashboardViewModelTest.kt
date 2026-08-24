@@ -784,4 +784,21 @@ class DashboardViewModelTest {
             kotlin.test.assertNotNull(vm.state.value.autoSetup.errorMessage)
             vm.clear()
         }
+
+    @Test
+    fun loadDataSetsLoadingFalseOnUnexpectedException() =
+        runTest {
+            val throwingDeviceRepo =
+                FakeDeviceRepository(
+                    onGetDevices = { throw IllegalStateException("Unexpected WASM exception") },
+                )
+
+            val vm = makeVm(deviceRepo = throwingDeviceRepo, scope = this)
+
+            advanceUntilIdle()
+
+            assertFalse(vm.state.value.isLoading)
+            assertNotNull(vm.state.value.errorMessage)
+            vm.clear()
+        }
 }
