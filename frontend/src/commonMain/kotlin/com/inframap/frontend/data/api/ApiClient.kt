@@ -92,7 +92,9 @@ class ApiClient(
                     httpStatus = response.status.value,
                 )
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
             ApiResult.NetworkError(throwable = e)
         }
 }
