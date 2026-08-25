@@ -25,4 +25,10 @@ export default defineConfig({
       },
     },
   ],
+  webServer: {
+    command: 'cd ../../backend && ./bin/inframap',
+    url: 'http://localhost:8055/api/v1/health',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120000,
+  },
 });
