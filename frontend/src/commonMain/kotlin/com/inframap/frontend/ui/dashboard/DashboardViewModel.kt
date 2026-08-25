@@ -169,7 +169,10 @@ class DashboardViewModel(
                 val sourcesResult = sourcesDeferred.await()
                 val subnetsResult = subnetsDeferred.await()
 
-                if (generation != metricsGeneration) return@coroutineScope
+                if (generation != metricsGeneration) {
+                    updateState { it.copy(isLoading = false) }
+                    return@coroutineScope
+                }
 
                 val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult, subnetsResult)
 
@@ -221,6 +224,8 @@ class DashboardViewModel(
                     errorMessage = UiText.Resource(Res.string.dashboard_error_load),
                 )
             }
+        } finally {
+            updateState { it.copy(isLoading = false) }
         }
     }
 

@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Menu
@@ -62,13 +64,14 @@ fun InfraMapNavRail(
     modifier: Modifier = Modifier,
 ) {
     val railWidth = if (isExpanded) 200.dp else 56.dp
+    val scrollState = rememberScrollState()
 
     Surface(
         modifier = modifier.width(railWidth).fillMaxHeight(),
         color = MaterialTheme.colorScheme.surface,
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().verticalScroll(scrollState),
             horizontalAlignment = if (isExpanded) Alignment.Start else Alignment.CenterHorizontally,
         ) {
             NavRailToggleButton(isExpanded = isExpanded, onToggle = onToggleExpanded)

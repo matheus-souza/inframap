@@ -21,12 +21,12 @@ data class DeviceDto(
 
 @Serializable
 data class DeviceListResponse(
-    @SerialName("items") val items: List<DeviceDto> = emptyList(),
+    @SerialName("items") val items: List<DeviceDto>? = emptyList(),
     val total: Long = 0,
     val page: Int = 1,
     @SerialName("per_page") val perPage: Int = 50,
 ) {
-    val devices: List<DeviceDto> get() = items
+    val devices: List<DeviceDto> get() = items ?: emptyList()
 }
 
 @Serializable
@@ -62,10 +62,10 @@ data class StagingDeviceDto(
 
 @Serializable
 data class StagingListResponse(
-    @SerialName("items") val items: List<StagingDeviceDto> = emptyList(),
+    @SerialName("items") val items: List<StagingDeviceDto>? = emptyList(),
     val total: Long = 0,
     val page: Int = 1,
     @SerialName("per_page") val perPage: Int = 50,
 ) {
-    val devices: List<StagingDeviceDto> get() = items
+    val devices: List<StagingDeviceDto> get() = items ?: emptyList()
 }

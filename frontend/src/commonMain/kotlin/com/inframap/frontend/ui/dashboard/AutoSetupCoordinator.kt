@@ -59,8 +59,8 @@ class AutoSetupCoordinator(
             val result =
                 createDiscoverySourceUseCase(
                     CreateDiscoverySourceRequest(
-                        name = "Completo — ${iface.cidr}",
-                        type = "full",
+                        name = "ICMP Sweep — ${iface.cidr}",
+                        type = "icmp_sweep",
                         enabled = true,
                         scheduleCron = "0 * * * *",
                         config = mapOf("cidr" to iface.cidr),

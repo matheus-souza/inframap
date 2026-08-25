@@ -6,7 +6,7 @@ test('navigation: basic routing and state transitions', async ({ page }) => {
   const loadingScreen = page.locator('#loading-screen');
   await expect(loadingScreen).toHaveCSS('display', 'none', { timeout: 5000 });
 
-  const canvas = page.locator('#inframap-canvas');
+  const canvas = page.locator('canvas');
   await expect(canvas).toBeVisible();
 
   // Basic navigation test. In a Compose for Web canvas app, routing is internal.
