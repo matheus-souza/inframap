@@ -94,9 +94,9 @@ test-frontend: ## Run frontend tests with coverage verification
 	@echo "Running frontend test suite..."
 	cd frontend && ./gradlew jvmTest koverVerify
 
-test-e2e-frontend: ## Run Playwright visual regression E2E test suite for WASM WebApp
+test-e2e-browser: ## Run Playwright visual regression E2E test suite for WASM WebApp
 	@echo "Running Playwright visual regression test suite..."
-	cd frontend/e2e && npm ci && npx playwright test
+	cd tests/e2e-browser && npm install && npx playwright test
 
 verify: generate lint test lint-frontend test-frontend build ## Execute complete local validation pipeline (matches CI Quality Gates)
 	@echo "=========================================="

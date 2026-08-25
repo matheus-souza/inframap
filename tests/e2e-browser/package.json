@@ -1,0 +1,15 @@
+{
+  "name": "inframap-e2e-browser",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser E2E quality gate for Inframap",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
