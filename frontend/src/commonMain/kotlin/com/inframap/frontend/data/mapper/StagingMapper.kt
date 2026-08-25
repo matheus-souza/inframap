@@ -22,7 +22,7 @@ object StagingMapper {
 
     fun toPaginatedList(response: StagingListResponse): PaginatedList<StagingDevice> =
         PaginatedList(
-            items = response.items.map { toDomain(it) },
+            items = response.devices.map { toDomain(it) },
             total = response.total,
             page = response.page,
             perPage = response.perPage,

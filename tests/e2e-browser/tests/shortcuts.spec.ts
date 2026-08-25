@@ -16,7 +16,7 @@ test('global shortcuts: Cmd+K / Ctrl+K and Escape without crashes', async ({ pag
   const loadingScreen = page.locator('#loading-screen');
   await expect(loadingScreen).toHaveCSS('display', 'none', { timeout: 5000 });
 
-  const canvas = page.locator('#inframap-canvas');
+  const canvas = page.locator('canvas');
   await expect(canvas).toBeVisible();
 
   // Wait for initial load and network activity to settle deterministically

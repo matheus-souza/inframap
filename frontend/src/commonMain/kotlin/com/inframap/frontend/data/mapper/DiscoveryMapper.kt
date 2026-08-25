@@ -20,11 +20,13 @@ object DiscoveryMapper {
             updatedAt = dto.updatedAt,
         )
 
-    fun toPaginatedList(response: DiscoveryListResponse): PaginatedList<DiscoverySource> =
-        PaginatedList(
-            items = response.items.map { toDomain(it) },
+    fun toPaginatedList(response: DiscoveryListResponse): PaginatedList<DiscoverySource> {
+        val list = response.sources
+        return PaginatedList(
+            items = list.map { toDomain(it) },
             total = response.total,
             page = 1,
-            perPage = response.items.size,
+            perPage = list.size.coerceAtLeast(1),
         )
+    }
 }

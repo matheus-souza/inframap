@@ -53,8 +53,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.inframap.frontend.designsystem.InfraMapBorder
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapSurfaceBg
@@ -83,37 +81,30 @@ data class CommandPaletteActions(
 fun CommandPaletteModal(
     state: CommandPaletteUiState,
     actions: CommandPaletteActions,
+    modifier: Modifier = Modifier,
 ) {
     if (!state.isOpen) return
 
     val focusRequester = remember { FocusRequester() }
 
-    Dialog(
-        onDismissRequest = actions.onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+    Box(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.65f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClickLabel = stringResource(Res.string.command_palette_close_label),
+                    onClick = actions.onDismiss,
+                ),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .matchParentSize()
-                        .background(Color.Black.copy(alpha = 0.65f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClickLabel = stringResource(Res.string.command_palette_close_label),
-                            onClick = actions.onDismiss,
-                        ),
-            )
-            CommandPaletteModalContent(
-                state = state,
-                focusRequester = focusRequester,
-                actions = actions,
-            )
-        }
+        CommandPaletteModalContent(
+            state = state,
+            focusRequester = focusRequester,
+            actions = actions,
+        )
     }
 
     LaunchedEffect(Unit) {

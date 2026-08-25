@@ -129,14 +129,18 @@ fun MainScaffold(
         }
     }
 
-    CommandPaletteListener(onTogglePalette = commandPaletteViewModel::toggle) {
+    val onTogglePalette = remember(commandPaletteViewModel) { { commandPaletteViewModel.toggle() } }
+    val onOpenCommandPalette = remember(commandPaletteViewModel) { { commandPaletteViewModel.open() } }
+    val onRestartTourClicked = remember(tourViewModel) { { tourViewModel.startTour() } }
+
+    CommandPaletteListener(onTogglePalette = onTogglePalette) {
         MainScaffoldContent(
             currentRoute = currentRoute,
             navigator = navigator,
             isHealthy = isHealthy,
             onHealthChanged = onHealthChanged,
-            onOpenCommandPalette = commandPaletteViewModel::open,
-            onRestartTourClicked = tourViewModel::startTour,
+            onOpenCommandPalette = onOpenCommandPalette,
+            onRestartTourClicked = onRestartTourClicked,
         )
         MainScaffoldOverlays(
             commandPaletteState = commandPaletteState,

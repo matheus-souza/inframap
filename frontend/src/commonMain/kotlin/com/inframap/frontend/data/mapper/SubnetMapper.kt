@@ -18,11 +18,13 @@ object SubnetMapper {
             createdAt = dto.createdAt,
         )
 
-    fun toPaginatedList(response: SubnetListResponse): PaginatedList<Subnet> =
-        PaginatedList(
-            items = response.items.map { toDomain(it) },
+    fun toPaginatedList(response: SubnetListResponse): PaginatedList<Subnet> {
+        val list = response.subnets
+        return PaginatedList(
+            items = list.map { toDomain(it) },
             total = response.total,
             page = 1,
-            perPage = response.items.size,
+            perPage = list.size.coerceAtLeast(1),
         )
+    }
 }

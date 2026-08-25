@@ -27,8 +27,8 @@ data class CreateSubnetRequest(
 
 @Serializable
 data class SubnetListResponse(
-    @SerialName("items") val items: List<SubnetDto> = emptyList(),
+    @SerialName("items") val items: List<SubnetDto>? = emptyList(),
     val total: Long = 0,
 ) {
-    val subnets: List<SubnetDto> get() = items
+    val subnets: List<SubnetDto> get() = items ?: emptyList()
 }

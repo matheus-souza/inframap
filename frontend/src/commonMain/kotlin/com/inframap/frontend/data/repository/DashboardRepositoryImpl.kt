@@ -31,6 +31,6 @@ class DashboardRepositoryImpl(
 
     override suspend fun getDiscoverySources(): ApiResult<List<DiscoverySource>> =
         apiClient.get<DiscoveryListResponse>("/api/v1/discovery/sources").map { response ->
-            response.items.map { DashboardMapper.toDomain(it) }
+            response.sources.map { DashboardMapper.toDomain(it) }
         }
 }

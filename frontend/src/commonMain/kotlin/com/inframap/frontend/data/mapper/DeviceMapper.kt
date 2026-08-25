@@ -24,7 +24,7 @@ object DeviceMapper {
 
     fun toPaginatedList(response: DeviceListResponse): PaginatedList<Device> =
         PaginatedList(
-            items = response.items.map { toDomain(it) },
+            items = response.devices.map { toDomain(it) },
             total = response.total,
             page = response.page,
             perPage = response.perPage,

@@ -19,9 +19,11 @@ data class DiscoverySourceDto(
 
 @Serializable
 data class DiscoveryListResponse(
-    @SerialName("items") val items: List<DiscoverySourceDto> = emptyList(),
+    @SerialName("items") val items: List<DiscoverySourceDto>? = emptyList(),
     val total: Long = 0,
-)
+) {
+    val sources: List<DiscoverySourceDto> get() = items ?: emptyList()
+}
 
 @Serializable
 data class CreateDiscoverySourceRequest(
