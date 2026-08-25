@@ -215,6 +215,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -243,14 +244,6 @@ jobs:
           go install github.com/pressly/goose/v3/cmd/goose@latest
           cd backend && goose -dir migrations postgres "$DATABASE_URL" up
 
-      - name: Start Application Background
-        env:
-          DATABASE_URL: postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable
-          INFRAMAP_PORT: 8055
-        run: |
-          ./backend/bin/inframap &
-          sleep 5
-
       - name: Install Playwright
         run: |
           cd tests/e2e-browser
@@ -258,6 +251,9 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run Playwright tests
+        env:
+          DATABASE_URL: postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable
+          INFRAMAP_PORT: 8055
         run: |
           cd tests/e2e-browser
           npx playwright test
