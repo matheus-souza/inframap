@@ -32,6 +32,10 @@ fun InfraMapApp() {
     val currentRoute by navigator.currentRoute.collectAsState()
     var isHealthy by remember { mutableStateOf<Boolean?>(null) }
 
+    LaunchedEffect(currentRoute) {
+        println("[InfraMap-Navigation] Route transitioned to: $currentRoute")
+    }
+
     InfraMapTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),

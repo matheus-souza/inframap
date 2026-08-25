@@ -16,11 +16,30 @@ private external fun getOrigin(): String
 @JsFun("function() { if (typeof window.infraMapReady === 'function') window.infraMapReady(); }")
 private external fun notifyReady()
 
+@JsFun(
+    """
+function() {
+    var originalFetch = window.fetch;
+    window.fetch = function(resource, init) {
+        if (!init) { init = {}; }
+        if (!init.credentials) { init.credentials = 'same-origin'; }
+        return originalFetch(resource, init);
+    };
+}
+""",
+)
+private external fun overrideFetchCredentials()
+
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
+    overrideFetchCredentials()
     val baseUrl = getOrigin()
-    val body = document.body ?: return
-    ComposeViewport(body) {
+    println("[InfraMap-Startup] Initializing application at base URL: $baseUrl")
+
+    val container = document.getElementById("inframap-app") ?: document.body ?: return
+    println("[InfraMap-Startup] Attaching ComposeViewport to container: ${container.nodeName}")
+
+    ComposeViewport(container) {
         val platformModule =
             module {
                 single<LocalStorage> { BrowserLocalStorage() }
@@ -29,5 +48,6 @@ fun main() {
             InfraMapApp()
         }
     }
+    println("[InfraMap-Startup] Compose tree mounted successfully. Notifying ready.")
     notifyReady()
 }

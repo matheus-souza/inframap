@@ -77,7 +77,8 @@ class ApiClient(
     suspend inline fun <reified T> safeCall(block: () -> HttpResponse): ApiResult<T> =
         try {
             val response = block()
-            if (response.status.value in 200..299) {
+            val status = response.status.value
+            if (status in 200..299) {
                 val envelope: SuccessEnvelope<T> = response.body()
                 ApiResult.Success(
                     data = envelope.data,
@@ -85,16 +86,20 @@ class ApiClient(
                 )
             } else {
                 val envelope: ErrorEnvelope = response.body()
+                val errCode = envelope.error.code
+                val errMsg = envelope.error.message
+                println("[InfraMap-API] [WARN] HTTP $status: $errCode - $errMsg")
                 ApiResult.Error(
                     code = envelope.error.code,
                     message = envelope.error.message,
                     requestId = envelope.meta.requestId,
-                    httpStatus = response.status.value,
+                    httpStatus = status,
                 )
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Throwable) {
+            println("[InfraMap-API] [ERROR] Network/Serialization error: ${e.message}")
             ApiResult.NetworkError(throwable = e)
         }
 }
