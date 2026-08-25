@@ -1,0 +1,491 @@
+diff --git a/CONTEXT.md b/CONTEXT.md
+index c99a041..836359a 100644
+--- a/CONTEXT.md
++++ b/CONTEXT.md
+@@ -204,3 +204,4 @@ Guidelines below are continuously updated from internal code reviews, CodeRabbit
+ 131. **Modal Overlays & Focus Traps Must Not Block Root Canvas Views**: Never place full-screen blocking modals or scrim overlays (with `pointerInput { detectTapGestures { } }`) over root dashboards or navigation views when inline alternative components (e.g. `AutoSetupHeroCard`) exist. Avoid placing `.focusable()` wrappers with `focusRequester.requestFocus()` on root containers which disrupt child click hit-testing in Compose WASM, ensure web canvas keydown shortcuts handle browser defaults, and verify all SSE endpoints target `/api/v1/events/stream`.
+ 132. **Kotlin Multiplatform WASM Exception Handling and Global Browser Keydown Shortcuts**: In Kotlin Multiplatform / WASM, `ApiClient.safeCall` and network dispatchers MUST catch `Throwable` (`catch (e: Throwable)`) rather than `catch (e: Exception)` to ensure JS errors (`JsException`), serialization issues, and runtime WASM traps are safely caught and wrapped as `ApiResult.NetworkError` instead of crashing coroutines unhandled. When catching `Throwable`, `kotlinx.coroutines.CancellationException` MUST be explicitly caught and rethrown (`catch (e: CancellationException) { throw e }`) before `catch (e: Throwable)` to prevent breaking structured concurrency and coroutine lifecycle management. In ViewModels, async aggregation (`fetchMetrics`) MUST employ defensive error boundaries (`try/catch Throwable`) ensuring `isLoading` always transitions to `false`. Global window shortcuts (such as `Cmd+K`/`Ctrl+K` for command palette) MUST register a native `window.addEventListener('keydown', ...)` on WASM with `preventDefault()` to guarantee key events fire globally regardless of which Compose composable holds active canvas focus.
+ 133. **Mandatory Browser E2E Quality Gate for WASM SPA**: All frontend changes and single-binary packaging MUST be validated through the Playwright browser E2E test suite in `tests/e2e-browser/`. The CI pipeline MUST execute this suite against a running instance of the single binary (Go + embedded WASM) and verify that `#loading-screen` disappears, no unhandled JS/WASM errors are emitted in `pageerror`/`console.error`, the dashboard transitions out of loading skeletons within 5s, and global shortcuts (`Cmd+K`/`Ctrl+K`) open the command palette. Per ADR-009.
++134. **Compose WASM Dynamic Viewport Management & Null-Tolerant Collections**: In Compose Multiplatform WASM, applications MUST use `ComposeViewport(document.body!)` rather than deprecated `CanvasBasedWindow` to ensure Skiko canvas automatically resizes with dynamic browser viewports and DevTools dock/undock events without leaving blank bands. Container layouts and long views (`DashboardScreen`, `NavRail`, form screens) MUST include `Modifier.verticalScroll(rememberScrollState())` to support vertical scrolling on constrained viewport heights. API DTOs representing collections MUST declare list fields as nullable (`items: List<T>? = emptyList()`) with safe accessors (`val items: List<T> get() = items ?: emptyList()`) to gracefully handle empty backend responses where Go marshals nil slices as `null` without throwing `kotlinx.serialization.SerializationException`.
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/DeviceDto.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/DeviceDto.kt
+index 41fd5e7..c4603ba 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/DeviceDto.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/DeviceDto.kt
+@@ -21,12 +21,12 @@ data class DeviceDto(
+ 
+ @Serializable
+ data class DeviceListResponse(
+-    @SerialName("items") val items: List<DeviceDto> = emptyList(),
++    @SerialName("items") val items: List<DeviceDto>? = emptyList(),
+     val total: Long = 0,
+     val page: Int = 1,
+     @SerialName("per_page") val perPage: Int = 50,
+ ) {
+-    val devices: List<DeviceDto> get() = items
++    val devices: List<DeviceDto> get() = items ?: emptyList()
+ }
+ 
+ @Serializable
+@@ -62,10 +62,10 @@ data class StagingDeviceDto(
+ 
+ @Serializable
+ data class StagingListResponse(
+-    @SerialName("items") val items: List<StagingDeviceDto> = emptyList(),
++    @SerialName("items") val items: List<StagingDeviceDto>? = emptyList(),
+     val total: Long = 0,
+     val page: Int = 1,
+     @SerialName("per_page") val perPage: Int = 50,
+ ) {
+-    val devices: List<StagingDeviceDto> get() = items
++    val devices: List<StagingDeviceDto> get() = items ?: emptyList()
+ }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/DiscoveryDto.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/DiscoveryDto.kt
+index cdb088d..65b1136 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/DiscoveryDto.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/DiscoveryDto.kt
+@@ -19,9 +19,11 @@ data class DiscoverySourceDto(
+ 
+ @Serializable
+ data class DiscoveryListResponse(
+-    @SerialName("items") val items: List<DiscoverySourceDto> = emptyList(),
++    @SerialName("items") val items: List<DiscoverySourceDto>? = emptyList(),
+     val total: Long = 0,
+-)
++) {
++    val sources: List<DiscoverySourceDto> get() = items ?: emptyList()
++}
+ 
+ @Serializable
+ data class CreateDiscoverySourceRequest(
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/SubnetDto.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/SubnetDto.kt
+index 1914ff3..34b51ed 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/SubnetDto.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/dto/SubnetDto.kt
+@@ -27,8 +27,8 @@ data class CreateSubnetRequest(
+ 
+ @Serializable
+ data class SubnetListResponse(
+-    @SerialName("items") val items: List<SubnetDto> = emptyList(),
++    @SerialName("items") val items: List<SubnetDto>? = emptyList(),
+     val total: Long = 0,
+ ) {
+-    val subnets: List<SubnetDto> get() = items
++    val subnets: List<SubnetDto> get() = items ?: emptyList()
+ }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/DeviceMapper.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/DeviceMapper.kt
+index 6ae4bc0..2c7ffab 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/DeviceMapper.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/DeviceMapper.kt
+@@ -24,7 +24,7 @@ object DeviceMapper {
+ 
+     fun toPaginatedList(response: DeviceListResponse): PaginatedList<Device> =
+         PaginatedList(
+-            items = response.items.map { toDomain(it) },
++            items = response.devices.map { toDomain(it) },
+             total = response.total,
+             page = response.page,
+             perPage = response.perPage,
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/DiscoveryMapper.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/DiscoveryMapper.kt
+index 67046c7..de4fcb3 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/DiscoveryMapper.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/DiscoveryMapper.kt
+@@ -20,11 +20,13 @@ object DiscoveryMapper {
+             updatedAt = dto.updatedAt,
+         )
+ 
+-    fun toPaginatedList(response: DiscoveryListResponse): PaginatedList<DiscoverySource> =
+-        PaginatedList(
+-            items = response.items.map { toDomain(it) },
++    fun toPaginatedList(response: DiscoveryListResponse): PaginatedList<DiscoverySource> {
++        val list = response.sources
++        return PaginatedList(
++            items = list.map { toDomain(it) },
+             total = response.total,
+             page = 1,
+-            perPage = response.items.size,
++            perPage = list.size.coerceAtLeast(1),
+         )
++    }
+ }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/StagingMapper.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/StagingMapper.kt
+index bfd34be..0e267c6 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/StagingMapper.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/StagingMapper.kt
+@@ -22,7 +22,7 @@ object StagingMapper {
+ 
+     fun toPaginatedList(response: StagingListResponse): PaginatedList<StagingDevice> =
+         PaginatedList(
+-            items = response.items.map { toDomain(it) },
++            items = response.devices.map { toDomain(it) },
+             total = response.total,
+             page = response.page,
+             perPage = response.perPage,
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/SubnetMapper.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/SubnetMapper.kt
+index 7e4ec3f..01c34c1 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/SubnetMapper.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/mapper/SubnetMapper.kt
+@@ -18,11 +18,13 @@ object SubnetMapper {
+             createdAt = dto.createdAt,
+         )
+ 
+-    fun toPaginatedList(response: SubnetListResponse): PaginatedList<Subnet> =
+-        PaginatedList(
+-            items = response.items.map { toDomain(it) },
++    fun toPaginatedList(response: SubnetListResponse): PaginatedList<Subnet> {
++        val list = response.subnets
++        return PaginatedList(
++            items = list.map { toDomain(it) },
+             total = response.total,
+             page = 1,
+-            perPage = response.items.size,
++            perPage = list.size.coerceAtLeast(1),
+         )
++    }
+ }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/repository/DashboardRepositoryImpl.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/repository/DashboardRepositoryImpl.kt
+index 6ed88e6..b37ca29 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/repository/DashboardRepositoryImpl.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/repository/DashboardRepositoryImpl.kt
+@@ -31,6 +31,6 @@ class DashboardRepositoryImpl(
+ 
+     override suspend fun getDiscoverySources(): ApiResult<List<DiscoverySource>> =
+         apiClient.get<DiscoveryListResponse>("/api/v1/discovery/sources").map { response ->
+-            response.items.map { DashboardMapper.toDomain(it) }
++            response.sources.map { DashboardMapper.toDomain(it) }
+         }
+ }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/NavRail.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/NavRail.kt
+index 787a0b9..212a733 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/NavRail.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/NavRail.kt
+@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+ import androidx.compose.material.icons.filled.Menu
+@@ -62,13 +64,14 @@ fun InfraMapNavRail(
+     modifier: Modifier = Modifier,
+ ) {
+     val railWidth = if (isExpanded) 200.dp else 56.dp
++    val scrollState = rememberScrollState()
+ 
+     Surface(
+         modifier = modifier.width(railWidth).fillMaxHeight(),
+         color = MaterialTheme.colorScheme.surface,
+     ) {
+         Column(
+-            modifier = Modifier.fillMaxSize(),
++            modifier = Modifier.fillMaxSize().verticalScroll(scrollState),
+             horizontalAlignment = if (isExpanded) Alignment.Start else Alignment.CenterHorizontally,
+         ) {
+             NavRailToggleButton(isExpanded = isExpanded, onToggle = onToggleExpanded)
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/MainScaffold.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/MainScaffold.kt
+index b040726..2df8cc1 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/MainScaffold.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/app/MainScaffold.kt
+@@ -129,14 +129,18 @@ fun MainScaffold(
+         }
+     }
+ 
+-    CommandPaletteListener(onTogglePalette = commandPaletteViewModel::toggle) {
++    val onTogglePalette = remember(commandPaletteViewModel) { { commandPaletteViewModel.toggle() } }
++    val onOpenCommandPalette = remember(commandPaletteViewModel) { { commandPaletteViewModel.open() } }
++    val onRestartTourClicked = remember(tourViewModel) { { tourViewModel.startTour() } }
++
++    CommandPaletteListener(onTogglePalette = onTogglePalette) {
+         MainScaffoldContent(
+             currentRoute = currentRoute,
+             navigator = navigator,
+             isHealthy = isHealthy,
+             onHealthChanged = onHealthChanged,
+-            onOpenCommandPalette = commandPaletteViewModel::open,
+-            onRestartTourClicked = tourViewModel::startTour,
++            onOpenCommandPalette = onOpenCommandPalette,
++            onRestartTourClicked = onRestartTourClicked,
+         )
+         MainScaffoldOverlays(
+             commandPaletteState = commandPaletteState,
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt
+index adbe00c..060ecfa 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteModal.kt
+@@ -53,8 +53,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
+ import androidx.compose.ui.input.key.type
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+-import androidx.compose.ui.window.Dialog
+-import androidx.compose.ui.window.DialogProperties
+ import com.inframap.frontend.designsystem.InfraMapBorder
+ import com.inframap.frontend.designsystem.InfraMapIcons
+ import com.inframap.frontend.designsystem.InfraMapSurfaceBg
+@@ -83,37 +81,30 @@ data class CommandPaletteActions(
+ fun CommandPaletteModal(
+     state: CommandPaletteUiState,
+     actions: CommandPaletteActions,
++    modifier: Modifier = Modifier,
+ ) {
+     if (!state.isOpen) return
+ 
+     val focusRequester = remember { FocusRequester() }
+ 
+-    Dialog(
+-        onDismissRequest = actions.onDismiss,
+-        properties = DialogProperties(usePlatformDefaultWidth = false),
++    Box(
++        modifier =
++            modifier
++                .fillMaxSize()
++                .background(Color.Black.copy(alpha = 0.65f))
++                .clickable(
++                    interactionSource = remember { MutableInteractionSource() },
++                    indication = null,
++                    onClickLabel = stringResource(Res.string.command_palette_close_label),
++                    onClick = actions.onDismiss,
++                ),
++        contentAlignment = Alignment.TopCenter,
+     ) {
+-        Box(
+-            modifier = Modifier.fillMaxSize(),
+-            contentAlignment = Alignment.TopCenter,
+-        ) {
+-            Box(
+-                modifier =
+-                    Modifier
+-                        .matchParentSize()
+-                        .background(Color.Black.copy(alpha = 0.65f))
+-                        .clickable(
+-                            interactionSource = remember { MutableInteractionSource() },
+-                            indication = null,
+-                            onClickLabel = stringResource(Res.string.command_palette_close_label),
+-                            onClick = actions.onDismiss,
+-                        ),
+-            )
+-            CommandPaletteModalContent(
+-                state = state,
+-                focusRequester = focusRequester,
+-                actions = actions,
+-            )
+-        }
++        CommandPaletteModalContent(
++            state = state,
++            focusRequester = focusRequester,
++            actions = actions,
++        )
+     }
+ 
+     LaunchedEffect(Unit) {
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/AutoSetupCoordinator.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/AutoSetupCoordinator.kt
+index 3d5b5d4..a8a4d92 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/AutoSetupCoordinator.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/AutoSetupCoordinator.kt
+@@ -59,8 +59,8 @@ class AutoSetupCoordinator(
+             val result =
+                 createDiscoverySourceUseCase(
+                     CreateDiscoverySourceRequest(
+-                        name = "Completo — ${iface.cidr}",
+-                        type = "full",
++                        name = "ICMP Sweep — ${iface.cidr}",
++                        type = "icmp_sweep",
+                         enabled = true,
+                         scheduleCron = "0 * * * *",
+                         config = mapOf("cidr" to iface.cidr),
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardScreen.kt
+index 7c9916c..2971767 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardScreen.kt
+@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.filled.CheckCircle
+ import androidx.compose.material.icons.filled.Close
+@@ -80,10 +82,12 @@ fun DashboardScreen(
+     onNavigateToStaging: () -> Unit,
+     modifier: Modifier = Modifier,
+ ) {
++    val scrollState = rememberScrollState()
+     Column(
+         modifier =
+             modifier
+                 .fillMaxSize()
++                .verticalScroll(scrollState)
+                 .padding(24.dp),
+     ) {
+         DashboardHeader(isLoading = state.isLoading, onRefresh = onRefresh)
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModel.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModel.kt
+index b02f38d..7a951c5 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModel.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModel.kt
+@@ -169,7 +169,10 @@ class DashboardViewModel(
+                 val sourcesResult = sourcesDeferred.await()
+                 val subnetsResult = subnetsDeferred.await()
+ 
+-                if (generation != metricsGeneration) return@coroutineScope
++                if (generation != metricsGeneration) {
++                    updateState { it.copy(isLoading = false) }
++                    return@coroutineScope
++                }
+ 
+                 val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult, subnetsResult)
+ 
+@@ -221,6 +224,8 @@ class DashboardViewModel(
+                     errorMessage = UiText.Resource(Res.string.dashboard_error_load),
+                 )
+             }
++        } finally {
++            updateState { it.copy(isLoading = false) }
+         }
+     }
+ 
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/discovery/CreateDiscoverySourceScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/discovery/CreateDiscoverySourceScreen.kt
+index 6630dcb..9f3a12f 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/discovery/CreateDiscoverySourceScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/discovery/CreateDiscoverySourceScreen.kt
+@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material3.Checkbox
+ import androidx.compose.material3.DropdownMenuItem
+ import androidx.compose.material3.ExperimentalMaterial3Api
+@@ -58,7 +60,7 @@ fun CreateDiscoverySourceScreen(
+     modifier: Modifier = Modifier,
+ ) {
+     Box(modifier = modifier.fillMaxSize().padding(24.dp)) {
+-        Column(modifier = Modifier.fillMaxWidth()) {
++        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+             CreateDiscoverySourceHeader()
+ 
+             Spacer(modifier = Modifier.height(20.dp))
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreen.kt
+index bd8a7ff..15d4a5d 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreen.kt
+@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.filled.KeyboardArrowDown
+ import androidx.compose.material.icons.filled.KeyboardArrowUp
+@@ -41,7 +43,7 @@ fun CreateSubnetScreen(
+     modifier: Modifier = Modifier,
+ ) {
+     Box(modifier = modifier.fillMaxSize().padding(24.dp)) {
+-        Column(modifier = Modifier.fillMaxWidth()) {
++        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+             CreateSubnetHeader()
+ 
+             Spacer(modifier = Modifier.height(20.dp))
+diff --git a/frontend/src/wasmJsMain/kotlin/com/inframap/frontend/Main.kt b/frontend/src/wasmJsMain/kotlin/com/inframap/frontend/Main.kt
+index 7a5f3cc..857bd15 100644
+--- a/frontend/src/wasmJsMain/kotlin/com/inframap/frontend/Main.kt
++++ b/frontend/src/wasmJsMain/kotlin/com/inframap/frontend/Main.kt
+@@ -1,11 +1,12 @@
+ package com.inframap.frontend
+ 
+ import androidx.compose.ui.ExperimentalComposeUiApi
+-import androidx.compose.ui.window.CanvasBasedWindow
++import androidx.compose.ui.window.ComposeViewport
+ import com.inframap.frontend.data.storage.BrowserLocalStorage
+ import com.inframap.frontend.data.storage.LocalStorage
+ import com.inframap.frontend.di.appModules
+ import com.inframap.frontend.ui.app.InfraMapApp
++import kotlinx.browser.document
+ import org.koin.compose.KoinApplication
+ import org.koin.dsl.module
+ 
+@@ -18,7 +19,8 @@ private external fun notifyReady()
+ @OptIn(ExperimentalComposeUiApi::class)
+ fun main() {
+     val baseUrl = getOrigin()
+-    CanvasBasedWindow(canvasElementId = "inframap-canvas", title = "InfraMap") {
++    val body = document.body ?: return
++    ComposeViewport(body) {
+         val platformModule =
+             module {
+                 single<LocalStorage> { BrowserLocalStorage() }
+diff --git a/frontend/src/wasmJsMain/resources/index.html b/frontend/src/wasmJsMain/resources/index.html
+index c22cc39..6f7871f 100644
+--- a/frontend/src/wasmJsMain/resources/index.html
++++ b/frontend/src/wasmJsMain/resources/index.html
+@@ -8,7 +8,7 @@
+     <style>
+         * { margin: 0; padding: 0; box-sizing: border-box; }
+         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #1e1f29; }
+-        #inframap-canvas { width: 100%; height: 100%; display: block; }
++        canvas { width: 100% !important; height: 100% !important; display: block; }
+ 
+         #loading-screen {
+             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+diff --git a/tests/e2e-browser/tests/loading-smoke.spec.ts b/tests/e2e-browser/tests/loading-smoke.spec.ts
+index ad0b3fc..73e491a 100644
+--- a/tests/e2e-browser/tests/loading-smoke.spec.ts
++++ b/tests/e2e-browser/tests/loading-smoke.spec.ts
+@@ -18,15 +18,23 @@ test('smoke test: page loads, canvas attaches and no uncaught runtime errors occ
+   await expect(loadingScreen).toHaveClass(/hidden/, { timeout: 5000 });
+   await expect(loadingScreen).toHaveCSS('display', 'none');
+ 
+-  // Check that the inframap-canvas is attached and visible
+-  const canvas = page.locator('#inframap-canvas');
++  // Check that canvas is attached and visible
++  const canvas = page.locator('canvas');
+   await expect(canvas).toBeAttached();
+   await expect(canvas).toBeVisible();
+ 
+-  // Validate the viewport is correct
++  // Validate the initial viewport
+   expect(page.viewportSize()?.width).toBe(1440);
+   expect(page.viewportSize()?.height).toBe(900);
+ 
++  // Resize viewport to simulate DevTools toggle / low resolution screen
++  await page.setViewportSize({ width: 1024, height: 600 });
++  await expect(canvas).toBeVisible();
++
++  // Restore viewport
++  await page.setViewportSize({ width: 1440, height: 900 });
++  await expect(canvas).toBeVisible();
++
+   // Assert zero uncaught JavaScript / WASM runtime errors
+   expect(errors).toEqual([]);
+   expect(consoleErrors).toEqual([]);
+diff --git a/tests/e2e-browser/tests/navigation.spec.ts b/tests/e2e-browser/tests/navigation.spec.ts
+index 13d3594..3d012ae 100644
+--- a/tests/e2e-browser/tests/navigation.spec.ts
++++ b/tests/e2e-browser/tests/navigation.spec.ts
+@@ -6,7 +6,7 @@ test('navigation: basic routing and state transitions', async ({ page }) => {
+   const loadingScreen = page.locator('#loading-screen');
+   await expect(loadingScreen).toHaveCSS('display', 'none', { timeout: 5000 });
+ 
+-  const canvas = page.locator('#inframap-canvas');
++  const canvas = page.locator('canvas');
+   await expect(canvas).toBeVisible();
+ 
+   // Basic navigation test. In a Compose for Web canvas app, routing is internal.
+diff --git a/tests/e2e-browser/tests/shortcuts.spec.ts b/tests/e2e-browser/tests/shortcuts.spec.ts
+index 7ace626..a70ac62 100644
+--- a/tests/e2e-browser/tests/shortcuts.spec.ts
++++ b/tests/e2e-browser/tests/shortcuts.spec.ts
+@@ -16,7 +16,7 @@ test('global shortcuts: Cmd+K / Ctrl+K and Escape without crashes', async ({ pag
+   const loadingScreen = page.locator('#loading-screen');
+   await expect(loadingScreen).toHaveCSS('display', 'none', { timeout: 5000 });
+ 
+-  const canvas = page.locator('#inframap-canvas');
++  const canvas = page.locator('canvas');
+   await expect(canvas).toBeVisible();
+ 
+   // Wait for initial load and network activity to settle deterministically

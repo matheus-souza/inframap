@@ -168,11 +168,7 @@ class DashboardViewModel(
                 val healthResult = healthDeferred.await()
                 val sourcesResult = sourcesDeferred.await()
                 val subnetsResult = subnetsDeferred.await()
-
-                if (generation != metricsGeneration) {
-                    updateState { it.copy(isLoading = false) }
-                    return@coroutineScope
-                }
+                if (generation != metricsGeneration) return@coroutineScope
 
                 val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult, subnetsResult)
 
@@ -218,14 +214,18 @@ class DashboardViewModel(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (t: Throwable) {
-            updateState {
-                it.copy(
-                    isLoading = false,
-                    errorMessage = UiText.Resource(Res.string.dashboard_error_load),
-                )
+            if (generation == metricsGeneration) {
+                updateState {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = UiText.Resource(Res.string.dashboard_error_load),
+                    )
+                }
             }
         } finally {
-            updateState { it.copy(isLoading = false) }
+            if (generation == metricsGeneration) {
+                updateState { it.copy(isLoading = false) }
+            }
         }
     }
 
