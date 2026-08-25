@@ -15,13 +15,19 @@ test('smoke test: page loads, canvas attaches and no uncaught runtime errors occ
 
   // Wait for loading screen to be hidden within 5s
   const loadingScreen = page.locator('#loading-screen');
-  await expect(loadingScreen).toBeHidden({ timeout: 5000 });
+  await expect(loadingScreen).toHaveClass(/hidden/, { timeout: 5000 });
+  await expect(loadingScreen).toHaveCSS('display', 'none');
 
   // Check that the inframap-canvas is attached and visible
   const canvas = page.locator('#inframap-canvas');
   await expect(canvas).toBeAttached();
   await expect(canvas).toBeVisible();
 
+  // Validate the viewport is correct
+  expect(page.viewportSize()?.width).toBe(1440);
+  expect(page.viewportSize()?.height).toBe(900);
+
   // Assert zero uncaught JavaScript / WASM runtime errors
   expect(errors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
 });
