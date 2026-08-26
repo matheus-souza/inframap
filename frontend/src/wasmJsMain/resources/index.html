@@ -122,7 +122,7 @@
                 console.warn("[InfraMap-Storage] LocalStorage access blocked:", e);
             }
 
-            var isDevMode = CURRENT_VERSION === "__INFRAMAP_BUILD_VERSION__";
+            var isDevMode = CURRENT_VERSION === "dev" || CURRENT_VERSION.indexOf("__") !== -1;
             var versionChanged = !isDevMode && lastVersion !== null && lastVersion !== CURRENT_VERSION;
 
             window.__purgeAllData = async function() {

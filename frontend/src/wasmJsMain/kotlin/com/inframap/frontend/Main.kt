@@ -21,12 +21,13 @@ private external fun notifyReady()
 function() {
     var originalFetch = window.fetch;
     window.fetch = function(resource, init) {
-        if (typeof resource === 'string' && resource.indexOf('composeResources/') !== -1) {
+        var url = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
+        if (url && url.indexOf('/api/') !== -1) {
+            if (!init) { init = {}; }
+            if (!init.credentials) { init.credentials = 'same-origin'; }
             return originalFetch.call(window, resource, init);
         }
-        if (!init) { init = {}; }
-        if (!init.credentials) { init.credentials = 'same-origin'; }
-        return originalFetch.call(window, resource, init);
+        return originalFetch.apply(window, arguments);
     };
 }
 """,

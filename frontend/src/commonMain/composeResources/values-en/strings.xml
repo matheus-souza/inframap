@@ -139,7 +139,16 @@
     <string name="dashboard_auto_setup_creating_subnets">Creating subnets...</string>
     <string name="dashboard_auto_setup_creating_sources">Configuring discovery...</string>
     <string name="dashboard_auto_setup_scanning">Scanning active networks...</string>
-    <string name="dashboard_auto_setup_completed">Scan complete! %1$d devices found.</string>
     <string name="dashboard_auto_setup_view_staging">View in Staging Queue</string>
+
+    <!-- Command Palette -->
+    <string name="command_palette_category_acoes">⚡ Quick Actions</string>
+    <string name="command_palette_category_dispositivos">🖥️ Devices</string>
+    <string name="command_palette_category_subredes">🌐 Subnets</string>
+    <string name="command_palette_category_navegacao">🧭 Navigation</string>
+    <string name="command_palette_search_placeholder">Search devices, subnets, actions...</string>
+    <string name="command_palette_close_label">Close command palette</string>
+    <string name="command_palette_empty">No items available.</string>
+    <string name="command_palette_empty_query">No results found for "%1$s"</string>
 </resources>
 
