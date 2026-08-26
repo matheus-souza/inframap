@@ -1,15 +1,15 @@
 package com.inframap.frontend.data.storage
 
-@JsFun("function(key) { return window.localStorage.getItem(key); }")
+@JsFun("function(key) { try { return window.localStorage.getItem(key); } catch(e) { return null; } }")
 private external fun jsGetItem(key: String): String?
 
-@JsFun("function(key, value) { window.localStorage.setItem(key, value); }")
+@JsFun("function(key, value) { try { window.localStorage.setItem(key, value); } catch(e) {} }")
 private external fun jsSetItem(
     key: String,
     value: String,
 )
 
-@JsFun("function(key) { window.localStorage.removeItem(key); }")
+@JsFun("function(key) { try { window.localStorage.removeItem(key); } catch(e) {} }")
 private external fun jsRemoveItem(key: String)
 
 class BrowserLocalStorage : LocalStorage {

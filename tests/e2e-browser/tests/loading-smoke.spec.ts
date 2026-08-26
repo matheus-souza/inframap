@@ -11,6 +11,17 @@ test('smoke test: page loads, canvas attaches and no uncaught runtime errors occ
     }
   });
 
+  const cvrResponses: { url: string; status: number; contentType: string }[] = [];
+  page.on('response', (res) => {
+    if (res.url().includes('.cvr')) {
+      cvrResponses.push({
+        url: res.url(),
+        status: res.status(),
+        contentType: res.headers()['content-type'] || '',
+      });
+    }
+  });
+
   await page.goto('/');
 
   // Wait for loading screen to be hidden within 5s
@@ -56,6 +67,12 @@ test('smoke test: page loads, canvas attaches and no uncaught runtime errors occ
   // Restore viewport
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(canvas).toBeVisible();
+
+  // Verify CVR resources return HTTP 200 with octet-stream
+  for (const cvr of cvrResponses) {
+    expect(cvr.status).toBe(200);
+    expect(cvr.contentType).toContain('application/octet-stream');
+  }
 
   // Assert zero uncaught JavaScript / WASM runtime errors
   expect(errors).toEqual([]);

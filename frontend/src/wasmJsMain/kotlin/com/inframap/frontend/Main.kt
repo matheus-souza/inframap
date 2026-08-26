@@ -21,9 +21,12 @@ private external fun notifyReady()
 function() {
     var originalFetch = window.fetch;
     window.fetch = function(resource, init) {
+        if (typeof resource === 'string' && resource.indexOf('composeResources/') !== -1) {
+            return originalFetch.call(window, resource, init);
+        }
         if (!init) { init = {}; }
         if (!init.credentials) { init.credentials = 'same-origin'; }
-        return originalFetch(resource, init);
+        return originalFetch.call(window, resource, init);
     };
 }
 """,

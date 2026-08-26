@@ -58,6 +58,7 @@ func testFS() fstest.MapFS {
 		"style.css":     {Data: []byte("body{}")},
 		"logo.svg":      {Data: []byte("<svg></svg>")},
 		"manifest.json": {Data: []byte("{}")},
+		"composeResources/com.inframap/values/strings.cvr": {Data: []byte("cvr-binary")},
 	}
 }
 
@@ -312,5 +313,49 @@ func TestSPAHandler_MissingIndexHTMLReturns404(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for missing index.html, got %d", rec.Code)
+	}
+}
+
+func TestSPAHandler_ContentTypeCVR(t *testing.T) {
+	handler := spa.NewSPAHandler(testFS())
+
+	req := httptest.NewRequest(http.MethodGet, "/composeResources/com.inframap/values/strings.cvr", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/octet-stream" {
+		t.Fatalf("expected application/octet-stream, got %q", got)
+	}
+	body, _ := io.ReadAll(rec.Body)
+	if string(body) != "cvr-binary" {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestSPAHandler_MissingCVRReturns404(t *testing.T) {
+	handler := spa.NewSPAHandler(testFS())
+
+	req := httptest.NewRequest(http.MethodGet, "/composeResources/missing.cvr", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing CVR asset, got %d", rec.Code)
+	}
+}
+
+func TestSPAHandler_CacheControlCVRRevalidation(t *testing.T) {
+	handler := spa.NewSPAHandler(testFS())
+
+	req := httptest.NewRequest(http.MethodGet, "/composeResources/com.inframap/values/strings.cvr", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	expected := "no-cache, must-revalidate"
+	if got := rec.Header().Get("Cache-Control"); got != expected {
+		t.Fatalf("expected %q for CVR cache, got %q", expected, got)
 	}
 }
