@@ -45,12 +45,12 @@ class TopologyMapperTest {
     fun graphDtoToDomainMapsCorrectly() {
         val dto =
             TopologyGraphDto(
-                rawNodes =
+                _nodes =
                     listOf(
                         TopologyNodeDto(id = "n1", hostname = "r1", deviceType = "router", status = "active"),
                         TopologyNodeDto(id = "n2", label = "s1", deviceType = "switch", status = "active"),
                     ),
-                rawEdges =
+                _edges =
                     listOf(
                         TopologyEdgeDto(id = "e1", sourceDeviceId = "n1", targetDeviceId = "n2", linkType = "physical"),
                     ),
@@ -68,7 +68,7 @@ class TopologyMapperTest {
 
     @Test
     fun graphDtoWithNullSlicesMapsToEmptyDomainGraph() {
-        val dto = TopologyGraphDto(rawNodes = null, rawEdges = null)
+        val dto = TopologyGraphDto(_nodes = null, _edges = null)
         val domain = dto.toDomain()
 
         assertEquals(0, domain.nodes.size)

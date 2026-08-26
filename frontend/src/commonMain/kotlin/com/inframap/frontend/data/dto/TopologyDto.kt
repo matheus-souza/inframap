@@ -3,13 +3,14 @@ package com.inframap.frontend.data.dto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+@Suppress("ConstructorParameterNaming")
 @Serializable
 data class TopologyGraphDto(
-    @SerialName("nodes") val rawNodes: List<TopologyNodeDto>? = emptyList(),
-    @SerialName("edges") val rawEdges: List<TopologyEdgeDto>? = emptyList(),
+    @SerialName("nodes") private val _nodes: List<TopologyNodeDto>? = null,
+    @SerialName("edges") private val _edges: List<TopologyEdgeDto>? = null,
 ) {
-    val nodes: List<TopologyNodeDto> get() = rawNodes ?: emptyList()
-    val edges: List<TopologyEdgeDto> get() = rawEdges ?: emptyList()
+    val nodes: List<TopologyNodeDto> get() = _nodes ?: emptyList()
+    val edges: List<TopologyEdgeDto> get() = _edges ?: emptyList()
 }
 
 @Serializable
