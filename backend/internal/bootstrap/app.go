@@ -282,7 +282,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	credentials.RegisterRoutes(mux, credCtrl)
 
 	if cfg.StaticFS != nil {
-		spaHandler := spa.NewSPAHandler(cfg.StaticFS)
+		spaHandler := spa.NewSPAHandler(cfg.StaticFS, configuc.AppVersion)
 		mux.Handle("/", spaHandler)
 	}
 

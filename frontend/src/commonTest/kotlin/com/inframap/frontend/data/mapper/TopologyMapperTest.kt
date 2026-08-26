@@ -45,14 +45,14 @@ class TopologyMapperTest {
     fun graphDtoToDomainMapsCorrectly() {
         val dto =
             TopologyGraphDto(
-                nodes =
+                _nodes =
                     listOf(
-                        TopologyNodeDto("n1", "r1", "router", "active"),
-                        TopologyNodeDto("n2", "s1", "switch", "active"),
+                        TopologyNodeDto(id = "n1", hostname = "r1", deviceType = "router", status = "active"),
+                        TopologyNodeDto(id = "n2", label = "s1", deviceType = "switch", status = "active"),
                     ),
-                edges =
+                _edges =
                     listOf(
-                        TopologyEdgeDto("e1", "n1", "n2", "physical"),
+                        TopologyEdgeDto(id = "e1", sourceDeviceId = "n1", targetDeviceId = "n2", linkType = "physical"),
                     ),
             )
         val domain = dto.toDomain()
@@ -60,6 +60,37 @@ class TopologyMapperTest {
         assertEquals(2, domain.nodes.size)
         assertEquals(1, domain.edges.size)
         assertEquals("r1", domain.nodes.first().label)
+        assertEquals("s1", domain.nodes[1].label)
+        assertEquals("n1", domain.edges.first().source)
+        assertEquals("n2", domain.edges.first().target)
         assertEquals("physical", domain.edges.first().linkType)
+    }
+
+    @Test
+    fun graphDtoWithNullSlicesMapsToEmptyDomainGraph() {
+        val dto = TopologyGraphDto(_nodes = null, _edges = null)
+        val domain = dto.toDomain()
+
+        assertEquals(0, domain.nodes.size)
+        assertEquals(0, domain.edges.size)
+    }
+
+    @Test
+    fun nodeDtoBlankHostnameFallsBackToLabelAndId() {
+        val dtoWithBlankHostname = TopologyNodeDto(id = "n-fallback-1", hostname = "   ", label = "switch-core")
+        assertEquals("switch-core", dtoWithBlankHostname.displayLabel)
+
+        val dtoWithAllBlank = TopologyNodeDto(id = "n-fallback-2", hostname = "", label = "  ")
+        assertEquals("n-fallback-2", dtoWithAllBlank.displayLabel)
+    }
+
+    @Test
+    fun edgeDtoBlankSourceDeviceFallsBackToSourceAndBlank() {
+        val edgeWithBlankSourceDevice = TopologyEdgeDto(id = "e-1", sourceDeviceId = "  ", source = "n1", targetDeviceId = "n2")
+        assertEquals("n1", edgeWithBlankSourceDevice.sourceId)
+        assertEquals("n2", edgeWithBlankSourceDevice.targetId)
+
+        val edgeWithAllBlank = TopologyEdgeDto(id = "e-2", sourceDeviceId = "", source = "  ")
+        assertEquals("", edgeWithAllBlank.sourceId)
     }
 }

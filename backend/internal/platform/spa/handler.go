@@ -4,6 +4,7 @@ package spa
 import (
 	"errors"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -12,8 +13,12 @@ import (
 // NewSPAHandler returns an http.Handler that serves static files from the
 // given embedded filesystem. Requests that don't match a file and don't
 // target the API are served index.html for client-side SPA routing.
-func NewSPAHandler(fsys fs.FS) http.Handler {
+func NewSPAHandler(fsys fs.FS, appVersion ...string) http.Handler {
 	fileServer := http.FileServer(http.FS(fsys))
+	version := "dev"
+	if len(appVersion) > 0 && appVersion[0] != "" {
+		version = appVersion[0]
+	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cleaned := filepath.Clean("/" + strings.Trim(r.URL.Path, "/"))
@@ -43,14 +48,17 @@ func NewSPAHandler(fsys fs.FS) http.Handler {
 
 		setCacheHeaders(w, urlPath)
 		setContentType(w, urlPath)
+		w.Header().Set("X-InfraMap-Version", version)
 
 		if urlPath == "index.html" {
 			content, readErr := fs.ReadFile(fsys, "index.html")
 			if readErr != nil {
+				slog.Error("Failed to read index.html from embedded FS", "error", readErr)
 				http.NotFound(w, r)
 				return
 			}
-			_, _ = w.Write(content)
+			modified := strings.ReplaceAll(string(content), "__INFRAMAP_BUILD_VERSION__", version)
+			_, _ = w.Write([]byte(modified))
 			return
 		}
 
@@ -60,7 +68,9 @@ func NewSPAHandler(fsys fs.FS) http.Handler {
 
 func setCacheHeaders(w http.ResponseWriter, filePath string) {
 	if filePath == "index.html" {
-		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
 		return
 	}
 	ext := filepath.Ext(filePath)

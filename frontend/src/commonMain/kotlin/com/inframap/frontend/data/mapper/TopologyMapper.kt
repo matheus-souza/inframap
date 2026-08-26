@@ -10,7 +10,7 @@ import com.inframap.frontend.domain.model.TopologyNode
 fun TopologyNodeDto.toDomain(): TopologyNode =
     TopologyNode(
         id = id,
-        label = label,
+        label = displayLabel,
         deviceType = deviceType,
         status = status,
     )
@@ -18,8 +18,8 @@ fun TopologyNodeDto.toDomain(): TopologyNode =
 fun TopologyEdgeDto.toDomain(): TopologyEdge =
     TopologyEdge(
         id = id,
-        source = source,
-        target = target,
+        source = sourceId,
+        target = targetId,
         linkType = linkType,
     )
 
