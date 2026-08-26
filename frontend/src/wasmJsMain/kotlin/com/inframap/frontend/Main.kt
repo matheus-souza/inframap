@@ -21,8 +21,15 @@ private external fun notifyReady()
 function() {
     var originalFetch = window.fetch;
     window.fetch = function(resource, init) {
-        var url = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
-        if (url && url.indexOf('/api/') !== -1) {
+        var rawUrl = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
+        var isApi = false;
+        try {
+            var parsed = new URL(rawUrl, window.location.origin);
+            isApi = parsed.origin === window.location.origin && parsed.pathname.indexOf('/api/') === 0;
+        } catch (e) {
+            isApi = rawUrl.indexOf('/api/') === 0;
+        }
+        if (isApi) {
             if (!init) { init = {}; }
             if (!init.credentials) { init.credentials = 'same-origin'; }
             return originalFetch.call(window, resource, init);
