@@ -64,7 +64,7 @@ func setCacheHeaders(w http.ResponseWriter, filePath string) {
 		return
 	}
 	ext := filepath.Ext(filePath)
-	if ext == ".wasm" || ext == ".js" || ext == ".json" {
+	if ext == ".wasm" || ext == ".js" || ext == ".json" || ext == ".cvr" {
 		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		return
 	}
@@ -72,9 +72,13 @@ func setCacheHeaders(w http.ResponseWriter, filePath string) {
 }
 
 func isStaticAsset(filePath string) bool {
+	if strings.HasPrefix(filePath, "composeResources/") {
+		return true
+	}
 	switch filepath.Ext(filePath) {
 	case ".wasm", ".js", ".css", ".json", ".map",
-		".svg", ".png", ".jpg", ".ico", ".woff", ".woff2", ".ttf":
+		".svg", ".png", ".jpg", ".ico", ".woff", ".woff2", ".ttf",
+		".cvr", ".bin", ".dat":
 		return true
 	}
 	return false
@@ -95,5 +99,7 @@ func setContentType(w http.ResponseWriter, filePath string) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 	case ".json":
 		w.Header().Set("Content-Type", "application/json")
+	case ".cvr", ".bin", ".dat":
+		w.Header().Set("Content-Type", "application/octet-stream")
 	}
 }
