@@ -23,7 +23,11 @@ data class TopologyNodeDto(
     @SerialName("device_type") val deviceType: String = "unknown",
     val status: String = "active",
 ) {
-    val displayLabel: String get() = hostname ?: label ?: id
+    val displayLabel: String
+        get() =
+            hostname?.takeIf { it.isNotBlank() }
+                ?: label?.takeIf { it.isNotBlank() }
+                ?: id
 }
 
 @Serializable
@@ -35,6 +39,14 @@ data class TopologyEdgeDto(
     @SerialName("target") val target: String? = null,
     @SerialName("link_type") val linkType: String = "manual",
 ) {
-    val sourceId: String get() = sourceDeviceId ?: source ?: ""
-    val targetId: String get() = targetDeviceId ?: target ?: ""
+    val sourceId: String
+        get() =
+            sourceDeviceId?.takeIf { it.isNotBlank() }
+                ?: source?.takeIf { it.isNotBlank() }
+                ?: ""
+    val targetId: String
+        get() =
+            targetDeviceId?.takeIf { it.isNotBlank() }
+                ?: target?.takeIf { it.isNotBlank() }
+                ?: ""
 }

@@ -74,4 +74,23 @@ class TopologyMapperTest {
         assertEquals(0, domain.nodes.size)
         assertEquals(0, domain.edges.size)
     }
+
+    @Test
+    fun nodeDtoBlankHostnameFallsBackToLabelAndId() {
+        val dtoWithBlankHostname = TopologyNodeDto(id = "n-fallback-1", hostname = "   ", label = "switch-core")
+        assertEquals("switch-core", dtoWithBlankHostname.displayLabel)
+
+        val dtoWithAllBlank = TopologyNodeDto(id = "n-fallback-2", hostname = "", label = "  ")
+        assertEquals("n-fallback-2", dtoWithAllBlank.displayLabel)
+    }
+
+    @Test
+    fun edgeDtoBlankSourceDeviceFallsBackToSourceAndBlank() {
+        val edgeWithBlankSourceDevice = TopologyEdgeDto(id = "e-1", sourceDeviceId = "  ", source = "n1", targetDeviceId = "n2")
+        assertEquals("n1", edgeWithBlankSourceDevice.sourceId)
+        assertEquals("n2", edgeWithBlankSourceDevice.targetId)
+
+        val edgeWithAllBlank = TopologyEdgeDto(id = "e-2", sourceDeviceId = "", source = "  ")
+        assertEquals("", edgeWithAllBlank.sourceId)
+    }
 }
