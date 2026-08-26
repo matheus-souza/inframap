@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -204,9 +205,34 @@ func TestSPAHandler_CacheControlIndexNoCache(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	expected := "no-cache, no-store, must-revalidate"
+	expected := "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
 	if got := rec.Header().Get("Cache-Control"); got != expected {
 		t.Fatalf("expected %q for index.html, got %q", expected, got)
+	}
+	if got := rec.Header().Get("Pragma"); got != "no-cache" {
+		t.Fatalf("expected Pragma: no-cache, got %q", got)
+	}
+}
+
+func TestSPAHandler_VersionPlaceholderReplacementAndHeader(t *testing.T) {
+	fsys := fstest.MapFS{
+		"index.html": {Data: []byte("<html><head><script>var v = '__INFRAMAP_BUILD_VERSION__';</script></head></html>")},
+	}
+	handler := spa.NewSPAHandler(fsys, "v1.0.0-rc.57")
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("X-InfraMap-Version"); got != "v1.0.0-rc.57" {
+		t.Fatalf("expected v1.0.0-rc.57, got %q", got)
+	}
+	body, _ := io.ReadAll(rec.Body)
+	if !strings.Contains(string(body), "v1.0.0-rc.57") {
+		t.Fatalf("expected body to contain injected version, got: %s", body)
 	}
 }
 
@@ -256,7 +282,7 @@ func TestSPAHandler_FallbackAlsoGetsCacheNoCache(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	expected := "no-cache, no-store, must-revalidate"
+	expected := "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
 	if got := rec.Header().Get("Cache-Control"); got != expected {
 		t.Fatalf("expected %q for SPA fallback, got %q", expected, got)
 	}

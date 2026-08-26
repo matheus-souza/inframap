@@ -25,6 +25,13 @@
             cursor: pointer; font-family: system-ui, sans-serif; font-size: 14px;
             display: none;
         }
+        #emergency-reset-btn {
+            margin-top: 16px; padding: 8px 20px; border: 1px solid #ff5555;
+            background: #ff555522; color: #ffb86c; border-radius: 4px;
+            cursor: pointer; font-family: system-ui, sans-serif; font-size: 13px;
+            display: none; transition: background 0.2s ease;
+        }
+        #emergency-reset-btn:hover { background: #ff555544; }
         #loading-screen.error #retry-btn { display: inline-block; }
         #retry-btn:hover { background: #bd93f933; }
         #loading-text {
@@ -54,8 +61,9 @@
             <circle cx="16" cy="20" r="5" fill="#8be9fd"/>
             <circle cx="40" cy="34" r="8" fill="#bd93f9"/>
         </svg>
-        <div id="loading-text">Loading InfraMap...</div>
-        <button id="retry-btn" onclick="location.reload()">Retry</button>
+        <div id="loading-text">Carregando InfraMap...</div>
+        <button id="emergency-reset-btn" onclick="window.__purgeAndReload()">⚠️ Limpar cache e reiniciar</button>
+        <button id="retry-btn" onclick="location.reload()">Tentar Novamente</button>
     </div>
     <div id="inframap-app"></div>
     <script>
@@ -68,24 +76,149 @@
         window.addEventListener('resize', function() {
             console.log('[InfraMap-Diagnostic] Viewport resized:', window.innerWidth, 'x', window.innerHeight);
         });
-    </script>
-    <script src="inframap.js"></script>
-    <script>
-        window.infraMapReady = function() {
-            var screen = document.getElementById('loading-screen');
-            screen.classList.add('hidden');
-            setTimeout(function() {
-                screen.style.display = 'none';
-            }, 350);
-        };
+
+        // 5s emergency reset button visibility
         setTimeout(function() {
             var screen = document.getElementById('loading-screen');
-            if (!screen.classList.contains('hidden')) {
+            if (screen && !screen.classList.contains('hidden')) {
+                var resetBtn = document.getElementById('emergency-reset-btn');
+                if (resetBtn) resetBtn.style.display = 'inline-block';
+            }
+        }, 5000);
+
+        // 30s timeout
+        setTimeout(function() {
+            var screen = document.getElementById('loading-screen');
+            if (screen && !screen.classList.contains('hidden')) {
                 screen.classList.add('error');
                 document.getElementById('loading-text').textContent =
-                    'Failed to load InfraMap. Check your connection and try again.';
+                    'Falha ao carregar o InfraMap. Verifique sua conexão e tente novamente.';
             }
         }, 30000);
+
+        window.infraMapReady = function() {
+            var screen = document.getElementById('loading-screen');
+            if (screen) {
+                screen.classList.add('hidden');
+                setTimeout(function() {
+                    screen.style.display = 'none';
+                }, 350);
+            }
+        };
+
+        // Cache & Storage Auto-Purge Manager
+        (async function() {
+            var CURRENT_VERSION = "__INFRAMAP_BUILD_VERSION__";
+            var STORAGE_KEY = "inframap_client_version";
+            var PRESERVED_KEYS = ["theme", "user_preferences"];
+
+            var urlParams = new URLSearchParams(window.location.search);
+            var forceReset = urlParams.get('reset') === '1' || urlParams.get('purge') === '1';
+
+            var lastVersion = null;
+            try {
+                lastVersion = localStorage.getItem(STORAGE_KEY);
+            } catch (e) {
+                console.warn("[InfraMap-Storage] LocalStorage access blocked:", e);
+            }
+
+            var isDevMode = CURRENT_VERSION === "__INFRAMAP_BUILD_VERSION__";
+            var versionChanged = !isDevMode && lastVersion !== null && lastVersion !== CURRENT_VERSION;
+
+            window.__purgeAllData = async function() {
+                console.warn("[InfraMap-Purge] Initiating full cache, storage, and IndexedDB purge...");
+
+                // 1. LocalStorage
+                try {
+                    var preserved = {};
+                    PRESERVED_KEYS.forEach(function(key) {
+                        var val = localStorage.getItem(key);
+                        if (val !== null) preserved[key] = val;
+                    });
+                    localStorage.clear();
+                    Object.keys(preserved).forEach(function(key) {
+                        localStorage.setItem(key, preserved[key]);
+                    });
+                } catch (e) {
+                    console.error("[InfraMap-Purge] LocalStorage clear error:", e);
+                }
+
+                // 2. SessionStorage
+                try {
+                    sessionStorage.clear();
+                } catch (e) {
+                    console.error("[InfraMap-Purge] SessionStorage clear error:", e);
+                }
+
+                // 3. Cache Storage API
+                if ('caches' in window) {
+                    try {
+                        var keys = await caches.keys();
+                        await Promise.all(keys.map(function(k) { return caches.delete(k); }));
+                        console.log("[InfraMap-Purge] Cleared Cache Storage entries:", keys.length);
+                    } catch (e) {
+                        console.error("[InfraMap-Purge] Cache Storage clear error:", e);
+                    }
+                }
+
+                // 4. IndexedDB
+                if (window.indexedDB) {
+                    try {
+                        if (indexedDB.databases) {
+                            var dbs = await indexedDB.databases();
+                            dbs.forEach(function(db) {
+                                if (db.name) indexedDB.deleteDatabase(db.name);
+                            });
+                            console.log("[InfraMap-Purge] Cleared IndexedDB databases:", dbs.length);
+                        }
+                    } catch (e) {
+                        console.error("[InfraMap-Purge] IndexedDB clear error:", e);
+                    }
+                }
+
+                // 5. Service Workers
+                if ('serviceWorker' in navigator) {
+                    try {
+                        var registrations = await navigator.serviceWorker.getRegistrations();
+                        for (var i = 0; i < registrations.length; i++) {
+                            await registrations[i].unregister();
+                        }
+                        console.log("[InfraMap-Purge] Unregistered Service Workers:", registrations.length);
+                    } catch (e) {
+                        console.error("[InfraMap-Purge] ServiceWorker unregister error:", e);
+                    }
+                }
+            };
+
+            window.__purgeAndReload = async function() {
+                await window.__purgeAllData();
+                try {
+                    if (!isDevMode) localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+                } catch (e) {}
+                window.location.replace(window.location.origin + window.location.pathname);
+            };
+
+            if (forceReset || versionChanged) {
+                console.warn("[InfraMap-Boot] Version change or reset requested. Performing purge. Version:", CURRENT_VERSION);
+                await window.__purgeAllData();
+                try {
+                    if (!isDevMode) localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+                } catch (e) {}
+                if (forceReset) {
+                    window.location.replace(window.location.origin + window.location.pathname);
+                    return;
+                }
+            } else {
+                try {
+                    if (!isDevMode) localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+                } catch (e) {}
+            }
+
+            // Inject app entrypoint dynamically
+            var script = document.createElement('script');
+            script.src = 'inframap.js?v=' + encodeURIComponent(CURRENT_VERSION);
+            document.body.appendChild(script);
+        })();
     </script>
 </body>
 </html>
