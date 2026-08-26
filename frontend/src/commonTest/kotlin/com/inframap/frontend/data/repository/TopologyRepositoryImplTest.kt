@@ -93,4 +93,28 @@ class TopologyRepositoryImplTest {
             assertEquals("SERVICE_UNAVAILABLE", err.code)
             assertEquals("Graph engine starting", err.message)
         }
+
+    @Test
+    fun getTopologyGraphWithBackendRealSchemaAndNullsReturnsEmptyGraph() =
+        runTest {
+            val json =
+                """
+                {
+                    "data": {
+                        "nodes": null,
+                        "edges": null,
+                        "metadata": {"total_nodes": 0, "total_edges": 0}
+                    },
+                    "meta": {"request_id": "req-top-empty"}
+                }
+                """.trimIndent()
+
+            val repo = TopologyRepositoryImpl(createMockApiClient(json))
+            val result = repo.getTopologyGraph()
+
+            assertIs<ApiResult.Success<*>>(result)
+            val graph = (result as ApiResult.Success).data
+            assertEquals(0, graph.nodes.size)
+            assertEquals(0, graph.edges.size)
+        }
 }

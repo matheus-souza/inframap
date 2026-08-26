@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
 
-test('navigation: basic routing and state transitions', async ({ page }) => {
+test('navigation: basic routing, topology graph, and state transitions with zero errors', async ({ page }) => {
+  const errors: Error[] = [];
+  const consoleErrors: string[] = [];
+
+  page.on('pageerror', (err) => errors.push(err));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') {
+      consoleErrors.push(msg.text());
+    }
+  });
+
   await page.goto('/');
 
   const loadingScreen = page.locator('#loading-screen');
@@ -9,10 +19,12 @@ test('navigation: basic routing and state transitions', async ({ page }) => {
   const canvas = page.locator('canvas');
   await expect(canvas).toBeVisible();
 
-  // Basic navigation test. In a Compose for Web canvas app, routing is internal.
-  // But we can check if URL changes if the app uses browser history.
-  // Let's just do a basic page reload and ensure it loads again.
+  // Basic page reload to ensure session and canvas reload cleanly
   await page.reload();
   await expect(loadingScreen).toHaveCSS('display', 'none', { timeout: 5000 });
   await expect(canvas).toBeVisible();
+
+  // Assert zero uncaught JS/WASM or network serialization errors
+  expect(errors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
 });

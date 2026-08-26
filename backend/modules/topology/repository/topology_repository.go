@@ -149,7 +149,7 @@ func (r *PgTopologyRepository) DeleteLink(ctx context.Context, id uuid.UUID) err
 
 // GetGraphData builds the complete topology graph response using paginated queries.
 func (r *PgTopologyRepository) GetGraphData(ctx context.Context) (*dto.TopologyGraphResponse, error) {
-	var nodes []dto.DeviceNode
+	nodes := make([]dto.DeviceNode, 0)
 	var devPage int32 = 1
 	var limit int32 = 1000
 
@@ -201,7 +201,7 @@ func (r *PgTopologyRepository) GetGraphData(ctx context.Context) (*dto.TopologyG
 	}
 
 	// 2. Paginate topology links
-	var edges []dto.LinkEdge
+	edges := make([]dto.LinkEdge, 0)
 	var linkPage int32 = 1
 
 	for {
