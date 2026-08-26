@@ -69,6 +69,7 @@ test('smoke test: page loads, canvas attaches and no uncaught runtime errors occ
   await expect(canvas).toBeVisible();
 
   // Verify CVR resources return HTTP 200 with octet-stream
+  expect(cvrResponses.length).toBeGreaterThan(0);
   for (const cvr of cvrResponses) {
     expect(cvr.status).toBe(200);
     expect(cvr.contentType).toContain('application/octet-stream');
