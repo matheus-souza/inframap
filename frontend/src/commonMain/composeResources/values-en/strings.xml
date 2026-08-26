@@ -139,6 +139,7 @@
     <string name="dashboard_auto_setup_creating_subnets">Creating subnets...</string>
     <string name="dashboard_auto_setup_creating_sources">Configuring discovery...</string>
     <string name="dashboard_auto_setup_scanning">Scanning active networks...</string>
+    <string name="dashboard_auto_setup_completed">Scan complete! %1$d devices found.</string>
     <string name="dashboard_auto_setup_view_staging">View in Staging Queue</string>
 
     <!-- Command Palette -->
