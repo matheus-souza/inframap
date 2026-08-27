@@ -1,5 +1,7 @@
 package com.inframap.frontend.designsystem
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -71,6 +73,34 @@ class ButtonTest {
             }
             onNodeWithText("Cancel").performClick()
             assertEquals(true, clicked)
+        }
+
+    @Test
+    fun outlinedButtonWithLeadingIconRenders() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapOutlinedButton(
+                        text = "Add Device",
+                        onClick = {},
+                        leadingIcon = Icons.Default.Add,
+                    )
+                }
+            }
+            onNodeWithText("Add Device").assertIsDisplayed()
+        }
+
+    @Test
+    fun disabledOutlinedButtonDoesNotTriggerCallback() =
+        runComposeUiTest {
+            var clicked = false
+            setContent {
+                InfraMapTheme {
+                    InfraMapOutlinedButton(text = "Cancel", onClick = { clicked = true }, enabled = false)
+                }
+            }
+            onNodeWithText("Cancel").assertIsNotEnabled()
+            assertEquals(false, clicked)
         }
 
     @Test
