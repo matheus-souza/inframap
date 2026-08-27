@@ -37,12 +37,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.DashboardLoadingSkeleton
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapGreen
 import com.inframap.frontend.designsystem.InfraMapIcons
-import com.inframap.frontend.designsystem.InfraMapLoadingSkeleton
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapRed
 import com.inframap.frontend.generated.resources.Res
@@ -212,11 +212,7 @@ private fun DashboardContent(
             state.totalDiscoverySources == 0L
 
     if (state.isLoading && isEmpty && state.errorMessage == null) {
-        InfraMapLoadingSkeleton(
-            lines = 4,
-            lineHeight = 100.dp,
-            spacing = 16.dp,
-        )
+        DashboardLoadingSkeleton()
         return
     }
 
