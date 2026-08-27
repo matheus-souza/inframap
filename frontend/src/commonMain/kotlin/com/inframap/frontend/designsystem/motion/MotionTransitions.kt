@@ -1,3 +1,5 @@
+@file:Suppress("detekt:MaxLineLength")
+
 package com.inframap.frontend.designsystem.motion
 
 import androidx.compose.animation.ContentTransform
@@ -13,12 +15,13 @@ import androidx.compose.animation.togetherWith
 import com.inframap.frontend.navigation.Route
 
 /**
- * Material Design 3 Navigation Motion Transitions for InfraMap.
+ * Material Design 3 Navigation & Container Motion Transitions for InfraMap.
  *
- * Provides standardized ContentTransform transitions:
+ * Provides standardized ContentTransform and Enter/Exit transitions:
  * - Fade Through: Peer tab switches and top-level NavRail navigation.
  * - Shared Axis X: Lateral hierarchical master-detail and step navigation.
  * - Shared Axis Z: Depth drill-in navigation (Splash -> Login / Dashboard).
+ * - Dialog & Modal Scale: Emphasized container scale entrance and exit with backdrop scrim.
  */
 object MotionTransitions {
     /**
@@ -124,6 +127,46 @@ object MotionTransitions {
     }
 
     /**
+     * Material Design 3 Emphasized Container Scale entrance for Modals and Dialogs.
+     */
+    fun dialogEnter(durationMillis: Int = MotionTokens.DurationTokens.Medium3): EnterTransition =
+        scaleIn(
+            initialScale = 0.88f,
+            animationSpec = MotionTokens.Specs.emphasizedDecelerate(durationMillis),
+        ) +
+            fadeIn(
+                animationSpec = MotionTokens.Specs.emphasizedDecelerate(durationMillis),
+            )
+
+    /**
+     * Material Design 3 Emphasized Container Scale exit for Modals and Dialogs.
+     */
+    fun dialogExit(durationMillis: Int = MotionTokens.DurationTokens.Short4): ExitTransition =
+        scaleOut(
+            targetScale = 0.88f,
+            animationSpec = MotionTokens.Specs.emphasizedAccelerate(durationMillis),
+        ) +
+            fadeOut(
+                animationSpec = MotionTokens.Specs.emphasizedAccelerate(durationMillis),
+            )
+
+    /**
+     * Material Design 3 Scrim backdrop fade entrance.
+     */
+    fun dialogScrimEnter(durationMillis: Int = MotionTokens.DurationTokens.Medium1): EnterTransition =
+        fadeIn(
+            animationSpec = MotionTokens.Specs.linear(durationMillis),
+        )
+
+    /**
+     * Material Design 3 Scrim backdrop fade exit.
+     */
+    fun dialogScrimExit(durationMillis: Int = MotionTokens.DurationTokens.Short4): ExitTransition =
+        fadeOut(
+            animationSpec = MotionTokens.Specs.linear(durationMillis),
+        )
+
+    /**
      * Resolves the navigation transition for scaffold routes.
      */
     fun scaffoldTransition(
@@ -201,18 +244,22 @@ private fun deviceHierarchyLevel(route: Route): Int =
         else -> 0
     }
 
-private fun isSubnetRoute(route: Route): Boolean =
-    route is Route.Subnets ||
-        route is Route.CreateSubnet
+private fun isSubnetRoute(route: Route): Boolean {
+    val isSubnets = route is Route.Subnets
+    val isCreate = route is Route.CreateSubnet
+    return isSubnets || isCreate
+}
 
-private fun isDiscoveryRoute(route: Route): Boolean =
-    route is Route.DiscoverySources ||
-        route is Route.CreateDiscoverySource
+private fun isDiscoveryRoute(route: Route): Boolean {
+    val isSources = route is Route.DiscoverySources
+    val isCreate = route is Route.CreateDiscoverySource
+    return isSources || isCreate
+}
 
-private fun isMainScaffoldRoute(route: Route): Boolean =
-    route !is Route.Splash &&
-        route !is Route.Login &&
-        route !is Route.Onboarding
+private fun isMainScaffoldRoute(route: Route): Boolean {
+    val isExcluded = route is Route.Splash || route is Route.Login || route is Route.Onboarding
+    return !isExcluded
+}
 
 private fun appRouteDepth(route: Route): Int =
     when (route) {

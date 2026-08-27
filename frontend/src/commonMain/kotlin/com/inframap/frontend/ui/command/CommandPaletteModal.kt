@@ -2,6 +2,7 @@
 
 package com.inframap.frontend.ui.command
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -53,12 +54,10 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.inframap.frontend.designsystem.InfraMapBorder
 import com.inframap.frontend.designsystem.InfraMapIcons
-import com.inframap.frontend.designsystem.InfraMapSurfaceBg
-import com.inframap.frontend.designsystem.InfraMapSurfaceElevated
-import com.inframap.frontend.designsystem.InfraMapTextPrimary
-import com.inframap.frontend.designsystem.InfraMapTextSecondary
+import com.inframap.frontend.designsystem.InfraMapShapeLarge
+import com.inframap.frontend.designsystem.motion.MotionTransitions
+import com.inframap.frontend.designsystem.motion.m3InteractiveScale
 import com.inframap.frontend.domain.model.CommandPaletteCategory
 import com.inframap.frontend.domain.model.CommandPaletteItem
 import com.inframap.frontend.generated.resources.Res
@@ -83,32 +82,44 @@ fun CommandPaletteModal(
     actions: CommandPaletteActions,
     modifier: Modifier = Modifier,
 ) {
-    if (!state.isOpen) return
-
     val focusRequester = remember { FocusRequester() }
 
-    Box(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.65f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClickLabel = stringResource(Res.string.command_palette_close_label),
-                    onClick = actions.onDismiss,
-                ),
-        contentAlignment = Alignment.TopCenter,
+    AnimatedVisibility(
+        visible = state.isOpen,
+        enter = MotionTransitions.dialogScrimEnter(),
+        exit = MotionTransitions.dialogScrimExit(),
     ) {
-        CommandPaletteModalContent(
-            state = state,
-            focusRequester = focusRequester,
-            actions = actions,
-        )
+        Box(
+            modifier =
+                modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.50f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClickLabel = stringResource(Res.string.command_palette_close_label),
+                        onClick = actions.onDismiss,
+                    ),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            AnimatedVisibility(
+                visible = state.isOpen,
+                enter = MotionTransitions.dialogEnter(),
+                exit = MotionTransitions.dialogExit(),
+            ) {
+                CommandPaletteModalContent(
+                    state = state,
+                    focusRequester = focusRequester,
+                    actions = actions,
+                )
+            }
+        }
     }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+    LaunchedEffect(state.isOpen) {
+        if (state.isOpen) {
+            focusRequester.requestFocus()
+        }
     }
 }
 
@@ -128,9 +139,10 @@ private fun CommandPaletteModalContent(
                 .onPreviewKeyEvent { event ->
                     handleKeyEvent(event, actions)
                 },
-        color = InfraMapSurfaceBg,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, InfraMapBorder),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = InfraMapShapeLarge,
+        tonalElevation = 6.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column {
             CommandPaletteSearchHeader(
@@ -138,7 +150,7 @@ private fun CommandPaletteModalContent(
                 focusRequester = focusRequester,
                 onQueryChanged = actions.onQueryChanged,
             )
-            HorizontalDivider(color = InfraMapBorder, thickness = 1.dp)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
 
             if (state.results.isEmpty() && !state.isLoading) {
                 CommandPaletteEmptyState(query = state.query)
@@ -198,7 +210,7 @@ private fun CommandPaletteSearchHeader(
         Icon(
             imageVector = Icons.Default.Search,
             contentDescription = "Search",
-            tint = InfraMapTextSecondary,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp),
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -208,7 +220,7 @@ private fun CommandPaletteSearchHeader(
             placeholder = {
                 Text(
                     text = stringResource(Res.string.command_palette_search_placeholder),
-                    color = InfraMapTextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp,
                 )
             },
@@ -219,8 +231,8 @@ private fun CommandPaletteSearchHeader(
                     unfocusedContainerColor = Color.Transparent,
                     focusedBorderColor = Color.Transparent,
                     unfocusedBorderColor = Color.Transparent,
-                    focusedTextColor = InfraMapTextPrimary,
-                    unfocusedTextColor = InfraMapTextPrimary,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                 ),
             modifier =
                 Modifier
@@ -244,7 +256,7 @@ private fun CommandPaletteClearAndEscButtons(
     if (isLoading) {
         CircularProgressIndicator(
             modifier = Modifier.size(18.dp),
-            color = InfraMapTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             strokeWidth = 2.dp,
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -257,7 +269,7 @@ private fun CommandPaletteClearAndEscButtons(
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "Clear search",
-                tint = InfraMapTextSecondary,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
@@ -266,12 +278,12 @@ private fun CommandPaletteClearAndEscButtons(
         modifier =
             Modifier
                 .clip(RoundedCornerShape(6.dp))
-                .background(InfraMapBorder)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
         Text(
             text = "ESC",
-            color = InfraMapTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
             style = MaterialTheme.typography.labelSmall,
         )
@@ -294,7 +306,7 @@ private fun CommandPaletteEmptyState(query: String) {
                 } else {
                     stringResource(Res.string.command_palette_empty_query, query)
                 },
-            color = InfraMapTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 14.sp,
         )
     }
@@ -319,7 +331,7 @@ private fun CommandPaletteResultsList(
                 item(key = "header-${category.name}") {
                     Text(
                         text = stringResource(category.titleRes).uppercase(),
-                        color = InfraMapTextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -346,7 +358,13 @@ private fun CommandPaletteItemRow(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val bgModifier = if (isSelected) Modifier.background(InfraMapSurfaceElevated) else Modifier
+    val interactionSource = remember { MutableInteractionSource() }
+    val bgModifier =
+        if (isSelected) {
+            Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        } else {
+            Modifier
+        }
 
     Row(
         modifier =
@@ -355,8 +373,12 @@ private fun CommandPaletteItemRow(
                 .padding(horizontal = 8.dp, vertical = 2.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .then(bgModifier)
-                .clickable(onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .m3InteractiveScale(interactionSource = interactionSource, pressScale = 0.98f)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick,
+                ).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CategoryIcon(category = item.category, isSelected = isSelected)
@@ -377,7 +399,7 @@ private fun CommandPaletteItemRow(
         if (isSelected) {
             Text(
                 text = "↵",
-                color = InfraMapTextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp,
             )
         }
@@ -400,7 +422,12 @@ private fun CategoryIcon(
     Icon(
         imageVector = icon,
         contentDescription = null,
-        tint = if (isSelected) MaterialTheme.colorScheme.primary else InfraMapTextSecondary,
+        tint =
+            if (isSelected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
         modifier = Modifier.size(18.dp),
     )
 }
@@ -414,7 +441,7 @@ private fun ItemTitleAndSubtitle(
     Column(modifier = modifier) {
         Text(
             text = title,
-            color = InfraMapTextPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 14.sp,
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -422,7 +449,7 @@ private fun ItemTitleAndSubtitle(
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
-                color = InfraMapTextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -455,12 +482,12 @@ private fun ItemBadgeChip(badge: String) {
         modifier =
             Modifier
                 .clip(RoundedCornerShape(4.dp))
-                .background(InfraMapBorder)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                 .padding(horizontal = 4.dp, vertical = 2.dp),
     ) {
         Text(
             text = badge,
-            color = InfraMapTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
         )
     }
