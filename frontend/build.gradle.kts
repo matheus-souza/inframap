@@ -184,6 +184,7 @@ kover {
                 packages(
                     "com.inframap.frontend.data.dto",
                     "com.inframap.frontend.ui.app",
+                    "com.inframap.frontend.designsystem.motion",
                     "com.inframap.frontend.generated",
                 )
                 classes(
