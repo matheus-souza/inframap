@@ -1,6 +1,7 @@
 package com.inframap.frontend.designsystem
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
@@ -9,8 +10,10 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.motion.m3InteractiveScale
 
 private val DefaultCardPadding = 16.dp
 private val CardElevationValue = 1.dp
@@ -30,11 +33,13 @@ fun InfraMapCard(
         )
     val elevation = CardDefaults.cardElevation(defaultElevation = CardElevationValue)
     if (onClick != null) {
+        val interactionSource = remember { MutableInteractionSource() }
         Card(
             onClick = onClick,
-            modifier = modifier,
+            modifier = modifier.m3InteractiveScale(interactionSource),
             colors = colors,
             elevation = elevation,
+            interactionSource = interactionSource,
         ) {
             Box(modifier = Modifier.padding(DefaultCardPadding)) {
                 content()
@@ -66,11 +71,13 @@ fun InfraMapElevatedCard(
         )
     val elevation = CardDefaults.elevatedCardElevation(defaultElevation = ElevatedCardElevationValue)
     if (onClick != null) {
+        val interactionSource = remember { MutableInteractionSource() }
         ElevatedCard(
             onClick = onClick,
-            modifier = modifier,
+            modifier = modifier.m3InteractiveScale(interactionSource),
             colors = colors,
             elevation = elevation,
+            interactionSource = interactionSource,
         ) {
             Box(modifier = Modifier.padding(DefaultCardPadding)) {
                 content()
@@ -106,11 +113,13 @@ fun InfraMapOutlinedCard(
             color = MaterialTheme.colorScheme.outlineVariant,
         )
     if (onClick != null) {
+        val interactionSource = remember { MutableInteractionSource() }
         OutlinedCard(
             onClick = onClick,
-            modifier = modifier,
+            modifier = modifier.m3InteractiveScale(interactionSource),
             colors = colors,
             border = border,
+            interactionSource = interactionSource,
         ) {
             Box(modifier = Modifier.padding(DefaultCardPadding)) {
                 content()
