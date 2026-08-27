@@ -102,6 +102,8 @@ fun InfraMapTableSkeleton(
 ) {
     require(rows > 0) { "rows must be positive" }
     require(columns > 0) { "columns must be positive" }
+    require(rowHeight.value > 0f) { "rowHeight must be positive" }
+    require(spacing.value >= 0f) { "spacing cannot be negative" }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Table Header Skeleton
@@ -172,6 +174,7 @@ fun InfraMapListSkeleton(
 ) {
     require(items > 0) { "items must be positive" }
     require(itemHeight.value > 0f) { "itemHeight must be positive" }
+    require(spacing.value >= 0f) { "spacing cannot be negative" }
 
     Column(modifier = modifier.fillMaxWidth()) {
         repeat(items) { index ->

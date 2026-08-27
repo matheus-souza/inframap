@@ -141,4 +141,25 @@ class ShimmerTest {
             }
             onNodeWithTag("legacy_shimmer_box").assertExists()
         }
+
+    @Test
+    fun m3PulseSkeletonThrowsOnInvalidMinAlpha() {
+        org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+            Modifier.m3PulseSkeleton(minAlpha = -0.1f)
+        }
+    }
+
+    @Test
+    fun m3PulseSkeletonThrowsOnInvalidMaxAlpha() {
+        org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+            Modifier.m3PulseSkeleton(maxAlpha = 1.5f)
+        }
+    }
+
+    @Test
+    fun m3PulseSkeletonThrowsWhenMinAlphaGreaterThanMaxAlpha() {
+        org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+            Modifier.m3PulseSkeleton(minAlpha = 0.8f, maxAlpha = 0.2f)
+        }
+    }
 }

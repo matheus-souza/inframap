@@ -95,8 +95,12 @@ fun Modifier.m3PulseSkeleton(
     maxAlpha: Float = 0.7f,
     durationMillis: Int = DEFAULT_PULSE_DURATION,
     visible: Boolean = true,
-): Modifier =
-    composed {
+): Modifier {
+    require(minAlpha in 0f..1f) { "minAlpha must be between 0.0 and 1.0" }
+    require(maxAlpha in 0f..1f) { "maxAlpha must be between 0.0 and 1.0" }
+    require(minAlpha <= maxAlpha) { "minAlpha must be <= maxAlpha" }
+
+    return composed {
         if (!visible) return@composed this
 
         val actualColor =
@@ -122,6 +126,7 @@ fun Modifier.m3PulseSkeleton(
             .clip(shape)
             .background(actualColor.copy(alpha = alpha))
     }
+}
 
 /**
  * Backward-compatible alias for [m3Shimmer].

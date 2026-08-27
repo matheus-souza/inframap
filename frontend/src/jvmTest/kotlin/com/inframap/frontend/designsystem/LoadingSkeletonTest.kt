@@ -172,4 +172,37 @@ class LoadingSkeletonTest {
             }
         }
     }
+
+    @Test
+    fun tableSkeletonThrowsOnInvalidRowHeight() {
+        assertThrows<IllegalArgumentException> {
+            runComposeUiTest {
+                setContent {
+                    InfraMapTableSkeleton(rowHeight = (-10).dp)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun tableSkeletonThrowsOnNegativeSpacing() {
+        assertThrows<IllegalArgumentException> {
+            runComposeUiTest {
+                setContent {
+                    InfraMapTableSkeleton(spacing = (-1).dp)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun listSkeletonThrowsOnNegativeSpacing() {
+        assertThrows<IllegalArgumentException> {
+            runComposeUiTest {
+                setContent {
+                    InfraMapListSkeleton(spacing = (-1).dp)
+                }
+            }
+        }
+    }
 }
