@@ -1,5 +1,6 @@
 package com.inframap.frontend.ui.app
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -13,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.inframap.frontend.designsystem.InfraMapTheme
+import com.inframap.frontend.designsystem.motion.MotionTransitions
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
 import com.inframap.frontend.ui.login.LoginEffect
@@ -26,10 +28,36 @@ import com.inframap.frontend.ui.splash.SplashScreen
 import com.inframap.frontend.ui.splash.SplashViewModel
 import org.koin.compose.currentKoinScope
 
+private sealed interface RootDestination {
+    data object Splash : RootDestination
+
+    data object Login : RootDestination
+
+    data object Onboarding : RootDestination
+
+    data object Main : RootDestination
+}
+
+private fun Route.toRootDestination(): RootDestination =
+    when (this) {
+        Route.Splash -> RootDestination.Splash
+        Route.Login -> RootDestination.Login
+        Route.Onboarding -> RootDestination.Onboarding
+        else -> RootDestination.Main
+    }
+
+private fun rootDestinationDepth(destination: RootDestination): Int =
+    when (destination) {
+        RootDestination.Splash -> 0
+        RootDestination.Login, RootDestination.Onboarding -> 1
+        RootDestination.Main -> 2
+    }
+
 @Composable
 fun InfraMapApp() {
     val navigator = remember { Navigator() }
     val currentRoute by navigator.currentRoute.collectAsState()
+    val rootDestination = remember(currentRoute) { currentRoute.toRootDestination() }
     var isHealthy by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(currentRoute) {
@@ -41,17 +69,27 @@ fun InfraMapApp() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            when (currentRoute) {
-                Route.Splash -> SplashRoute(navigator)
-                Route.Login -> LoginRoute(navigator)
-                Route.Onboarding -> OnboardingRoute(navigator)
-                else ->
-                    MainScaffold(
-                        currentRoute = currentRoute,
-                        navigator = navigator,
-                        isHealthy = isHealthy,
-                        onHealthChanged = { isHealthy = it },
-                    )
+            AnimatedContent(
+                targetState = rootDestination,
+                transitionSpec = {
+                    val initialDepth = rootDestinationDepth(initialState)
+                    val targetDepth = rootDestinationDepth(targetState)
+                    MotionTransitions.sharedAxisZ(forward = targetDepth >= initialDepth)
+                },
+                label = "InfraMapAppRouteTransition",
+            ) { destination ->
+                when (destination) {
+                    RootDestination.Splash -> SplashRoute(navigator)
+                    RootDestination.Login -> LoginRoute(navigator)
+                    RootDestination.Onboarding -> OnboardingRoute(navigator)
+                    RootDestination.Main ->
+                        MainScaffold(
+                            currentRoute = currentRoute,
+                            navigator = navigator,
+                            isHealthy = isHealthy,
+                            onHealthChanged = { isHealthy = it },
+                        )
+                }
             }
         }
     }
