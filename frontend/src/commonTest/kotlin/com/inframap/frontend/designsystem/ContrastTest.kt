@@ -19,6 +19,18 @@ class ContrastTest {
     }
 
     @Test
+    fun onTertiaryOverTertiaryMeetsWcagAA() {
+        val ratio = contrastRatio(InfraMapColorScheme.onTertiary, InfraMapColorScheme.tertiary)
+        assertTrue(ratio >= 4.5, "onTertiary/tertiary contrast ratio $ratio < 4.5 (WCAG AA)")
+    }
+
+    @Test
+    fun onErrorOverErrorMeetsWcagAA() {
+        val ratio = contrastRatio(InfraMapColorScheme.onError, InfraMapColorScheme.error)
+        assertTrue(ratio >= 4.5, "onError/error contrast ratio $ratio < 4.5 (WCAG AA)")
+    }
+
+    @Test
     fun onBackgroundOverBackgroundMeetsWcagAA() {
         val ratio = contrastRatio(InfraMapColorScheme.onBackground, InfraMapColorScheme.background)
         assertTrue(ratio >= 4.5, "onBackground/background contrast ratio $ratio < 4.5 (WCAG AA)")

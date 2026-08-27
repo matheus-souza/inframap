@@ -4,34 +4,50 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 
 internal val InfraMapColorScheme: ColorScheme =
     darkColorScheme(
-        primary = InfraMapElectricViolet,
-        secondary = InfraMapEmeraldGreen,
-        tertiary = InfraMapAmberWarm,
-        background = InfraMapCanvasBg,
-        surface = InfraMapSurfaceBg,
-        surfaceVariant = InfraMapSurfaceElevated,
-        surfaceContainerHighest = InfraMapSurfaceElevated,
-        error = InfraMapRubyRed,
+        primary = InfraMapPrimary,
+        onPrimary = InfraMapOnPrimary,
+        primaryContainer = InfraMapPrimaryContainer,
+        onPrimaryContainer = InfraMapOnPrimaryContainer,
+        secondary = InfraMapSecondary,
+        onSecondary = InfraMapOnSecondary,
+        secondaryContainer = InfraMapSecondaryContainer,
+        onSecondaryContainer = InfraMapOnSecondaryContainer,
+        tertiary = InfraMapTertiary,
+        onTertiary = InfraMapOnTertiary,
+        tertiaryContainer = InfraMapTertiaryContainer,
+        onTertiaryContainer = InfraMapOnTertiaryContainer,
+        background = InfraMapSurfaceDim,
+        onBackground = InfraMapOnSurface,
+        surface = InfraMapSurface,
+        onSurface = InfraMapOnSurface,
+        surfaceVariant = InfraMapSurfaceContainerHigh,
+        onSurfaceVariant = InfraMapOnSurfaceVariant,
+        surfaceTint = InfraMapPrimary,
+        inverseSurface = InfraMapOnSurface,
+        inverseOnSurface = InfraMapSurface,
+        error = InfraMapError,
+        onError = InfraMapOnError,
         errorContainer = InfraMapErrorContainer,
-        onPrimary = Color.Black,
-        onSecondary = Color.Black,
-        onTertiary = Color.Black,
-        onBackground = InfraMapTextPrimary,
-        onSurface = InfraMapTextPrimary,
-        onSurfaceVariant = InfraMapTextSecondary,
-        onError = Color.Black,
         onErrorContainer = InfraMapOnErrorContainer,
-        outline = InfraMapComment,
+        outline = InfraMapOutline,
+        outlineVariant = InfraMapOutlineVariant,
+        surfaceBright = InfraMapSurfaceBright,
+        surfaceDim = InfraMapSurfaceDim,
+        surfaceContainer = InfraMapSurfaceContainer,
+        surfaceContainerHigh = InfraMapSurfaceContainerHigh,
+        surfaceContainerHighest = InfraMapSurfaceContainerHighest,
+        surfaceContainerLow = InfraMapSurfaceContainerLow,
+        surfaceContainerLowest = InfraMapSurfaceContainerLowest,
     )
 
 @Composable
 fun InfraMapTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = InfraMapColorScheme,
+        shapes = InfraMapShapes,
         typography = InfraMapTypography,
         content = content,
     )

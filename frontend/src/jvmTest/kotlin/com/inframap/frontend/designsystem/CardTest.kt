@@ -51,4 +51,86 @@ class CardTest {
             }
             onNodeWithText("Static Card").assertIsDisplayed()
         }
+
+    @Test
+    fun elevatedCardRendersContent() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapElevatedCard {
+                        Text("Elevated Content")
+                    }
+                }
+            }
+            onNodeWithText("Elevated Content").assertIsDisplayed()
+        }
+
+    @Test
+    fun clickableElevatedCardTriggersCallback() =
+        runComposeUiTest {
+            var clicked = false
+            setContent {
+                InfraMapTheme {
+                    InfraMapElevatedCard(onClick = { clicked = true }) {
+                        Text("Clickable Elevated Card")
+                    }
+                }
+            }
+            onNodeWithText("Clickable Elevated Card").performClick()
+            assertEquals(true, clicked)
+        }
+
+    @Test
+    fun nonClickableElevatedCardRendersWithoutClick() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapElevatedCard(onClick = null) {
+                        Text("Static Elevated Card")
+                    }
+                }
+            }
+            onNodeWithText("Static Elevated Card").assertIsDisplayed()
+        }
+
+    @Test
+    fun outlinedCardRendersContent() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapOutlinedCard {
+                        Text("Outlined Content")
+                    }
+                }
+            }
+            onNodeWithText("Outlined Content").assertIsDisplayed()
+        }
+
+    @Test
+    fun clickableOutlinedCardTriggersCallback() =
+        runComposeUiTest {
+            var clicked = false
+            setContent {
+                InfraMapTheme {
+                    InfraMapOutlinedCard(onClick = { clicked = true }) {
+                        Text("Clickable Outlined Card")
+                    }
+                }
+            }
+            onNodeWithText("Clickable Outlined Card").performClick()
+            assertEquals(true, clicked)
+        }
+
+    @Test
+    fun nonClickableOutlinedCardRendersWithoutClick() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapOutlinedCard(onClick = null) {
+                        Text("Static Outlined Card")
+                    }
+                }
+            }
+            onNodeWithText("Static Outlined Card").assertIsDisplayed()
+        }
 }

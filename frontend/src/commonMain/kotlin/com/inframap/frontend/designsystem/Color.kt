@@ -3,59 +3,88 @@ package com.inframap.frontend.designsystem
 import androidx.compose.ui.graphics.Color
 import kotlin.jvm.JvmName
 
-// Excalidraw Dark Slate Core Color Palette (RFC-019 / ADR-006 / RFC-020 / ADR-008)
-val InfraMapCanvasBg = Color(0xFF121214) // Deep Charcoal Black
-val InfraMapSurfaceBg = Color(0xFF18181b) // Container Surface
-val InfraMapSurfaceElevated = Color(0xFF27272a) // Elevated Surfaces & Borders
-val InfraMapBorder = Color(0xFF27272a) // Borders
-val InfraMapTextPrimary = Color(0xFFf4f4f5) // High-contrast body & header text
-val InfraMapTextSecondary = Color(0xFFa1a1aa) // Subtitles & Icons
+// Material Design 3 Tonal Accents & Containers (RFC-022 / ADR-010)
+val InfraMapPrimary = Color(0xFFD0BCFF)
+val InfraMapOnPrimary = Color(0xFF381E72)
+val InfraMapPrimaryContainer = Color(0xFF4F378B)
+val InfraMapOnPrimaryContainer = Color(0xFFEADDFF)
 
-val InfraMapElectricViolet = Color(0xFF8b5cf6) // Primary / Active Accent (#8b5cf6)
-val InfraMapEmeraldGreen = Color(0xFF10b981) // Secondary / Status Online (#10b981)
-val InfraMapAmberWarm = Color(0xFFf59e0b) // Tertiary / Status Warning (#f59e0b)
-val InfraMapRubyRed = Color(0xFFef4444) // Error / Status Offline (#ef4444)
+val InfraMapSecondary = Color(0xFF6EE7B7)
+val InfraMapOnSecondary = Color(0xFF003826)
+val InfraMapSecondaryContainer = Color(0xFF005138)
+val InfraMapOnSecondaryContainer = Color(0xFF8CF4D3)
+
+val InfraMapTertiary = Color(0xFFFCD34D)
+val InfraMapOnTertiary = Color(0xFF452B00)
+val InfraMapTertiaryContainer = Color(0xFF633F00)
+val InfraMapOnTertiaryContainer = Color(0xFFFFDF9E)
+
+val InfraMapError = Color(0xFFFFB4AB)
+val InfraMapOnError = Color(0xFF690005)
+val InfraMapErrorContainer = Color(0xFF93000A)
+val InfraMapOnErrorContainer = Color(0xFFFFDAD6)
+
+// Material Design 3 Neutral Surface Container Scale
+val InfraMapSurfaceDim = Color(0xFF121215)
+val InfraMapSurface = Color(0xFF141318)
+val InfraMapSurfaceBright = Color(0xFF38383F)
+val InfraMapSurfaceContainerLowest = Color(0xFF0E0E12)
+val InfraMapSurfaceContainerLow = Color(0xFF18181D)
+val InfraMapSurfaceContainer = Color(0xFF1E1D24)
+val InfraMapSurfaceContainerHigh = Color(0xFF28272F)
+val InfraMapSurfaceContainerHighest = Color(0xFF33323C)
+
+// Material Design 3 Content & Text Tokens
+val InfraMapOnSurface = Color(0xFFE4E1E6)
+val InfraMapOnSurfaceVariant = Color(0xFFC8C5D0)
+val InfraMapOutline = Color(0xFF928F9A)
+val InfraMapOutlineVariant = Color(0xFF48454E)
 
 // Functional Status Tokens
-val StatusOnline = Color(0xFF10b981)
-val StatusWarning = Color(0xFFf59e0b)
-val StatusOffline = Color(0xFFef4444)
-val StatusStaging = Color(0xFFa78bfa)
+val StatusOnline = Color(0xFF10B981)
+val StatusWarning = Color(0xFFF59E0B)
+val StatusOffline = Color(0xFFEF4444)
+val StatusStaging = Color(0xFFA78BFA)
 
-// T37 Requested Tokens
-val canvasBackground = Color(0xFF121214)
-val surfaceContainer = Color(0xFF18181b)
-val surfaceContainerHigh = Color(0xFF222226)
-val outlineSubtle = Color(0xFF27272a)
-val accentPrimary = Color(0xFF8b5cf6)
+// Backward-compatible aliases for existing references
+val InfraMapCanvasBg = InfraMapSurfaceDim
+val InfraMapSurfaceBg = InfraMapSurface
+val InfraMapSurfaceElevated = InfraMapSurfaceContainerHigh
+val InfraMapBorder = InfraMapOutlineVariant
+val InfraMapTextPrimary = InfraMapOnSurface
+val InfraMapTextSecondary = InfraMapOnSurfaceVariant
+
+val InfraMapElectricViolet = InfraMapPrimary
+val InfraMapEmeraldGreen = InfraMapSecondary
+val InfraMapAmberWarm = InfraMapTertiary
+val InfraMapRubyRed = InfraMapError
+
+// Legacy / T37 Tokens
+val canvasBackground = InfraMapSurfaceDim
+val surfaceContainer = InfraMapSurfaceContainer
+val surfaceContainerHigh = InfraMapSurfaceContainerHigh
+val outlineSubtle = InfraMapOutlineVariant
+val accentPrimary = InfraMapPrimary
 
 @get:JvmName("getStatusOnlineLowercase")
-val statusOnline = Color(0xFF10b981)
+val statusOnline = StatusOnline
 
 @get:JvmName("getStatusWarningLowercase")
-val statusWarning = Color(0xFFf59e0b)
+val statusWarning = StatusWarning
 
-val statusAlert = Color(0xFFef4444)
+val statusAlert = StatusOffline
 
 @get:JvmName("getStatusStagingLowercase")
-val statusStaging = Color(0xFFa78bfa)
+val statusStaging = StatusStaging
 
-// Convenience & backward-compatible aliases
-internal val InfraMapBackground = InfraMapCanvasBg
-internal val InfraMapSurface = InfraMapSurfaceBg
-internal val InfraMapSurfaceVariant = InfraMapSurfaceElevated
-internal val InfraMapOnSurfaceVariant = InfraMapTextSecondary
-internal val InfraMapForeground = InfraMapTextPrimary
+internal val InfraMapBackground = InfraMapSurfaceDim
+internal val InfraMapSurfaceVariant = InfraMapSurfaceContainerHigh
+internal val InfraMapForeground = InfraMapOnSurface
 
-internal val InfraMapPurple = InfraMapElectricViolet
-internal val InfraMapCyan = InfraMapEmeraldGreen
-internal val InfraMapGreen = InfraMapEmeraldGreen
-internal val InfraMapOrange = InfraMapAmberWarm
-internal val InfraMapYellow = Color(0xFFfacc15)
-internal val InfraMapRed = InfraMapRubyRed
-internal val InfraMapComment = Color(0xFF3f3f46)
-
-internal val InfraMapErrorContainer = Color(0xFF450a0a)
-internal val InfraMapOnErrorContainer = Color(0xFFfca5a5)
-internal val InfraMapOnError = InfraMapCanvasBg
-internal val InfraMapSurfaceContainerHighest = InfraMapSurfaceElevated
+internal val InfraMapPurple = InfraMapPrimary
+internal val InfraMapCyan = InfraMapSecondary
+internal val InfraMapGreen = InfraMapSecondary
+internal val InfraMapOrange = InfraMapTertiary
+internal val InfraMapYellow = Color(0xFFFACC15)
+internal val InfraMapRed = InfraMapError
+internal val InfraMapComment = InfraMapOutlineVariant
