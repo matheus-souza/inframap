@@ -2,6 +2,7 @@
 
 package com.inframap.frontend.ui.app
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.data.storage.LocalStorage
 import com.inframap.frontend.designsystem.InfraMapIcons
+import com.inframap.frontend.designsystem.motion.MotionTransitions
 import com.inframap.frontend.domain.model.CommandPaletteAction
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
@@ -226,20 +228,44 @@ private fun MainScaffoldContent(
                     },
                 )
                 VerticalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                Box(
+                ScaffoldMainContent(
+                    currentRoute = currentRoute,
+                    navigator = navigator,
+                    onHealthChanged = onHealthChanged,
                     modifier =
                         Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .padding(16.dp),
-                ) {
-                    RouteContent(
-                        currentRoute = currentRoute,
-                        navigator = navigator,
-                        onHealthChanged = onHealthChanged,
-                    )
-                }
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun ScaffoldMainContent(
+    currentRoute: Route,
+    navigator: Navigator,
+    onHealthChanged: (Boolean?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier) {
+        AnimatedContent(
+            targetState = currentRoute,
+            transitionSpec = {
+                MotionTransitions.scaffoldTransition(
+                    initialRoute = initialState,
+                    targetRoute = targetState,
+                )
+            },
+            label = "MainScaffoldRouteTransition",
+        ) { targetRoute ->
+            RouteContent(
+                currentRoute = targetRoute,
+                navigator = navigator,
+                onHealthChanged = onHealthChanged,
+            )
         }
     }
 }

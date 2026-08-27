@@ -26,6 +26,10 @@ import com.inframap.frontend.navigation.Route
 object MotionTransitions {
     /**
      * Material Design 3 Fade Through transition.
+     *
+     * Used for top-level navigation destination switches (e.g. NavRail peer destinations).
+     * The incoming content scales in from 92% to 100% while fading in,
+     * while the outgoing content fades out.
      */
     fun fadeThrough(durationMillis: Int = MotionTokens.DurationTokens.Medium2): ContentTransform {
         val enter =
@@ -46,6 +50,13 @@ object MotionTransitions {
 
     /**
      * Material Design 3 Shared Axis X transition.
+     *
+     * Used for lateral hierarchical navigation such as master-detail flows or step-by-step forms.
+     *
+     * @param forward True if navigating deeper/forward (target enters from right, initial exits to left);
+     *                false if navigating back (target enters from left, initial exits to right).
+     * @param slideDistance Offset distance in pixels for the horizontal slide transition.
+     * @param durationMillis Duration of the transition in milliseconds.
      */
     fun sharedAxisX(
         forward: Boolean = true,
@@ -76,6 +87,16 @@ object MotionTransitions {
 
     /**
      * Material Design 3 Shared Axis Z transition.
+     *
+     * Used for depth transitions in the UI hierarchy (e.g. Splash -> Login / Dashboard, drill-in).
+     *
+     * @param forward True if navigating deeper into the application (target scales up from [initialScale] to 1.0,
+     *                initial scales up from 1.0 to [targetScale]);
+     *                false if navigating up/backwards (target scales down from [targetScale] to 1.0,
+     *                initial scales down from 1.0 to [initialScale]).
+     * @param initialScale Scale factor for the smaller depth state (default 0.8f).
+     * @param targetScale Scale factor for the larger depth state (default 1.1f).
+     * @param durationMillis Duration of the transition in milliseconds.
      */
     fun sharedAxisZ(
         forward: Boolean = true,
