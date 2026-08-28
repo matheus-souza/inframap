@@ -153,6 +153,13 @@
     <string name="command_palette_close_label">Fechar paleta de comandos</string>
     <string name="command_palette_empty">Nenhum item disponível.</string>
     <string name="command_palette_empty_query">Nenhum resultado encontrado para "%1$s"</string>
+
+    <!-- Dynamic Titles -->
+    <string name="device_detail_title">Detalhe do Dispositivo</string>
+    <string name="create_device_title">Novo Dispositivo</string>
+    <string name="edit_device_title">Editar Dispositivo</string>
+    <string name="create_subnet_title">Nova Sub-rede</string>
+    <string name="create_discovery_source_title">Nova Fonte de Descoberta</string>
 </resources>
 
 

@@ -49,7 +49,7 @@ import androidx.compose.ui.window.Popup
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InfraMapTopBar(
-    title: String = "InfraMap",
+    screenTitle: String? = null,
     isHealthy: Boolean? = null,
     isSseConnected: Boolean = true,
     onSearchClicked: () -> Unit = {},
@@ -58,7 +58,7 @@ fun InfraMapTopBar(
 ) {
     TopAppBar(
         modifier = modifier,
-        title = { TopBarTitle(title = title, isHealthy = isHealthy) },
+        title = { TopBarTitle(screenTitle = screenTitle, isHealthy = isHealthy) },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
         actions = {
             TopBarActions(
@@ -72,15 +72,35 @@ fun InfraMapTopBar(
 
 @Composable
 private fun TopBarTitle(
-    title: String,
+    screenTitle: String?,
     isHealthy: Boolean?,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        if (screenTitle != null) {
+            Text(
+                text = screenTitle,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "·",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "InfraMap",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            Text(
+                text = "InfraMap",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
         if (isHealthy != null) {
             Spacer(modifier = Modifier.width(8.dp))
             val dotColor = if (isHealthy) InfraMapEmeraldGreen else InfraMapRubyRed

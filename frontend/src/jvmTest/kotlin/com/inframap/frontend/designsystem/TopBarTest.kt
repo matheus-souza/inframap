@@ -10,25 +10,27 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalTestApi::class)
 class TopBarTest {
     @Test
-    fun topBarRendersTitle() =
+    fun topBarRendersDefaultTitle() =
         runComposeUiTest {
             setContent {
                 InfraMapTheme {
-                    InfraMapTopBar(title = "InfraMap")
+                    InfraMapTopBar()
                 }
             }
             onNodeWithText("InfraMap").assertIsDisplayed()
         }
 
     @Test
-    fun topBarRendersCustomTitle() =
+    fun topBarRendersContextualScreenTitle() =
         runComposeUiTest {
             setContent {
                 InfraMapTheme {
-                    InfraMapTopBar(title = "Devices")
+                    InfraMapTopBar(screenTitle = "Dispositivos")
                 }
             }
-            onNodeWithText("Devices").assertIsDisplayed()
+            onNodeWithText("Dispositivos").assertIsDisplayed()
+            onNodeWithText("·").assertIsDisplayed()
+            onNodeWithText("InfraMap").assertIsDisplayed()
         }
 
     @Test
@@ -36,10 +38,12 @@ class TopBarTest {
         runComposeUiTest {
             setContent {
                 InfraMapTheme {
-                    InfraMapTopBar(title = "InfraMap", isHealthy = true)
+                    InfraMapTopBar(screenTitle = "Dashboard", isHealthy = true)
                 }
             }
+            onNodeWithText("Dashboard").assertIsDisplayed()
             onNodeWithText("InfraMap").assertIsDisplayed()
+            onNodeWithContentDescription("System healthy").assertIsDisplayed()
         }
 
     @Test
@@ -47,10 +51,11 @@ class TopBarTest {
         runComposeUiTest {
             setContent {
                 InfraMapTheme {
-                    InfraMapTopBar(title = "InfraMap", isHealthy = false)
+                    InfraMapTopBar(screenTitle = null, isHealthy = false)
                 }
             }
             onNodeWithText("InfraMap").assertIsDisplayed()
+            onNodeWithContentDescription("System unhealthy").assertIsDisplayed()
         }
 
     @Test
@@ -58,7 +63,7 @@ class TopBarTest {
         runComposeUiTest {
             setContent {
                 InfraMapTheme {
-                    InfraMapTopBar(title = "InfraMap", isSseConnected = true)
+                    InfraMapTopBar(isSseConnected = true)
                 }
             }
             onNodeWithText("K").assertIsDisplayed()
@@ -72,7 +77,6 @@ class TopBarTest {
             setContent {
                 InfraMapTheme {
                     InfraMapTopBar(
-                        title = "InfraMap",
                         onRestartTourClicked = {},
                     )
                 }
