@@ -33,9 +33,22 @@ import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.devices_retry
+import com.inframap.frontend.generated.resources.subnets_col_auto_discovery
+import com.inframap.frontend.generated.resources.subnets_col_cidr
+import com.inframap.frontend.generated.resources.subnets_col_description
+import com.inframap.frontend.generated.resources.subnets_col_gateway
+import com.inframap.frontend.generated.resources.subnets_col_name
+import com.inframap.frontend.generated.resources.subnets_col_vlan
 import com.inframap.frontend.generated.resources.subnets_create_button
+import com.inframap.frontend.generated.resources.subnets_detected_interface_add
+import com.inframap.frontend.generated.resources.subnets_detected_interfaces_desc
+import com.inframap.frontend.generated.resources.subnets_detected_interfaces_title
 import com.inframap.frontend.generated.resources.subnets_empty_subtitle
 import com.inframap.frontend.generated.resources.subnets_empty_title
+import com.inframap.frontend.generated.resources.subnets_new_button
+import com.inframap.frontend.generated.resources.subnets_subtitle
+import com.inframap.frontend.generated.resources.subnets_title
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -78,19 +91,19 @@ private fun SubnetsHeader(onCreateClicked: () -> Unit) {
     ) {
         Column {
             Text(
-                text = "Subredes",
+                text = stringResource(Res.string.subnets_title),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = "Gerencie as faixas de rede e configurações de varredura",
+                text = stringResource(Res.string.subnets_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             )
         }
 
         InfraMapButton(
-            text = "+ Nova Subrede",
+            text = stringResource(Res.string.subnets_new_button),
             onClick = onCreateClicked,
         )
     }
@@ -113,7 +126,7 @@ private fun SubnetsErrorCard(
             )
             Spacer(modifier = Modifier.height(16.dp))
             InfraMapButton(
-                text = "Tentar Novamente",
+                text = stringResource(Res.string.devices_retry),
                 onClick = onRetryClicked,
             )
         }
@@ -146,12 +159,12 @@ private fun SubnetsTableCard(
     } else {
         val columns =
             listOf(
-                TableColumn(header = "Nome", weight = 2f),
-                TableColumn(header = "CIDR", weight = 1.8f),
-                TableColumn(header = "VLAN ID", weight = 1f),
-                TableColumn(header = "Gateway", weight = 1.5f),
-                TableColumn(header = "Auto-Descoberta", weight = 1.5f),
-                TableColumn(header = "Descrição", weight = 2f),
+                TableColumn(header = stringResource(Res.string.subnets_col_name), weight = 2f),
+                TableColumn(header = stringResource(Res.string.subnets_col_cidr), weight = 1.8f),
+                TableColumn(header = stringResource(Res.string.subnets_col_vlan), weight = 1f),
+                TableColumn(header = stringResource(Res.string.subnets_col_gateway), weight = 1.5f),
+                TableColumn(header = stringResource(Res.string.subnets_col_auto_discovery), weight = 1.5f),
+                TableColumn(header = stringResource(Res.string.subnets_col_description), weight = 2f),
             )
 
         InfraMapCard(modifier = Modifier.fillMaxWidth()) {
@@ -187,14 +200,12 @@ private fun DetectedInterfacesCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text(
-                        text = "Interfaces detectadas",
+                        text = stringResource(Res.string.subnets_detected_interfaces_title),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text =
-                            "Interfaces de rede encontradas neste servidor." +
-                                " Adicione como sub-rede para iniciar a varredura.",
+                        text = stringResource(Res.string.subnets_detected_interfaces_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     )
@@ -237,7 +248,7 @@ private fun DetectedInterfaceRow(
             )
         }
         InfraMapOutlinedButton(
-            text = "Adicionar",
+            text = stringResource(Res.string.subnets_detected_interface_add),
             onClick = onAddClicked,
         )
     }

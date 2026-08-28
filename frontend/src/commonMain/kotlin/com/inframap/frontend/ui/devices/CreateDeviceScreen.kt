@@ -24,10 +24,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.ChipCustomOption
+import com.inframap.frontend.designsystem.ChipOption
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
+import com.inframap.frontend.designsystem.InfraMapChoiceChipGroup
+import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapTextField
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.create_device_back_button
+import com.inframap.frontend.generated.resources.create_device_cancel_button
+import com.inframap.frontend.generated.resources.create_device_custom_type
+import com.inframap.frontend.generated.resources.create_device_custom_type_label
+import com.inframap.frontend.generated.resources.create_device_custom_type_placeholder
+import com.inframap.frontend.generated.resources.create_device_form_title
+import com.inframap.frontend.generated.resources.create_device_header_subtitle
+import com.inframap.frontend.generated.resources.create_device_header_title
+import com.inframap.frontend.generated.resources.create_device_hostname_label
+import com.inframap.frontend.generated.resources.create_device_ip_label
+import com.inframap.frontend.generated.resources.create_device_mac_label
+import com.inframap.frontend.generated.resources.create_device_submit_button
+import com.inframap.frontend.generated.resources.create_device_type_label
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun CreateDeviceScreen(
@@ -68,19 +87,19 @@ fun CreateDeviceScreen(
 private fun CreateDeviceHeader(onCancelClicked: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         InfraMapOutlinedButton(
-            text = "Voltar",
+            text = stringResource(Res.string.create_device_back_button),
             onClick = onCancelClicked,
             leadingIcon = Icons.AutoMirrored.Filled.ArrowBack,
         )
         Spacer(modifier = Modifier.width(16.dp))
         Column {
             Text(
-                text = "Novo Dispositivo",
+                text = stringResource(Res.string.create_device_header_title),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = "Cadastre um novo ativo no inventário da rede",
+                text = stringResource(Res.string.create_device_header_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             )
@@ -96,7 +115,7 @@ private fun CreateDeviceFormCard(
     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
             Text(
-                text = "Dados do Dispositivo",
+                text = stringResource(Res.string.create_device_form_title),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -131,7 +150,7 @@ private fun CreateDeviceNetworkFields(
     InfraMapTextField(
         value = state.hostname,
         onValueChange = actions.onHostnameChanged,
-        label = "Hostname *",
+        label = stringResource(Res.string.create_device_hostname_label),
         error = state.validationErrors["hostname"]?.asString(),
         modifier = Modifier.fillMaxWidth(),
     )
@@ -141,7 +160,7 @@ private fun CreateDeviceNetworkFields(
     InfraMapTextField(
         value = state.ipAddress,
         onValueChange = actions.onIpAddressChanged,
-        label = "Endereço IP (ex: 192.168.1.1)",
+        label = stringResource(Res.string.create_device_ip_label),
         error = state.validationErrors["ip_address"]?.asString(),
         modifier = Modifier.fillMaxWidth(),
     )
@@ -151,7 +170,7 @@ private fun CreateDeviceNetworkFields(
     InfraMapTextField(
         value = state.macAddress,
         onValueChange = actions.onMacAddressChanged,
-        label = "Endereço MAC (ex: 00:11:22:33:44:55)",
+        label = stringResource(Res.string.create_device_mac_label),
         error = state.validationErrors["mac_address"]?.asString(),
         modifier = Modifier.fillMaxWidth(),
     )
@@ -164,27 +183,23 @@ private fun CreateDeviceTypeField(
 ) {
     val deviceTypeOptions =
         listOf(
-            com.inframap.frontend.designsystem
-                .ChipOption("router", "Router", Icons.Default.Router),
-            com.inframap.frontend.designsystem
-                .ChipOption("switch", "Switch", com.inframap.frontend.designsystem.InfraMapIcons.Lan),
-            com.inframap.frontend.designsystem
-                .ChipOption("server", "Server", com.inframap.frontend.designsystem.InfraMapIcons.Dns),
-            com.inframap.frontend.designsystem
-                .ChipOption("firewall", "Firewall", Icons.Default.Security),
+            ChipOption("router", "Router", Icons.Default.Router),
+            ChipOption("switch", "Switch", InfraMapIcons.Lan),
+            ChipOption("server", "Server", InfraMapIcons.Dns),
+            ChipOption("firewall", "Firewall", Icons.Default.Security),
         )
 
-    com.inframap.frontend.designsystem.InfraMapChoiceChipGroup(
+    InfraMapChoiceChipGroup(
         options = deviceTypeOptions,
         selected = state.deviceType,
         onSelected = actions.onDeviceTypeChanged,
-        label = "Tipo de Dispositivo",
+        label = stringResource(Res.string.create_device_type_label),
         customOption =
-            com.inframap.frontend.designsystem.ChipCustomOption(
-                chipLabel = "Outro",
+            ChipCustomOption(
+                chipLabel = stringResource(Res.string.create_device_custom_type),
                 chipIcon = Icons.Default.MoreHoriz,
-                inputLabel = "Tipo Personalizado",
-                inputPlaceholder = "ex: load_balancer",
+                inputLabel = stringResource(Res.string.create_device_custom_type_label),
+                inputPlaceholder = stringResource(Res.string.create_device_custom_type_placeholder),
                 currentValue = state.deviceType,
                 onValueChanged = actions.onDeviceTypeChanged,
                 parseValue = { it },
@@ -214,7 +229,7 @@ private fun CreateDeviceFormButtons(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         InfraMapOutlinedButton(
-            text = "Cancelar",
+            text = stringResource(Res.string.create_device_cancel_button),
             onClick = actions.onCancelClicked,
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -225,7 +240,7 @@ private fun CreateDeviceFormButtons(
             )
         } else {
             InfraMapButton(
-                text = "Salvar Dispositivo",
+                text = stringResource(Res.string.create_device_submit_button),
                 onClick = actions.onSubmitClicked,
             )
         }

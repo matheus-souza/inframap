@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Sensors
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,9 +31,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
+import com.inframap.frontend.designsystem.InfraMapCheckboxRow
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapTextField
 import com.inframap.frontend.domain.model.NetworkInterface
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.create_device_cancel_button
+import com.inframap.frontend.generated.resources.create_subnet_cidr_label
+import com.inframap.frontend.generated.resources.create_subnet_description_label
+import com.inframap.frontend.generated.resources.create_subnet_discovery_toggle
+import com.inframap.frontend.generated.resources.create_subnet_gateway_label
+import com.inframap.frontend.generated.resources.create_subnet_header_subtitle
+import com.inframap.frontend.generated.resources.create_subnet_header_title
+import com.inframap.frontend.generated.resources.create_subnet_name_label
+import com.inframap.frontend.generated.resources.create_subnet_submit
+import com.inframap.frontend.generated.resources.create_subnet_submitting
+import com.inframap.frontend.generated.resources.create_subnet_suggestions_toggle
+import com.inframap.frontend.generated.resources.create_subnet_vlan_label
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun CreateSubnetScreen(
@@ -83,7 +97,7 @@ private fun CreateSubnetFormFields(
         InfraMapTextField(
             value = state.name,
             onValueChange = actions.onNameChanged,
-            label = "Nome da Subrede *",
+            label = stringResource(Res.string.create_subnet_name_label),
             error = state.validationErrors["name"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -93,7 +107,7 @@ private fun CreateSubnetFormFields(
         InfraMapTextField(
             value = state.cidr,
             onValueChange = actions.onCidrChanged,
-            label = "CIDR (ex: 192.168.1.0/24) *",
+            label = stringResource(Res.string.create_subnet_cidr_label),
             error = state.validationErrors["cidr"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -116,15 +130,16 @@ private fun CreateSubnetFormFields(
         InfraMapTextField(
             value = state.description,
             onValueChange = actions.onDescriptionChanged,
-            label = "Descrição (Opcional)",
+            label = stringResource(Res.string.create_subnet_description_label),
             modifier = Modifier.fillMaxWidth(),
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        CreateSubnetDiscoveryToggle(
-            discoveryEnabled = state.discoveryEnabled,
-            onDiscoveryEnabledChanged = actions.onDiscoveryEnabledChanged,
+        InfraMapCheckboxRow(
+            checked = state.discoveryEnabled,
+            onCheckedChange = actions.onDiscoveryEnabledChanged,
+            label = stringResource(Res.string.create_subnet_discovery_toggle),
         )
     }
 }
@@ -149,7 +164,7 @@ private fun InterfaceSuggestionsPanel(
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "Preencher a partir de interface detectada",
+                text = stringResource(Res.string.create_subnet_suggestions_toggle),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
@@ -227,7 +242,7 @@ private fun CreateSubnetVlanGatewayInputs(
         InfraMapTextField(
             value = state.vlanId,
             onValueChange = actions.onVlanIdChanged,
-            label = "VLAN ID (Opcional)",
+            label = stringResource(Res.string.create_subnet_vlan_label),
             error = state.validationErrors["vlan_id"]?.asString(),
             modifier = Modifier.weight(1f),
         )
@@ -237,31 +252,9 @@ private fun CreateSubnetVlanGatewayInputs(
         InfraMapTextField(
             value = state.gatewayIp,
             onValueChange = actions.onGatewayIpChanged,
-            label = "Gateway IP (Opcional)",
+            label = stringResource(Res.string.create_subnet_gateway_label),
             error = state.validationErrors["gateway_ip"]?.asString(),
             modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun CreateSubnetDiscoveryToggle(
-    discoveryEnabled: Boolean,
-    onDiscoveryEnabledChanged: (Boolean) -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Checkbox(
-            checked = discoveryEnabled,
-            onCheckedChange = onDiscoveryEnabledChanged,
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = "Habilitar Varredura Automática de Descoberta",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
@@ -277,13 +270,18 @@ private fun CreateSubnetFormActions(
         horizontalArrangement = Arrangement.End,
     ) {
         InfraMapOutlinedButton(
-            text = "Cancelar",
+            text = stringResource(Res.string.create_device_cancel_button),
             onClick = onCancelClicked,
             enabled = !isSubmitting,
         )
         Spacer(modifier = Modifier.width(12.dp))
         InfraMapButton(
-            text = if (isSubmitting) "Cadastrando..." else "Cadastrar Subrede",
+            text =
+                if (isSubmitting) {
+                    stringResource(Res.string.create_subnet_submitting)
+                } else {
+                    stringResource(Res.string.create_subnet_submit)
+                },
             onClick = onSubmitClicked,
             enabled = !isSubmitting,
         )
@@ -294,12 +292,12 @@ private fun CreateSubnetFormActions(
 private fun CreateSubnetHeader() {
     Column {
         Text(
-            text = "Nova Subrede",
+            text = stringResource(Res.string.create_subnet_header_title),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
-            text = "Cadastre uma nova faixa de subrede para segmentação e varredura de ativos",
+            text = stringResource(Res.string.create_subnet_header_subtitle),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
         )
