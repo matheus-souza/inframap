@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -74,12 +77,23 @@ fun InventoryStatusBar(
                     color = activeFilter.color.copy(alpha = 0.2f),
                     border = BorderStroke(1.dp, activeFilter.color),
                 ) {
-                    Text(
-                        text = "Filtered by: ${activeFilter.label} ✕",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = activeFilter.color,
+                    Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Filtered by: ${activeFilter.label}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = activeFilter.color,
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Clear filter",
+                            tint = activeFilter.color,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
                 }
             } else {
                 Text(

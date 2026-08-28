@@ -145,10 +145,10 @@
     <string name="dashboard_auto_setup_view_staging">Ver na Fila de Staging</string>
 
     <!-- Command Palette -->
-    <string name="command_palette_category_acoes">⚡ Ações Rápidas</string>
-    <string name="command_palette_category_dispositivos">🖥️ Dispositivos</string>
-    <string name="command_palette_category_subredes">🌐 Sub-redes</string>
-    <string name="command_palette_category_navegacao">🧭 Navegação</string>
+    <string name="command_palette_category_acoes">Ações Rápidas</string>
+    <string name="command_palette_category_dispositivos">Dispositivos</string>
+    <string name="command_palette_category_subredes">Sub-redes</string>
+    <string name="command_palette_category_navegacao">Navegação</string>
     <string name="command_palette_search_placeholder">Buscar dispositivos, sub-redes, ações...</string>
     <string name="command_palette_close_label">Fechar paleta de comandos</string>
     <string name="command_palette_empty">Nenhum item disponível.</string>

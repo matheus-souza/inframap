@@ -270,20 +270,20 @@ private fun DashboardMetrics(state: DashboardUiState) {
             value = state.totalActiveDevices.toString(),
             subtitle = stringResource(Res.string.dashboard_active_devices_subtitle),
             icon = InfraMapIcons.Dns,
-            modifier = Modifier.width(260.dp),
+            modifier = Modifier.width(260.dp).height(124.dp),
         )
         MetricCard(
             title = stringResource(Res.string.dashboard_staged_devices),
             value = state.totalStagedDevices.toString(),
             subtitle = stringResource(Res.string.dashboard_staged_devices_subtitle),
             icon = InfraMapIcons.MoveToInbox,
-            modifier = Modifier.width(260.dp),
+            modifier = Modifier.width(260.dp).height(124.dp),
         )
         HealthMetricCard(
             isHealthy = state.isSystemHealthy,
             version = state.systemVersion,
             icon = Icons.Filled.CheckCircle,
-            modifier = Modifier.width(260.dp),
+            modifier = Modifier.width(260.dp).height(124.dp),
         )
         MetricCard(
             title = stringResource(Res.string.dashboard_discovery_sources),
@@ -291,7 +291,7 @@ private fun DashboardMetrics(state: DashboardUiState) {
             subtitle =
                 stringResource(Res.string.dashboard_discovery_sources_subtitle),
             icon = InfraMapIcons.Radar,
-            modifier = Modifier.width(260.dp),
+            modifier = Modifier.width(260.dp).height(124.dp),
         )
     }
 }
@@ -305,7 +305,10 @@ private fun MetricCard(
     modifier: Modifier = Modifier,
 ) {
     InfraMapCard(modifier = modifier) {
-        Column {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.semantics { contentDescription = "$title KPI Card" },
@@ -323,13 +326,11 @@ private fun MetricCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = value,
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
@@ -361,7 +362,10 @@ private fun HealthMetricCard(
         }
 
     InfraMapCard(modifier = modifier) {
-        Column {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier =
@@ -397,7 +401,6 @@ private fun HealthStatusRow(
     dotColor: androidx.compose.ui.graphics.Color,
     version: String,
 ) {
-    Spacer(modifier = Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier =
@@ -409,11 +412,10 @@ private fun HealthStatusRow(
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = statusText,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
-    Spacer(modifier = Modifier.height(4.dp))
     Text(
         text =
             if (version.isNotEmpty()) {
