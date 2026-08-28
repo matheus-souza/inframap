@@ -92,21 +92,22 @@ import org.koin.compose.currentKoinScope
 import org.koin.core.parameter.parametersOf
 
 data class NavItem(
-    val label: String,
+    val titleRes: StringResource,
     val icon: ImageVector,
     val route: Route,
+    val routeKey: String,
 )
 
 private const val KEY_NAVRAIL_COLLAPSED = "inframap_navrail_collapsed"
 
-private val navItems =
+internal val defaultNavItems =
     listOf(
-        NavItem("Dashboard", InfraMapIcons.Dashboard, Route.Dashboard),
-        NavItem("Devices", InfraMapIcons.Dns, Route.Devices),
-        NavItem("Staging", InfraMapIcons.MoveToInbox, Route.Staging),
-        NavItem("Subnets", InfraMapIcons.Lan, Route.Subnets),
-        NavItem("Discovery", InfraMapIcons.Radar, Route.DiscoverySources),
-        NavItem("Topology", InfraMapIcons.AccountTree, Route.Topology),
+        NavItem(Res.string.dashboard_title, InfraMapIcons.Dashboard, Route.Dashboard, "dashboard"),
+        NavItem(Res.string.devices_title, InfraMapIcons.Dns, Route.Devices, "devices"),
+        NavItem(Res.string.staging_header, InfraMapIcons.MoveToInbox, Route.Staging, "staging"),
+        NavItem(Res.string.subnets_title, InfraMapIcons.Lan, Route.Subnets, "subnets"),
+        NavItem(Res.string.discovery_title, InfraMapIcons.Radar, Route.DiscoverySources, "discovery"),
+        NavItem(Res.string.topology_title, InfraMapIcons.AccountTree, Route.Topology, "topology"),
     )
 
 fun resolveScreenTitleResource(route: Route): StringResource? =
@@ -341,41 +342,41 @@ private fun AppNavRail(
     onToggleExpanded: () -> Unit = {},
 ) {
     val items =
-        navItems.map { navItem ->
+        defaultNavItems.map { navItem ->
             com.inframap.frontend.designsystem.NavRailItem(
-                label = navItem.label,
+                label = stringResource(navItem.titleRes),
                 icon = navItem.icon,
-                route = navItem.label,
+                route = navItem.routeKey,
             )
         }
 
     val selectedRouteKey =
         when (currentRoute) {
-            Route.Dashboard -> "Dashboard"
+            Route.Dashboard -> "dashboard"
             Route.Devices,
             is Route.DeviceDetail,
             Route.CreateDevice,
             is Route.EditDevice,
-            -> "Devices"
+            -> "devices"
 
             Route.DiscoverySources,
             Route.CreateDiscoverySource,
-            -> "Discovery"
+            -> "discovery"
 
-            Route.Staging -> "Staging"
+            Route.Staging -> "staging"
             Route.Subnets,
             is Route.CreateSubnet,
-            -> "Subnets"
+            -> "subnets"
 
-            Route.Topology -> "Topology"
-            else -> "Dashboard"
+            Route.Topology -> "topology"
+            else -> "dashboard"
         }
 
     com.inframap.frontend.designsystem.InfraMapNavRail(
         items = items,
         selectedRoute = selectedRouteKey,
         onItemSelected = { selectedKey ->
-            val targetNavItem = navItems.find { it.label == selectedKey }
+            val targetNavItem = defaultNavItems.find { it.routeKey == selectedKey }
             if (targetNavItem != null) {
                 navigator.navigateTo(targetNavItem.route)
             }

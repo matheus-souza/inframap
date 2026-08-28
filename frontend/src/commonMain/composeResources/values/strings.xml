@@ -214,6 +214,29 @@
     <string name="edit_device_title">Editar Dispositivo</string>
     <string name="create_subnet_title">Nova Sub-rede</string>
     <string name="create_discovery_source_title">Nova Fonte de Descoberta</string>
+
+    <!-- TopBar -->
+    <string name="topbar_system_healthy">Sistema saudável</string>
+    <string name="topbar_system_unhealthy">Sistema não saudável</string>
+    <string name="topbar_restart_tour">Refazer Tour Guiado</string>
+    <string name="topbar_restart_tour_button_cd">Refazer Tour Guiado</string>
+    <string name="topbar_tour_icon_cd">Ícone do tour</string>
+    <string name="topbar_search_placeholder">Buscar...</string>
+    <string name="topbar_search_button_cd">Botão de busca</string>
+    <string name="topbar_search_icon_cd">Ícone de busca</string>
+    <string name="topbar_search_tooltip">Buscar infraestrutura (Cmd+K / Ctrl+K)</string>
+    <string name="topbar_search_shortcut_cd">Tecla de atalho da busca K</string>
+    <string name="topbar_search_shortcut_icon_cd">Ícone de atalho de teclado</string>
+    <string name="topbar_sse_live">Live SSE</string>
+    <string name="topbar_sse_disconnected">Desconectado</string>
+    <string name="topbar_sse_status_connected">Status do SSE: Conectado</string>
+    <string name="topbar_sse_status_disconnected">Status do SSE: Desconectado</string>
+    <string name="topbar_sse_tooltip_active">Conexão SSE em tempo real ativa</string>
+    <string name="topbar_sse_tooltip_disconnected">SSE em tempo real desconectado</string>
+
+    <!-- NavRail -->
+    <string name="navrail_collapse_menu">Recolher menu</string>
+    <string name="navrail_expand_menu">Expandir menu</string>
 </resources>
 
 

@@ -45,6 +45,26 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.app_name
+import com.inframap.frontend.generated.resources.topbar_restart_tour
+import com.inframap.frontend.generated.resources.topbar_restart_tour_button_cd
+import com.inframap.frontend.generated.resources.topbar_search_button_cd
+import com.inframap.frontend.generated.resources.topbar_search_icon_cd
+import com.inframap.frontend.generated.resources.topbar_search_placeholder
+import com.inframap.frontend.generated.resources.topbar_search_shortcut_cd
+import com.inframap.frontend.generated.resources.topbar_search_shortcut_icon_cd
+import com.inframap.frontend.generated.resources.topbar_search_tooltip
+import com.inframap.frontend.generated.resources.topbar_sse_disconnected
+import com.inframap.frontend.generated.resources.topbar_sse_live
+import com.inframap.frontend.generated.resources.topbar_sse_status_connected
+import com.inframap.frontend.generated.resources.topbar_sse_status_disconnected
+import com.inframap.frontend.generated.resources.topbar_sse_tooltip_active
+import com.inframap.frontend.generated.resources.topbar_sse_tooltip_disconnected
+import com.inframap.frontend.generated.resources.topbar_system_healthy
+import com.inframap.frontend.generated.resources.topbar_system_unhealthy
+import com.inframap.frontend.generated.resources.topbar_tour_icon_cd
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +95,9 @@ private fun TopBarTitle(
     screenTitle: String?,
     isHealthy: Boolean?,
 ) {
+    val appName = stringResource(Res.string.app_name)
+    val healthyDescription = stringResource(Res.string.topbar_system_healthy)
+    val unhealthyDescription = stringResource(Res.string.topbar_system_unhealthy)
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (screenTitle != null) {
             Text(
@@ -90,13 +113,13 @@ private fun TopBarTitle(
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "InfraMap",
+                text = appName,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
         } else {
             Text(
-                text = "InfraMap",
+                text = appName,
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -104,7 +127,7 @@ private fun TopBarTitle(
         if (isHealthy != null) {
             Spacer(modifier = Modifier.width(8.dp))
             val dotColor = if (isHealthy) InfraMapEmeraldGreen else InfraMapRubyRed
-            val description = if (isHealthy) "System healthy" else "System unhealthy"
+            val description = if (isHealthy) healthyDescription else unhealthyDescription
             Box(
                 modifier =
                     Modifier
@@ -139,12 +162,15 @@ private fun TopBarActions(
 
 @Composable
 private fun RestartTourButton(onRestartTourClicked: () -> Unit) {
+    val buttonCd = stringResource(Res.string.topbar_restart_tour_button_cd)
+    val tourIconCd = stringResource(Res.string.topbar_tour_icon_cd)
+    val buttonText = stringResource(Res.string.topbar_restart_tour)
     Surface(
         onClick = onRestartTourClicked,
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-        modifier = Modifier.semantics { contentDescription = "Refazer Tour Guiado button" },
+        modifier = Modifier.semantics { contentDescription = buttonCd },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -152,13 +178,13 @@ private fun RestartTourButton(onRestartTourClicked: () -> Unit) {
         ) {
             Icon(
                 imageVector = Icons.Default.Explore,
-                contentDescription = "Tour icon",
+                contentDescription = tourIconCd,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp),
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "Refazer Tour Guiado",
+                text = buttonText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -171,6 +197,10 @@ private fun SearchTriggerButton(onSearchClicked: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
     val density = LocalDensity.current
+    val searchButtonCd = stringResource(Res.string.topbar_search_button_cd)
+    val searchIconCd = stringResource(Res.string.topbar_search_icon_cd)
+    val searchPlaceholder = stringResource(Res.string.topbar_search_placeholder)
+    val searchTooltip = stringResource(Res.string.topbar_search_tooltip)
 
     Box {
         Surface(
@@ -181,7 +211,7 @@ private fun SearchTriggerButton(onSearchClicked: () -> Unit) {
             modifier =
                 Modifier
                     .hoverable(interactionSource)
-                    .semantics { contentDescription = "Search trigger button" },
+                    .semantics { contentDescription = searchButtonCd },
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -189,13 +219,13 @@ private fun SearchTriggerButton(onSearchClicked: () -> Unit) {
             ) {
                 Icon(
                     imageVector = Icons.Default.Search,
-                    contentDescription = "Search icon",
+                    contentDescription = searchIconCd,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Search...",
+                    text = searchPlaceholder,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -204,20 +234,25 @@ private fun SearchTriggerButton(onSearchClicked: () -> Unit) {
             }
         }
         if (isHovered) {
-            TopBarButtonHoverTooltip(text = "Search infrastructure (Cmd+K / Ctrl+K)", density = density)
+            TopBarButtonHoverTooltip(
+                text = searchTooltip,
+                density = density,
+            )
         }
     }
 }
 
 @Composable
 private fun SearchShortcutBadge() {
+    val shortcutCd = stringResource(Res.string.topbar_search_shortcut_cd)
+    val shortcutIconCd = stringResource(Res.string.topbar_search_shortcut_icon_cd)
     Surface(
         shape = RoundedCornerShape(4.dp),
         color = MaterialTheme.colorScheme.surface,
         modifier =
             Modifier
                 .padding(2.dp)
-                .semantics { contentDescription = "Search shortcut key K" },
+                .semantics { contentDescription = shortcutCd },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -225,7 +260,7 @@ private fun SearchShortcutBadge() {
         ) {
             Icon(
                 imageVector = Icons.Default.Key,
-                contentDescription = "Key shortcut icon",
+                contentDescription = shortcutIconCd,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(12.dp),
             )
@@ -257,42 +292,74 @@ private fun SseConnectionBadge(isSseConnected: Boolean) {
         label = "pulseAlpha",
     )
 
-    val sseDescription = if (isSseConnected) "SSE Status: Connected" else "SSE Status: Disconnected"
+    val sseDescription =
+        if (isSseConnected) {
+            stringResource(Res.string.topbar_sse_status_connected)
+        } else {
+            stringResource(Res.string.topbar_sse_status_disconnected)
+        }
+    val statusTooltip =
+        if (isSseConnected) {
+            stringResource(Res.string.topbar_sse_tooltip_active)
+        } else {
+            stringResource(Res.string.topbar_sse_tooltip_disconnected)
+        }
 
     Box {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-            modifier =
-                Modifier
-                    .hoverable(interactionSource)
-                    .semantics { contentDescription = sseDescription },
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            ) {
-                val dotColor = if (isSseConnected) InfraMapEmeraldGreen else InfraMapRubyRed
-                Box(
-                    modifier =
-                        Modifier
-                            .size(8.dp)
-                            .alpha(if (isSseConnected) pulseAlpha else 1.0f)
-                            .clip(CircleShape)
-                            .background(dotColor),
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (isSseConnected) "Live SSE" else "Disconnected",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-        }
+        SseBadgeContent(
+            isSseConnected = isSseConnected,
+            pulseAlpha = pulseAlpha,
+            sseDescription = sseDescription,
+            interactionSource = interactionSource,
+        )
         if (isHovered) {
-            val statusTooltip = if (isSseConnected) "Real-time SSE connection active" else "Real-time SSE disconnected"
             TopBarButtonHoverTooltip(text = statusTooltip, density = density)
+        }
+    }
+}
+
+@Composable
+private fun SseBadgeContent(
+    isSseConnected: Boolean,
+    pulseAlpha: Float,
+    sseDescription: String,
+    interactionSource: MutableInteractionSource,
+) {
+    val sseText =
+        if (isSseConnected) {
+            stringResource(Res.string.topbar_sse_live)
+        } else {
+            stringResource(Res.string.topbar_sse_disconnected)
+        }
+    val dotColor = if (isSseConnected) InfraMapEmeraldGreen else InfraMapRubyRed
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+        modifier =
+            Modifier
+                .hoverable(interactionSource)
+                .semantics { contentDescription = sseDescription },
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(8.dp)
+                        .alpha(if (isSseConnected) pulseAlpha else 1.0f)
+                        .clip(CircleShape)
+                        .background(dotColor),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = sseText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 }
@@ -316,7 +383,7 @@ private fun TopBarButtonHoverTooltip(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(6.dp),
                 shadowElevation = 6.dp,
-                modifier = Modifier.semantics { contentDescription = "$text tooltip" },
+                modifier = Modifier.semantics { contentDescription = text },
             ) {
                 Text(
                     text = text,

@@ -212,5 +212,30 @@
     <string name="edit_device_title">Edit Device</string>
     <string name="create_subnet_title">New Subnet</string>
     <string name="create_discovery_source_title">New Discovery Source</string>
+
+    <!-- Scaffold & NavRail -->
+    <string name="navrail_collapse">Collapse menu</string>
+    <string name="navrail_expand">Expand menu</string>
+
+    <!-- TopBar -->
+    <string name="topbar_healthy_desc">System healthy</string>
+    <string name="topbar_unhealthy_desc">System unhealthy</string>
+    <string name="topbar_restart_tour">Restart Guided Tour</string>
+    <string name="topbar_search_placeholder">Search...</string>
+    <string name="topbar_search_button_cd">Search trigger button</string>
+    <string name="topbar_search_icon_cd">Search icon</string>
+    <string name="topbar_search_tooltip">Search infrastructure (Cmd+K / Ctrl+K)</string>
+    <string name="topbar_search_shortcut_cd">Search shortcut key K</string>
+    <string name="topbar_search_shortcut_icon_cd">Key shortcut icon</string>
+    <string name="topbar_sse_live">Live SSE</string>
+    <string name="topbar_sse_disconnected">Disconnected</string>
+    <string name="topbar_sse_status_connected">SSE Status: Connected</string>
+    <string name="topbar_sse_status_disconnected">SSE Status: Disconnected</string>
+    <string name="topbar_sse_tooltip_active">Real-time SSE connection active</string>
+    <string name="topbar_sse_tooltip_disconnected">Real-time SSE disconnected</string>
+
+    <!-- NavRail -->
+    <string name="navrail_collapse_menu">Collapse menu</string>
+    <string name="navrail_expand_menu">Expand menu</string>
 </resources>
 
