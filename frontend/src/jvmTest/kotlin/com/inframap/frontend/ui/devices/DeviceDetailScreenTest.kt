@@ -37,7 +37,7 @@ class DeviceDetailScreenTest {
             setContent {
                 InfraMapTheme {
                     DeviceDetailScreen(
-                        state = DeviceDetailUiState(device = device),
+                        state = DeviceDetailUiState(device = device, isLoading = false),
                         actions =
                             DeviceDetailActions(
                                 onBackClicked = { backClicked = true },

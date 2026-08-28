@@ -25,6 +25,7 @@ class EditDeviceScreenTest {
                                 deviceId = "dev-100",
                                 hostname = "switch-edge",
                                 status = "active",
+                                isLoading = false,
                             ),
                         actions =
                             EditDeviceActions(

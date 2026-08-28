@@ -24,7 +24,7 @@ class SubnetsScreenTest {
             setContent {
                 InfraMapTheme {
                     SubnetsScreen(
-                        state = SubnetsUiState(subnets = emptyList()),
+                        state = SubnetsUiState(subnets = emptyList(), isLoading = false),
                         actions = testActions(),
                     )
                 }
@@ -52,7 +52,7 @@ class SubnetsScreenTest {
             setContent {
                 InfraMapTheme {
                     SubnetsScreen(
-                        state = SubnetsUiState(subnets = listOf(subnet)),
+                        state = SubnetsUiState(subnets = listOf(subnet), isLoading = false),
                         actions = testActions(),
                     )
                 }

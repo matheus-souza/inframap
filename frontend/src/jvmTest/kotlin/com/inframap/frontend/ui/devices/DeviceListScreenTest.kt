@@ -36,7 +36,7 @@ class DeviceListScreenTest {
             setContent {
                 InfraMapTheme {
                     DeviceListScreen(
-                        state = DeviceListUiState(devices = emptyList()),
+                        state = DeviceListUiState(devices = emptyList(), isLoading = false),
                         actions = testActions(),
                     )
                 }
@@ -70,6 +70,7 @@ class DeviceListScreenTest {
                             DeviceListUiState(
                                 devices = listOf(sampleDevice),
                                 totalItems = 1,
+                                isLoading = false,
                             ),
                         actions =
                             testActions(

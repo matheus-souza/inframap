@@ -33,7 +33,7 @@ class StagingScreenTest {
             setContent {
                 InfraMapTheme {
                     StagingScreen(
-                        state = StagingUiState(devices = emptyList()),
+                        state = StagingUiState(devices = emptyList(), isLoading = false),
                         actions = testActions(),
                     )
                 }
@@ -60,7 +60,7 @@ class StagingScreenTest {
             setContent {
                 InfraMapTheme {
                     StagingScreen(
-                        state = StagingUiState(devices = listOf(device), totalItems = 1),
+                        state = StagingUiState(devices = listOf(device), totalItems = 1, isLoading = false),
                         actions =
                             testActions(
                                 onApproveClicked = { approvedDevice = it },

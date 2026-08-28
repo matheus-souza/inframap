@@ -18,7 +18,7 @@ class DiscoveryListScreenTest {
             setContent {
                 InfraMapTheme {
                     DiscoveryListScreen(
-                        state = DiscoveryListUiState(sources = emptyList()),
+                        state = DiscoveryListUiState(sources = emptyList(), isLoading = false),
                         actions =
                             DiscoveryListActions(
                                 onCreateSourceClicked = {},
@@ -58,7 +58,7 @@ class DiscoveryListScreenTest {
             setContent {
                 InfraMapTheme {
                     DiscoveryListScreen(
-                        state = DiscoveryListUiState(sources = listOf(source)),
+                        state = DiscoveryListUiState(sources = listOf(source), isLoading = false),
                         actions =
                             DiscoveryListActions(
                                 onCreateSourceClicked = {},
