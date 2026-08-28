@@ -30,6 +30,7 @@ import com.inframap.frontend.designsystem.motion.MotionTransitions
 import com.inframap.frontend.domain.model.CommandPaletteAction
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
+import com.inframap.frontend.platform.updateBrowserTitle
 import com.inframap.frontend.ui.command.CommandPaletteActions
 import com.inframap.frontend.ui.command.CommandPaletteEffect
 import com.inframap.frontend.ui.command.CommandPaletteListener
@@ -93,6 +94,22 @@ private val navItems =
         NavItem("Topology", InfraMapIcons.AccountTree, Route.Topology),
     )
 
+fun resolveScreenTitle(route: Route): String? =
+    when (route) {
+        Route.Dashboard -> "Dashboard"
+        Route.Devices -> "Dispositivos"
+        is Route.DeviceDetail -> "Detalhe do Dispositivo"
+        Route.CreateDevice -> "Novo Dispositivo"
+        is Route.EditDevice -> "Editar Dispositivo"
+        Route.Staging -> "Fila de Staging"
+        Route.Subnets -> "Sub-redes"
+        is Route.CreateSubnet -> "Nova Sub-rede"
+        Route.DiscoverySources -> "Fontes de Descoberta"
+        Route.CreateDiscoverySource -> "Nova Fonte de Descoberta"
+        Route.Topology -> "Topologia"
+        else -> null
+    }
+
 @Composable
 fun MainScaffold(
     currentRoute: Route,
@@ -112,6 +129,10 @@ fun MainScaffold(
     }
     DisposableEffect(tourViewModel) {
         onDispose { tourViewModel.clear() }
+    }
+
+    LaunchedEffect(currentRoute) {
+        updateBrowserTitle(resolveScreenTitle(currentRoute))
     }
 
     LaunchedEffect(Unit) {
@@ -208,6 +229,7 @@ private fun MainScaffoldContent(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             AppTopBar(
+                screenTitle = resolveScreenTitle(currentRoute),
                 isHealthy = isHealthy,
                 onOpenCommandPalette = onOpenCommandPalette,
                 onRestartTourClicked = onRestartTourClicked,
@@ -272,12 +294,13 @@ private fun ScaffoldMainContent(
 
 @Composable
 private fun AppTopBar(
+    screenTitle: String? = null,
     isHealthy: Boolean?,
     onOpenCommandPalette: () -> Unit = {},
     onRestartTourClicked: () -> Unit = {},
 ) {
     com.inframap.frontend.designsystem.InfraMapTopBar(
-        title = "InfraMap",
+        screenTitle = screenTitle,
         isHealthy = isHealthy,
         isSseConnected = isHealthy ?: true,
         onSearchClicked = onOpenCommandPalette,
