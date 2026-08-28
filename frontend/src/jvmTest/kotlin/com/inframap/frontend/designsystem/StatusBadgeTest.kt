@@ -40,4 +40,48 @@ class StatusBadgeTest {
             }
             onNodeWithText("Staged").assertIsDisplayed()
         }
+
+    @Test
+    fun sourceIdleBadgeShowsIdleLabel() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapStatusBadge(status = SourceStatus.IDLE)
+                }
+            }
+            onNodeWithText("Idle").assertIsDisplayed()
+        }
+
+    @Test
+    fun sourceRunningBadgeShowsRunningLabel() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapStatusBadge(status = SourceStatus.RUNNING)
+                }
+            }
+            onNodeWithText("Running").assertIsDisplayed()
+        }
+
+    @Test
+    fun sourceErrorBadgeShowsErrorLabel() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapStatusBadge(status = SourceStatus.ERROR)
+                }
+            }
+            onNodeWithText("Error").assertIsDisplayed()
+        }
+
+    @Test
+    fun sourceCancelledBadgeShowsCancelledLabel() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapStatusBadge(status = SourceStatus.CANCELLED)
+                }
+            }
+            onNodeWithText("Cancelled").assertIsDisplayed()
+        }
 }

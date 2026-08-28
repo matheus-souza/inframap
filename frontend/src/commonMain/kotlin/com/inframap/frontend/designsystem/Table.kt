@@ -19,6 +19,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.table_pagination_next
+import com.inframap.frontend.generated.resources.table_pagination_page
+import com.inframap.frontend.generated.resources.table_pagination_previous
+import org.jetbrains.compose.resources.stringResource
 
 data class TableColumn(
     val header: String,
@@ -99,19 +104,19 @@ fun InfraMapTablePagination(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         InfraMapOutlinedButton(
-            text = "Previous",
+            text = stringResource(Res.string.table_pagination_previous),
             onClick = { onPageChange(safeCurrentPage - 1) },
             enabled = safeCurrentPage > 1,
         )
         Text(
-            text = "$safeCurrentPage / $safeTotalPages",
+            text = stringResource(Res.string.table_pagination_page, safeCurrentPage, safeTotalPages),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(horizontal = 16.dp),
             textAlign = TextAlign.Center,
         )
         InfraMapOutlinedButton(
-            text = "Next",
+            text = stringResource(Res.string.table_pagination_next),
             onClick = { onPageChange(safeCurrentPage + 1) },
             enabled = safeCurrentPage < safeTotalPages,
         )

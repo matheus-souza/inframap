@@ -6,11 +6,29 @@
     <string name="common_retry">Tentar Novamente</string>
     <string name="common_close">Fechar</string>
     <string name="common_cancel">Cancelar</string>
+    <string name="common_confirm">Confirmar</string>
     <string name="common_refresh">Atualizar</string>
+    <string name="common_previous">Anterior</string>
+    <string name="common_next">Próximo</string>
+
+    <!-- Table -->
+    <string name="table_pagination_page">Página %1$d de %2$d</string>
+    <string name="table_pagination_previous">Anterior</string>
+    <string name="table_pagination_next">Próximo</string>
+
+    <!-- Status Badges -->
+    <string name="status_active">Ativo</string>
+    <string name="status_offline">Offline</string>
+    <string name="status_staged">Staged</string>
+    <string name="status_idle">Inativa</string>
+    <string name="status_running">Em execução</string>
+    <string name="status_error">Erro</string>
+    <string name="status_cancelled">Cancelada</string>
 
     <!-- App -->
     <string name="app_name">InfraMap</string>
     <string name="app_tagline">Descoberta e Mapeamento de Infraestrutura</string>
+    <string name="splash_tagline">Descoberta e Mapeamento de Infraestrutura</string>
 
     <!-- Dashboard -->
     <string name="dashboard_title">Dashboard</string>
@@ -39,6 +57,7 @@
     <string name="login_username">Usuário</string>
     <string name="login_password">Senha</string>
     <string name="login_button">Entrar</string>
+    <string name="login_signing_in">Entrando...</string>
     <string name="login_error_credentials">Usuário e senha são obrigatórios.</string>
     <string name="login_error_rate_limit">Muitas tentativas. Aguarde antes de tentar novamente.</string>
     <string name="login_error_network">Erro de rede. Verifique sua conexão.</string>
@@ -108,8 +127,17 @@
     <string name="validation_discovery_name_required">Nome da fonte de descoberta é obrigatório.</string>
     <string name="validation_discovery_type_required">Tipo da fonte é obrigatório.</string>
 
-    <!-- Auth -->
+    <!-- Auth / Onboarding -->
     <string name="onboarding_title">Configuração Inicial</string>
+    <string name="onboarding_subtitle">Crie sua conta de administrador</string>
+    <string name="onboarding_full_name">Nome Completo</string>
+    <string name="onboarding_email">E-mail</string>
+    <string name="onboarding_username">Usuário</string>
+    <string name="onboarding_password">Senha</string>
+    <string name="onboarding_password_hint">Deve ter pelo menos 12 caracteres</string>
+    <string name="onboarding_confirm_password">Confirmar Senha</string>
+    <string name="onboarding_button">Concluir Configuração</string>
+    <string name="onboarding_setting_up">Configurando...</string>
     <string name="validation_username_min">Usuário deve ter pelo menos 3 caracteres.</string>
     <string name="validation_email_invalid">E-mail deve conter @.</string>
     <string name="validation_password_min">Senha deve ter pelo menos 12 caracteres.</string>

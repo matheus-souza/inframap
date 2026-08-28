@@ -83,7 +83,7 @@ class TableTest {
                     )
                 }
             }
-            onNodeWithText("2 / 5").assertIsDisplayed()
+            onNodeWithText("Page 2 of 5").assertIsDisplayed()
             onNodeWithText("Previous").assertIsDisplayed()
             onNodeWithText("Next").assertIsDisplayed()
         }

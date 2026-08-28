@@ -26,6 +26,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapTextField
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.app_name
+import com.inframap.frontend.generated.resources.login_button
+import com.inframap.frontend.generated.resources.login_password
+import com.inframap.frontend.generated.resources.login_signing_in
+import com.inframap.frontend.generated.resources.login_subtitle
+import com.inframap.frontend.generated.resources.login_username
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun LoginScreen(
@@ -67,65 +75,90 @@ private fun LoginForm(
     onPasswordChanged: (String) -> Unit,
     onLoginClick: () -> Unit,
 ) {
-    val focusManager = LocalFocusManager.current
-
     Column(
         modifier = Modifier.widthIn(max = 400.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = "InfraMap",
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Sign in to your instance",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        LoginHeader()
         Spacer(modifier = Modifier.height(32.dp))
 
-        InfraMapTextField(
-            value = state.username,
-            onValueChange = onUsernameChanged,
-            label = "Username",
-            error =
-                state.errorMessage
-                    ?.takeIf { state.username.isBlank() }
-                    ?.asString(),
-            enabled = !state.isLoading,
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            keyboardActions =
-                KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) },
-                ),
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-
-        InfraMapTextField(
-            value = state.password,
-            onValueChange = onPasswordChanged,
-            label = "Password",
-            error = state.errorMessage?.asString(),
-            enabled = !state.isLoading,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions =
-                KeyboardActions(
-                    onDone = { onLoginClick() },
-                ),
+        LoginFields(
+            state = state,
+            onUsernameChanged = onUsernameChanged,
+            onPasswordChanged = onPasswordChanged,
+            onLoginClick = onLoginClick,
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
         InfraMapButton(
-            text = if (state.isLoading) "Signing in..." else "Sign In",
+            text =
+                if (state.isLoading) {
+                    stringResource(Res.string.login_signing_in)
+                } else {
+                    stringResource(Res.string.login_button)
+                },
             onClick = onLoginClick,
             modifier = Modifier.fillMaxWidth(),
             enabled = !state.isLoading,
         )
     }
+}
+
+@Composable
+private fun LoginHeader() {
+    Text(
+        text = stringResource(Res.string.app_name),
+        style = MaterialTheme.typography.headlineLarge,
+        color = MaterialTheme.colorScheme.primary,
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        text = stringResource(Res.string.login_subtitle),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun LoginFields(
+    state: LoginUiState,
+    onUsernameChanged: (String) -> Unit,
+    onPasswordChanged: (String) -> Unit,
+    onLoginClick: () -> Unit,
+) {
+    val focusManager = LocalFocusManager.current
+
+    InfraMapTextField(
+        value = state.username,
+        onValueChange = onUsernameChanged,
+        label = stringResource(Res.string.login_username),
+        error =
+            state.errorMessage
+                ?.takeIf { state.username.isBlank() }
+                ?.asString(),
+        enabled = !state.isLoading,
+        modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+        keyboardActions =
+            KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) },
+            ),
+    )
+    Spacer(modifier = Modifier.height(16.dp))
+
+    InfraMapTextField(
+        value = state.password,
+        onValueChange = onPasswordChanged,
+        label = stringResource(Res.string.login_password),
+        error = state.errorMessage?.asString(),
+        enabled = !state.isLoading,
+        visualTransformation = PasswordVisualTransformation(),
+        modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions =
+            KeyboardActions(
+                onDone = { onLoginClick() },
+            ),
+    )
 }
