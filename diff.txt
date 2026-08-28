@@ -1,248 +1,2052 @@
-diff --git a/CONTEXT.md b/CONTEXT.md
-index 3149e07..8a54564 100644
---- a/CONTEXT.md
-+++ b/CONTEXT.md
-@@ -202,3 +202,4 @@ Guidelines below are continuously updated from internal code reviews, CodeRabbit
- 129. **Surface Borders Must Use `border = BorderStroke(...)` Parameter**: Clickable Material3 `Surface(onClick = ...)` composables MUST specify borders via the `border = BorderStroke(...)` constructor parameter rather than `Modifier.border(...)`. Applying `Modifier.border` to a `Surface` causes the border to wrap the outer interactive minimum touch target bounding box (48dp x 48dp) rather than the measured intrinsic shape of the surface, creating visible ghost border boxes around buttons.
- 130. **SPA Static File Cache Control for Unhashed Entrypoints**: In the SPA handler (`internal/platform/spa`), entry points and unhashed assets (`index.html`, `.js`, `.wasm`, `.json`) MUST be served with `no-cache, must-revalidate` (and `no-cache, no-store, must-revalidate` for `index.html`). Never serve unhashed `.js` or `.wasm` entrypoints with `max-age=31536000, immutable`, which causes browsers to permanently cache old script bundles and fail with 404 when looking for stale hashed WASM chunks on container updates.
- 131. **Modal Overlays & Focus Traps Must Not Block Root Canvas Views**: Never place full-screen blocking modals or scrim overlays (with `pointerInput { detectTapGestures { } }`) over root dashboards or navigation views when inline alternative components (e.g. `AutoSetupHeroCard`) exist. Avoid placing `.focusable()` wrappers with `focusRequester.requestFocus()` on root containers which disrupt child click hit-testing in Compose WASM, ensure web canvas keydown shortcuts handle browser defaults, and verify all SSE endpoints target `/api/v1/events/stream`.
-+132. **Kotlin Multiplatform WASM Exception Handling and Global Browser Keydown Shortcuts**: In Kotlin Multiplatform / WASM, `ApiClient.safeCall` and network dispatchers MUST catch `Throwable` (`catch (e: Throwable)`) rather than `catch (e: Exception)` to ensure JS errors (`JsException`), serialization issues, and runtime WASM traps are safely caught and wrapped as `ApiResult.NetworkError` instead of crashing coroutines unhandled. In ViewModels, async aggregation (`fetchMetrics`) MUST employ defensive error boundaries (`try/catch Throwable`) ensuring `isLoading` always transitions to `false`. Global window shortcuts (such as `Cmd+K`/`Ctrl+K` for command palette) MUST register a native `window.addEventListener('keydown', ...)` on WASM with `preventDefault()` to guarantee key events fire globally regardless of which Compose composable holds active canvas focus.
-diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/api/ApiClient.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/api/ApiClient.kt
-index dbb1c2b..b20acb2 100644
---- a/frontend/src/commonMain/kotlin/com/inframap/frontend/data/api/ApiClient.kt
-+++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/data/api/ApiClient.kt
-@@ -92,7 +92,7 @@ class ApiClient(
-                     httpStatus = response.status.value,
-                 )
-             }
--        } catch (e: Exception) {
-+        } catch (e: Throwable) {
-             ApiResult.NetworkError(throwable = e)
-         }
- }
-diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteListener.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteListener.kt
-index 32622b1..0fdfb54 100644
---- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteListener.kt
-+++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/CommandPaletteListener.kt
-@@ -26,6 +26,8 @@ fun CommandPaletteListener(
-     modifier: Modifier = Modifier,
-     content: @Composable () -> Unit,
+diff --git a/frontend/src/commonMain/composeResources/values-en/strings.xml b/frontend/src/commonMain/composeResources/values-en/strings.xml
+index 3facdfa..d9dbffa 100644
+--- a/frontend/src/commonMain/composeResources/values-en/strings.xml
++++ b/frontend/src/commonMain/composeResources/values-en/strings.xml
+@@ -239,5 +239,122 @@
+     <!-- NavRail -->
+     <string name="navrail_collapse_menu">Collapse menu</string>
+     <string name="navrail_expand_menu">Expand menu</string>
++
++    <!-- Staging Screen -->
++    <string name="staging_dismiss_error_prefix">Error dismissing: %1$s\n\nDo you want to retry?</string>
++    <string name="staging_dismiss_confirm_message">Are you sure you want to dismiss device \'%1$s\' from the staging queue?</string>
++    <string name="staging_dismiss_dialog_title">Dismiss Staged Device</string>
++    <string name="staging_dismiss_processing">Dismissing...</string>
++    <string name="staging_dismiss_action">Dismiss</string>
++    <string name="staging_retry">Try Again</string>
++    <string name="staging_col_hostname">Hostname</string>
++    <string name="staging_col_ip">IP Address</string>
++    <string name="staging_col_mac">MAC</string>
++    <string name="staging_col_type">Type</string>
++    <string name="staging_col_status">Status</string>
++    <string name="staging_col_actions">Actions</string>
++    <string name="staging_action_processing">Processing...</string>
++    <string name="staging_action_approve">Approve</string>
++    <string name="staging_value_empty">-</string>
++
++    <!-- Device List Screen -->
++    <string name="devices_search_placeholder">Search by hostname...</string>
++    <string name="devices_delete_dialog_title">Delete Device</string>
++    <string name="devices_delete_confirm_message">Are you sure you want to delete device \'%1$s\'? This action marks the device as deleted.</string>
++    <string name="devices_delete_error_retry">Error deleting: %1$s\n\nDo you want to retry?</string>
++    <string name="devices_delete_processing">Deleting...</string>
++    <string name="devices_delete_action">Delete</string>
++    <string name="devices_subtitle">Manage network infrastructure assets</string>
++    <string name="devices_new_button">+ New Device</string>
++    <string name="devices_retry">Try Again</string>
++    <string name="devices_col_hostname">Hostname</string>
++    <string name="devices_col_ip">IP</string>
++    <string name="devices_col_type">Type</string>
++    <string name="devices_col_status">Status</string>
++    <string name="devices_col_actions">Actions</string>
++    <string name="devices_action_view">View</string>
++    <string name="devices_action_edit">Edit</string>
++    <string name="devices_action_delete">Delete</string>
++
++    <!-- Device Detail Screen -->
++    <string name="device_detail_delete_dialog_title">Delete Device</string>
++    <string name="device_detail_delete_confirm">Are you sure you want to delete device \'%1$s\'?</string>
++    <string name="device_detail_delete_processing">Deleting...</string>
++    <string name="device_detail_delete_action">Delete</string>
++    <string name="device_detail_back">Back</string>
++    <string name="device_detail_edit">Edit</string>
++    <string name="device_detail_id">ID: %1$s</string>
++    <string name="device_detail_main_info">Main Information</string>
++    <string name="device_detail_hostname">Hostname</string>
++    <string name="device_detail_ip">IP Address</string>
++    <string name="device_detail_mac">MAC Address</string>
++    <string name="device_detail_type">Device Type</string>
++    <string name="device_detail_status">Status</string>
++    <string name="device_detail_hardware">Hardware &amp; Manufacturer</string>
++    <string name="device_detail_manufacturer">Manufacturer</string>
++    <string name="device_detail_model">Model</string>
++    <string name="device_detail_serial">Serial Number</string>
++    <string name="device_detail_created_at">Created at</string>
++    <string name="device_detail_updated_at">Updated at</string>
++    <string name="device_detail_metadata">Metadata</string>
++
++    <!-- Create / Edit Device Screens -->
++    <string name="create_device_header_title">New Device</string>
++    <string name="create_device_header_subtitle">Register a new asset in the network inventory</string>
++    <string name="create_device_form_title">Device Details</string>
++    <string name="create_device_hostname_label">Hostname *</string>
++    <string name="create_device_ip_label">IP Address (e.g. 192.168.1.1)</string>
++    <string name="create_device_mac_label">MAC Address (e.g. 00:11:22:33:44:55)</string>
++    <string name="create_device_type_label">Device Type</string>
++    <string name="create_device_custom_type">Other</string>
++    <string name="create_device_custom_type_label">Custom Type</string>
++    <string name="create_device_custom_type_placeholder">e.g. load_balancer</string>
++    <string name="create_device_submit_button">Save Device</string>
++    <string name="create_device_back_button">Back</string>
++    <string name="create_device_cancel_button">Cancel</string>
++    <string name="edit_device_header_title">Edit Device</string>
++    <string name="edit_device_header_subtitle">Update network asset information</string>
++    <string name="edit_device_form_title">Device Details</string>
++    <string name="edit_device_submit_button">Save Changes</string>
++    <string name="edit_device_status_label">Status</string>
++    <string name="edit_device_status_active">Active</string>
++    <string name="edit_device_status_inactive">Inactive</string>
++    <string name="edit_device_status_maintenance">Maintenance</string>
++
++    <!-- Discovery List Screen -->
++    <string name="discovery_new_button">+ New Source</string>
++    <string name="discovery_delete_dialog_title">Delete Discovery Source</string>
++    <string name="discovery_delete_confirm_message">Are you sure you want to delete source \'%1$s\'? Associated schedules will be removed.</string>
++    <string name="discovery_col_name">Name</string>
++    <string name="discovery_col_type">Type</string>
++    <string name="discovery_col_cidr">CIDR</string>
++    <string name="discovery_col_schedule">Schedule</string>
++    <string name="discovery_col_status">Status</string>
++    <string name="discovery_col_actions">Actions</string>
++    <string name="discovery_action_execute">Run</string>
++    <string name="discovery_schedule_manual">Manual</string>
++
++    <!-- Subnets & Create Subnet Screens -->
++    <string name="subnets_subtitle">Manage network ranges and scan settings</string>
++    <string name="subnets_new_button">+ New Subnet</string>
++    <string name="subnets_col_name">Name</string>
++    <string name="subnets_col_cidr">CIDR</string>
++    <string name="subnets_col_vlan">VLAN ID</string>
++    <string name="subnets_col_gateway">Gateway</string>
++    <string name="subnets_col_auto_discovery">Auto-Discovery</string>
++    <string name="subnets_col_description">Description</string>
++    <string name="subnets_detected_interfaces_desc">Network interfaces found on this server. Add as a subnet to start scanning.</string>
++    <string name="subnets_detected_interface_add">Add</string>
++    <string name="create_subnet_header_title">New Subnet</string>
++    <string name="create_subnet_header_subtitle">Register a new subnet range for segmentation and asset scanning</string>
++    <string name="create_subnet_name_label">Subnet Name *</string>
++    <string name="create_subnet_cidr_label">CIDR (e.g. 192.168.1.0/24) *</string>
++    <string name="create_subnet_vlan_label">VLAN ID (Optional)</string>
++    <string name="create_subnet_gateway_label">Gateway IP (Optional)</string>
++    <string name="create_subnet_description_label">Description (Optional)</string>
++    <string name="create_subnet_discovery_toggle">Enable Automatic Discovery Scanning</string>
++    <string name="create_subnet_suggestions_toggle">Fill from detected interface</string>
++    <string name="create_subnet_submitting">Creating...</string>
++    <string name="create_subnet_submit">Create Subnet</string>
+ </resources>
+ 
+diff --git a/frontend/src/commonMain/composeResources/values/strings.xml b/frontend/src/commonMain/composeResources/values/strings.xml
+index c259e1b..4ae35fb 100644
+--- a/frontend/src/commonMain/composeResources/values/strings.xml
++++ b/frontend/src/commonMain/composeResources/values/strings.xml
+@@ -237,6 +237,123 @@
+     <!-- NavRail -->
+     <string name="navrail_collapse_menu">Recolher menu</string>
+     <string name="navrail_expand_menu">Expandir menu</string>
++
++    <!-- Staging Screen -->
++    <string name="staging_dismiss_error_prefix">Erro ao descartar: %1$s\n\nDeseja tentar novamente?</string>
++    <string name="staging_dismiss_confirm_message">Tem certeza que deseja descartar o dispositivo \'%1$s\' da fila de staging?</string>
++    <string name="staging_dismiss_dialog_title">Descartar Dispositivo em Staging</string>
++    <string name="staging_dismiss_processing">Descartando...</string>
++    <string name="staging_dismiss_action">Descartar</string>
++    <string name="staging_retry">Tentar Novamente</string>
++    <string name="staging_col_hostname">Hostname</string>
++    <string name="staging_col_ip">Endereço IP</string>
++    <string name="staging_col_mac">MAC</string>
++    <string name="staging_col_type">Tipo</string>
++    <string name="staging_col_status">Status</string>
++    <string name="staging_col_actions">Ações</string>
++    <string name="staging_action_processing">Processando...</string>
++    <string name="staging_action_approve">Aprovar</string>
++    <string name="staging_value_empty">-</string>
++
++    <!-- Device List Screen -->
++    <string name="devices_search_placeholder">Buscar por hostname...</string>
++    <string name="devices_delete_dialog_title">Excluir Dispositivo</string>
++    <string name="devices_delete_confirm_message">Tem certeza que deseja excluir o dispositivo \'%1$s\'? Esta ação marca o dispositivo como excluído.</string>
++    <string name="devices_delete_error_retry">Erro ao excluir: %1$s\n\nTem certeza que deseja tentar novamente?</string>
++    <string name="devices_delete_processing">Excluindo...</string>
++    <string name="devices_delete_action">Excluir</string>
++    <string name="devices_subtitle">Gerencie os ativos de infraestrutura da rede</string>
++    <string name="devices_new_button">+ Novo Dispositivo</string>
++    <string name="devices_retry">Tentar Novamente</string>
++    <string name="devices_col_hostname">Hostname</string>
++    <string name="devices_col_ip">IP</string>
++    <string name="devices_col_type">Tipo</string>
++    <string name="devices_col_status">Status</string>
++    <string name="devices_col_actions">Ações</string>
++    <string name="devices_action_view">Ver</string>
++    <string name="devices_action_edit">Editar</string>
++    <string name="devices_action_delete">Excluir</string>
++
++    <!-- Device Detail Screen -->
++    <string name="device_detail_delete_dialog_title">Excluir Dispositivo</string>
++    <string name="device_detail_delete_confirm">Deseja realmente excluir o dispositivo \'%1$s\'?</string>
++    <string name="device_detail_delete_processing">Excluindo...</string>
++    <string name="device_detail_delete_action">Excluir</string>
++    <string name="device_detail_back">Voltar</string>
++    <string name="device_detail_edit">Editar</string>
++    <string name="device_detail_id">ID: %1$s</string>
++    <string name="device_detail_main_info">Informações Principais</string>
++    <string name="device_detail_hostname">Hostname</string>
++    <string name="device_detail_ip">Endereço IP</string>
++    <string name="device_detail_mac">Endereço MAC</string>
++    <string name="device_detail_type">Tipo de Dispositivo</string>
++    <string name="device_detail_status">Status</string>
++    <string name="device_detail_hardware">Hardware &amp; Fabricante</string>
++    <string name="device_detail_manufacturer">Fabricante</string>
++    <string name="device_detail_model">Modelo</string>
++    <string name="device_detail_serial">Número de Série</string>
++    <string name="device_detail_created_at">Criado em</string>
++    <string name="device_detail_updated_at">Atualizado em</string>
++    <string name="device_detail_metadata">Metadados</string>
++
++    <!-- Create / Edit Device Screens -->
++    <string name="create_device_header_title">Novo Dispositivo</string>
++    <string name="create_device_header_subtitle">Cadastre um novo ativo no inventário da rede</string>
++    <string name="create_device_form_title">Dados do Dispositivo</string>
++    <string name="create_device_hostname_label">Hostname *</string>
++    <string name="create_device_ip_label">Endereço IP (ex: 192.168.1.1)</string>
++    <string name="create_device_mac_label">Endereço MAC (ex: 00:11:22:33:44:55)</string>
++    <string name="create_device_type_label">Tipo de Dispositivo</string>
++    <string name="create_device_custom_type">Outro</string>
++    <string name="create_device_custom_type_label">Tipo Personalizado</string>
++    <string name="create_device_custom_type_placeholder">ex: load_balancer</string>
++    <string name="create_device_submit_button">Salvar Dispositivo</string>
++    <string name="create_device_back_button">Voltar</string>
++    <string name="create_device_cancel_button">Cancelar</string>
++    <string name="edit_device_header_title">Editar Dispositivo</string>
++    <string name="edit_device_header_subtitle">Atualize as informações do ativo de rede</string>
++    <string name="edit_device_form_title">Dados do Dispositivo</string>
++    <string name="edit_device_submit_button">Salvar Alterações</string>
++    <string name="edit_device_status_label">Status</string>
++    <string name="edit_device_status_active">Ativo</string>
++    <string name="edit_device_status_inactive">Inativo</string>
++    <string name="edit_device_status_maintenance">Manutenção</string>
++
++    <!-- Discovery List Screen -->
++    <string name="discovery_new_button">+ Nova Fonte</string>
++    <string name="discovery_delete_dialog_title">Excluir Fonte de Descoberta</string>
++    <string name="discovery_delete_confirm_message">Tem certeza que deseja excluir a fonte \'%1$s\'? Os agendamentos associados serão removidos.</string>
++    <string name="discovery_col_name">Nome</string>
++    <string name="discovery_col_type">Tipo</string>
++    <string name="discovery_col_cidr">CIDR</string>
++    <string name="discovery_col_schedule">Agendamento</string>
++    <string name="discovery_col_status">Status</string>
++    <string name="discovery_col_actions">Ações</string>
++    <string name="discovery_action_execute">Executar</string>
++    <string name="discovery_schedule_manual">Manual</string>
++
++    <!-- Subnets & Create Subnet Screens -->
++    <string name="subnets_subtitle">Gerencie as faixas de rede e configurações de varredura</string>
++    <string name="subnets_new_button">+ Nova Sub-rede</string>
++    <string name="subnets_col_name">Nome</string>
++    <string name="subnets_col_cidr">CIDR</string>
++    <string name="subnets_col_vlan">VLAN ID</string>
++    <string name="subnets_col_gateway">Gateway</string>
++    <string name="subnets_col_auto_discovery">Auto-Descoberta</string>
++    <string name="subnets_col_description">Descrição</string>
++    <string name="subnets_detected_interfaces_desc">Interfaces de rede encontradas neste servidor. Adicione como sub-rede para iniciar a varredura.</string>
++    <string name="subnets_detected_interface_add">Adicionar</string>
++    <string name="create_subnet_header_title">Nova Sub-rede</string>
++    <string name="create_subnet_header_subtitle">Cadastre uma nova faixa de sub-rede para segmentação e varredura de ativos</string>
++    <string name="create_subnet_name_label">Nome da Sub-rede *</string>
++    <string name="create_subnet_cidr_label">CIDR (ex: 192.168.1.0/24) *</string>
++    <string name="create_subnet_vlan_label">VLAN ID (Opcional)</string>
++    <string name="create_subnet_gateway_label">Gateway IP (Opcional)</string>
++    <string name="create_subnet_description_label">Descrição (Opcional)</string>
++    <string name="create_subnet_discovery_toggle">Habilitar Varredura Automática de Descoberta</string>
++    <string name="create_subnet_suggestions_toggle">Preencher a partir de interface detectada</string>
++    <string name="create_subnet_submitting">Cadastrando...</string>
++    <string name="create_subnet_submit">Cadastrar Sub-rede</string>
+ </resources>
+ 
+ 
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/CreateDeviceScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/CreateDeviceScreen.kt
+index 6e1809e..22098da 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/CreateDeviceScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/CreateDeviceScreen.kt
+@@ -24,10 +24,29 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.unit.dp
++import com.inframap.frontend.designsystem.ChipCustomOption
++import com.inframap.frontend.designsystem.ChipOption
+ import com.inframap.frontend.designsystem.InfraMapButton
+ import com.inframap.frontend.designsystem.InfraMapCard
++import com.inframap.frontend.designsystem.InfraMapChoiceChipGroup
++import com.inframap.frontend.designsystem.InfraMapIcons
+ import com.inframap.frontend.designsystem.InfraMapOutlinedButton
+ import com.inframap.frontend.designsystem.InfraMapTextField
++import com.inframap.frontend.generated.resources.Res
++import com.inframap.frontend.generated.resources.create_device_back_button
++import com.inframap.frontend.generated.resources.create_device_cancel_button
++import com.inframap.frontend.generated.resources.create_device_custom_type
++import com.inframap.frontend.generated.resources.create_device_custom_type_label
++import com.inframap.frontend.generated.resources.create_device_custom_type_placeholder
++import com.inframap.frontend.generated.resources.create_device_form_title
++import com.inframap.frontend.generated.resources.create_device_header_subtitle
++import com.inframap.frontend.generated.resources.create_device_header_title
++import com.inframap.frontend.generated.resources.create_device_hostname_label
++import com.inframap.frontend.generated.resources.create_device_ip_label
++import com.inframap.frontend.generated.resources.create_device_mac_label
++import com.inframap.frontend.generated.resources.create_device_submit_button
++import com.inframap.frontend.generated.resources.create_device_type_label
++import org.jetbrains.compose.resources.stringResource
+ 
+ @Composable
+ fun CreateDeviceScreen(
+@@ -68,19 +87,19 @@ fun CreateDeviceScreen(
+ private fun CreateDeviceHeader(onCancelClicked: () -> Unit) {
+     Row(verticalAlignment = Alignment.CenterVertically) {
+         InfraMapOutlinedButton(
+-            text = "Voltar",
++            text = stringResource(Res.string.create_device_back_button),
+             onClick = onCancelClicked,
+             leadingIcon = Icons.AutoMirrored.Filled.ArrowBack,
+         )
+         Spacer(modifier = Modifier.width(16.dp))
+         Column {
+             Text(
+-                text = "Novo Dispositivo",
++                text = stringResource(Res.string.create_device_header_title),
+                 style = MaterialTheme.typography.headlineMedium,
+                 color = MaterialTheme.colorScheme.onBackground,
+             )
+             Text(
+-                text = "Cadastre um novo ativo no inventário da rede",
++                text = stringResource(Res.string.create_device_header_subtitle),
+                 style = MaterialTheme.typography.bodyMedium,
+                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+             )
+@@ -96,7 +115,7 @@ private fun CreateDeviceFormCard(
+     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+         Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+             Text(
+-                text = "Dados do Dispositivo",
++                text = stringResource(Res.string.create_device_form_title),
+                 style = MaterialTheme.typography.titleLarge,
+                 color = MaterialTheme.colorScheme.onSurface,
+             )
+@@ -131,7 +150,7 @@ private fun CreateDeviceNetworkFields(
+     InfraMapTextField(
+         value = state.hostname,
+         onValueChange = actions.onHostnameChanged,
+-        label = "Hostname *",
++        label = stringResource(Res.string.create_device_hostname_label),
+         error = state.validationErrors["hostname"]?.asString(),
+         modifier = Modifier.fillMaxWidth(),
+     )
+@@ -141,7 +160,7 @@ private fun CreateDeviceNetworkFields(
+     InfraMapTextField(
+         value = state.ipAddress,
+         onValueChange = actions.onIpAddressChanged,
+-        label = "Endereço IP (ex: 192.168.1.1)",
++        label = stringResource(Res.string.create_device_ip_label),
+         error = state.validationErrors["ip_address"]?.asString(),
+         modifier = Modifier.fillMaxWidth(),
+     )
+@@ -151,7 +170,7 @@ private fun CreateDeviceNetworkFields(
+     InfraMapTextField(
+         value = state.macAddress,
+         onValueChange = actions.onMacAddressChanged,
+-        label = "Endereço MAC (ex: 00:11:22:33:44:55)",
++        label = stringResource(Res.string.create_device_mac_label),
+         error = state.validationErrors["mac_address"]?.asString(),
+         modifier = Modifier.fillMaxWidth(),
+     )
+@@ -164,27 +183,23 @@ private fun CreateDeviceTypeField(
  ) {
-+    PlatformGlobalShortcuts(onTogglePalette)
-+
-     Box(
-         modifier =
-             modifier
-diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/PlatformGlobalShortcuts.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/PlatformGlobalShortcuts.kt
-new file mode 100644
-index 0000000..c994c00
---- /dev/null
-+++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/command/PlatformGlobalShortcuts.kt
-@@ -0,0 +1,6 @@
-+package com.inframap.frontend.ui.command
-+
-+import androidx.compose.runtime.Composable
-+
-+@Composable
-+expect fun PlatformGlobalShortcuts(onToggleCommandPalette: () -> Unit)
-diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModel.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModel.kt
-index 9f311c0..ed3658a 100644
---- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModel.kt
-+++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModel.kt
-@@ -152,64 +152,73 @@ class DashboardViewModel(
-         sseClient?.disconnect()
+     val deviceTypeOptions =
+         listOf(
+-            com.inframap.frontend.designsystem
+-                .ChipOption("router", "Router", Icons.Default.Router),
+-            com.inframap.frontend.designsystem
+-                .ChipOption("switch", "Switch", com.inframap.frontend.designsystem.InfraMapIcons.Lan),
+-            com.inframap.frontend.designsystem
+-                .ChipOption("server", "Server", com.inframap.frontend.designsystem.InfraMapIcons.Dns),
+-            com.inframap.frontend.designsystem
+-                .ChipOption("firewall", "Firewall", Icons.Default.Security),
++            ChipOption("router", "Router", Icons.Default.Router),
++            ChipOption("switch", "Switch", InfraMapIcons.Lan),
++            ChipOption("server", "Server", InfraMapIcons.Dns),
++            ChipOption("firewall", "Firewall", Icons.Default.Security),
+         )
+ 
+-    com.inframap.frontend.designsystem.InfraMapChoiceChipGroup(
++    InfraMapChoiceChipGroup(
+         options = deviceTypeOptions,
+         selected = state.deviceType,
+         onSelected = actions.onDeviceTypeChanged,
+-        label = "Tipo de Dispositivo",
++        label = stringResource(Res.string.create_device_type_label),
+         customOption =
+-            com.inframap.frontend.designsystem.ChipCustomOption(
+-                chipLabel = "Outro",
++            ChipCustomOption(
++                chipLabel = stringResource(Res.string.create_device_custom_type),
+                 chipIcon = Icons.Default.MoreHoriz,
+-                inputLabel = "Tipo Personalizado",
+-                inputPlaceholder = "ex: load_balancer",
++                inputLabel = stringResource(Res.string.create_device_custom_type_label),
++                inputPlaceholder = stringResource(Res.string.create_device_custom_type_placeholder),
+                 currentValue = state.deviceType,
+                 onValueChanged = actions.onDeviceTypeChanged,
+                 parseValue = { it },
+@@ -214,7 +229,7 @@ private fun CreateDeviceFormButtons(
+         verticalAlignment = Alignment.CenterVertically,
+     ) {
+         InfraMapOutlinedButton(
+-            text = "Cancelar",
++            text = stringResource(Res.string.create_device_cancel_button),
+             onClick = actions.onCancelClicked,
+         )
+         Spacer(modifier = Modifier.width(12.dp))
+@@ -225,7 +240,7 @@ private fun CreateDeviceFormButtons(
+             )
+         } else {
+             InfraMapButton(
+-                text = "Salvar Dispositivo",
++                text = stringResource(Res.string.create_device_submit_button),
+                 onClick = actions.onSubmitClicked,
+             )
+         }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/DeviceDetailScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/DeviceDetailScreen.kt
+index c3ccac8..cfbd1b2 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/DeviceDetailScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/DeviceDetailScreen.kt
+@@ -30,6 +30,30 @@ import com.inframap.frontend.designsystem.InfraMapDetailSkeleton
+ import com.inframap.frontend.designsystem.InfraMapOutlinedButton
+ import com.inframap.frontend.designsystem.InfraMapStatusBadge
+ import com.inframap.frontend.domain.model.Device
++import com.inframap.frontend.generated.resources.Res
++import com.inframap.frontend.generated.resources.common_cancel
++import com.inframap.frontend.generated.resources.device_detail_back
++import com.inframap.frontend.generated.resources.device_detail_created_at
++import com.inframap.frontend.generated.resources.device_detail_delete_action
++import com.inframap.frontend.generated.resources.device_detail_delete_confirm
++import com.inframap.frontend.generated.resources.device_detail_delete_dialog_title
++import com.inframap.frontend.generated.resources.device_detail_delete_processing
++import com.inframap.frontend.generated.resources.device_detail_edit
++import com.inframap.frontend.generated.resources.device_detail_hardware
++import com.inframap.frontend.generated.resources.device_detail_hostname
++import com.inframap.frontend.generated.resources.device_detail_id
++import com.inframap.frontend.generated.resources.device_detail_ip
++import com.inframap.frontend.generated.resources.device_detail_mac
++import com.inframap.frontend.generated.resources.device_detail_main_info
++import com.inframap.frontend.generated.resources.device_detail_manufacturer
++import com.inframap.frontend.generated.resources.device_detail_metadata
++import com.inframap.frontend.generated.resources.device_detail_model
++import com.inframap.frontend.generated.resources.device_detail_serial
++import com.inframap.frontend.generated.resources.device_detail_status
++import com.inframap.frontend.generated.resources.device_detail_type
++import com.inframap.frontend.generated.resources.device_detail_updated_at
++import com.inframap.frontend.generated.resources.devices_retry
++import org.jetbrains.compose.resources.stringResource
+ 
+ @Composable
+ fun DeviceDetailScreen(
+@@ -54,10 +78,15 @@ fun DeviceDetailScreen(
+ 
+         if (state.showDeleteDialog && state.device != null) {
+             InfraMapConfirmDialog(
+-                title = "Excluir Dispositivo",
+-                message = "Deseja realmente excluir o dispositivo '${state.device.hostname}'?",
+-                confirmText = if (state.isDeleting) "Excluindo..." else "Excluir",
+-                dismissText = "Cancelar",
++                title = stringResource(Res.string.device_detail_delete_dialog_title),
++                message = stringResource(Res.string.device_detail_delete_confirm, state.device.hostname),
++                confirmText =
++                    if (state.isDeleting) {
++                        stringResource(Res.string.device_detail_delete_processing)
++                    } else {
++                        stringResource(Res.string.device_detail_delete_action)
++                    },
++                dismissText = stringResource(Res.string.common_cancel),
+                 onConfirm = actions.onConfirmDelete,
+                 onDismiss = actions.onCancelDelete,
+             )
+@@ -81,7 +110,10 @@ private fun DeviceDetailErrorView(
+             style = MaterialTheme.typography.bodyLarge,
+         )
+         Spacer(modifier = Modifier.height(16.dp))
+-        InfraMapOutlinedButton(text = "Tentar Novamente", onClick = onRetryClicked)
++        InfraMapOutlinedButton(
++            text = stringResource(Res.string.devices_retry),
++            onClick = onRetryClicked,
++        )
      }
+ }
  
--    @Suppress("LongMethod")
-+    @Suppress("LongMethod", "TooGenericExceptionCaught", "SwallowedException")
-     private suspend fun fetchMetrics() {
-         val generation = metricsGeneration
--        coroutineScope {
--            val devicesDeferred = async { getDevicesUseCase(page = 1, perPage = 1) }
--            val stagingDeferred = async { getStagingDevicesUseCase(page = 1, perPage = 1) }
--            val healthDeferred = async { getHealthUseCase() }
--            val sourcesDeferred = async { getDiscoverySourcesUseCase() }
--            val subnetsDeferred = async { getSubnetsUseCase() }
-+        try {
-+            coroutineScope {
-+                val devicesDeferred = async { getDevicesUseCase(page = 1, perPage = 1) }
-+                val stagingDeferred = async { getStagingDevicesUseCase(page = 1, perPage = 1) }
-+                val healthDeferred = async { getHealthUseCase() }
-+                val sourcesDeferred = async { getDiscoverySourcesUseCase() }
-+                val subnetsDeferred = async { getSubnetsUseCase() }
+@@ -132,7 +164,7 @@ private fun DeviceDetailHeader(
+     ) {
+         Row(verticalAlignment = Alignment.CenterVertically) {
+             InfraMapOutlinedButton(
+-                text = "Voltar",
++                text = stringResource(Res.string.device_detail_back),
+                 onClick = onBackClicked,
+                 leadingIcon = Icons.AutoMirrored.Filled.ArrowBack,
+             )
+@@ -144,7 +176,7 @@ private fun DeviceDetailHeader(
+                     color = MaterialTheme.colorScheme.onBackground,
+                 )
+                 Text(
+-                    text = "ID: ${device.id}",
++                    text = stringResource(Res.string.device_detail_id, device.id),
+                     style =
+                         MaterialTheme.typography.bodySmall.copy(
+                             fontFamily = FontFamily.Monospace,
+@@ -156,12 +188,12 @@ private fun DeviceDetailHeader(
  
--            val devicesResult = devicesDeferred.await()
--            val stagingResult = stagingDeferred.await()
--            val healthResult = healthDeferred.await()
--            val sourcesResult = sourcesDeferred.await()
--            val subnetsResult = subnetsDeferred.await()
-+                val devicesResult = devicesDeferred.await()
-+                val stagingResult = stagingDeferred.await()
-+                val healthResult = healthDeferred.await()
-+                val sourcesResult = sourcesDeferred.await()
-+                val subnetsResult = subnetsDeferred.await()
+         Row {
+             InfraMapButton(
+-                text = "Editar",
++                text = stringResource(Res.string.device_detail_edit),
+                 onClick = { onEditClicked(device.id) },
+             )
+             Spacer(modifier = Modifier.width(12.dp))
+             InfraMapOutlinedButton(
+-                text = "Excluir",
++                text = stringResource(Res.string.device_detail_delete_action),
+                 onClick = onDeleteClicked,
+             )
+         }
+@@ -173,23 +205,23 @@ private fun DeviceMainInfoCard(device: Device) {
+     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+             Text(
+-                text = "Informações Principais",
++                text = stringResource(Res.string.device_detail_main_info),
+                 style = MaterialTheme.typography.titleLarge,
+                 color = MaterialTheme.colorScheme.onSurface,
+             )
+             Spacer(modifier = Modifier.height(16.dp))
  
--            if (generation != metricsGeneration) return@coroutineScope
-+                if (generation != metricsGeneration) return@coroutineScope
+-            DetailRow("Hostname", device.hostname)
+-            DetailRow("Endereço IP", device.ipAddress ?: "—", isMonospace = true)
+-            DetailRow("Endereço MAC", device.macAddress ?: "—", isMonospace = true)
+-            DetailRow("Tipo de Dispositivo", device.deviceType)
++            DetailRow(stringResource(Res.string.device_detail_hostname), device.hostname)
++            DetailRow(stringResource(Res.string.device_detail_ip), device.ipAddress ?: "—", isMonospace = true)
++            DetailRow(stringResource(Res.string.device_detail_mac), device.macAddress ?: "—", isMonospace = true)
++            DetailRow(stringResource(Res.string.device_detail_type), device.deviceType)
+             Row(
+                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                 horizontalArrangement = Arrangement.SpaceBetween,
+                 verticalAlignment = Alignment.CenterVertically,
+             ) {
+                 Text(
+-                    text = "Status",
++                    text = stringResource(Res.string.device_detail_status),
+                     style = MaterialTheme.typography.bodyMedium,
+                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                 )
+@@ -210,17 +242,17 @@ private fun DeviceHardwareCard(device: Device) {
+     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+             Text(
+-                text = "Hardware & Fabricante",
++                text = stringResource(Res.string.device_detail_hardware),
+                 style = MaterialTheme.typography.titleLarge,
+                 color = MaterialTheme.colorScheme.onSurface,
+             )
+             Spacer(modifier = Modifier.height(16.dp))
  
--            val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult, subnetsResult)
-+                val results = listOf(devicesResult, stagingResult, healthResult, sourcesResult, subnetsResult)
+-            DetailRow("Fabricante", device.manufacturer ?: "—")
+-            DetailRow("Modelo", device.model ?: "—")
+-            DetailRow("Número de Série", device.serialNumber ?: "—")
+-            DetailRow("Criado em", device.createdAt ?: "—")
+-            DetailRow("Atualizado em", device.updatedAt ?: "—")
++            DetailRow(stringResource(Res.string.device_detail_manufacturer), device.manufacturer ?: "—")
++            DetailRow(stringResource(Res.string.device_detail_model), device.model ?: "—")
++            DetailRow(stringResource(Res.string.device_detail_serial), device.serialNumber ?: "—")
++            DetailRow(stringResource(Res.string.device_detail_created_at), device.createdAt ?: "—")
++            DetailRow(stringResource(Res.string.device_detail_updated_at), device.updatedAt ?: "—")
+         }
+     }
+ }
+@@ -230,7 +262,7 @@ private fun DeviceMetadataCard(metadata: Map<String, String>) {
+     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+             Text(
+-                text = "Metadados",
++                text = stringResource(Res.string.device_detail_metadata),
+                 style = MaterialTheme.typography.titleLarge,
+                 color = MaterialTheme.colorScheme.onSurface,
+             )
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/DeviceListScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/DeviceListScreen.kt
+index 880b045..6c118ef 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/DeviceListScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/DeviceListScreen.kt
+@@ -31,9 +31,28 @@ import com.inframap.frontend.designsystem.InfraMapTextField
+ import com.inframap.frontend.designsystem.TableColumn
+ import com.inframap.frontend.domain.model.Device
+ import com.inframap.frontend.generated.resources.Res
++import com.inframap.frontend.generated.resources.common_cancel
++import com.inframap.frontend.generated.resources.devices_action_delete
++import com.inframap.frontend.generated.resources.devices_action_edit
++import com.inframap.frontend.generated.resources.devices_action_view
++import com.inframap.frontend.generated.resources.devices_col_actions
++import com.inframap.frontend.generated.resources.devices_col_hostname
++import com.inframap.frontend.generated.resources.devices_col_ip
++import com.inframap.frontend.generated.resources.devices_col_status
++import com.inframap.frontend.generated.resources.devices_col_type
+ import com.inframap.frontend.generated.resources.devices_create_button
++import com.inframap.frontend.generated.resources.devices_delete_action
++import com.inframap.frontend.generated.resources.devices_delete_confirm_message
++import com.inframap.frontend.generated.resources.devices_delete_dialog_title
++import com.inframap.frontend.generated.resources.devices_delete_error_retry
++import com.inframap.frontend.generated.resources.devices_delete_processing
+ import com.inframap.frontend.generated.resources.devices_empty_subtitle
+ import com.inframap.frontend.generated.resources.devices_empty_title
++import com.inframap.frontend.generated.resources.devices_new_button
++import com.inframap.frontend.generated.resources.devices_retry
++import com.inframap.frontend.generated.resources.devices_search_placeholder
++import com.inframap.frontend.generated.resources.devices_subtitle
++import com.inframap.frontend.generated.resources.devices_title
+ import org.jetbrains.compose.resources.stringResource
+ import kotlin.math.ceil
  
--            val networkError = results.firstOrNull { it is ApiResult.NetworkError }
--            if (networkError != null) {
--                handleMetricsError(
--                    mapError(networkError, UiText.Resource(Res.string.dashboard_error_load)),
--                    healthResult,
--                )
--                return@coroutineScope
--            }
-+                val networkError = results.firstOrNull { it is ApiResult.NetworkError }
-+                if (networkError != null) {
-+                    handleMetricsError(
-+                        mapError(networkError, UiText.Resource(Res.string.dashboard_error_load)),
-+                        healthResult,
-+                    )
-+                    return@coroutineScope
-+                }
+@@ -54,7 +73,7 @@ fun DeviceListScreen(
+                     InfraMapTextField(
+                         value = state.searchQuery,
+                         onValueChange = actions.onSearchQueryChanged,
+-                        label = "Buscar por hostname...",
++                        label = stringResource(Res.string.devices_search_placeholder),
+                         modifier = Modifier.fillMaxWidth(),
+                     )
+                 }
+@@ -82,17 +101,20 @@ fun DeviceListScreen(
+         if (state.deviceToDelete != null) {
+             val confirmMessage =
+                 if (state.deleteErrorMessage != null) {
+-                    "Erro ao excluir: ${state.deleteErrorMessage.asString()}\n\n" +
+-                        "Tem certeza que deseja tentar novamente?"
++                    stringResource(Res.string.devices_delete_error_retry, state.deleteErrorMessage.asString())
+                 } else {
+-                    "Tem certeza que deseja excluir o dispositivo '${state.deviceToDelete.hostname}'? " +
+-                        "Esta ação marca o dispositivo como excluído."
++                    stringResource(Res.string.devices_delete_confirm_message, state.deviceToDelete.hostname)
+                 }
+             InfraMapConfirmDialog(
+-                title = "Excluir Dispositivo",
++                title = stringResource(Res.string.devices_delete_dialog_title),
+                 message = confirmMessage,
+-                confirmText = if (state.isDeleting) "Excluindo..." else "Excluir",
+-                dismissText = "Cancelar",
++                confirmText =
++                    if (state.isDeleting) {
++                        stringResource(Res.string.devices_delete_processing)
++                    } else {
++                        stringResource(Res.string.devices_delete_action)
++                    },
++                dismissText = stringResource(Res.string.common_cancel),
+                 onConfirm = actions.onConfirmDelete,
+                 onDismiss = actions.onCancelDelete,
+             )
+@@ -109,19 +131,19 @@ private fun DeviceListHeader(onCreateClicked: () -> Unit) {
+     ) {
+         Column {
+             Text(
+-                text = "Dispositivos",
++                text = stringResource(Res.string.devices_title),
+                 style = MaterialTheme.typography.headlineMedium,
+                 color = MaterialTheme.colorScheme.onBackground,
+             )
+             Text(
+-                text = "Gerencie os ativos de infraestrutura da rede",
++                text = stringResource(Res.string.devices_subtitle),
+                 style = MaterialTheme.typography.bodyMedium,
+                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+             )
+         }
  
--            val errorResult = results.firstOrNull { it is ApiResult.Error }
--            if (errorResult != null) {
--                handleMetricsError(
--                    mapError(errorResult, UiText.Resource(Res.string.dashboard_error_load)),
--                    healthResult,
--                )
--                return@coroutineScope
--            }
-+                val errorResult = results.firstOrNull { it is ApiResult.Error }
-+                if (errorResult != null) {
-+                    handleMetricsError(
-+                        mapError(errorResult, UiText.Resource(Res.string.dashboard_error_load)),
-+                        healthResult,
-+                    )
-+                    return@coroutineScope
-+                }
+         InfraMapButton(
+-            text = "+ Novo Dispositivo",
++            text = stringResource(Res.string.devices_new_button),
+             onClick = onCreateClicked,
+         )
+     }
+@@ -144,7 +166,7 @@ private fun DeviceListErrorCard(
+             )
+             Spacer(modifier = Modifier.height(12.dp))
+             InfraMapOutlinedButton(
+-                text = "Tentar Novamente",
++                text = stringResource(Res.string.devices_retry),
+                 onClick = onRetryClicked,
+             )
+         }
+@@ -167,11 +189,11 @@ private fun DeviceListTableCard(
+     } else {
+         val columns =
+             listOf(
+-                TableColumn(header = "Hostname", weight = 2f),
+-                TableColumn(header = "IP", weight = 1.5f),
+-                TableColumn(header = "Tipo", weight = 1.2f),
+-                TableColumn(header = "Status", weight = 1f),
+-                TableColumn(header = "Ações", weight = 2f),
++                TableColumn(header = stringResource(Res.string.devices_col_hostname), weight = 2f),
++                TableColumn(header = stringResource(Res.string.devices_col_ip), weight = 1.5f),
++                TableColumn(header = stringResource(Res.string.devices_col_type), weight = 1.2f),
++                TableColumn(header = stringResource(Res.string.devices_col_status), weight = 1f),
++                TableColumn(header = stringResource(Res.string.devices_col_actions), weight = 2f),
+             )
  
--            val activeTotal = (devicesResult as? ApiResult.Success)?.data?.total ?: 0L
--            val stagedTotal = (stagingResult as? ApiResult.Success)?.data?.total ?: 0L
--            val healthData = (healthResult as? ApiResult.Success)?.data
--            val sourcesTotal = (sourcesResult as? ApiResult.Success)?.data?.size?.toLong() ?: 0L
--            val subnetsTotal = (subnetsResult as? ApiResult.Success)?.data?.total ?: 0L
-+                val activeTotal = (devicesResult as? ApiResult.Success)?.data?.total ?: 0L
-+                val stagedTotal = (stagingResult as? ApiResult.Success)?.data?.total ?: 0L
-+                val healthData = (healthResult as? ApiResult.Success)?.data
-+                val sourcesTotal = (sourcesResult as? ApiResult.Success)?.data?.size?.toLong() ?: 0L
-+                val subnetsTotal = (subnetsResult as? ApiResult.Success)?.data?.total ?: 0L
- 
-+                updateState {
-+                    it.copy(
-+                        totalActiveDevices = activeTotal,
-+                        totalStagedDevices = stagedTotal,
-+                        totalSubnets = subnetsTotal,
-+                        isSystemHealthy = healthData?.isHealthy,
-+                        systemVersion = healthData?.version ?: "",
-+                        totalDiscoverySources = sourcesTotal,
-+                        isLoading = false,
-+                        errorMessage = null,
-+                    )
-+                }
-+
-+                if (subnetsTotal == 0L) checkAutoSetup()
-+            }
-+        } catch (t: Throwable) {
-             updateState {
-                 it.copy(
--                    totalActiveDevices = activeTotal,
--                    totalStagedDevices = stagedTotal,
--                    totalSubnets = subnetsTotal,
--                    isSystemHealthy = healthData?.isHealthy,
--                    systemVersion = healthData?.version ?: "",
--                    totalDiscoverySources = sourcesTotal,
-                     isLoading = false,
--                    errorMessage = null,
-+                    errorMessage = UiText.Resource(Res.string.dashboard_error_load),
+         InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+@@ -238,17 +260,17 @@ private fun DeviceTableRowCell(
+                 verticalAlignment = Alignment.CenterVertically,
+             ) {
+                 InfraMapOutlinedButton(
+-                    text = "Ver",
++                    text = stringResource(Res.string.devices_action_view),
+                     onClick = { actions.onDeviceClicked(item.id) },
+                 )
+                 Spacer(modifier = Modifier.width(6.dp))
+                 InfraMapOutlinedButton(
+-                    text = "Editar",
++                    text = stringResource(Res.string.devices_action_edit),
+                     onClick = { actions.onEditDeviceClicked(item.id) },
+                 )
+                 Spacer(modifier = Modifier.width(6.dp))
+                 InfraMapOutlinedButton(
+-                    text = "Excluir",
++                    text = stringResource(Res.string.devices_action_delete),
+                     onClick = { actions.onDeleteDeviceClicked(item) },
                  )
              }
--
--            if (subnetsTotal == 0L) checkAutoSetup()
-         }
-     }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/EditDeviceScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/EditDeviceScreen.kt
+index 0c68481..81ddb9a 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/EditDeviceScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/devices/EditDeviceScreen.kt
+@@ -27,11 +27,35 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.unit.dp
++import com.inframap.frontend.designsystem.ChipCustomOption
++import com.inframap.frontend.designsystem.ChipOption
+ import com.inframap.frontend.designsystem.InfraMapButton
+ import com.inframap.frontend.designsystem.InfraMapCard
++import com.inframap.frontend.designsystem.InfraMapChoiceChipGroup
+ import com.inframap.frontend.designsystem.InfraMapFormSkeleton
++import com.inframap.frontend.designsystem.InfraMapIcons
+ import com.inframap.frontend.designsystem.InfraMapOutlinedButton
+ import com.inframap.frontend.designsystem.InfraMapTextField
++import com.inframap.frontend.generated.resources.Res
++import com.inframap.frontend.generated.resources.create_device_back_button
++import com.inframap.frontend.generated.resources.create_device_cancel_button
++import com.inframap.frontend.generated.resources.create_device_custom_type
++import com.inframap.frontend.generated.resources.create_device_custom_type_label
++import com.inframap.frontend.generated.resources.create_device_custom_type_placeholder
++import com.inframap.frontend.generated.resources.create_device_hostname_label
++import com.inframap.frontend.generated.resources.create_device_ip_label
++import com.inframap.frontend.generated.resources.create_device_mac_label
++import com.inframap.frontend.generated.resources.create_device_type_label
++import com.inframap.frontend.generated.resources.devices_retry
++import com.inframap.frontend.generated.resources.edit_device_form_title
++import com.inframap.frontend.generated.resources.edit_device_header_subtitle
++import com.inframap.frontend.generated.resources.edit_device_header_title
++import com.inframap.frontend.generated.resources.edit_device_status_active
++import com.inframap.frontend.generated.resources.edit_device_status_inactive
++import com.inframap.frontend.generated.resources.edit_device_status_label
++import com.inframap.frontend.generated.resources.edit_device_status_maintenance
++import com.inframap.frontend.generated.resources.edit_device_submit_button
++import org.jetbrains.compose.resources.stringResource
  
-diff --git a/frontend/src/commonTest/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModelTest.kt b/frontend/src/commonTest/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModelTest.kt
-index 250fb55..a331052 100644
---- a/frontend/src/commonTest/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModelTest.kt
-+++ b/frontend/src/commonTest/kotlin/com/inframap/frontend/ui/dashboard/DashboardViewModelTest.kt
-@@ -784,4 +784,21 @@ class DashboardViewModelTest {
-             kotlin.test.assertNotNull(vm.state.value.autoSetup.errorMessage)
-             vm.clear()
+ @Composable
+ fun EditDeviceScreen(
+@@ -50,7 +74,6 @@ fun EditDeviceScreen(
+                         .verticalScroll(rememberScrollState()),
+             ) {
+                 EditDeviceHeader(
+-                    deviceId = state.deviceId,
+                     onCancelClicked = actions.onCancelClicked,
+                 )
+ 
+@@ -71,25 +94,22 @@ fun EditDeviceScreen(
+ }
+ 
+ @Composable
+-private fun EditDeviceHeader(
+-    deviceId: String,
+-    onCancelClicked: () -> Unit,
+-) {
++private fun EditDeviceHeader(onCancelClicked: () -> Unit) {
+     Row(verticalAlignment = Alignment.CenterVertically) {
+         InfraMapOutlinedButton(
+-            text = "Voltar",
++            text = stringResource(Res.string.create_device_back_button),
+             onClick = onCancelClicked,
+             leadingIcon = Icons.AutoMirrored.Filled.ArrowBack,
+         )
+         Spacer(modifier = Modifier.width(16.dp))
+         Column {
+             Text(
+-                text = "Editar Dispositivo",
++                text = stringResource(Res.string.edit_device_header_title),
+                 style = MaterialTheme.typography.headlineMedium,
+                 color = MaterialTheme.colorScheme.onBackground,
+             )
+             Text(
+-                text = "Atualize as informações do ativo ID: $deviceId",
++                text = stringResource(Res.string.edit_device_header_subtitle),
+                 style = MaterialTheme.typography.bodyMedium,
+                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+             )
+@@ -114,7 +134,7 @@ private fun EditDeviceErrorCard(
+             )
+             Spacer(modifier = Modifier.height(12.dp))
+             InfraMapOutlinedButton(
+-                text = "Tentar Novamente",
++                text = stringResource(Res.string.devices_retry),
+                 onClick = onRetryClicked,
+             )
          }
+@@ -129,7 +149,7 @@ private fun EditDeviceFormCard(
+     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+         Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+             Text(
+-                text = "Informações do Ativo",
++                text = stringResource(Res.string.edit_device_form_title),
+                 style = MaterialTheme.typography.titleLarge,
+                 color = MaterialTheme.colorScheme.onSurface,
+             )
+@@ -166,7 +186,7 @@ private fun EditDeviceNetworkFields(
+     InfraMapTextField(
+         value = state.hostname,
+         onValueChange = actions.onHostnameChanged,
+-        label = "Hostname *",
++        label = stringResource(Res.string.create_device_hostname_label),
+         error = state.validationErrors["hostname"]?.asString(),
+         modifier = Modifier.fillMaxWidth(),
+     )
+@@ -176,7 +196,7 @@ private fun EditDeviceNetworkFields(
+     InfraMapTextField(
+         value = state.ipAddress,
+         onValueChange = actions.onIpAddressChanged,
+-        label = "Endereço IP",
++        label = stringResource(Res.string.create_device_ip_label),
+         error = state.validationErrors["ip_address"]?.asString(),
+         modifier = Modifier.fillMaxWidth(),
+     )
+@@ -186,7 +206,7 @@ private fun EditDeviceNetworkFields(
+     InfraMapTextField(
+         value = state.macAddress,
+         onValueChange = actions.onMacAddressChanged,
+-        label = "Endereço MAC",
++        label = stringResource(Res.string.create_device_mac_label),
+         error = state.validationErrors["mac_address"]?.asString(),
+         modifier = Modifier.fillMaxWidth(),
+     )
+@@ -199,27 +219,23 @@ private fun EditDeviceTypeField(
+ ) {
+     val deviceTypeOptions =
+         listOf(
+-            com.inframap.frontend.designsystem
+-                .ChipOption("router", "Router", Icons.Default.Router),
+-            com.inframap.frontend.designsystem
+-                .ChipOption("switch", "Switch", com.inframap.frontend.designsystem.InfraMapIcons.Lan),
+-            com.inframap.frontend.designsystem
+-                .ChipOption("server", "Server", com.inframap.frontend.designsystem.InfraMapIcons.Dns),
+-            com.inframap.frontend.designsystem
+-                .ChipOption("firewall", "Firewall", Icons.Default.Security),
++            ChipOption("router", "Router", Icons.Default.Router),
++            ChipOption("switch", "Switch", InfraMapIcons.Lan),
++            ChipOption("server", "Server", InfraMapIcons.Dns),
++            ChipOption("firewall", "Firewall", Icons.Default.Security),
+         )
+ 
+-    com.inframap.frontend.designsystem.InfraMapChoiceChipGroup(
++    InfraMapChoiceChipGroup(
+         options = deviceTypeOptions,
+         selected = state.deviceType,
+         onSelected = actions.onDeviceTypeChanged,
+-        label = "Tipo de Dispositivo",
++        label = stringResource(Res.string.create_device_type_label),
+         customOption =
+-            com.inframap.frontend.designsystem.ChipCustomOption(
+-                chipLabel = "Outro",
++            ChipCustomOption(
++                chipLabel = stringResource(Res.string.create_device_custom_type),
+                 chipIcon = Icons.Default.MoreHoriz,
+-                inputLabel = "Tipo Personalizado",
+-                inputPlaceholder = "ex: load_balancer",
++                inputLabel = stringResource(Res.string.create_device_custom_type_label),
++                inputPlaceholder = stringResource(Res.string.create_device_custom_type_placeholder),
+                 currentValue = state.deviceType,
+                 onValueChanged = actions.onDeviceTypeChanged,
+                 parseValue = { it },
+@@ -245,19 +261,16 @@ private fun EditDeviceStatusField(
+ ) {
+     val statusOptions =
+         listOf(
+-            com.inframap.frontend.designsystem
+-                .ChipOption("active", "Ativo", Icons.Default.CheckCircle),
+-            com.inframap.frontend.designsystem
+-                .ChipOption("inactive", "Inativo", Icons.Default.Error),
+-            com.inframap.frontend.designsystem
+-                .ChipOption("maintenance", "Manutenção", Icons.Default.Build),
++            ChipOption("active", stringResource(Res.string.edit_device_status_active), Icons.Default.CheckCircle),
++            ChipOption("inactive", stringResource(Res.string.edit_device_status_inactive), Icons.Default.Error),
++            ChipOption("maintenance", stringResource(Res.string.edit_device_status_maintenance), Icons.Default.Build),
+         )
+ 
+-    com.inframap.frontend.designsystem.InfraMapChoiceChipGroup(
++    InfraMapChoiceChipGroup(
+         options = statusOptions,
+         selected = state.status,
+         onSelected = actions.onStatusChanged,
+-        label = "Status",
++        label = stringResource(Res.string.edit_device_status_label),
+         modifier = Modifier.fillMaxWidth(),
+     )
+     if (state.validationErrors["status"] != null) {
+@@ -281,7 +294,7 @@ private fun EditDeviceFormButtons(
+         verticalAlignment = Alignment.CenterVertically,
+     ) {
+         InfraMapOutlinedButton(
+-            text = "Cancelar",
++            text = stringResource(Res.string.create_device_cancel_button),
+             onClick = actions.onCancelClicked,
+         )
+         Spacer(modifier = Modifier.width(12.dp))
+@@ -292,7 +305,7 @@ private fun EditDeviceFormButtons(
+             )
+         } else {
+             InfraMapButton(
+-                text = "Salvar Alterações",
++                text = stringResource(Res.string.edit_device_submit_button),
+                 onClick = actions.onSubmitClicked,
+             )
+         }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/discovery/DiscoveryListScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/discovery/DiscoveryListScreen.kt
+index 780f325..4e24a1f 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/discovery/DiscoveryListScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/discovery/DiscoveryListScreen.kt
+@@ -34,9 +34,25 @@ import com.inframap.frontend.designsystem.SourceStatus
+ import com.inframap.frontend.designsystem.TableColumn
+ import com.inframap.frontend.domain.model.DiscoverySource
+ import com.inframap.frontend.generated.resources.Res
++import com.inframap.frontend.generated.resources.common_cancel
++import com.inframap.frontend.generated.resources.devices_retry
++import com.inframap.frontend.generated.resources.discovery_action_delete
++import com.inframap.frontend.generated.resources.discovery_action_execute
++import com.inframap.frontend.generated.resources.discovery_col_actions
++import com.inframap.frontend.generated.resources.discovery_col_cidr
++import com.inframap.frontend.generated.resources.discovery_col_name
++import com.inframap.frontend.generated.resources.discovery_col_schedule
++import com.inframap.frontend.generated.resources.discovery_col_status
++import com.inframap.frontend.generated.resources.discovery_col_type
++import com.inframap.frontend.generated.resources.discovery_delete_confirm_message
++import com.inframap.frontend.generated.resources.discovery_delete_dialog_title
+ import com.inframap.frontend.generated.resources.discovery_empty_cta
+ import com.inframap.frontend.generated.resources.discovery_empty_subtitle
+ import com.inframap.frontend.generated.resources.discovery_empty_title
++import com.inframap.frontend.generated.resources.discovery_new_button
++import com.inframap.frontend.generated.resources.discovery_schedule_manual
++import com.inframap.frontend.generated.resources.discovery_subtitle
++import com.inframap.frontend.generated.resources.discovery_title
+ import org.jetbrains.compose.resources.stringResource
+ 
+ @Composable
+@@ -87,12 +103,10 @@ fun DiscoveryListScreen(
+ 
+         if (state.sourceToDelete != null) {
+             InfraMapConfirmDialog(
+-                title = "Excluir Fonte de Descoberta",
+-                message =
+-                    "Tem certeza que deseja excluir a fonte '${state.sourceToDelete.name}'? " +
+-                        "Os agendamentos associados serão removidos.",
+-                confirmText = "Excluir",
+-                dismissText = "Cancelar",
++                title = stringResource(Res.string.discovery_delete_dialog_title),
++                message = stringResource(Res.string.discovery_delete_confirm_message, state.sourceToDelete.name),
++                confirmText = stringResource(Res.string.discovery_action_delete),
++                dismissText = stringResource(Res.string.common_cancel),
+                 onConfirm = actions.onConfirmDelete,
+                 onDismiss = actions.onCancelDelete,
+             )
+@@ -138,19 +152,19 @@ private fun DiscoveryListHeader(onCreateClicked: () -> Unit) {
+     ) {
+         Column {
+             Text(
+-                text = "Fontes de Descoberta",
++                text = stringResource(Res.string.discovery_title),
+                 style = MaterialTheme.typography.headlineMedium,
+                 color = MaterialTheme.colorScheme.onBackground,
+             )
+             Text(
+-                text = "Gerencie as fontes de varredura automatica de rede",
++                text = stringResource(Res.string.discovery_subtitle),
+                 style = MaterialTheme.typography.bodyMedium,
+                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+             )
+         }
+ 
+         InfraMapButton(
+-            text = "+ Nova Fonte",
++            text = stringResource(Res.string.discovery_new_button),
+             onClick = onCreateClicked,
+         )
+     }
+@@ -173,7 +187,7 @@ private fun DiscoveryErrorCard(
+             )
+             Spacer(modifier = Modifier.height(16.dp))
+             InfraMapButton(
+-                text = "Tentar Novamente",
++                text = stringResource(Res.string.devices_retry),
+                 onClick = onRetryClicked,
+             )
+         }
+@@ -196,12 +210,12 @@ private fun DiscoveryTableCard(
+     } else {
+         val columns =
+             listOf(
+-                TableColumn(header = "Nome", weight = 2f),
+-                TableColumn(header = "Tipo", weight = 1.2f),
+-                TableColumn(header = "CIDR", weight = 1.5f),
+-                TableColumn(header = "Agendamento", weight = 1.5f),
+-                TableColumn(header = "Status", weight = 1f),
+-                TableColumn(header = "Acoes", weight = 2.5f),
++                TableColumn(header = stringResource(Res.string.discovery_col_name), weight = 2f),
++                TableColumn(header = stringResource(Res.string.discovery_col_type), weight = 1.2f),
++                TableColumn(header = stringResource(Res.string.discovery_col_cidr), weight = 1.5f),
++                TableColumn(header = stringResource(Res.string.discovery_col_schedule), weight = 1.5f),
++                TableColumn(header = stringResource(Res.string.discovery_col_status), weight = 1f),
++                TableColumn(header = stringResource(Res.string.discovery_col_actions), weight = 2.5f),
+             )
+ 
+         InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+@@ -246,7 +260,7 @@ private fun DiscoveryRowCell(
+             )
+         3 ->
+             Text(
+-                text = item.scheduleCron ?: "Manual",
++                text = item.scheduleCron ?: stringResource(Res.string.discovery_schedule_manual),
+                 style = MaterialTheme.typography.bodyMedium,
+                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+             )
+@@ -266,13 +280,13 @@ private fun DiscoveryRowCell(
+                 verticalAlignment = Alignment.CenterVertically,
+             ) {
+                 InfraMapOutlinedButton(
+-                    text = "Executar",
++                    text = stringResource(Res.string.discovery_action_execute),
+                     onClick = { actions.onTriggerRunClicked(item.id) },
+                     enabled = item.lastStatus != "running",
+                 )
+                 Spacer(modifier = Modifier.width(6.dp))
+                 InfraMapOutlinedButton(
+-                    text = "Excluir",
++                    text = stringResource(Res.string.discovery_action_delete),
+                     onClick = { actions.onDeleteSourceClicked(item) },
+                 )
+             }
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/staging/StagingScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/staging/StagingScreen.kt
+index 5531ccc..387f00e 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/staging/StagingScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/staging/StagingScreen.kt
+@@ -30,9 +30,27 @@ import com.inframap.frontend.designsystem.InfraMapTableSkeleton
+ import com.inframap.frontend.designsystem.TableColumn
+ import com.inframap.frontend.domain.model.StagingDevice
+ import com.inframap.frontend.generated.resources.Res
++import com.inframap.frontend.generated.resources.common_cancel
++import com.inframap.frontend.generated.resources.staging_action_approve
++import com.inframap.frontend.generated.resources.staging_action_processing
++import com.inframap.frontend.generated.resources.staging_col_actions
++import com.inframap.frontend.generated.resources.staging_col_hostname
++import com.inframap.frontend.generated.resources.staging_col_ip
++import com.inframap.frontend.generated.resources.staging_col_mac
++import com.inframap.frontend.generated.resources.staging_col_status
++import com.inframap.frontend.generated.resources.staging_col_type
+ import com.inframap.frontend.generated.resources.staging_configure_discovery
++import com.inframap.frontend.generated.resources.staging_dismiss_action
++import com.inframap.frontend.generated.resources.staging_dismiss_confirm_message
++import com.inframap.frontend.generated.resources.staging_dismiss_dialog_title
++import com.inframap.frontend.generated.resources.staging_dismiss_error_prefix
++import com.inframap.frontend.generated.resources.staging_dismiss_processing
+ import com.inframap.frontend.generated.resources.staging_empty_subtitle
+ import com.inframap.frontend.generated.resources.staging_empty_title
++import com.inframap.frontend.generated.resources.staging_header
++import com.inframap.frontend.generated.resources.staging_retry
++import com.inframap.frontend.generated.resources.staging_subtitle
++import com.inframap.frontend.generated.resources.staging_value_empty
+ import org.jetbrains.compose.resources.stringResource
+ import kotlin.math.ceil
+ 
+@@ -68,18 +86,21 @@ fun StagingScreen(
+         if (state.deviceToDismiss != null) {
+             val confirmMessage =
+                 if (state.actionErrorMessage != null) {
+-                    "Erro ao descartar: ${state.actionErrorMessage.asString()}\n\n" +
+-                        "Deseja tentar novamente?"
++                    stringResource(Res.string.staging_dismiss_error_prefix, state.actionErrorMessage.asString())
+                 } else {
+-                    "Tem certeza que deseja descartar o dispositivo '${state.deviceToDismiss.hostname}' " +
+-                        "da fila de staging?"
++                    stringResource(Res.string.staging_dismiss_confirm_message, state.deviceToDismiss.hostname)
+                 }
+ 
+             InfraMapConfirmDialog(
+-                title = "Descartar Dispositivo em Staging",
++                title = stringResource(Res.string.staging_dismiss_dialog_title),
+                 message = confirmMessage,
+-                confirmText = if (state.isProcessingAction) "Descartando..." else "Descartar",
+-                dismissText = "Cancelar",
++                confirmText =
++                    if (state.isProcessingAction) {
++                        stringResource(Res.string.staging_dismiss_processing)
++                    } else {
++                        stringResource(Res.string.staging_dismiss_action)
++                    },
++                dismissText = stringResource(Res.string.common_cancel),
+                 onConfirm = actions.onConfirmDismiss,
+                 onDismiss = actions.onCancelDismiss,
+             )
+@@ -91,12 +112,12 @@ fun StagingScreen(
+ private fun StagingHeader() {
+     Column {
+         Text(
+-            text = "Fila de Staging",
++            text = stringResource(Res.string.staging_header),
+             style = MaterialTheme.typography.headlineMedium,
+             color = MaterialTheme.colorScheme.onBackground,
+         )
+         Text(
+-            text = "Dispositivos não verificados descobertos na rede aguardando aprovação",
++            text = stringResource(Res.string.staging_subtitle),
+             style = MaterialTheme.typography.bodyMedium,
+             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+         )
+@@ -120,7 +141,7 @@ private fun StagingErrorCard(
+             )
+             Spacer(modifier = Modifier.height(16.dp))
+             InfraMapButton(
+-                text = "Tentar Novamente",
++                text = stringResource(Res.string.staging_retry),
+                 onClick = onRetryClicked,
+             )
+         }
+@@ -143,12 +164,12 @@ private fun StagingTableCard(
+     } else {
+         val columns =
+             listOf(
+-                TableColumn(header = "Hostname", weight = 2f),
+-                TableColumn(header = "Endereço IP", weight = 1.5f),
+-                TableColumn(header = "MAC", weight = 1.5f),
+-                TableColumn(header = "Tipo", weight = 1.2f),
+-                TableColumn(header = "Status", weight = 1f),
+-                TableColumn(header = "Ações", weight = 2.5f),
++                TableColumn(header = stringResource(Res.string.staging_col_hostname), weight = 2f),
++                TableColumn(header = stringResource(Res.string.staging_col_ip), weight = 1.5f),
++                TableColumn(header = stringResource(Res.string.staging_col_mac), weight = 1.5f),
++                TableColumn(header = stringResource(Res.string.staging_col_type), weight = 1.2f),
++                TableColumn(header = stringResource(Res.string.staging_col_status), weight = 1f),
++                TableColumn(header = stringResource(Res.string.staging_col_actions), weight = 2.5f),
+             )
+ 
+         val totalPages = maxOf(1, ceil(state.totalItems.toDouble() / state.perPage.toDouble()).toInt())
+@@ -193,14 +214,14 @@ private fun StagingRowCell(
+             )
+         1 ->
+             Text(
+-                text = item.ipAddress ?: "-",
++                text = item.ipAddress ?: stringResource(Res.string.staging_value_empty),
+                 style = MaterialTheme.typography.bodyMedium,
+                 color = MaterialTheme.colorScheme.onSurface,
+                 fontFamily = FontFamily.Monospace,
+             )
+         2 ->
+             Text(
+-                text = item.macAddress ?: "-",
++                text = item.macAddress ?: stringResource(Res.string.staging_value_empty),
+                 style = MaterialTheme.typography.bodyMedium,
+                 color = MaterialTheme.colorScheme.onSurface,
+                 fontFamily = FontFamily.Monospace,
+@@ -216,13 +237,18 @@ private fun StagingRowCell(
+         5 ->
+             Row {
+                 InfraMapButton(
+-                    text = if (isActioningThis) "Processando..." else "Aprovar",
++                    text =
++                        if (isActioningThis) {
++                            stringResource(Res.string.staging_action_processing)
++                        } else {
++                            stringResource(Res.string.staging_action_approve)
++                        },
+                     onClick = { actions.onApproveClicked(item) },
+                     enabled = !state.isProcessingAction,
+                 )
+                 Spacer(modifier = Modifier.width(8.dp))
+                 InfraMapOutlinedButton(
+-                    text = "Descartar",
++                    text = stringResource(Res.string.staging_dismiss_action),
+                     onClick = { actions.onDismissClicked(item) },
+                     enabled = !state.isProcessingAction,
+                 )
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreen.kt
+index 15d4a5d..f7e9d15 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreen.kt
+@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.filled.KeyboardArrowDown
+ import androidx.compose.material.icons.filled.KeyboardArrowUp
+ import androidx.compose.material.icons.filled.Sensors
+-import androidx.compose.material3.Checkbox
+ import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+@@ -32,9 +31,24 @@ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.unit.dp
+ import com.inframap.frontend.designsystem.InfraMapButton
+ import com.inframap.frontend.designsystem.InfraMapCard
++import com.inframap.frontend.designsystem.InfraMapCheckboxRow
+ import com.inframap.frontend.designsystem.InfraMapOutlinedButton
+ import com.inframap.frontend.designsystem.InfraMapTextField
+ import com.inframap.frontend.domain.model.NetworkInterface
++import com.inframap.frontend.generated.resources.Res
++import com.inframap.frontend.generated.resources.create_device_cancel_button
++import com.inframap.frontend.generated.resources.create_subnet_cidr_label
++import com.inframap.frontend.generated.resources.create_subnet_description_label
++import com.inframap.frontend.generated.resources.create_subnet_discovery_toggle
++import com.inframap.frontend.generated.resources.create_subnet_gateway_label
++import com.inframap.frontend.generated.resources.create_subnet_header_subtitle
++import com.inframap.frontend.generated.resources.create_subnet_header_title
++import com.inframap.frontend.generated.resources.create_subnet_name_label
++import com.inframap.frontend.generated.resources.create_subnet_submit
++import com.inframap.frontend.generated.resources.create_subnet_submitting
++import com.inframap.frontend.generated.resources.create_subnet_suggestions_toggle
++import com.inframap.frontend.generated.resources.create_subnet_vlan_label
++import org.jetbrains.compose.resources.stringResource
+ 
+ @Composable
+ fun CreateSubnetScreen(
+@@ -83,7 +97,7 @@ private fun CreateSubnetFormFields(
+         InfraMapTextField(
+             value = state.name,
+             onValueChange = actions.onNameChanged,
+-            label = "Nome da Subrede *",
++            label = stringResource(Res.string.create_subnet_name_label),
+             error = state.validationErrors["name"]?.asString(),
+             modifier = Modifier.fillMaxWidth(),
+         )
+@@ -93,7 +107,7 @@ private fun CreateSubnetFormFields(
+         InfraMapTextField(
+             value = state.cidr,
+             onValueChange = actions.onCidrChanged,
+-            label = "CIDR (ex: 192.168.1.0/24) *",
++            label = stringResource(Res.string.create_subnet_cidr_label),
+             error = state.validationErrors["cidr"]?.asString(),
+             modifier = Modifier.fillMaxWidth(),
+         )
+@@ -116,15 +130,16 @@ private fun CreateSubnetFormFields(
+         InfraMapTextField(
+             value = state.description,
+             onValueChange = actions.onDescriptionChanged,
+-            label = "Descrição (Opcional)",
++            label = stringResource(Res.string.create_subnet_description_label),
+             modifier = Modifier.fillMaxWidth(),
+         )
+ 
+         Spacer(modifier = Modifier.height(16.dp))
+ 
+-        CreateSubnetDiscoveryToggle(
+-            discoveryEnabled = state.discoveryEnabled,
+-            onDiscoveryEnabledChanged = actions.onDiscoveryEnabledChanged,
++        InfraMapCheckboxRow(
++            checked = state.discoveryEnabled,
++            onCheckedChange = actions.onDiscoveryEnabledChanged,
++            label = stringResource(Res.string.create_subnet_discovery_toggle),
+         )
+     }
+ }
+@@ -149,7 +164,7 @@ private fun InterfaceSuggestionsPanel(
+             )
+             Spacer(modifier = Modifier.width(4.dp))
+             Text(
+-                text = "Preencher a partir de interface detectada",
++                text = stringResource(Res.string.create_subnet_suggestions_toggle),
+                 style = MaterialTheme.typography.labelMedium,
+                 color = MaterialTheme.colorScheme.primary,
+                 modifier = Modifier.weight(1f),
+@@ -227,7 +242,7 @@ private fun CreateSubnetVlanGatewayInputs(
+         InfraMapTextField(
+             value = state.vlanId,
+             onValueChange = actions.onVlanIdChanged,
+-            label = "VLAN ID (Opcional)",
++            label = stringResource(Res.string.create_subnet_vlan_label),
+             error = state.validationErrors["vlan_id"]?.asString(),
+             modifier = Modifier.weight(1f),
+         )
+@@ -237,35 +252,13 @@ private fun CreateSubnetVlanGatewayInputs(
+         InfraMapTextField(
+             value = state.gatewayIp,
+             onValueChange = actions.onGatewayIpChanged,
+-            label = "Gateway IP (Opcional)",
++            label = stringResource(Res.string.create_subnet_gateway_label),
+             error = state.validationErrors["gateway_ip"]?.asString(),
+             modifier = Modifier.weight(1f),
+         )
+     }
+ }
+ 
+-@Composable
+-private fun CreateSubnetDiscoveryToggle(
+-    discoveryEnabled: Boolean,
+-    onDiscoveryEnabledChanged: (Boolean) -> Unit,
+-) {
+-    Row(
+-        verticalAlignment = Alignment.CenterVertically,
+-        modifier = Modifier.fillMaxWidth(),
+-    ) {
+-        Checkbox(
+-            checked = discoveryEnabled,
+-            onCheckedChange = onDiscoveryEnabledChanged,
+-        )
+-        Spacer(modifier = Modifier.width(8.dp))
+-        Text(
+-            text = "Habilitar Varredura Automática de Descoberta",
+-            style = MaterialTheme.typography.bodyMedium,
+-            color = MaterialTheme.colorScheme.onSurface,
+-        )
+-    }
+-}
+-
+ @Composable
+ private fun CreateSubnetFormActions(
+     isSubmitting: Boolean,
+@@ -277,13 +270,18 @@ private fun CreateSubnetFormActions(
+         horizontalArrangement = Arrangement.End,
+     ) {
+         InfraMapOutlinedButton(
+-            text = "Cancelar",
++            text = stringResource(Res.string.create_device_cancel_button),
+             onClick = onCancelClicked,
+             enabled = !isSubmitting,
+         )
+         Spacer(modifier = Modifier.width(12.dp))
+         InfraMapButton(
+-            text = if (isSubmitting) "Cadastrando..." else "Cadastrar Subrede",
++            text =
++                if (isSubmitting) {
++                    stringResource(Res.string.create_subnet_submitting)
++                } else {
++                    stringResource(Res.string.create_subnet_submit)
++                },
+             onClick = onSubmitClicked,
+             enabled = !isSubmitting,
+         )
+@@ -294,12 +292,12 @@ private fun CreateSubnetFormActions(
+ private fun CreateSubnetHeader() {
+     Column {
+         Text(
+-            text = "Nova Subrede",
++            text = stringResource(Res.string.create_subnet_header_title),
+             style = MaterialTheme.typography.headlineMedium,
+             color = MaterialTheme.colorScheme.onBackground,
+         )
+         Text(
+-            text = "Cadastre uma nova faixa de subrede para segmentação e varredura de ativos",
++            text = stringResource(Res.string.create_subnet_header_subtitle),
+             style = MaterialTheme.typography.bodyMedium,
+             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+         )
+diff --git a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/SubnetsScreen.kt b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/SubnetsScreen.kt
+index 7f50dc6..98d968f 100644
+--- a/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/SubnetsScreen.kt
++++ b/frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/SubnetsScreen.kt
+@@ -33,9 +33,22 @@ import com.inframap.frontend.designsystem.TableColumn
+ import com.inframap.frontend.domain.model.NetworkInterface
+ import com.inframap.frontend.domain.model.Subnet
+ import com.inframap.frontend.generated.resources.Res
++import com.inframap.frontend.generated.resources.devices_retry
++import com.inframap.frontend.generated.resources.subnets_col_auto_discovery
++import com.inframap.frontend.generated.resources.subnets_col_cidr
++import com.inframap.frontend.generated.resources.subnets_col_description
++import com.inframap.frontend.generated.resources.subnets_col_gateway
++import com.inframap.frontend.generated.resources.subnets_col_name
++import com.inframap.frontend.generated.resources.subnets_col_vlan
+ import com.inframap.frontend.generated.resources.subnets_create_button
++import com.inframap.frontend.generated.resources.subnets_detected_interface_add
++import com.inframap.frontend.generated.resources.subnets_detected_interfaces_desc
++import com.inframap.frontend.generated.resources.subnets_detected_interfaces_title
+ import com.inframap.frontend.generated.resources.subnets_empty_subtitle
+ import com.inframap.frontend.generated.resources.subnets_empty_title
++import com.inframap.frontend.generated.resources.subnets_new_button
++import com.inframap.frontend.generated.resources.subnets_subtitle
++import com.inframap.frontend.generated.resources.subnets_title
+ import org.jetbrains.compose.resources.stringResource
+ 
+ @Composable
+@@ -78,19 +91,19 @@ private fun SubnetsHeader(onCreateClicked: () -> Unit) {
+     ) {
+         Column {
+             Text(
+-                text = "Subredes",
++                text = stringResource(Res.string.subnets_title),
+                 style = MaterialTheme.typography.headlineMedium,
+                 color = MaterialTheme.colorScheme.onBackground,
+             )
+             Text(
+-                text = "Gerencie as faixas de rede e configurações de varredura",
++                text = stringResource(Res.string.subnets_subtitle),
+                 style = MaterialTheme.typography.bodyMedium,
+                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+             )
+         }
+ 
+         InfraMapButton(
+-            text = "+ Nova Subrede",
++            text = stringResource(Res.string.subnets_new_button),
+             onClick = onCreateClicked,
+         )
+     }
+@@ -113,7 +126,7 @@ private fun SubnetsErrorCard(
+             )
+             Spacer(modifier = Modifier.height(16.dp))
+             InfraMapButton(
+-                text = "Tentar Novamente",
++                text = stringResource(Res.string.devices_retry),
+                 onClick = onRetryClicked,
+             )
+         }
+@@ -146,12 +159,12 @@ private fun SubnetsTableCard(
+     } else {
+         val columns =
+             listOf(
+-                TableColumn(header = "Nome", weight = 2f),
+-                TableColumn(header = "CIDR", weight = 1.8f),
+-                TableColumn(header = "VLAN ID", weight = 1f),
+-                TableColumn(header = "Gateway", weight = 1.5f),
+-                TableColumn(header = "Auto-Descoberta", weight = 1.5f),
+-                TableColumn(header = "Descrição", weight = 2f),
++                TableColumn(header = stringResource(Res.string.subnets_col_name), weight = 2f),
++                TableColumn(header = stringResource(Res.string.subnets_col_cidr), weight = 1.8f),
++                TableColumn(header = stringResource(Res.string.subnets_col_vlan), weight = 1f),
++                TableColumn(header = stringResource(Res.string.subnets_col_gateway), weight = 1.5f),
++                TableColumn(header = stringResource(Res.string.subnets_col_auto_discovery), weight = 1.5f),
++                TableColumn(header = stringResource(Res.string.subnets_col_description), weight = 2f),
+             )
+ 
+         InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+@@ -187,14 +200,12 @@ private fun DetectedInterfacesCard(
+                 Spacer(modifier = Modifier.width(8.dp))
+                 Column {
+                     Text(
+-                        text = "Interfaces detectadas",
++                        text = stringResource(Res.string.subnets_detected_interfaces_title),
+                         style = MaterialTheme.typography.titleSmall,
+                         color = MaterialTheme.colorScheme.onSurface,
+                     )
+                     Text(
+-                        text =
+-                            "Interfaces de rede encontradas neste servidor." +
+-                                " Adicione como sub-rede para iniciar a varredura.",
++                        text = stringResource(Res.string.subnets_detected_interfaces_desc),
+                         style = MaterialTheme.typography.bodySmall,
+                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                     )
+@@ -237,7 +248,7 @@ private fun DetectedInterfaceRow(
+             )
+         }
+         InfraMapOutlinedButton(
+-            text = "Adicionar",
++            text = stringResource(Res.string.subnets_detected_interface_add),
+             onClick = onAddClicked,
+         )
+     }
+diff --git a/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/CreateDeviceScreenTest.kt b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/CreateDeviceScreenTest.kt
+new file mode 100644
+index 0000000..b53c900
+--- /dev/null
++++ b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/CreateDeviceScreenTest.kt
+@@ -0,0 +1,48 @@
++package com.inframap.frontend.ui.devices
++
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.runComposeUiTest
++import com.inframap.frontend.designsystem.InfraMapTheme
++import org.junit.jupiter.api.Assertions.assertTrue
++import org.junit.jupiter.api.Test
++
++@OptIn(ExperimentalTestApi::class)
++class CreateDeviceScreenTest {
++    @Test
++    fun rendersFormFieldsAndButtons() =
++        runComposeUiTest {
++            var submitClicked = false
++            var cancelClicked = false
++
++            setContent {
++                InfraMapTheme {
++                    CreateDeviceScreen(
++                        state = CreateDeviceUiState(),
++                        actions =
++                            CreateDeviceActions(
++                                onHostnameChanged = {},
++                                onIpAddressChanged = {},
++                                onMacAddressChanged = {},
++                                onDeviceTypeChanged = {},
++                                onSubmitClicked = { submitClicked = true },
++                                onCancelClicked = { cancelClicked = true },
++                            ),
++                    )
++                }
++            }
++
++            onNodeWithText("New Device").assertIsDisplayed()
++            onNodeWithText("Device Details").assertIsDisplayed()
++            onNodeWithText("Hostname *").assertIsDisplayed()
++            onNodeWithText("Device Type").assertIsDisplayed()
++
++            onNodeWithText("Cancel").performClick()
++            assertTrue(cancelClicked)
++
++            onNodeWithText("Save Device").performClick()
++            assertTrue(submitClicked)
++        }
++}
+diff --git a/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/DeviceDetailScreenTest.kt b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/DeviceDetailScreenTest.kt
+new file mode 100644
+index 0000000..8843b6f
+--- /dev/null
++++ b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/DeviceDetailScreenTest.kt
+@@ -0,0 +1,70 @@
++package com.inframap.frontend.ui.devices
++
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.runComposeUiTest
++import com.inframap.frontend.designsystem.InfraMapTheme
++import com.inframap.frontend.domain.model.Device
++import org.junit.jupiter.api.Assertions.assertEquals
++import org.junit.jupiter.api.Assertions.assertTrue
++import org.junit.jupiter.api.Test
++
++@OptIn(ExperimentalTestApi::class)
++class DeviceDetailScreenTest {
++    @Test
++    fun rendersDeviceDetailsAndInteractions() =
++        runComposeUiTest {
++            val device =
++                Device(
++                    id = "dev-42",
++                    hostname = "core-switch-01",
++                    ipAddress = "10.0.0.1",
++                    macAddress = "00:11:22:33:44:55",
++                    deviceType = "Switch",
++                    status = "active",
++                    manufacturer = "Cisco",
++                    model = "Catalyst 9300",
++                    serialNumber = "SN123456",
++                    createdAt = "2026-01-01",
++                    updatedAt = "2026-01-02",
++                )
++            var backClicked = false
++            var editClickedId: String? = null
++            var deleteClicked = false
++
++            setContent {
++                InfraMapTheme {
++                    DeviceDetailScreen(
++                        state = DeviceDetailUiState(device = device, isLoading = false),
++                        actions =
++                            DeviceDetailActions(
++                                onBackClicked = { backClicked = true },
++                                onEditClicked = { editClickedId = it },
++                                onDeleteClicked = { deleteClicked = true },
++                                onConfirmDelete = {},
++                                onCancelDelete = {},
++                                onRetryClicked = {},
++                            ),
++                    )
++                }
++            }
++
++            onNodeWithText("core-switch-01").assertIsDisplayed()
++            onNodeWithText("ID: dev-42").assertIsDisplayed()
++            onNodeWithText("Main Information").assertIsDisplayed()
++            onNodeWithText("Hardware & Manufacturer").assertIsDisplayed()
++            onNodeWithText("Cisco").assertIsDisplayed()
++            onNodeWithText("Catalyst 9300").assertIsDisplayed()
++
++            onNodeWithText("Back").performClick()
++            assertTrue(backClicked)
++
++            onNodeWithText("Edit").performClick()
++            assertEquals("dev-42", editClickedId)
++
++            onNodeWithText("Delete").performClick()
++            assertTrue(deleteClicked)
++        }
++}
+diff --git a/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/DeviceListScreenTest.kt b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/DeviceListScreenTest.kt
+new file mode 100644
+index 0000000..778f2d3
+--- /dev/null
++++ b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/DeviceListScreenTest.kt
+@@ -0,0 +1,96 @@
++package com.inframap.frontend.ui.devices
++
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.runComposeUiTest
++import com.inframap.frontend.designsystem.InfraMapTheme
++import com.inframap.frontend.domain.model.Device
++import org.junit.jupiter.api.Assertions.assertEquals
++import org.junit.jupiter.api.Test
++
++@OptIn(ExperimentalTestApi::class)
++class DeviceListScreenTest {
++    private fun testActions(
++        onDeviceClicked: (String) -> Unit = {},
++        onEditDeviceClicked: (String) -> Unit = {},
++        onDeleteDeviceClicked: (Device) -> Unit = {},
++    ) = DeviceListActions(
++        onSearchQueryChanged = {},
++        onPageChanged = {},
++        onDeviceClicked = onDeviceClicked,
++        onCreateDeviceClicked = {},
++        onEditDeviceClicked = onEditDeviceClicked,
++        onDeleteDeviceClicked = onDeleteDeviceClicked,
++        onConfirmDelete = {},
++        onCancelDelete = {},
++        onRetryClicked = {},
++        onDismissToast = {},
++        onDismissDeleteError = {},
++    )
 +
 +    @Test
-+    fun loadDataSetsLoadingFalseOnUnexpectedException() =
-+        runTest {
-+            val throwingDeviceRepo =
-+                FakeDeviceRepository(
-+                    onGetDevices = { throw IllegalStateException("Unexpected WASM exception") },
++    fun rendersEmptyStateWhenNoDevices() =
++        runComposeUiTest {
++            setContent {
++                InfraMapTheme {
++                    DeviceListScreen(
++                        state = DeviceListUiState(devices = emptyList(), isLoading = false),
++                        actions = testActions(),
++                    )
++                }
++            }
++
++            onNodeWithText("Devices").assertIsDisplayed()
++            onNodeWithText("+ New Device").assertIsDisplayed()
++            onNodeWithText("No devices in inventory").assertIsDisplayed()
++        }
++
++    @Test
++    fun rendersDeviceTableAndTriggersActions() =
++        runComposeUiTest {
++            val sampleDevice =
++                Device(
++                    id = "dev-1",
++                    hostname = "core-router-01",
++                    ipAddress = "192.168.1.1",
++                    macAddress = "AA:BB:CC:DD:EE:01",
++                    deviceType = "Router",
++                    status = "active",
++                )
++            var clickedDeviceId: String? = null
++            var editedDeviceId: String? = null
++            var deletedDevice: Device? = null
++
++            setContent {
++                InfraMapTheme {
++                    DeviceListScreen(
++                        state =
++                            DeviceListUiState(
++                                devices = listOf(sampleDevice),
++                                totalItems = 1,
++                                isLoading = false,
++                            ),
++                        actions =
++                            testActions(
++                                onDeviceClicked = { clickedDeviceId = it },
++                                onEditDeviceClicked = { editedDeviceId = it },
++                                onDeleteDeviceClicked = { deletedDevice = it },
++                            ),
++                    )
++                }
++            }
++
++            onNodeWithText("core-router-01").assertIsDisplayed()
++            onNodeWithText("192.168.1.1").assertIsDisplayed()
++            onNodeWithText("View").performClick()
++            assertEquals("dev-1", clickedDeviceId)
++
++            onNodeWithText("Edit").performClick()
++            assertEquals("dev-1", editedDeviceId)
++
++            onNodeWithText("Delete").performClick()
++            assertEquals("dev-1", deletedDevice?.id)
++        }
++}
+diff --git a/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/EditDeviceScreenTest.kt b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/EditDeviceScreenTest.kt
+new file mode 100644
+index 0000000..058b34f
+--- /dev/null
++++ b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/devices/EditDeviceScreenTest.kt
+@@ -0,0 +1,55 @@
++package com.inframap.frontend.ui.devices
++
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.runComposeUiTest
++import com.inframap.frontend.designsystem.InfraMapTheme
++import org.junit.jupiter.api.Assertions.assertTrue
++import org.junit.jupiter.api.Test
++
++@OptIn(ExperimentalTestApi::class)
++class EditDeviceScreenTest {
++    @Test
++    fun rendersEditFormAndTriggersActions() =
++        runComposeUiTest {
++            var submitClicked = false
++            var cancelClicked = false
++
++            setContent {
++                InfraMapTheme {
++                    EditDeviceScreen(
++                        state =
++                            EditDeviceUiState(
++                                deviceId = "dev-100",
++                                hostname = "switch-edge",
++                                status = "active",
++                                isLoading = false,
++                            ),
++                        actions =
++                            EditDeviceActions(
++                                onHostnameChanged = {},
++                                onIpAddressChanged = {},
++                                onMacAddressChanged = {},
++                                onDeviceTypeChanged = {},
++                                onStatusChanged = {},
++                                onSubmitClicked = { submitClicked = true },
++                                onCancelClicked = { cancelClicked = true },
++                                onRetryClicked = {},
++                            ),
++                    )
++                }
++            }
++
++            onNodeWithText("Edit Device").assertIsDisplayed()
++            onNodeWithText("Device Details").assertIsDisplayed()
++            onNodeWithText("Status").assertIsDisplayed()
++
++            onNodeWithText("Cancel").performClick()
++            assertTrue(cancelClicked)
++
++            onNodeWithText("Save Changes").performClick()
++            assertTrue(submitClicked)
++        }
++}
+diff --git a/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/discovery/DiscoveryListScreenTest.kt b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/discovery/DiscoveryListScreenTest.kt
+new file mode 100644
+index 0000000..c8a1e89
+--- /dev/null
++++ b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/discovery/DiscoveryListScreenTest.kt
+@@ -0,0 +1,87 @@
++package com.inframap.frontend.ui.discovery
++
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.runComposeUiTest
++import com.inframap.frontend.designsystem.InfraMapTheme
++import com.inframap.frontend.domain.model.DiscoverySource
++import org.junit.jupiter.api.Assertions.assertEquals
++import org.junit.jupiter.api.Test
++
++@OptIn(ExperimentalTestApi::class)
++class DiscoveryListScreenTest {
++    @Test
++    fun rendersEmptyStateWhenNoSources() =
++        runComposeUiTest {
++            setContent {
++                InfraMapTheme {
++                    DiscoveryListScreen(
++                        state = DiscoveryListUiState(sources = emptyList(), isLoading = false),
++                        actions =
++                            DiscoveryListActions(
++                                onCreateSourceClicked = {},
++                                onTriggerRunClicked = {},
++                                onDeleteSourceClicked = {},
++                                onConfirmDelete = {},
++                                onCancelDelete = {},
++                                onRetryClicked = {},
++                                onDismissToast = {},
++                                onDismissDeleteError = {},
++                                onDismissTriggerRunError = {},
++                            ),
++                    )
++                }
++            }
++
++            onNodeWithText("Discovery Sources").assertIsDisplayed()
++            onNodeWithText("+ New Source").assertIsDisplayed()
++            onNodeWithText("No discovery sources configured").assertIsDisplayed()
++        }
++
++    @Test
++    fun rendersSourcesTableAndTriggersRun() =
++        runComposeUiTest {
++            val source =
++                DiscoverySource(
++                    id = "disc-1",
++                    name = "LAN Ping Scan",
++                    sourceType = "icmp_sweep",
++                    configCidr = "192.168.1.0/24",
++                    scheduleCron = "*/15 * * * *",
++                    lastStatus = "idle",
++                )
++            var triggeredId: String? = null
++            var deletedSource: DiscoverySource? = null
++
++            setContent {
++                InfraMapTheme {
++                    DiscoveryListScreen(
++                        state = DiscoveryListUiState(sources = listOf(source), isLoading = false),
++                        actions =
++                            DiscoveryListActions(
++                                onCreateSourceClicked = {},
++                                onTriggerRunClicked = { triggeredId = it },
++                                onDeleteSourceClicked = { deletedSource = it },
++                                onConfirmDelete = {},
++                                onCancelDelete = {},
++                                onRetryClicked = {},
++                                onDismissToast = {},
++                                onDismissDeleteError = {},
++                                onDismissTriggerRunError = {},
++                            ),
++                    )
++                }
++            }
++
++            onNodeWithText("LAN Ping Scan").assertIsDisplayed()
++            onNodeWithText("192.168.1.0/24").assertIsDisplayed()
++
++            onNodeWithText("Run").performClick()
++            assertEquals("disc-1", triggeredId)
++
++            onNodeWithText("Delete").performClick()
++            assertEquals("disc-1", deletedSource?.id)
++        }
++}
+diff --git a/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/staging/StagingScreenTest.kt b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/staging/StagingScreenTest.kt
+new file mode 100644
+index 0000000..c199d1b
+--- /dev/null
++++ b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/staging/StagingScreenTest.kt
+@@ -0,0 +1,82 @@
++package com.inframap.frontend.ui.staging
++
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.runComposeUiTest
++import com.inframap.frontend.designsystem.InfraMapTheme
++import com.inframap.frontend.domain.model.StagingDevice
++import org.junit.jupiter.api.Assertions.assertEquals
++import org.junit.jupiter.api.Test
++
++@OptIn(ExperimentalTestApi::class)
++class StagingScreenTest {
++    private fun testActions(
++        onApproveClicked: (StagingDevice) -> Unit = {},
++        onDismissClicked: (StagingDevice) -> Unit = {},
++    ) = StagingActions(
++        onPageChanged = {},
++        onApproveClicked = onApproveClicked,
++        onDismissClicked = onDismissClicked,
++        onConfirmDismiss = {},
++        onCancelDismiss = {},
++        onRetryClicked = {},
++        onConfigureDiscovery = {},
++        onDismissToast = {},
++        onDismissActionError = {},
++    )
++
++    @Test
++    fun rendersEmptyStateWhenNoStagingDevices() =
++        runComposeUiTest {
++            setContent {
++                InfraMapTheme {
++                    StagingScreen(
++                        state = StagingUiState(devices = emptyList(), isLoading = false),
++                        actions = testActions(),
++                    )
++                }
++            }
++
++            onNodeWithText("Staging Queue").assertIsDisplayed()
++            onNodeWithText("No devices in staging queue").assertIsDisplayed()
++        }
++
++    @Test
++    fun rendersStagingTableAndApproves() =
++        runComposeUiTest {
++            val device =
++                StagingDevice(
++                    id = "stg-1",
++                    hostname = "unverified-printer",
++                    ipAddress = "192.168.1.50",
++                    macAddress = "00:11:22:33:44:55",
++                    deviceType = "Printer",
++                )
++            var approvedDevice: StagingDevice? = null
++            var dismissedDevice: StagingDevice? = null
++
++            setContent {
++                InfraMapTheme {
++                    StagingScreen(
++                        state = StagingUiState(devices = listOf(device), totalItems = 1, isLoading = false),
++                        actions =
++                            testActions(
++                                onApproveClicked = { approvedDevice = it },
++                                onDismissClicked = { dismissedDevice = it },
++                            ),
++                    )
++                }
++            }
++
++            onNodeWithText("unverified-printer").assertIsDisplayed()
++            onNodeWithText("192.168.1.50").assertIsDisplayed()
++
++            onNodeWithText("Approve").performClick()
++            assertEquals("stg-1", approvedDevice?.id)
++
++            onNodeWithText("Dismiss").performClick()
++            assertEquals("stg-1", dismissedDevice?.id)
++        }
++}
+diff --git a/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreenTest.kt b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreenTest.kt
+new file mode 100644
+index 0000000..222dd6c
+--- /dev/null
++++ b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/subnets/CreateSubnetScreenTest.kt
+@@ -0,0 +1,53 @@
++package com.inframap.frontend.ui.subnets
++
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.performClick
++import androidx.compose.ui.test.runComposeUiTest
++import com.inframap.frontend.designsystem.InfraMapTheme
++import org.junit.jupiter.api.Assertions.assertTrue
++import org.junit.jupiter.api.Test
++
++@OptIn(ExperimentalTestApi::class)
++class CreateSubnetScreenTest {
++    @Test
++    fun rendersFormFieldsAndButtons() =
++        runComposeUiTest {
++            var submitClicked = false
++            var cancelClicked = false
++
++            setContent {
++                InfraMapTheme {
++                    CreateSubnetScreen(
++                        state = CreateSubnetUiState(),
++                        actions =
++                            CreateSubnetActions(
++                                onNameChanged = {},
++                                onCidrChanged = {},
++                                onVlanIdChanged = {},
++                                onGatewayIpChanged = {},
++                                onDescriptionChanged = {},
++                                onDiscoveryEnabledChanged = {},
++                                onToggleSuggestions = {},
++                                onInterfaceSelected = {},
++                                onSubmitClicked = { submitClicked = true },
++                                onCancelClicked = { cancelClicked = true },
++                            ),
++                    )
++                }
++            }
++
++            onNodeWithText("New Subnet").assertIsDisplayed()
++            onNodeWithText("Subnet Name *").assertIsDisplayed()
++            onNodeWithText("CIDR (e.g. 192.168.1.0/24) *").assertIsDisplayed()
++            onNodeWithText("VLAN ID (Optional)").assertIsDisplayed()
++            onNodeWithText("Enable Automatic Discovery Scanning").assertIsDisplayed()
++
++            onNodeWithText("Cancel").performClick()
++            assertTrue(cancelClicked)
++
++            onNodeWithText("Create Subnet").performClick()
++            assertTrue(submitClicked)
++        }
++}
+diff --git a/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/subnets/SubnetsScreenTest.kt b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/subnets/SubnetsScreenTest.kt
+new file mode 100644
+index 0000000..caa99a7
+--- /dev/null
++++ b/frontend/src/jvmTest/kotlin/com/inframap/frontend/ui/subnets/SubnetsScreenTest.kt
+@@ -0,0 +1,66 @@
++package com.inframap.frontend.ui.subnets
++
++import androidx.compose.ui.test.ExperimentalTestApi
++import androidx.compose.ui.test.assertIsDisplayed
++import androidx.compose.ui.test.onNodeWithText
++import androidx.compose.ui.test.runComposeUiTest
++import com.inframap.frontend.designsystem.InfraMapTheme
++import com.inframap.frontend.domain.model.Subnet
++import org.junit.jupiter.api.Test
++
++@OptIn(ExperimentalTestApi::class)
++class SubnetsScreenTest {
++    private fun testActions() =
++        SubnetsActions(
++            onCreateSubnetClicked = {},
++            onAddInterfaceClicked = {},
++            onRetryClicked = {},
++            onDismissToast = {},
++        )
++
++    @Test
++    fun rendersEmptyStateWhenNoSubnets() =
++        runComposeUiTest {
++            setContent {
++                InfraMapTheme {
++                    SubnetsScreen(
++                        state = SubnetsUiState(subnets = emptyList(), isLoading = false),
++                        actions = testActions(),
++                    )
++                }
++            }
++
++            onNodeWithText("Subnets").assertIsDisplayed()
++            onNodeWithText("+ New Subnet").assertIsDisplayed()
++            onNodeWithText("No subnets configured").assertIsDisplayed()
++        }
++
++    @Test
++    fun rendersSubnetsTable() =
++        runComposeUiTest {
++            val subnet =
++                Subnet(
++                    id = "sub-1",
++                    name = "VLAN 10 - Servers",
++                    cidr = "10.10.10.0/24",
++                    vlanId = 10,
++                    gatewayIp = "10.10.10.1",
++                    discoveryEnabled = true,
++                    description = "Core production servers",
 +                )
 +
-+            val vm = makeVm(deviceRepo = throwingDeviceRepo, scope = this)
++            setContent {
++                InfraMapTheme {
++                    SubnetsScreen(
++                        state = SubnetsUiState(subnets = listOf(subnet), isLoading = false),
++                        actions = testActions(),
++                    )
++                }
++            }
 +
-+            advanceUntilIdle()
-+
-+            assertFalse(vm.state.value.isLoading)
-+            assertNotNull(vm.state.value.errorMessage)
-+            vm.clear()
++            onNodeWithText("VLAN 10 - Servers").assertIsDisplayed()
++            onNodeWithText("10.10.10.0/24").assertIsDisplayed()
++            onNodeWithText("10.10.10.1").assertIsDisplayed()
++            onNodeWithText("Core production servers").assertIsDisplayed()
 +        }
- }
-diff --git a/frontend/src/jvmMain/kotlin/com/inframap/frontend/ui/command/PlatformGlobalShortcuts.jvm.kt b/frontend/src/jvmMain/kotlin/com/inframap/frontend/ui/command/PlatformGlobalShortcuts.jvm.kt
-new file mode 100644
-index 0000000..aa288d7
---- /dev/null
-+++ b/frontend/src/jvmMain/kotlin/com/inframap/frontend/ui/command/PlatformGlobalShortcuts.jvm.kt
-@@ -0,0 +1,8 @@
-+package com.inframap.frontend.ui.command
-+
-+import androidx.compose.runtime.Composable
-+
-+@Composable
-+actual fun PlatformGlobalShortcuts(onToggleCommandPalette: () -> Unit) {
-+    // Handled via onPreviewKeyEvent on Desktop JVM
-+}
-diff --git a/frontend/src/wasmJsMain/kotlin/com/inframap/frontend/ui/command/PlatformGlobalShortcuts.wasmJs.kt b/frontend/src/wasmJsMain/kotlin/com/inframap/frontend/ui/command/PlatformGlobalShortcuts.wasmJs.kt
-new file mode 100644
-index 0000000..bb1bd5a
---- /dev/null
-+++ b/frontend/src/wasmJsMain/kotlin/com/inframap/frontend/ui/command/PlatformGlobalShortcuts.wasmJs.kt
-@@ -0,0 +1,33 @@
-+package com.inframap.frontend.ui.command
-+
-+import androidx.compose.runtime.Composable
-+import androidx.compose.runtime.DisposableEffect
-+
-+@JsFun(
-+    """
-+function(callback) {
-+    var handler = function(e) {
-+        if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
-+            e.preventDefault();
-+            callback();
-+        }
-+    };
-+    window.addEventListener('keydown', handler);
-+    return handler;
-+}
-+""",
-+)
-+private external fun jsAddGlobalShortcutListener(callback: () -> Unit): JsAny
-+
-+@JsFun("function(handler) { window.removeEventListener('keydown', handler); }")
-+private external fun jsRemoveGlobalShortcutListener(handler: JsAny)
-+
-+@Composable
-+actual fun PlatformGlobalShortcuts(onToggleCommandPalette: () -> Unit) {
-+    DisposableEffect(onToggleCommandPalette) {
-+        val handler = jsAddGlobalShortcutListener(onToggleCommandPalette)
-+        onDispose {
-+            jsRemoveGlobalShortcutListener(handler)
-+        }
-+    }
 +}

@@ -2,6 +2,7 @@ package com.inframap.frontend.ui.devices
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -51,7 +52,7 @@ class DeviceDetailScreenTest {
                 }
             }
 
-            onNodeWithText("core-switch-01").assertIsDisplayed()
+            onAllNodesWithText("core-switch-01")[0].assertIsDisplayed()
             onNodeWithText("ID: dev-42").assertIsDisplayed()
             onNodeWithText("Main Information").assertIsDisplayed()
             onNodeWithText("Hardware & Manufacturer").assertIsDisplayed()

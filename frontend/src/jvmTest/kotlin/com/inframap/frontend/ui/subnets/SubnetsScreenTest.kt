@@ -32,7 +32,7 @@ class SubnetsScreenTest {
 
             onNodeWithText("Subnets").assertIsDisplayed()
             onNodeWithText("+ New Subnet").assertIsDisplayed()
-            onNodeWithText("No subnets configured").assertIsDisplayed()
+            onNodeWithText("No subnets registered").assertIsDisplayed()
         }
 
     @Test
