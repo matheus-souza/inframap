@@ -151,5 +151,11 @@
     <string name="command_palette_close_label">Close command palette</string>
     <string name="command_palette_empty">No items available.</string>
     <string name="command_palette_empty_query">No results found for "%1$s"</string>
+
+    <!-- Inventory Status Bar -->
+    <string name="inventory_status_distribution">STATUS DISTRIBUTION</string>
+    <string name="inventory_filtered_by">Filtered by: %1$s</string>
+    <string name="inventory_clear_filter">Clear status filter</string>
+    <string name="inventory_total_devices">%1$d Total Devices</string>
 </resources>
 

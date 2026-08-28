@@ -153,6 +153,12 @@
     <string name="command_palette_close_label">Fechar paleta de comandos</string>
     <string name="command_palette_empty">Nenhum item disponível.</string>
     <string name="command_palette_empty_query">Nenhum resultado encontrado para "%1$s"</string>
+
+    <!-- Inventory Status Bar -->
+    <string name="inventory_status_distribution">DISTRIBUIÇÃO DE STATUS</string>
+    <string name="inventory_filtered_by">Filtrado por: %1$s</string>
+    <string name="inventory_clear_filter">Limpar filtro de status</string>
+    <string name="inventory_total_devices">%1$d Dispositivos no Total</string>
 </resources>
 
 

@@ -3,7 +3,6 @@
 > **Status**: Accepted  
 > **Date**: 2026-08-27  
 > **Related ADR**: ADR-010  
-> **Supervises**: Tickets T44–T48  
 
 ---
 

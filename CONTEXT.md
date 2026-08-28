@@ -54,6 +54,7 @@
 - **RFC-016**: Automated Discovery & Reconciliation Engine Specification
 - **RFC-017**: Network Topology & Mapping Engine Specification
 - **RFC-018**: Discovery Engine & Active Collectors Architecture Specification
+- **RFC-022**: Material Design 3 Design System & Motion Architecture Spec
 
 - **ADR-001**: Backend Architectural Decisions Log (AD-001 to AD-011, AD-027 to AD-030)
 - **ADR-002**: Frontend Clean Architecture Decisions (AD-012 to AD-022)
@@ -62,6 +63,7 @@
 - **ADR-005**: Discovery Background Scheduler (AD-032 to AD-041)
 - **ADR-006**: Excalidraw-Inspired Dark Canvas UI/UX Redesign System
 - **ADR-007**: UI Refinement v2 — Onboarding Unification, Collapsible NavRail & i18n (AD-042 to AD-046)
+- **ADR-010**: Material Design 3 Design System & Motion Architecture (AD-054 to AD-058)
 
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.
 

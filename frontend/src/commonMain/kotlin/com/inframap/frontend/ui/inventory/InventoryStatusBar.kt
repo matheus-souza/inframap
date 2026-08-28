@@ -30,6 +30,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.inventory_clear_filter
+import com.inframap.frontend.generated.resources.inventory_filtered_by
+import com.inframap.frontend.generated.resources.inventory_status_distribution
+import com.inframap.frontend.generated.resources.inventory_total_devices
+import org.jetbrains.compose.resources.stringResource
 
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
@@ -46,7 +52,7 @@ fun InventoryStatusBar(
             modifier
                 .fillMaxWidth()
                 .background(
-                    color = Color(0xFF18181B),
+                    color = Color(0xFF27272A),
                     shape = RoundedCornerShape(12.dp),
                 ).border(
                     width = 1.dp,
@@ -60,7 +66,7 @@ fun InventoryStatusBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "STATUS DISTRIBUTION",
+                text = stringResource(Res.string.inventory_status_distribution),
                 style =
                     MaterialTheme.typography.labelSmall.copy(
                         fontSize = 11.sp,
@@ -82,14 +88,14 @@ fun InventoryStatusBar(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "Filtered by: ${activeFilter.label}",
+                            text = stringResource(Res.string.inventory_filtered_by, activeFilter.label),
                             style = MaterialTheme.typography.labelSmall,
                             color = activeFilter.color,
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             imageVector = Icons.Filled.Close,
-                            contentDescription = "Clear filter",
+                            contentDescription = stringResource(Res.string.inventory_clear_filter),
                             tint = activeFilter.color,
                             modifier = Modifier.size(12.dp),
                         )
@@ -97,7 +103,7 @@ fun InventoryStatusBar(
                 }
             } else {
                 Text(
-                    text = "$totalCount Total Devices",
+                    text = stringResource(Res.string.inventory_total_devices, totalCount),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color(0xFFA1A1AA),
                 )

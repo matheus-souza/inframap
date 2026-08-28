@@ -1,9 +1,8 @@
-# ADR-010: Material Design 3 Design System & Motion Architecture
+# ADR-010: Material Design 3 Design System & Motion Architecture (AD-054 to AD-058)
 
 > **Status**: Accepted  
 > **Date**: 2026-08-27  
 > **Related RFC**: RFC-022 (Material 3 Visual & Motion Design Spec)  
-> **Supervises**: T44–T48 Implementation Cycle  
 
 ---
 
