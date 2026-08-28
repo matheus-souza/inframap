@@ -27,20 +27,23 @@ object MotionTransitions {
     /**
      * Material Design 3 Fade Through transition.
      *
-     * Used for top-level navigation destination switches (e.g. NavRail peer destinations).
-     * The incoming content scales in from 92% to 100% while fading in,
-     * while the outgoing content fades out.
+     * Used for top-level navigation destination switches and form transitions.
+     * The incoming content scales in from 96% to 100% while fading in,
+     * while the outgoing content fades out quickly (100ms) for high responsiveness.
      */
-    fun fadeThrough(durationMillis: Int = MotionTokens.DurationTokens.Medium2): ContentTransform {
+    fun fadeThrough(
+        durationMillis: Int = MotionTokens.DurationTokens.Short4,
+        initialScale: Float = 0.96f,
+    ): ContentTransform {
         val enter =
             fadeIn(
                 animationSpec = MotionTokens.Specs.emphasizedDecelerate(durationMillis),
             ) +
                 scaleIn(
-                    initialScale = 0.92f,
+                    initialScale = initialScale,
                     animationSpec = MotionTokens.Specs.emphasizedDecelerate(durationMillis),
                 )
-        val exitDuration = (durationMillis * 0.35f).toInt().coerceAtLeast(MotionTokens.DurationTokens.Short1)
+        val exitDuration = (durationMillis * 0.5f).toInt().coerceAtLeast(MotionTokens.DurationTokens.Short1)
         val exit =
             fadeOut(
                 animationSpec = MotionTokens.Specs.emphasizedAccelerate(exitDuration),
@@ -53,15 +56,14 @@ object MotionTransitions {
      *
      * Used for lateral hierarchical navigation such as master-detail flows or step-by-step forms.
      *
-     * @param forward True if navigating deeper/forward (target enters from right, initial exits to left);
-     *                false if navigating back (target enters from left, initial exits to right).
+     * @param forward True if navigating deeper/forward; false if navigating back.
      * @param slideDistance Offset distance in pixels for the horizontal slide transition.
      * @param durationMillis Duration of the transition in milliseconds.
      */
     fun sharedAxisX(
         forward: Boolean = true,
-        slideDistance: Int = 96,
-        durationMillis: Int = MotionTokens.DurationTokens.Medium2,
+        slideDistance: Int = 48,
+        durationMillis: Int = MotionTokens.DurationTokens.Short4,
     ): ContentTransform {
         val enterOffset = if (forward) slideDistance else -slideDistance
         val exitOffset = if (forward) -slideDistance else slideDistance
@@ -184,35 +186,13 @@ object MotionTransitions {
 }
 
 private fun resolveScaffoldTransition(
-    initialRoute: Route,
-    targetRoute: Route,
-): ContentTransform {
-    val isDeviceInitial = isDeviceRoute(initialRoute)
-    val isDeviceTarget = isDeviceRoute(targetRoute)
-    val isSubnetInitial = isSubnetRoute(initialRoute)
-    val isSubnetTarget = isSubnetRoute(targetRoute)
-    val isDiscoveryInitial = isDiscoveryRoute(initialRoute)
-    val isDiscoveryTarget = isDiscoveryRoute(targetRoute)
-
-    return when {
-        isDeviceInitial && isDeviceTarget -> {
-            val initialLevel = deviceHierarchyLevel(initialRoute)
-            val targetLevel = deviceHierarchyLevel(targetRoute)
-            if (initialLevel != targetLevel) {
-                MotionTransitions.sharedAxisX(forward = targetLevel > initialLevel)
-            } else {
-                MotionTransitions.fadeThrough()
-            }
-        }
-        isSubnetInitial && isSubnetTarget -> {
-            MotionTransitions.sharedAxisX(forward = targetRoute is Route.CreateSubnet)
-        }
-        isDiscoveryInitial && isDiscoveryTarget -> {
-            MotionTransitions.sharedAxisX(forward = targetRoute is Route.CreateDiscoverySource)
-        }
-        else -> MotionTransitions.fadeThrough()
-    }
-}
+    @Suppress("UnusedParameter") initialRoute: Route,
+    @Suppress("UnusedParameter") targetRoute: Route,
+): ContentTransform =
+    MotionTransitions.fadeThrough(
+        durationMillis = MotionTokens.DurationTokens.Short4,
+        initialScale = 0.96f,
+    )
 
 private fun resolveAppTransition(
     initialRoute: Route,
@@ -228,32 +208,6 @@ private fun resolveAppTransition(
         val targetDepth = appRouteDepth(targetRoute)
         MotionTransitions.sharedAxisZ(forward = targetDepth >= initialDepth)
     }
-}
-
-private fun isDeviceRoute(route: Route): Boolean =
-    route is Route.Devices ||
-        route is Route.DeviceDetail ||
-        route is Route.CreateDevice ||
-        route is Route.EditDevice
-
-private fun deviceHierarchyLevel(route: Route): Int =
-    when (route) {
-        Route.Devices -> 0
-        is Route.DeviceDetail, Route.CreateDevice -> 1
-        is Route.EditDevice -> 2
-        else -> 0
-    }
-
-private fun isSubnetRoute(route: Route): Boolean {
-    val isSubnets = route is Route.Subnets
-    val isCreate = route is Route.CreateSubnet
-    return isSubnets || isCreate
-}
-
-private fun isDiscoveryRoute(route: Route): Boolean {
-    val isSources = route is Route.DiscoverySources
-    val isCreate = route is Route.CreateDiscoverySource
-    return isSources || isCreate
 }
 
 private fun isMainScaffoldRoute(route: Route): Boolean {

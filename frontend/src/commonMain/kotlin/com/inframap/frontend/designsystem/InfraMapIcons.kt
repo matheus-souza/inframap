@@ -270,4 +270,31 @@ object InfraMapIcons {
                 }
             }.build()
     }
+
+    val KeyboardReturn: ImageVector by lazy {
+        ImageVector
+            .Builder(
+                name = "KeyboardReturn",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 24f,
+                viewportHeight = 24f,
+            ).apply {
+                path(fill = SolidColor(Color.Black)) {
+                    moveTo(19f, 7f)
+                    verticalLineToRelative(4f)
+                    horizontalLineTo(5.83f)
+                    lineToRelative(3.58f, -3.59f)
+                    lineTo(8f, 6f)
+                    lineToRelative(-6f, 6f)
+                    lineToRelative(6f, 6f)
+                    lineToRelative(1.41f, -1.41f)
+                    lineTo(5.83f, 13f)
+                    horizontalLineTo(21f)
+                    verticalLineTo(7f)
+                    horizontalLineToRelative(-2f)
+                    close()
+                }
+            }.build()
+    }
 }

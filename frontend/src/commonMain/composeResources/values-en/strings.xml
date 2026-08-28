@@ -143,10 +143,10 @@
     <string name="dashboard_auto_setup_view_staging">View in Staging Queue</string>
 
     <!-- Command Palette -->
-    <string name="command_palette_category_acoes">⚡ Quick Actions</string>
-    <string name="command_palette_category_dispositivos">🖥️ Devices</string>
-    <string name="command_palette_category_subredes">🌐 Subnets</string>
-    <string name="command_palette_category_navegacao">🧭 Navigation</string>
+    <string name="command_palette_category_acoes">Quick Actions</string>
+    <string name="command_palette_category_dispositivos">Devices</string>
+    <string name="command_palette_category_subredes">Subnets</string>
+    <string name="command_palette_category_navegacao">Navigation</string>
     <string name="command_palette_search_placeholder">Search devices, subnets, actions...</string>
     <string name="command_palette_close_label">Close command palette</string>
     <string name="command_palette_empty">No items available.</string>

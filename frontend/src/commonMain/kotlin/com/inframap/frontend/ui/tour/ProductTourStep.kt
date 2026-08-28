@@ -10,9 +10,9 @@ enum class ProductTourStep(
         stepNumber = 1,
         title = "Bem-vindo ao InfraMap!",
         description =
-            "A barra lateral de navegação (NavRail) oferece acesso rápido ao Dashboard, " +
+            "A barra lateral de navegação oferece acesso rápido ao Dashboard, " +
                 "Dispositivos, Staging, Sub-redes, Fontes de Descoberta e Topologia da sua infraestrutura.",
-        highlightTarget = "Navegação Principal (NavRail)",
+        highlightTarget = "Navegação Principal",
     ),
     COMMAND_PALETTE(
         stepNumber = 2,

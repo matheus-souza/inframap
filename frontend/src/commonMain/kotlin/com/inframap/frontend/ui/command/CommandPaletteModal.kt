@@ -397,10 +397,11 @@ private fun CommandPaletteItemRow(
             Spacer(modifier = Modifier.width(8.dp))
         }
         if (isSelected) {
-            Text(
-                text = "↵",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 14.sp,
+            Icon(
+                imageVector = InfraMapIcons.KeyboardReturn,
+                contentDescription = "Selecionar",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
             )
         }
     }
