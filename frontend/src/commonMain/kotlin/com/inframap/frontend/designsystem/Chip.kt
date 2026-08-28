@@ -41,7 +41,7 @@ data class ChipOption<T>(
 
 @Suppress("LongParameterList")
 data class ChipCustomOption<T>(
-    val chipLabel: String = "Personalizado",
+    val chipLabel: String,
     val chipIcon: ImageVector? = null,
     val inputLabel: String,
     val inputPlaceholder: String = "",

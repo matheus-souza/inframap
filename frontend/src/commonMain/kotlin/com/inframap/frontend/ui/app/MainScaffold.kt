@@ -28,6 +28,18 @@ import com.inframap.frontend.data.storage.LocalStorage
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.motion.MotionTransitions
 import com.inframap.frontend.domain.model.CommandPaletteAction
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.create_device_title
+import com.inframap.frontend.generated.resources.create_discovery_source_title
+import com.inframap.frontend.generated.resources.create_subnet_title
+import com.inframap.frontend.generated.resources.dashboard_title
+import com.inframap.frontend.generated.resources.device_detail_title
+import com.inframap.frontend.generated.resources.devices_title
+import com.inframap.frontend.generated.resources.discovery_title
+import com.inframap.frontend.generated.resources.edit_device_title
+import com.inframap.frontend.generated.resources.staging_header
+import com.inframap.frontend.generated.resources.subnets_title
+import com.inframap.frontend.generated.resources.topology_title
 import com.inframap.frontend.navigation.Navigator
 import com.inframap.frontend.navigation.Route
 import com.inframap.frontend.platform.updateBrowserTitle
@@ -73,6 +85,8 @@ import com.inframap.frontend.ui.tour.ProductTourActions
 import com.inframap.frontend.ui.tour.ProductTourOverlay
 import com.inframap.frontend.ui.tour.ProductTourUiState
 import com.inframap.frontend.ui.tour.ProductTourViewModel
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.currentKoinScope
 import org.koin.core.parameter.parametersOf
 
@@ -94,19 +108,19 @@ private val navItems =
         NavItem("Topology", InfraMapIcons.AccountTree, Route.Topology),
     )
 
-fun resolveScreenTitle(route: Route): String? =
+fun resolveScreenTitleResource(route: Route): StringResource? =
     when (route) {
-        Route.Dashboard -> "Dashboard"
-        Route.Devices -> "Dispositivos"
-        is Route.DeviceDetail -> "Detalhe do Dispositivo"
-        Route.CreateDevice -> "Novo Dispositivo"
-        is Route.EditDevice -> "Editar Dispositivo"
-        Route.Staging -> "Fila de Staging"
-        Route.Subnets -> "Sub-redes"
-        is Route.CreateSubnet -> "Nova Sub-rede"
-        Route.DiscoverySources -> "Fontes de Descoberta"
-        Route.CreateDiscoverySource -> "Nova Fonte de Descoberta"
-        Route.Topology -> "Topologia"
+        Route.Dashboard -> Res.string.dashboard_title
+        Route.Devices -> Res.string.devices_title
+        is Route.DeviceDetail -> Res.string.device_detail_title
+        Route.CreateDevice -> Res.string.create_device_title
+        is Route.EditDevice -> Res.string.edit_device_title
+        Route.Staging -> Res.string.staging_header
+        Route.Subnets -> Res.string.subnets_title
+        is Route.CreateSubnet -> Res.string.create_subnet_title
+        Route.DiscoverySources -> Res.string.discovery_title
+        Route.CreateDiscoverySource -> Res.string.create_discovery_source_title
+        Route.Topology -> Res.string.topology_title
         else -> null
     }
 
@@ -131,8 +145,11 @@ fun MainScaffold(
         onDispose { tourViewModel.clear() }
     }
 
-    LaunchedEffect(currentRoute) {
-        updateBrowserTitle(resolveScreenTitle(currentRoute))
+    val titleResource = resolveScreenTitleResource(currentRoute)
+    val screenTitle = titleResource?.let { stringResource(it) }
+
+    LaunchedEffect(screenTitle) {
+        updateBrowserTitle(screenTitle)
     }
 
     LaunchedEffect(Unit) {
@@ -223,13 +240,16 @@ private fun MainScaffoldContent(
         mutableStateOf(localStorage.get(KEY_NAVRAIL_COLLAPSED) == null)
     }
 
+    val titleResource = resolveScreenTitleResource(currentRoute)
+    val screenTitle = titleResource?.let { stringResource(it) }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             AppTopBar(
-                screenTitle = resolveScreenTitle(currentRoute),
+                screenTitle = screenTitle,
                 isHealthy = isHealthy,
                 onOpenCommandPalette = onOpenCommandPalette,
                 onRestartTourClicked = onRestartTourClicked,

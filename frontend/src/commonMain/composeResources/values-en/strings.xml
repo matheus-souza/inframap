@@ -151,5 +151,12 @@
     <string name="command_palette_close_label">Close command palette</string>
     <string name="command_palette_empty">No items available.</string>
     <string name="command_palette_empty_query">No results found for "%1$s"</string>
+
+    <!-- Dynamic Titles -->
+    <string name="device_detail_title">Device Detail</string>
+    <string name="create_device_title">New Device</string>
+    <string name="edit_device_title">Edit Device</string>
+    <string name="create_subnet_title">New Subnet</string>
+    <string name="create_discovery_source_title">New Discovery Source</string>
 </resources>
 

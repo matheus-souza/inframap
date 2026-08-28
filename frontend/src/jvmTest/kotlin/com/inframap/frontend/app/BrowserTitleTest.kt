@@ -1,8 +1,20 @@
 package com.inframap.frontend.app
 
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.create_device_title
+import com.inframap.frontend.generated.resources.create_discovery_source_title
+import com.inframap.frontend.generated.resources.create_subnet_title
+import com.inframap.frontend.generated.resources.dashboard_title
+import com.inframap.frontend.generated.resources.device_detail_title
+import com.inframap.frontend.generated.resources.devices_title
+import com.inframap.frontend.generated.resources.discovery_title
+import com.inframap.frontend.generated.resources.edit_device_title
+import com.inframap.frontend.generated.resources.staging_header
+import com.inframap.frontend.generated.resources.subnets_title
+import com.inframap.frontend.generated.resources.topology_title
 import com.inframap.frontend.navigation.Route
 import com.inframap.frontend.platform.updateBrowserTitle
-import com.inframap.frontend.ui.app.resolveScreenTitle
+import com.inframap.frontend.ui.app.resolveScreenTitleResource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -10,65 +22,68 @@ import kotlin.test.assertNull
 class BrowserTitleTest {
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForDashboard() {
-        assertEquals("Dashboard", resolveScreenTitle(Route.Dashboard))
+        assertEquals(Res.string.dashboard_title, resolveScreenTitleResource(Route.Dashboard))
     }
 
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForDevices() {
-        assertEquals("Dispositivos", resolveScreenTitle(Route.Devices))
+        assertEquals(Res.string.devices_title, resolveScreenTitleResource(Route.Devices))
     }
 
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForDeviceDetail() {
-        assertEquals("Detalhe do Dispositivo", resolveScreenTitle(Route.DeviceDetail("device-123")))
+        assertEquals(Res.string.device_detail_title, resolveScreenTitleResource(Route.DeviceDetail("device-123")))
     }
 
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForCreateDevice() {
-        assertEquals("Novo Dispositivo", resolveScreenTitle(Route.CreateDevice))
+        assertEquals(Res.string.create_device_title, resolveScreenTitleResource(Route.CreateDevice))
     }
 
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForEditDevice() {
-        assertEquals("Editar Dispositivo", resolveScreenTitle(Route.EditDevice("device-123")))
+        assertEquals(Res.string.edit_device_title, resolveScreenTitleResource(Route.EditDevice("device-123")))
     }
 
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForStaging() {
-        assertEquals("Fila de Staging", resolveScreenTitle(Route.Staging))
+        assertEquals(Res.string.staging_header, resolveScreenTitleResource(Route.Staging))
     }
 
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForSubnets() {
-        assertEquals("Sub-redes", resolveScreenTitle(Route.Subnets))
+        assertEquals(Res.string.subnets_title, resolveScreenTitleResource(Route.Subnets))
     }
 
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForCreateSubnet() {
-        assertEquals("Nova Sub-rede", resolveScreenTitle(Route.CreateSubnet()))
-        assertEquals("Nova Sub-rede", resolveScreenTitle(Route.CreateSubnet(prefilledCidr = "192.168.1.0/24", prefilledName = "Office")))
+        assertEquals(Res.string.create_subnet_title, resolveScreenTitleResource(Route.CreateSubnet()))
+        assertEquals(
+            Res.string.create_subnet_title,
+            resolveScreenTitleResource(Route.CreateSubnet(prefilledCidr = "192.168.1.0/24", prefilledName = "Office")),
+        )
     }
 
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForDiscoverySources() {
-        assertEquals("Fontes de Descoberta", resolveScreenTitle(Route.DiscoverySources))
+        assertEquals(Res.string.discovery_title, resolveScreenTitleResource(Route.DiscoverySources))
     }
 
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForCreateDiscoverySource() {
-        assertEquals("Nova Fonte de Descoberta", resolveScreenTitle(Route.CreateDiscoverySource))
+        assertEquals(Res.string.create_discovery_source_title, resolveScreenTitleResource(Route.CreateDiscoverySource))
     }
 
     @Test
     fun resolveScreenTitleReturnsExpectedTitleForTopology() {
-        assertEquals("Topologia", resolveScreenTitle(Route.Topology))
+        assertEquals(Res.string.topology_title, resolveScreenTitleResource(Route.Topology))
     }
 
     @Test
     fun resolveScreenTitleReturnsNullForNonScaffoldRoutes() {
-        assertNull(resolveScreenTitle(Route.Splash))
-        assertNull(resolveScreenTitle(Route.Login))
-        assertNull(resolveScreenTitle(Route.Onboarding))
+        assertNull(resolveScreenTitleResource(Route.Splash))
+        assertNull(resolveScreenTitleResource(Route.Login))
+        assertNull(resolveScreenTitleResource(Route.Onboarding))
     }
 
     @Test

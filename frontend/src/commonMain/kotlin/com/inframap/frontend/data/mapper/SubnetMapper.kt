@@ -5,6 +5,7 @@ import com.inframap.frontend.data.dto.SubnetListResponse
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.domain.model.SubnetSummary
+import com.inframap.frontend.domain.model.toSummary
 
 object SubnetMapper {
     fun toDomain(dto: SubnetDto): Subnet =
@@ -19,13 +20,7 @@ object SubnetMapper {
             createdAt = dto.createdAt,
         )
 
-    fun toSummary(dto: SubnetDto): SubnetSummary =
-        SubnetSummary(
-            id = dto.id,
-            name = dto.name,
-            cidr = dto.cidr,
-            discoveryEnabled = dto.discoveryEnabled,
-        )
+    fun toSummary(dto: SubnetDto): SubnetSummary = toDomain(dto).toSummary()
 
     fun toPaginatedList(response: SubnetListResponse): PaginatedList<Subnet> {
         val list = response.subnets

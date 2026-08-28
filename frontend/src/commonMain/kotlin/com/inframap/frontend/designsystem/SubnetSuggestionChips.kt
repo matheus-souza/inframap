@@ -60,6 +60,9 @@ fun SubnetSuggestionChips(
     }
 }
 
+internal const val SUBNET_CHIPS_TITLE = "Sub-redes cadastradas"
+internal const val SUBNET_CHIPS_EMPTY_MESSAGE = "Nenhuma sub-rede cadastrada para sugestão."
+
 @Composable
 private fun SubnetSuggestionHeader() {
     Row(
@@ -73,7 +76,7 @@ private fun SubnetSuggestionHeader() {
             tint = MaterialTheme.colorScheme.primary,
         )
         Text(
-            text = "Sub-redes cadastradas",
+            text = SUBNET_CHIPS_TITLE,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -93,7 +96,7 @@ private fun SubnetSuggestionContent(
         isLoading -> SubnetSuggestionSkeleton()
         subnets.isEmpty() -> {
             Text(
-                text = "Nenhuma sub-rede cadastrada para sugestão.",
+                text = SUBNET_CHIPS_EMPTY_MESSAGE,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

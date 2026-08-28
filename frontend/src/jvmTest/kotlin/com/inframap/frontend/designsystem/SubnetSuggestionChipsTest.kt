@@ -42,7 +42,7 @@ class SubnetSuggestionChipsTest {
                 }
             }
 
-            onNodeWithText("Sub-redes cadastradas").assertIsDisplayed()
+            onNodeWithText(SUBNET_CHIPS_TITLE).assertIsDisplayed()
             onNodeWithText("Production LAN").assertIsDisplayed()
             onNodeWithText("10.0.0.0/16").assertIsDisplayed()
             onNodeWithText("DMZ Network").assertIsDisplayed()
@@ -104,7 +104,7 @@ class SubnetSuggestionChipsTest {
                 }
             }
 
-            onNodeWithText("Sub-redes cadastradas").assertIsDisplayed()
+            onNodeWithText(SUBNET_CHIPS_TITLE).assertIsDisplayed()
             // When loading, chips are not rendered
             onNodeWithText("Production LAN").assertDoesNotExist()
             onNodeWithText("DMZ Network").assertDoesNotExist()
@@ -123,8 +123,8 @@ class SubnetSuggestionChipsTest {
                 }
             }
 
-            onNodeWithText("Sub-redes cadastradas").assertIsDisplayed()
-            onNodeWithText("Nenhuma sub-rede cadastrada para sugestão.").assertIsDisplayed()
+            onNodeWithText(SUBNET_CHIPS_TITLE).assertIsDisplayed()
+            onNodeWithText(SUBNET_CHIPS_EMPTY_MESSAGE).assertIsDisplayed()
         }
 
     @Test
