@@ -12,46 +12,47 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.ChipCustomOption
+import com.inframap.frontend.designsystem.ChipOption
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
+import com.inframap.frontend.designsystem.InfraMapCheckboxRow
+import com.inframap.frontend.designsystem.InfraMapChoiceChipGroup
+import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapTextField
+import com.inframap.frontend.designsystem.SubnetSuggestionChips
 
-private val sourceTypes =
+private val sourceTypeChipOptions =
     listOf(
-        "icmp_sweep" to "ICMP Sweep (Ping)",
-        "arp_sweep" to "ARP Sweep",
-        "mdns" to "mDNS Discovery",
-        "proxmox" to "Proxmox",
-        "docker" to "Docker",
-        "unifi" to "UniFi",
+        ChipOption("icmp_sweep", "ICMP Ping", InfraMapIcons.NetworkPing),
+        ChipOption("arp_sweep", "ARP Sweep", InfraMapIcons.Lan),
+        ChipOption("mdns", "mDNS", InfraMapIcons.Dns),
+        ChipOption("proxmox", "Proxmox", InfraMapIcons.Cloud),
+        ChipOption("docker", "Docker", InfraMapIcons.ViewInAr),
+        ChipOption("unifi", "UniFi", InfraMapIcons.Wifi),
     )
 
-private val schedulePresets =
+private val scheduleChipOptions =
     listOf(
-        "" to "Manual (sem agendamento)",
-        "*/5 * * * *" to "A cada 5 minutos",
-        "0 * * * *" to "A cada hora",
-        "0 */6 * * *" to "A cada 6 horas",
-        "0 0 * * *" to "Diariamente (meia-noite)",
+        ChipOption("", "Manual", InfraMapIcons.PauseCircle),
+        ChipOption("*/5 * * * *", "5 min", InfraMapIcons.Timer),
+        ChipOption("*/15 * * * *", "15 min", InfraMapIcons.Timer),
+        ChipOption("0 * * * *", "1 hora", InfraMapIcons.Schedule),
+        ChipOption("0 */6 * * *", "6 horas", InfraMapIcons.Schedule),
+        ChipOption("0 0 * * *", "Diário", InfraMapIcons.NightsStay),
     )
+
+private val presetScheduleValues = scheduleChipOptions.map { it.value }.toSet()
 
 @Composable
 fun CreateDiscoverySourceScreen(
@@ -107,10 +108,20 @@ private fun CreateDiscoverySourceFormFields(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        SourceTypeDropdown(
+        SourceTypeSection(
             selectedType = state.sourceType,
             onTypeSelected = actions.onSourceTypeChanged,
             error = state.validationErrors["type"]?.asString(),
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SubnetSuggestionChips(
+            subnets = state.subnets,
+            selectedCidr = state.configCidr.ifEmpty { null },
+            isLoading = state.isLoadingSubnets,
+            onSubnetSelected = actions.onSubnetSelected,
+            modifier = Modifier.fillMaxWidth(),
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -125,70 +136,36 @@ private fun CreateDiscoverySourceFormFields(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        ScheduleDropdown(
+        ScheduleSection(
             selectedCron = state.scheduleCron,
             onCronSelected = actions.onScheduleCronChanged,
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        InfraMapCheckboxRow(
+            checked = state.enabled,
+            onCheckedChange = actions.onEnabledChanged,
+            label = "Fonte habilitada",
             modifier = Modifier.fillMaxWidth(),
-        ) {
-            Checkbox(
-                checked = state.enabled,
-                onCheckedChange = actions.onEnabledChanged,
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Fonte habilitada",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
+        )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SourceTypeDropdown(
+private fun SourceTypeSection(
     selectedType: String,
     onTypeSelected: (String) -> Unit,
     error: String?,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val displayLabel = sourceTypes.firstOrNull { it.first == selectedType }?.second ?: ""
-
-    Column {
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = it },
-        ) {
-            OutlinedTextField(
-                value = displayLabel,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Tipo de Fonte *") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                isError = error != null,
-                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
-            )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                sourceTypes.forEach { (value, label) ->
-                    DropdownMenuItem(
-                        text = { Text(label) },
-                        onClick = {
-                            onTypeSelected(value)
-                            expanded = false
-                        },
-                    )
-                }
-            }
-        }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        InfraMapChoiceChipGroup(
+            options = sourceTypeChipOptions,
+            selected = selectedType,
+            onSelected = onTypeSelected,
+            label = "Tipo de Fonte *",
+            modifier = Modifier.fillMaxWidth(),
+        )
         if (error != null) {
             Text(
                 text = error,
@@ -200,50 +177,39 @@ private fun SourceTypeDropdown(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ScheduleDropdown(
+private fun ScheduleSection(
     selectedCron: String,
     onCronSelected: (String) -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val isPreset = schedulePresets.any { it.first == selectedCron }
-    val displayLabel =
-        if (isPreset) {
-            schedulePresets.first { it.first == selectedCron }.second
-        } else if (selectedCron.isNotEmpty()) {
-            "Personalizado: $selectedCron"
-        } else {
-            schedulePresets.first().second
-        }
+    var customCronDraft by remember { mutableStateOf("*/10 * * * *") }
+    val isCustomCron: (String) -> Boolean = { it.isNotEmpty() && it !in presetScheduleValues }
 
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-    ) {
-        OutlinedTextField(
-            value = displayLabel,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Agendamento") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+    val scheduleCustomOption =
+        ChipCustomOption(
+            chipLabel = "Personalizado",
+            chipIcon = InfraMapIcons.Tune,
+            inputLabel = "Expressão Cron",
+            inputPlaceholder = "*/10 * * * *",
+            currentValue = if (isCustomCron(selectedCron)) selectedCron else customCronDraft,
+            onValueChanged = { newValue ->
+                customCronDraft = newValue
+                onCronSelected(newValue)
+            },
+            parseValue = { it },
+            formatValue = { it },
+            helperText = "Formato cron de 5 campos",
+            isCustom = isCustomCron,
         )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            schedulePresets.forEach { (value, label) ->
-                DropdownMenuItem(
-                    text = { Text(label) },
-                    onClick = {
-                        onCronSelected(value)
-                        expanded = false
-                    },
-                )
-            }
-        }
-    }
+
+    InfraMapChoiceChipGroup(
+        options = scheduleChipOptions,
+        selected = selectedCron,
+        onSelected = onCronSelected,
+        label = "Agendamento",
+        customOption = scheduleCustomOption,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

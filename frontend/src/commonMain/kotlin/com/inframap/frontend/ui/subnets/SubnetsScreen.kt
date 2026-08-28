@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Sensors
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +28,7 @@ import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
+import com.inframap.frontend.designsystem.InfraMapTableSkeleton
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.Subnet
@@ -56,11 +56,11 @@ fun SubnetsScreen(
                     onRetryClicked = actions.onRetryClicked,
                 )
             } else if (state.isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+                    InfraMapTableSkeleton(
+                        rows = 5,
+                        columns = 6,
+                    )
                 }
             } else {
                 SubnetsTableCard(state = state, actions = actions)

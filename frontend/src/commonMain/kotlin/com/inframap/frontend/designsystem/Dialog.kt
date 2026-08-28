@@ -5,6 +5,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.common_cancel
+import com.inframap.frontend.generated.resources.common_confirm
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Material Design 3 Confirmation Dialog for InfraMap.
@@ -19,8 +23,8 @@ import androidx.compose.ui.unit.dp
 fun InfraMapConfirmDialog(
     title: String,
     message: String,
-    confirmText: String = "Confirm",
-    dismissText: String = "Cancel",
+    confirmText: String = stringResource(Res.string.common_confirm),
+    dismissText: String = stringResource(Res.string.common_cancel),
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {

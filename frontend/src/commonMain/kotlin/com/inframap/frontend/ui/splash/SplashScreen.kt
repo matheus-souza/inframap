@@ -13,6 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.app_name
+import com.inframap.frontend.generated.resources.splash_tagline
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun SplashScreen() {
@@ -25,13 +29,13 @@ fun SplashScreen() {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "InfraMap",
+            text = stringResource(Res.string.app_name),
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.primary,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Infrastructure Discovery & Mapping",
+            text = stringResource(Res.string.splash_tagline),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
         )

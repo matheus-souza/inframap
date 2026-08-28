@@ -711,6 +711,7 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
             onScheduleCronChanged = viewModel::onScheduleCronChanged,
             onConfigCidrChanged = viewModel::onConfigCidrChanged,
             onEnabledChanged = viewModel::onEnabledChanged,
+            onSubnetSelected = viewModel::onSubnetSelected,
             onSubmitClicked = {
                 viewModel.createSource {
                     navigator.navigateTo(Route.DiscoverySources)

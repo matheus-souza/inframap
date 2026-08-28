@@ -20,6 +20,18 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapTextField
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.app_name
+import com.inframap.frontend.generated.resources.onboarding_button
+import com.inframap.frontend.generated.resources.onboarding_confirm_password
+import com.inframap.frontend.generated.resources.onboarding_email
+import com.inframap.frontend.generated.resources.onboarding_full_name
+import com.inframap.frontend.generated.resources.onboarding_password
+import com.inframap.frontend.generated.resources.onboarding_password_hint
+import com.inframap.frontend.generated.resources.onboarding_setting_up
+import com.inframap.frontend.generated.resources.onboarding_subtitle
+import com.inframap.frontend.generated.resources.onboarding_username
+import org.jetbrains.compose.resources.stringResource
 
 @Suppress("LongParameterList")
 @Composable
@@ -71,13 +83,13 @@ private fun OnboardingFormContent(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "InfraMap",
+            text = stringResource(Res.string.app_name),
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.primary,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Create your admin account",
+            text = stringResource(Res.string.onboarding_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -99,7 +111,12 @@ private fun OnboardingFormContent(
         Spacer(modifier = Modifier.height(24.dp))
 
         InfraMapButton(
-            text = if (state.isLoading) "Setting up..." else "Complete Setup",
+            text =
+                if (state.isLoading) {
+                    stringResource(Res.string.onboarding_setting_up)
+                } else {
+                    stringResource(Res.string.onboarding_button)
+                },
             onClick = onSetupClick,
             modifier = Modifier.fillMaxWidth(),
             enabled = !state.isLoading,
@@ -118,7 +135,7 @@ private fun OnboardingFields(
     InfraMapTextField(
         value = state.fullName,
         onValueChange = onFullNameChanged,
-        label = "Full Name",
+        label = stringResource(Res.string.onboarding_full_name),
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
     )
@@ -126,7 +143,7 @@ private fun OnboardingFields(
     InfraMapTextField(
         value = state.email,
         onValueChange = onEmailChanged,
-        label = "Email",
+        label = stringResource(Res.string.onboarding_email),
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
     )
@@ -134,7 +151,7 @@ private fun OnboardingFields(
     InfraMapTextField(
         value = state.username,
         onValueChange = onUsernameChanged,
-        label = "Username",
+        label = stringResource(Res.string.onboarding_username),
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
     )
@@ -150,14 +167,14 @@ private fun OnboardingPasswordFields(
     InfraMapTextField(
         value = state.password,
         onValueChange = onPasswordChanged,
-        label = "Password",
+        label = stringResource(Res.string.onboarding_password),
         enabled = enabled,
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(modifier = Modifier.height(4.dp))
     Text(
-        text = "Must be at least 12 characters",
+        text = stringResource(Res.string.onboarding_password_hint),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth(),
@@ -166,7 +183,7 @@ private fun OnboardingPasswordFields(
     InfraMapTextField(
         value = state.confirmPassword,
         onValueChange = onConfirmPasswordChanged,
-        label = "Confirm Password",
+        label = stringResource(Res.string.onboarding_confirm_password),
         enabled = enabled,
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),

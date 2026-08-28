@@ -14,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,6 +25,7 @@ import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapConfirmDialog
+import com.inframap.frontend.designsystem.InfraMapDetailSkeleton
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.domain.model.Device
@@ -38,9 +38,7 @@ fun DeviceDetailScreen(
 ) {
     Box(modifier = modifier.fillMaxSize().padding(24.dp)) {
         if (state.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-            }
+            InfraMapDetailSkeleton()
         } else if (state.errorMessage != null) {
             DeviceDetailErrorView(
                 errorMessage = state.errorMessage.asString(),

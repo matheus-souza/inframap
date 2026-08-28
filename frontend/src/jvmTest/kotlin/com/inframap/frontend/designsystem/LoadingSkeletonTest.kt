@@ -97,6 +97,50 @@ class LoadingSkeletonTest {
         }
 
     @Test
+    fun detailSkeletonRendersWithoutCrashing() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapDetailSkeleton(cardCount = 2, rowsPerCard = 5)
+                }
+            }
+            waitForIdle()
+        }
+
+    @Test
+    fun legacyDetailSkeletonRendersWithoutCrashing() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    DetailLoadingSkeleton(cardCount = 1, rowsPerCard = 3)
+                }
+            }
+            waitForIdle()
+        }
+
+    @Test
+    fun formSkeletonRendersWithoutCrashing() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapFormSkeleton(fields = 5)
+                }
+            }
+            waitForIdle()
+        }
+
+    @Test
+    fun legacyFormSkeletonRendersWithoutCrashing() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    FormLoadingSkeleton(fields = 4)
+                }
+            }
+            waitForIdle()
+        }
+
+    @Test
     fun skeletonThrowsOnInvalidLines() {
         assertThrows<IllegalArgumentException> {
             runComposeUiTest {
@@ -201,6 +245,39 @@ class LoadingSkeletonTest {
             runComposeUiTest {
                 setContent {
                     InfraMapListSkeleton(spacing = (-1).dp)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun detailSkeletonThrowsOnInvalidCardCount() {
+        assertThrows<IllegalArgumentException> {
+            runComposeUiTest {
+                setContent {
+                    InfraMapDetailSkeleton(cardCount = 0)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun detailSkeletonThrowsOnInvalidRowsPerCard() {
+        assertThrows<IllegalArgumentException> {
+            runComposeUiTest {
+                setContent {
+                    InfraMapDetailSkeleton(rowsPerCard = 0)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun formSkeletonThrowsOnInvalidFields() {
+        assertThrows<IllegalArgumentException> {
+            runComposeUiTest {
+                setContent {
+                    InfraMapFormSkeleton(fields = 0)
                 }
             }
         }

@@ -11,6 +11,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.status_active
+import com.inframap.frontend.generated.resources.status_cancelled
+import com.inframap.frontend.generated.resources.status_error
+import com.inframap.frontend.generated.resources.status_idle
+import com.inframap.frontend.generated.resources.status_offline
+import com.inframap.frontend.generated.resources.status_running
+import com.inframap.frontend.generated.resources.status_staged
+import org.jetbrains.compose.resources.stringResource
 
 enum class DeviceStatus {
     ACTIVE,
@@ -32,9 +41,9 @@ fun InfraMapStatusBadge(
 ) {
     val (backgroundColor, label) =
         when (status) {
-            DeviceStatus.ACTIVE -> InfraMapGreen to "Active"
-            DeviceStatus.OFFLINE -> InfraMapRed to "Offline"
-            DeviceStatus.STAGED -> InfraMapOrange to "Staged"
+            DeviceStatus.ACTIVE -> InfraMapGreen to stringResource(Res.string.status_active)
+            DeviceStatus.OFFLINE -> InfraMapRed to stringResource(Res.string.status_offline)
+            DeviceStatus.STAGED -> InfraMapOrange to stringResource(Res.string.status_staged)
         }
     StatusBadgeContent(backgroundColor = backgroundColor, label = label, modifier = modifier)
 }
@@ -46,10 +55,10 @@ fun InfraMapStatusBadge(
 ) {
     val (backgroundColor, label) =
         when (status) {
-            SourceStatus.IDLE -> InfraMapComment to "Inativa"
-            SourceStatus.RUNNING -> InfraMapGreen to "Em execução"
-            SourceStatus.ERROR -> InfraMapRed to "Erro"
-            SourceStatus.CANCELLED -> InfraMapOrange to "Cancelada"
+            SourceStatus.IDLE -> InfraMapComment to stringResource(Res.string.status_idle)
+            SourceStatus.RUNNING -> InfraMapGreen to stringResource(Res.string.status_running)
+            SourceStatus.ERROR -> InfraMapRed to stringResource(Res.string.status_error)
+            SourceStatus.CANCELLED -> InfraMapOrange to stringResource(Res.string.status_cancelled)
         }
     StatusBadgeContent(backgroundColor = backgroundColor, label = label, modifier = modifier)
 }
