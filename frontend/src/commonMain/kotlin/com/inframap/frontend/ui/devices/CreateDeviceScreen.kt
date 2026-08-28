@@ -14,6 +14,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Router
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -114,42 +117,88 @@ private fun CreateDeviceFormFields(
     actions: CreateDeviceActions,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        InfraMapTextField(
-            value = state.hostname,
-            onValueChange = actions.onHostnameChanged,
-            label = "Hostname *",
-            error = state.validationErrors["hostname"]?.asString(),
-            modifier = Modifier.fillMaxWidth(),
+        CreateDeviceNetworkFields(state = state, actions = actions)
+        Spacer(modifier = Modifier.height(16.dp))
+        CreateDeviceTypeField(state = state, actions = actions)
+    }
+}
+
+@Composable
+private fun CreateDeviceNetworkFields(
+    state: CreateDeviceUiState,
+    actions: CreateDeviceActions,
+) {
+    InfraMapTextField(
+        value = state.hostname,
+        onValueChange = actions.onHostnameChanged,
+        label = "Hostname *",
+        error = state.validationErrors["hostname"]?.asString(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    InfraMapTextField(
+        value = state.ipAddress,
+        onValueChange = actions.onIpAddressChanged,
+        label = "Endereço IP (ex: 192.168.1.1)",
+        error = state.validationErrors["ip_address"]?.asString(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    InfraMapTextField(
+        value = state.macAddress,
+        onValueChange = actions.onMacAddressChanged,
+        label = "Endereço MAC (ex: 00:11:22:33:44:55)",
+        error = state.validationErrors["mac_address"]?.asString(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun CreateDeviceTypeField(
+    state: CreateDeviceUiState,
+    actions: CreateDeviceActions,
+) {
+    val deviceTypeOptions =
+        listOf(
+            com.inframap.frontend.designsystem
+                .ChipOption("router", "Router", Icons.Default.Router),
+            com.inframap.frontend.designsystem
+                .ChipOption("switch", "Switch", com.inframap.frontend.designsystem.InfraMapIcons.Lan),
+            com.inframap.frontend.designsystem
+                .ChipOption("server", "Server", com.inframap.frontend.designsystem.InfraMapIcons.Dns),
+            com.inframap.frontend.designsystem
+                .ChipOption("firewall", "Firewall", Icons.Default.Security),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        InfraMapTextField(
-            value = state.ipAddress,
-            onValueChange = actions.onIpAddressChanged,
-            label = "Endereço IP (ex: 192.168.1.1)",
-            error = state.validationErrors["ip_address"]?.asString(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        InfraMapTextField(
-            value = state.macAddress,
-            onValueChange = actions.onMacAddressChanged,
-            label = "Endereço MAC (ex: 00:11:22:33:44:55)",
-            error = state.validationErrors["mac_address"]?.asString(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        InfraMapTextField(
-            value = state.deviceType,
-            onValueChange = actions.onDeviceTypeChanged,
-            label = "Tipo de Dispositivo (router, switch, server, firewall...)",
-            error = state.validationErrors["device_type"]?.asString(),
-            modifier = Modifier.fillMaxWidth(),
+    com.inframap.frontend.designsystem.InfraMapChoiceChipGroup(
+        options = deviceTypeOptions,
+        selected = state.deviceType,
+        onSelected = actions.onDeviceTypeChanged,
+        label = "Tipo de Dispositivo",
+        customOption =
+            com.inframap.frontend.designsystem.ChipCustomOption(
+                chipLabel = "Outro",
+                chipIcon = Icons.Default.MoreHoriz,
+                inputLabel = "Tipo Personalizado",
+                inputPlaceholder = "ex: load_balancer",
+                currentValue = state.deviceType,
+                onValueChanged = actions.onDeviceTypeChanged,
+                parseValue = { it },
+                formatValue = { it },
+                isCustom = { it !in listOf("router", "switch", "server", "firewall", "") },
+            ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    if (state.validationErrors["device_type"] != null) {
+        Text(
+            text = state.validationErrors["device_type"]!!.asString(),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 16.dp, top = 4.dp),
         )
     }
 }

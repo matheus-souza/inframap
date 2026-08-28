@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.data.storage.LocalStorage
 import com.inframap.frontend.designsystem.InfraMapIcons
+import com.inframap.frontend.designsystem.InfraMapToastHost
 import com.inframap.frontend.designsystem.motion.MotionTransitions
 import com.inframap.frontend.domain.model.CommandPaletteAction
 import com.inframap.frontend.generated.resources.Res
@@ -173,7 +174,9 @@ fun MainScaffold(
     val onOpenCommandPalette = remember(commandPaletteViewModel) { { commandPaletteViewModel.open() } }
     val onRestartTourClicked = remember(tourViewModel) { { tourViewModel.startTour() } }
 
-    CommandPaletteListener(onTogglePalette = onTogglePalette) {
+    CommandPaletteListener(
+        onTogglePalette = onTogglePalette,
+    ) {
         MainScaffoldContent(
             currentRoute = currentRoute,
             navigator = navigator,
@@ -223,6 +226,8 @@ private fun MainScaffoldOverlays(
         state = tourState,
         actions = tourActions,
     )
+
+    InfraMapToastHost()
 }
 
 @Composable

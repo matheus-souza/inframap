@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
@@ -144,7 +145,10 @@ private fun DeviceDetailHeader(
                 )
                 Text(
                     text = "ID: ${device.id}",
-                    style = MaterialTheme.typography.bodySmall,
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                        ),
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                 )
             }
@@ -176,8 +180,8 @@ private fun DeviceMainInfoCard(device: Device) {
             Spacer(modifier = Modifier.height(16.dp))
 
             DetailRow("Hostname", device.hostname)
-            DetailRow("Endereço IP", device.ipAddress ?: "—")
-            DetailRow("Endereço MAC", device.macAddress ?: "—")
+            DetailRow("Endereço IP", device.ipAddress ?: "—", isMonospace = true)
+            DetailRow("Endereço MAC", device.macAddress ?: "—", isMonospace = true)
             DetailRow("Tipo de Dispositivo", device.deviceType)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -242,6 +246,7 @@ private fun DeviceMetadataCard(metadata: Map<String, String>) {
 private fun DetailRow(
     label: String,
     value: String,
+    isMonospace: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -256,7 +261,14 @@ private fun DetailRow(
             )
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodyLarge,
+                style =
+                    if (isMonospace) {
+                        MaterialTheme.typography.bodyLarge.copy(
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    } else {
+                        MaterialTheme.typography.bodyLarge
+                    },
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
