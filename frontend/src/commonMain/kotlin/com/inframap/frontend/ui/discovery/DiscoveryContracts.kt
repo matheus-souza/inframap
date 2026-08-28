@@ -3,6 +3,7 @@
 package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.domain.model.DiscoverySource
+import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.ui.base.Paginated
 import com.inframap.frontend.ui.util.UiText
 
@@ -40,6 +41,8 @@ data class CreateDiscoverySourceUiState(
     val validationErrors: Map<String, UiText> = emptyMap(),
     val errorMessage: UiText? = null,
     val isSuccess: Boolean = false,
+    val subnets: List<SubnetSummary> = emptyList(),
+    val isLoadingSubnets: Boolean = false,
 )
 
 data class CreateDiscoverySourceActions(
@@ -48,6 +51,7 @@ data class CreateDiscoverySourceActions(
     val onScheduleCronChanged: (String) -> Unit,
     val onConfigCidrChanged: (String) -> Unit,
     val onEnabledChanged: (Boolean) -> Unit,
+    val onSubnetSelected: (SubnetSummary) -> Unit,
     val onSubmitClicked: () -> Unit,
     val onCancelClicked: () -> Unit,
 )

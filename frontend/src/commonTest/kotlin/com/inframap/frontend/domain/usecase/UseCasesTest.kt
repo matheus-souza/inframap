@@ -38,6 +38,7 @@ import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
+import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertIs
@@ -122,6 +123,7 @@ class UseCasesTest {
     fun testSubnetUseCases() =
         runTest {
             assertIs<ApiResult.Success<*>>(GetSubnetsUseCase(repo)())
+            assertIs<ApiResult.Success<*>>(ListSubnetsUseCase(repo)())
         }
 
     @Test

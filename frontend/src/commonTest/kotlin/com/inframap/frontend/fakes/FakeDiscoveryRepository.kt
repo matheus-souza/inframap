@@ -18,6 +18,7 @@ class FakeDiscoveryRepository(
 ) : DiscoveryRepository {
     var getSourcesCallCount = 0
     var createSourceCallCount = 0
+    var lastCreateSourceRequest: CreateDiscoverySourceRequest? = null
     var triggerRunCallCount = 0
     var deleteSourceCallCount = 0
 
@@ -28,6 +29,7 @@ class FakeDiscoveryRepository(
 
     override suspend fun createSource(request: CreateDiscoverySourceRequest): ApiResult<DiscoverySource> {
         createSourceCallCount++
+        lastCreateSourceRequest = request
         return createSourceResult
     }
 

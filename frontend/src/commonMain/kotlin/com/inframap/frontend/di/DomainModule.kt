@@ -23,6 +23,7 @@ import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
+import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.domain.usecase.topology.GetTopologyGraphUseCase
 import org.koin.dsl.module
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase as GetDiscoverySources
@@ -40,6 +41,7 @@ val domainModule =
         factory { DismissDeviceUseCase(get()) }
 
         factory { GetSubnetsUseCase(get()) }
+        factory { ListSubnetsUseCase(get()) }
         factory { CreateSubnetUseCase(get()) }
 
         factory { GetNetworkInterfacesUseCase(get()) }

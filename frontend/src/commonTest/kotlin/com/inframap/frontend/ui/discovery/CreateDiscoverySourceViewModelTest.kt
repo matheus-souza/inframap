@@ -3,8 +3,13 @@ package com.inframap.frontend.ui.discovery
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.domain.model.DiscoverySource
+import com.inframap.frontend.domain.model.PaginatedList
+import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.fakes.FakeDiscoveryRepository
+import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -21,18 +26,101 @@ class CreateDiscoverySourceViewModelTest {
         DiscoverySource(
             id = "src-1",
             name = "ICMP Scanner",
-            sourceType = "icmp",
+            sourceType = "icmp_sweep",
             enabled = true,
             lastStatus = "idle",
         )
 
+    private val testSubnet =
+        Subnet(
+            id = "sub-10",
+            name = "Office LAN",
+            cidr = "10.10.0.0/24",
+            discoveryEnabled = true,
+        )
+
     private fun makeVm(
-        repo: FakeDiscoveryRepository =
+        discoveryRepo: FakeDiscoveryRepository =
             FakeDiscoveryRepository(
                 createSourceResult = ApiResult.Success(createdSource, requestId = ""),
             ),
+        subnetRepo: FakeSubnetRepository =
+            FakeSubnetRepository(
+                getSubnetsResult =
+                    ApiResult.Success(
+                        PaginatedList(items = listOf(testSubnet), total = 1L, page = 1, perPage = 50),
+                        requestId = "",
+                    ),
+            ),
         scope: CoroutineScope? = null,
-    ) = CreateDiscoverySourceViewModel(CreateDiscoverySourceUseCase(repo), scope = scope)
+    ) = CreateDiscoverySourceViewModel(
+        createSourceUseCase = CreateDiscoverySourceUseCase(discoveryRepo),
+        listSubnetsUseCase = ListSubnetsUseCase(subnetRepo),
+        scope = scope,
+    )
+
+    @Test
+    fun subnetsLoadedSuccessfullyOnInit() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertFalse(state.isLoadingSubnets)
+            assertEquals(1, state.subnets.size)
+            assertEquals("Office LAN", state.subnets[0].name)
+            assertEquals("10.10.0.0/24", state.subnets[0].cidr)
+            vm.clear()
+        }
+
+    @Test
+    fun subnetsLoadFailureHandledGracefully() =
+        runTest {
+            val subnetRepo =
+                FakeSubnetRepository(
+                    getSubnetsResult = ApiResult.NetworkError(RuntimeException("Failed to load")),
+                )
+            val vm = makeVm(subnetRepo = subnetRepo, scope = this)
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertFalse(state.isLoadingSubnets)
+            assertTrue(state.subnets.isEmpty())
+            vm.clear()
+        }
+
+    @Test
+    fun onSubnetSelectedPrefillsCidrAndDefaultNameWhenNameIsBlank() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            val summary = SubnetSummary(id = "sub-1", name = "Production", cidr = "192.168.10.0/24")
+            vm.onSubnetSelected(summary)
+
+            val state = vm.state.value
+            assertEquals("Scan Production", state.name)
+            assertEquals("192.168.10.0/24", state.configCidr)
+            assertFalse(state.validationErrors.containsKey("cidr"))
+            assertFalse(state.validationErrors.containsKey("name"))
+            vm.clear()
+        }
+
+    @Test
+    fun onSubnetSelectedPreservesExistingCustomName() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Custom Dedicated Scanner")
+            val summary = SubnetSummary(id = "sub-1", name = "Production", cidr = "192.168.10.0/24")
+            vm.onSubnetSelected(summary)
+
+            val state = vm.state.value
+            assertEquals("Custom Dedicated Scanner", state.name)
+            assertEquals("192.168.10.0/24", state.configCidr)
+            vm.clear()
+        }
 
     @Test
     fun validationFailsOnEmptyNameAndType() =
@@ -52,7 +140,7 @@ class CreateDiscoverySourceViewModelTest {
             val vm = makeVm(scope = this)
 
             vm.onNameChanged("ICMP Scanner")
-            vm.onSourceTypeChanged("icmp")
+            vm.onSourceTypeChanged("icmp_sweep")
 
             assertTrue(vm.validate())
             assertTrue(
@@ -68,7 +156,7 @@ class CreateDiscoverySourceViewModelTest {
             val vm = makeVm(scope = this)
 
             vm.onNameChanged("ICMP Scanner")
-            vm.onSourceTypeChanged("icmp")
+            vm.onSourceTypeChanged("icmp_sweep")
             vm.onConfigCidrChanged("not-a-cidr")
 
             assertFalse(vm.validate())
@@ -85,7 +173,7 @@ class CreateDiscoverySourceViewModelTest {
             val vm = makeVm(scope = this)
 
             vm.onNameChanged("ICMP Scanner")
-            vm.onSourceTypeChanged("icmp")
+            vm.onSourceTypeChanged("icmp_sweep")
             vm.onConfigCidrChanged("192.168.1.0/24")
 
             assertTrue(vm.validate())
@@ -104,8 +192,8 @@ class CreateDiscoverySourceViewModelTest {
             vm.onNameChanged("Test Source")
             assertEquals("Test Source", vm.state.value.name)
 
-            vm.onSourceTypeChanged("snmp")
-            assertEquals("snmp", vm.state.value.sourceType)
+            vm.onSourceTypeChanged("arp_sweep")
+            assertEquals("arp_sweep", vm.state.value.sourceType)
 
             vm.onScheduleCronChanged("0 */6 * * *")
             assertEquals("0 */6 * * *", vm.state.value.scheduleCron)
@@ -143,10 +231,11 @@ class CreateDiscoverySourceViewModelTest {
     fun createSourceWorkflowCompletesSuccessfully() =
         runTest {
             var onSuccessCalled = false
-            val vm = makeVm(scope = this)
+            val discoveryRepo = FakeDiscoveryRepository()
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
 
             vm.onNameChanged("ICMP Scanner")
-            vm.onSourceTypeChanged("icmp")
+            vm.onSourceTypeChanged("icmp_sweep")
             vm.onConfigCidrChanged("192.168.1.0/24")
             vm.onScheduleCronChanged("0 */6 * * *")
 
@@ -160,8 +249,44 @@ class CreateDiscoverySourceViewModelTest {
                 assertFalse(state.isSubmitting)
                 assertNull(state.errorMessage)
                 assertTrue(onSuccessCalled)
+                assertEquals("0 */6 * * *", discoveryRepo.lastCreateSourceRequest?.scheduleCron)
+                assertEquals("192.168.1.0/24", discoveryRepo.lastCreateSourceRequest?.config?.get("cidr"))
                 cancelAndIgnoreRemainingEvents()
             }
+            vm.clear()
+        }
+
+    @Test
+    fun createSourceWith15MinPresetScheduleSubmitsCorrectCron() =
+        runTest {
+            val discoveryRepo = FakeDiscoveryRepository()
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+
+            vm.onNameChanged("Fast Scanner")
+            vm.onSourceTypeChanged("arp_sweep")
+            vm.onScheduleCronChanged("*/15 * * * *")
+
+            vm.createSource()
+            advanceUntilIdle()
+
+            assertEquals("*/15 * * * *", discoveryRepo.lastCreateSourceRequest?.scheduleCron)
+            vm.clear()
+        }
+
+    @Test
+    fun createSourceWithCustomCronScheduleSubmitsCorrectCron() =
+        runTest {
+            val discoveryRepo = FakeDiscoveryRepository()
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+
+            vm.onNameChanged("Custom Cron Scanner")
+            vm.onSourceTypeChanged("docker")
+            vm.onScheduleCronChanged("30 3 * * 1-5")
+
+            vm.createSource()
+            advanceUntilIdle()
+
+            assertEquals("30 3 * * 1-5", discoveryRepo.lastCreateSourceRequest?.scheduleCron)
             vm.clear()
         }
 
@@ -170,7 +295,7 @@ class CreateDiscoverySourceViewModelTest {
         runTest {
             val vm = makeVm(scope = this)
             vm.onNameChanged("ICMP Scanner")
-            vm.onSourceTypeChanged("icmp")
+            vm.onSourceTypeChanged("icmp_sweep")
 
             vm.createSource()
             assertTrue(vm.state.value.isSubmitting)
@@ -195,9 +320,9 @@ class CreateDiscoverySourceViewModelTest {
                             httpStatus = 409,
                         ),
                 )
-            val vm = makeVm(repo = repo, scope = this)
+            val vm = makeVm(discoveryRepo = repo, scope = this)
             vm.onNameChanged("ICMP Scanner")
-            vm.onSourceTypeChanged("icmp")
+            vm.onSourceTypeChanged("icmp_sweep")
 
             vm.state.test {
                 skipItems(1)
@@ -220,9 +345,9 @@ class CreateDiscoverySourceViewModelTest {
                 FakeDiscoveryRepository(
                     createSourceResult = ApiResult.NetworkError(RuntimeException("timeout")),
                 )
-            val vm = makeVm(repo = repo, scope = this)
+            val vm = makeVm(discoveryRepo = repo, scope = this)
             vm.onNameChanged("ICMP Scanner")
-            vm.onSourceTypeChanged("icmp")
+            vm.onSourceTypeChanged("icmp_sweep")
 
             vm.state.test {
                 skipItems(1)
@@ -257,7 +382,7 @@ class CreateDiscoverySourceViewModelTest {
         runTest {
             val vm = makeVm(scope = this)
             vm.onNameChanged("  ")
-            vm.onSourceTypeChanged("icmp")
+            vm.onSourceTypeChanged("icmp_sweep")
 
             assertFalse(vm.validate())
             assertTrue(

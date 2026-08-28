@@ -2,7 +2,10 @@ package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
+import com.inframap.frontend.domain.model.SubnetSummary
+import com.inframap.frontend.domain.model.toSummary
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.discovery_error_create
 import com.inframap.frontend.generated.resources.validation_cidr_invalid
@@ -14,8 +17,32 @@ import kotlinx.coroutines.CoroutineScope
 
 class CreateDiscoverySourceViewModel(
     private val createSourceUseCase: CreateDiscoverySourceUseCase,
+    private val listSubnetsUseCase: ListSubnetsUseCase,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<CreateDiscoverySourceUiState>(CreateDiscoverySourceUiState(), scope) {
+    init {
+        loadSubnets()
+    }
+
+    fun loadSubnets() {
+        updateState { it.copy(isLoadingSubnets = true) }
+        launchJob("load_subnets") {
+            when (val result = listSubnetsUseCase()) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            subnets = result.data.items.map { subnet -> subnet.toSummary() },
+                            isLoadingSubnets = false,
+                        )
+                    }
+                }
+                else -> {
+                    updateState { it.copy(isLoadingSubnets = false) }
+                }
+            }
+        }
+    }
+
     fun onNameChanged(name: String) {
         updateState { it.copy(name = name, validationErrors = it.validationErrors - "name") }
     }
@@ -30,6 +57,22 @@ class CreateDiscoverySourceViewModel(
 
     fun onConfigCidrChanged(cidr: String) {
         updateState { it.copy(configCidr = cidr, validationErrors = it.validationErrors - "cidr") }
+    }
+
+    fun onSubnetSelected(subnet: SubnetSummary) {
+        updateState { current ->
+            val wasNameBlank = current.name.isBlank()
+            val newName = if (wasNameBlank) "Scan ${subnet.name}" else current.name
+            var errors = current.validationErrors - "cidr"
+            if (wasNameBlank) {
+                errors = errors - "name"
+            }
+            current.copy(
+                name = newName,
+                configCidr = subnet.cidr,
+                validationErrors = errors,
+            )
+        }
     }
 
     fun onEnabledChanged(enabled: Boolean) {
