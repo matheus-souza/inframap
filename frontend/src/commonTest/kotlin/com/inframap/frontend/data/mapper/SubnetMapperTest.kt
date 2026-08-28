@@ -46,4 +46,22 @@ class SubnetMapperTest {
         assertEquals(1, list.items.size)
         assertEquals("S1", list.items[0].name)
     }
+
+    @Test
+    fun toSummaryMapsDtoCorrectly() {
+        val dto =
+            SubnetDto(
+                id = "sub-1",
+                name = "Office LAN",
+                cidr = "192.168.1.0/24",
+                discoveryEnabled = true,
+            )
+
+        val summary = SubnetMapper.toSummary(dto)
+
+        assertEquals("sub-1", summary.id)
+        assertEquals("Office LAN", summary.name)
+        assertEquals("192.168.1.0/24", summary.cidr)
+        assertTrue(summary.discoveryEnabled)
+    }
 }
