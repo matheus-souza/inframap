@@ -7,9 +7,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.generated.resources.Res
-import com.inframap.frontend.generated.resources.table_next
-import com.inframap.frontend.generated.resources.table_page_of
-import com.inframap.frontend.generated.resources.table_previous
+import com.inframap.frontend.generated.resources.table_pagination_next
+import com.inframap.frontend.generated.resources.table_pagination_page
+import com.inframap.frontend.generated.resources.table_pagination_previous
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.compose.resources.getString
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -89,9 +89,9 @@ class TableTest {
                     )
                 }
             }
-            onNodeWithText(runBlocking { getString(Res.string.table_page_of, 2, 5) }).assertIsDisplayed()
-            onNodeWithText(runBlocking { getString(Res.string.table_previous) }).assertIsDisplayed()
-            onNodeWithText(runBlocking { getString(Res.string.table_next) }).assertIsDisplayed()
+            onNodeWithText(runBlocking { getString(Res.string.table_pagination_page, 2, 5) }).assertIsDisplayed()
+            onNodeWithText(runBlocking { getString(Res.string.table_pagination_previous) }).assertIsDisplayed()
+            onNodeWithText(runBlocking { getString(Res.string.table_pagination_next) }).assertIsDisplayed()
         }
 
     @Test
@@ -107,7 +107,7 @@ class TableTest {
                     )
                 }
             }
-            onNodeWithText(runBlocking { getString(Res.string.table_next) }).performClick()
+            onNodeWithText(runBlocking { getString(Res.string.table_pagination_next) }).performClick()
             assertEquals(3, newPage)
         }
 
@@ -124,7 +124,7 @@ class TableTest {
                     )
                 }
             }
-            onNodeWithText(runBlocking { getString(Res.string.table_previous) }).performClick()
+            onNodeWithText(runBlocking { getString(Res.string.table_pagination_previous) }).performClick()
             assertEquals(2, newPage)
         }
 }
