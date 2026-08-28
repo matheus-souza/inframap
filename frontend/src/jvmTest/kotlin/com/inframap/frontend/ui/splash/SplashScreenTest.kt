@@ -18,6 +18,6 @@ class SplashScreenTest {
                 }
             }
             onNodeWithText("InfraMap").assertIsDisplayed()
-            onNodeWithText("Descoberta & Mapeamento de Infraestrutura").assertIsDisplayed()
+            onNodeWithText("Infrastructure Discovery & Mapping").assertIsDisplayed()
         }
 }

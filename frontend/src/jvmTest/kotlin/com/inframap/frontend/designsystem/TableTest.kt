@@ -83,9 +83,9 @@ class TableTest {
                     )
                 }
             }
-            onNodeWithText("Página 2 de 5").assertIsDisplayed()
-            onNodeWithText("Anterior").assertIsDisplayed()
-            onNodeWithText("Próximo").assertIsDisplayed()
+            onNodeWithText("Page 2 of 5").assertIsDisplayed()
+            onNodeWithText("Previous").assertIsDisplayed()
+            onNodeWithText("Next").assertIsDisplayed()
         }
 
     @Test
@@ -101,7 +101,7 @@ class TableTest {
                     )
                 }
             }
-            onNodeWithText("Próximo").performClick()
+            onNodeWithText("Next").performClick()
             assertEquals(3, newPage)
         }
 
@@ -118,7 +118,7 @@ class TableTest {
                     )
                 }
             }
-            onNodeWithText("Anterior").performClick()
+            onNodeWithText("Previous").performClick()
             assertEquals(2, newPage)
         }
 }
