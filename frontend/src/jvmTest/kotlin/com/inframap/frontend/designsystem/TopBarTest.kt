@@ -43,7 +43,7 @@ class TopBarTest {
             }
             onNodeWithText("Dashboard").assertIsDisplayed()
             onNodeWithText("InfraMap").assertIsDisplayed()
-            onNodeWithContentDescription("System healthy").assertIsDisplayed()
+            onNodeWithContentDescription("Sistema saudável").assertIsDisplayed()
         }
 
     @Test
@@ -55,7 +55,7 @@ class TopBarTest {
                 }
             }
             onNodeWithText("InfraMap").assertIsDisplayed()
-            onNodeWithContentDescription("System unhealthy").assertIsDisplayed()
+            onNodeWithContentDescription("Sistema não saudável").assertIsDisplayed()
         }
 
     @Test
@@ -68,7 +68,7 @@ class TopBarTest {
             }
             onNodeWithText("K").assertIsDisplayed()
             onNodeWithText("Live SSE").assertIsDisplayed()
-            onNodeWithContentDescription("Search trigger button").assertIsDisplayed()
+            onNodeWithContentDescription("Botão de busca").assertIsDisplayed()
         }
 
     @Test
@@ -82,6 +82,6 @@ class TopBarTest {
                 }
             }
             onNodeWithText("Refazer Tour Guiado").assertIsDisplayed()
-            onNodeWithContentDescription("Refazer Tour Guiado button").assertIsDisplayed()
+            onNodeWithContentDescription("Refazer Tour Guiado").assertIsDisplayed()
         }
 }
