@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -29,6 +28,7 @@ import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapSnackbarHost
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
+import com.inframap.frontend.designsystem.InfraMapTableSkeleton
 import com.inframap.frontend.designsystem.SnackbarType
 import com.inframap.frontend.designsystem.SourceStatus
 import com.inframap.frontend.designsystem.TableColumn
@@ -62,11 +62,11 @@ fun DiscoveryListScreen(
                     onRetryClicked = actions.onRetryClicked,
                 )
             } else if (state.isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+                    InfraMapTableSkeleton(
+                        rows = 5,
+                        columns = 6,
+                    )
                 }
             } else {
                 DiscoveryTableCard(state = state, actions = actions)

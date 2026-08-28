@@ -12,7 +12,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
@@ -205,4 +208,237 @@ fun ListLoadingSkeleton(
     itemHeight = itemHeight,
     spacing = spacing,
     shape = shape,
+)
+
+@Composable
+fun InfraMapDetailSkeleton(
+    modifier: Modifier = Modifier,
+    cardCount: Int = 2,
+    rowsPerCard: Int = 5,
+) {
+    require(cardCount > 0) { "cardCount must be positive" }
+    require(rowsPerCard > 0) { "rowsPerCard must be positive" }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        DetailHeaderSkeleton()
+        Spacer(modifier = Modifier.height(24.dp))
+        repeat(cardCount) { cardIndex ->
+            DetailCardSkeleton(rows = rowsPerCard)
+            if (cardIndex < cardCount - 1) {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailHeaderSkeleton() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier =
+                    Modifier
+                        .width(88.dp)
+                        .height(36.dp)
+                        .m3Shimmer(shape = RoundedCornerShape(8.dp)),
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Box(
+                    modifier =
+                        Modifier
+                            .width(180.dp)
+                            .height(28.dp)
+                            .m3Shimmer(shape = RoundedCornerShape(4.dp)),
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier =
+                        Modifier
+                            .width(120.dp)
+                            .height(14.dp)
+                            .m3Shimmer(shape = RoundedCornerShape(4.dp)),
+                )
+            }
+        }
+        Row {
+            Box(
+                modifier =
+                    Modifier
+                        .width(80.dp)
+                        .height(36.dp)
+                        .m3Shimmer(shape = RoundedCornerShape(8.dp)),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Box(
+                modifier =
+                    Modifier
+                        .width(80.dp)
+                        .height(36.dp)
+                        .m3Shimmer(shape = RoundedCornerShape(8.dp)),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailCardSkeleton(rows: Int) {
+    InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            Box(
+                modifier =
+                    Modifier
+                        .width(180.dp)
+                        .height(22.dp)
+                        .m3Shimmer(shape = RoundedCornerShape(4.dp)),
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            repeat(rows) { rowIndex ->
+                DetailCardRowSkeleton()
+                if (rowIndex < rows - 1) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailCardRowSkeleton() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .width(120.dp)
+                    .height(16.dp)
+                    .m3Shimmer(shape = RoundedCornerShape(4.dp)),
+        )
+        Box(
+            modifier =
+                Modifier
+                    .width(160.dp)
+                    .height(16.dp)
+                    .m3Shimmer(shape = RoundedCornerShape(4.dp)),
+        )
+    }
+}
+
+@Composable
+fun DetailLoadingSkeleton(
+    modifier: Modifier = Modifier,
+    cardCount: Int = 2,
+    rowsPerCard: Int = 5,
+) = InfraMapDetailSkeleton(
+    modifier = modifier,
+    cardCount = cardCount,
+    rowsPerCard = rowsPerCard,
+)
+
+@Composable
+fun InfraMapFormSkeleton(
+    modifier: Modifier = Modifier,
+    fields: Int = 5,
+) {
+    require(fields > 0) { "fields must be positive" }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        FormHeaderSkeleton()
+        Spacer(modifier = Modifier.height(24.dp))
+        InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+                Box(
+                    modifier =
+                        Modifier
+                            .width(180.dp)
+                            .height(22.dp)
+                            .m3Shimmer(shape = RoundedCornerShape(4.dp)),
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+
+                InfraMapListSkeleton(
+                    items = fields,
+                    itemHeight = 56.dp,
+                    spacing = 16.dp,
+                    shape = RoundedCornerShape(8.dp),
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                FormButtonsSkeleton()
+            }
+        }
+    }
+}
+
+@Composable
+private fun FormHeaderSkeleton() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier =
+                Modifier
+                    .width(88.dp)
+                    .height(36.dp)
+                    .m3Shimmer(shape = RoundedCornerShape(8.dp)),
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Box(
+                modifier =
+                    Modifier
+                        .width(200.dp)
+                        .height(28.dp)
+                        .m3Shimmer(shape = RoundedCornerShape(4.dp)),
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Box(
+                modifier =
+                    Modifier
+                        .width(260.dp)
+                        .height(14.dp)
+                        .m3Shimmer(shape = RoundedCornerShape(4.dp)),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FormButtonsSkeleton() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .width(96.dp)
+                    .height(40.dp)
+                    .m3Shimmer(shape = RoundedCornerShape(8.dp)),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Box(
+            modifier =
+                Modifier
+                    .width(140.dp)
+                    .height(40.dp)
+                    .m3Shimmer(shape = RoundedCornerShape(8.dp)),
+        )
+    }
+}
+
+@Composable
+fun FormLoadingSkeleton(
+    modifier: Modifier = Modifier,
+    fields: Int = 5,
+) = InfraMapFormSkeleton(
+    modifier = modifier,
+    fields = fields,
 )

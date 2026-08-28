@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +26,7 @@ import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.InfraMapTablePagination
+import com.inframap.frontend.designsystem.InfraMapTableSkeleton
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.StagingDevice
 import com.inframap.frontend.generated.resources.Res
@@ -54,11 +54,11 @@ fun StagingScreen(
                     onRetryClicked = actions.onRetryClicked,
                 )
             } else if (state.isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                InfraMapCard(modifier = Modifier.fillMaxWidth()) {
+                    InfraMapTableSkeleton(
+                        rows = 5,
+                        columns = 6,
+                    )
                 }
             } else {
                 StagingTableCard(state = state, actions = actions)
