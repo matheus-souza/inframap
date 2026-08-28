@@ -159,6 +159,32 @@
     <string name="topology_preview_router">Prévia Roteador</string>
     <string name="topology_preview_switch">Prévia Switch</string>
     <string name="topology_preview_server">Prévia Servidor</string>
+    <string name="topology_toolbar_pointer_mode">Modo Ponteiro / Seleção</string>
+    <string name="topology_toolbar_hand_mode">Modo Mão / Navegação</string>
+    <string name="topology_toolbar_zoom_out">Diminuir Zoom</string>
+    <string name="topology_toolbar_zoom_in">Aumentar Zoom</string>
+    <string name="topology_toolbar_reset_zoom">Ajustar Zoom à Tela</string>
+    <string name="topology_toolbar_toggle_subnets">Alternar Agrupamento de Sub-redes</string>
+    <string name="topology_toolbar_auto_layout">Auto-organização por Forças</string>
+    <string name="topology_inspector_node_id">ID: %1$s</string>
+    <string name="topology_inspector_close_sheet">Fechar Painel do Inspetor</string>
+    <string name="topology_inspector_network_identity">Identidade de Rede</string>
+    <string name="topology_inspector_hostname">Nome do Host</string>
+    <string name="topology_inspector_ip_address">Endereço IP</string>
+    <string name="topology_inspector_mac_address">Endereço MAC</string>
+    <string name="topology_inspector_subnet_id">ID da Sub-rede</string>
+    <string name="topology_inspector_specs_status">Especificações e Status</string>
+    <string name="topology_inspector_device_type">Tipo de Dispositivo</string>
+    <string name="topology_inspector_status">Status</string>
+    <string name="topology_inspector_interfaces_health">Interfaces Ativas e Saúde</string>
+    <string name="topology_inspector_interfaces">Interfaces</string>
+    <string name="topology_inspector_interfaces_sample">eth0 (ativa), eth1 (standby)</string>
+    <string name="topology_inspector_icmp_latency">Latência de Ping ICMP</string>
+    <string name="topology_inspector_discovery_provenance">Origem da Descoberta</string>
+    <string name="topology_inspector_discovery_provenance_value">SNMP v2c / Descoberta LLDP</string>
+    <string name="topology_inspector_trigger_scan">Disparar Varredura Ativa</string>
+    <string name="topology_inspector_edit_metadata">Editar Metadados</string>
+    <string name="topology_inspector_edit_device_metadata">Editar Metadados do Dispositivo</string>
 
     <!-- Dashboard Auto-Setup -->
     <string name="dashboard_auto_setup_title">Redes Locais Detectadas</string>

@@ -39,6 +39,15 @@ import com.inframap.frontend.designsystem.InfraMapSurfaceBg
 import com.inframap.frontend.designsystem.InfraMapSurfaceElevated
 import com.inframap.frontend.designsystem.InfraMapTextPrimary
 import com.inframap.frontend.designsystem.InfraMapTextSecondary
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.topology_toolbar_auto_layout
+import com.inframap.frontend.generated.resources.topology_toolbar_hand_mode
+import com.inframap.frontend.generated.resources.topology_toolbar_pointer_mode
+import com.inframap.frontend.generated.resources.topology_toolbar_reset_zoom
+import com.inframap.frontend.generated.resources.topology_toolbar_toggle_subnets
+import com.inframap.frontend.generated.resources.topology_toolbar_zoom_in
+import com.inframap.frontend.generated.resources.topology_toolbar_zoom_out
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
 @Suppress("LongParameterList", "LongMethod")
@@ -71,14 +80,14 @@ fun CanvasToolbar(
             // Mode Selectors
             ToolIconButton(
                 icon = Icons.Default.Mouse,
-                contentDescription = "Pointer / Select Mode",
+                contentDescription = stringResource(Res.string.topology_toolbar_pointer_mode),
                 isSelected = activeTool == CanvasTool.POINTER,
                 onClick = { onToolSelected(CanvasTool.POINTER) },
             )
 
             ToolIconButton(
                 icon = Icons.Default.PanTool,
-                contentDescription = "Hand / Pan Mode",
+                contentDescription = stringResource(Res.string.topology_toolbar_hand_mode),
                 isSelected = activeTool == CanvasTool.HAND,
                 onClick = { onToolSelected(CanvasTool.HAND) },
             )
@@ -92,7 +101,7 @@ fun CanvasToolbar(
             ) {
                 Icon(
                     imageVector = Icons.Default.Remove,
-                    contentDescription = "Zoom Out",
+                    contentDescription = stringResource(Res.string.topology_toolbar_zoom_out),
                     tint = InfraMapTextSecondary,
                     modifier = Modifier.size(16.dp),
                 )
@@ -111,7 +120,7 @@ fun CanvasToolbar(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Zoom In",
+                    contentDescription = stringResource(Res.string.topology_toolbar_zoom_in),
                     tint = InfraMapTextSecondary,
                     modifier = Modifier.size(16.dp),
                 )
@@ -123,7 +132,7 @@ fun CanvasToolbar(
             ) {
                 Icon(
                     imageVector = Icons.Default.CenterFocusWeak,
-                    contentDescription = "Reset Zoom to Fit",
+                    contentDescription = stringResource(Res.string.topology_toolbar_reset_zoom),
                     tint = InfraMapTextSecondary,
                     modifier = Modifier.size(16.dp),
                 )
@@ -134,7 +143,7 @@ fun CanvasToolbar(
             // Subnet boundaries toggle
             ToolIconButton(
                 icon = Icons.Default.GridView,
-                contentDescription = "Toggle Subnet Grouping",
+                contentDescription = stringResource(Res.string.topology_toolbar_toggle_subnets),
                 isSelected = showSubnetBoundaries,
                 onClick = onToggleSubnetBoundaries,
             )
@@ -146,7 +155,7 @@ fun CanvasToolbar(
             ) {
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = "Force-Directed Auto-Layout",
+                    contentDescription = stringResource(Res.string.topology_toolbar_auto_layout),
                     tint = InfraMapPurple,
                     modifier = Modifier.size(18.dp),
                 )

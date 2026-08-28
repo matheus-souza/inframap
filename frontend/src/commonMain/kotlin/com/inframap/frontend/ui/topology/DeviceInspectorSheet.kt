@@ -45,6 +45,27 @@ import com.inframap.frontend.designsystem.InfraMapTextPrimary
 import com.inframap.frontend.designsystem.InfraMapTextSecondary
 import com.inframap.frontend.designsystem.StatusOnline
 import com.inframap.frontend.domain.model.TopologyNode
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.topology_inspector_close_sheet
+import com.inframap.frontend.generated.resources.topology_inspector_device_type
+import com.inframap.frontend.generated.resources.topology_inspector_discovery_provenance
+import com.inframap.frontend.generated.resources.topology_inspector_discovery_provenance_value
+import com.inframap.frontend.generated.resources.topology_inspector_edit_device_metadata
+import com.inframap.frontend.generated.resources.topology_inspector_edit_metadata
+import com.inframap.frontend.generated.resources.topology_inspector_hostname
+import com.inframap.frontend.generated.resources.topology_inspector_icmp_latency
+import com.inframap.frontend.generated.resources.topology_inspector_interfaces
+import com.inframap.frontend.generated.resources.topology_inspector_interfaces_health
+import com.inframap.frontend.generated.resources.topology_inspector_interfaces_sample
+import com.inframap.frontend.generated.resources.topology_inspector_ip_address
+import com.inframap.frontend.generated.resources.topology_inspector_mac_address
+import com.inframap.frontend.generated.resources.topology_inspector_network_identity
+import com.inframap.frontend.generated.resources.topology_inspector_node_id
+import com.inframap.frontend.generated.resources.topology_inspector_specs_status
+import com.inframap.frontend.generated.resources.topology_inspector_status
+import com.inframap.frontend.generated.resources.topology_inspector_subnet_id
+import com.inframap.frontend.generated.resources.topology_inspector_trigger_scan
+import org.jetbrains.compose.resources.stringResource
 
 private val SectionBg = Color(0xFF27272A).copy(alpha = 0.4f)
 
@@ -87,28 +108,40 @@ fun DeviceInspectorSheet(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 // Section 1: Network Identity
-                InspectorSection(title = "Network Identity", icon = InfraMapIcons.Dns) {
-                    DetailRow(label = "Hostname", value = node.label)
+                InspectorSection(
+                    title = stringResource(Res.string.topology_inspector_network_identity),
+                    icon = InfraMapIcons.Dns,
+                ) {
                     DetailRow(
-                        label = "IP Address",
+                        label = stringResource(Res.string.topology_inspector_hostname),
+                        value = node.label,
+                    )
+                    DetailRow(
+                        label = stringResource(Res.string.topology_inspector_ip_address),
                         value = deriveIpAddress(node),
                         isMonospace = true,
                     )
                     DetailRow(
-                        label = "MAC Address",
+                        label = stringResource(Res.string.topology_inspector_mac_address),
                         value = deriveMacAddress(node),
                         isMonospace = true,
                     )
                     DetailRow(
-                        label = "Subnet ID",
+                        label = stringResource(Res.string.topology_inspector_subnet_id),
                         value = deriveSubnetId(node),
                         isMonospace = true,
                     )
                 }
 
                 // Section 2: Hardware & Status
-                InspectorSection(title = "Device Specs & Status", icon = InfraMapIcons.Lan) {
-                    DetailRow(label = "Device Type", value = node.deviceType.replaceFirstChar { it.uppercase() })
+                InspectorSection(
+                    title = stringResource(Res.string.topology_inspector_specs_status),
+                    icon = InfraMapIcons.Lan,
+                ) {
+                    DetailRow(
+                        label = stringResource(Res.string.topology_inspector_device_type),
+                        value = node.deviceType.replaceFirstChar { it.uppercase() },
+                    )
                     Row(
                         modifier =
                             Modifier
@@ -118,7 +151,7 @@ fun DeviceInspectorSheet(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "Status",
+                            text = stringResource(Res.string.topology_inspector_status),
                             style = MaterialTheme.typography.bodySmall,
                             color = InfraMapTextSecondary,
                         )
@@ -127,10 +160,13 @@ fun DeviceInspectorSheet(
                 }
 
                 // Section 3: Active Interfaces & Latency
-                InspectorSection(title = "Active Interfaces & Health", icon = InfraMapIcons.Radar) {
+                InspectorSection(
+                    title = stringResource(Res.string.topology_inspector_interfaces_health),
+                    icon = InfraMapIcons.Radar,
+                ) {
                     DetailRow(
-                        label = "Interfaces",
-                        value = "eth0 (active), eth1 (standby)",
+                        label = stringResource(Res.string.topology_inspector_interfaces),
+                        value = stringResource(Res.string.topology_inspector_interfaces_sample),
                     )
                     Row(
                         modifier =
@@ -141,7 +177,7 @@ fun DeviceInspectorSheet(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "ICMP Ping Latency",
+                            text = stringResource(Res.string.topology_inspector_icmp_latency),
                             style = MaterialTheme.typography.bodySmall,
                             color = InfraMapTextSecondary,
                         )
@@ -166,8 +202,8 @@ fun DeviceInspectorSheet(
                         }
                     }
                     DetailRow(
-                        label = "Discovery Provenance",
-                        value = "SNMP v2c / LLDP Discovery",
+                        label = stringResource(Res.string.topology_inspector_discovery_provenance),
+                        value = stringResource(Res.string.topology_inspector_discovery_provenance_value),
                     )
                 }
             }
@@ -180,7 +216,7 @@ fun DeviceInspectorSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 InfraMapButton(
-                    text = "Trigger Active Scan",
+                    text = stringResource(Res.string.topology_inspector_trigger_scan),
                     onClick = { onTriggerScan(node.id) },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -202,12 +238,12 @@ fun DeviceInspectorSheet(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit Metadata",
+                                contentDescription = stringResource(Res.string.topology_inspector_edit_metadata),
                                 tint = InfraMapPurple,
                                 modifier = Modifier.padding(end = 8.dp),
                             )
                             Text(
-                                text = "Edit Device Metadata",
+                                text = stringResource(Res.string.topology_inspector_edit_device_metadata),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = InfraMapPurple,
                             )
@@ -240,7 +276,7 @@ private fun InspectorHeader(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "ID: ${node.id}",
+                text = stringResource(Res.string.topology_inspector_node_id, node.id),
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 color = InfraMapTextSecondary,
             )
@@ -249,7 +285,7 @@ private fun InspectorHeader(
         IconButton(onClick = onDismiss) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = "Close Inspector Sheet",
+                contentDescription = stringResource(Res.string.topology_inspector_close_sheet),
                 tint = InfraMapTextSecondary,
             )
         }

@@ -157,6 +157,32 @@
     <string name="topology_preview_router">Preview-Router</string>
     <string name="topology_preview_switch">Preview-Switch</string>
     <string name="topology_preview_server">Preview-Server</string>
+    <string name="topology_toolbar_pointer_mode">Pointer / Select Mode</string>
+    <string name="topology_toolbar_hand_mode">Hand / Pan Mode</string>
+    <string name="topology_toolbar_zoom_out">Zoom Out</string>
+    <string name="topology_toolbar_zoom_in">Zoom In</string>
+    <string name="topology_toolbar_reset_zoom">Reset Zoom to Fit</string>
+    <string name="topology_toolbar_toggle_subnets">Toggle Subnet Grouping</string>
+    <string name="topology_toolbar_auto_layout">Force-Directed Auto-Layout</string>
+    <string name="topology_inspector_node_id">ID: %1$s</string>
+    <string name="topology_inspector_close_sheet">Close Inspector Sheet</string>
+    <string name="topology_inspector_network_identity">Network Identity</string>
+    <string name="topology_inspector_hostname">Hostname</string>
+    <string name="topology_inspector_ip_address">IP Address</string>
+    <string name="topology_inspector_mac_address">MAC Address</string>
+    <string name="topology_inspector_subnet_id">Subnet ID</string>
+    <string name="topology_inspector_specs_status">Device Specs &amp; Status</string>
+    <string name="topology_inspector_device_type">Device Type</string>
+    <string name="topology_inspector_status">Status</string>
+    <string name="topology_inspector_interfaces_health">Active Interfaces &amp; Health</string>
+    <string name="topology_inspector_interfaces">Interfaces</string>
+    <string name="topology_inspector_interfaces_sample">eth0 (active), eth1 (standby)</string>
+    <string name="topology_inspector_icmp_latency">ICMP Ping Latency</string>
+    <string name="topology_inspector_discovery_provenance">Discovery Provenance</string>
+    <string name="topology_inspector_discovery_provenance_value">SNMP v2c / LLDP Discovery</string>
+    <string name="topology_inspector_trigger_scan">Trigger Active Scan</string>
+    <string name="topology_inspector_edit_metadata">Edit Metadata</string>
+    <string name="topology_inspector_edit_device_metadata">Edit Device Metadata</string>
 
     <!-- Dashboard Auto-Setup -->
     <string name="dashboard_auto_setup_title">Local Networks Detected</string>
