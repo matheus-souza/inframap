@@ -6,12 +6,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
-import com.inframap.frontend.generated.resources.Res
-import com.inframap.frontend.generated.resources.table_pagination_next
-import com.inframap.frontend.generated.resources.table_pagination_page
-import com.inframap.frontend.generated.resources.table_pagination_previous
-import kotlinx.coroutines.runBlocking
-import org.jetbrains.compose.resources.getString
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -89,9 +83,9 @@ class TableTest {
                     )
                 }
             }
-            onNodeWithText(runBlocking { getString(Res.string.table_pagination_page, 2, 5) }).assertIsDisplayed()
-            onNodeWithText(runBlocking { getString(Res.string.table_pagination_previous) }).assertIsDisplayed()
-            onNodeWithText(runBlocking { getString(Res.string.table_pagination_next) }).assertIsDisplayed()
+            onNodeWithText("Página 2 de 5").assertIsDisplayed()
+            onNodeWithText("Anterior").assertIsDisplayed()
+            onNodeWithText("Próximo").assertIsDisplayed()
         }
 
     @Test
@@ -107,7 +101,7 @@ class TableTest {
                     )
                 }
             }
-            onNodeWithText(runBlocking { getString(Res.string.table_pagination_next) }).performClick()
+            onNodeWithText("Próximo").performClick()
             assertEquals(3, newPage)
         }
 
@@ -124,7 +118,7 @@ class TableTest {
                     )
                 }
             }
-            onNodeWithText(runBlocking { getString(Res.string.table_pagination_previous) }).performClick()
+            onNodeWithText("Anterior").performClick()
             assertEquals(2, newPage)
         }
 }

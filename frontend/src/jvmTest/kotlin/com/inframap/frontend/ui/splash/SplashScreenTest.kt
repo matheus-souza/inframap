@@ -5,10 +5,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
-import com.inframap.frontend.generated.resources.Res
-import com.inframap.frontend.generated.resources.splash_tagline
-import kotlinx.coroutines.runBlocking
-import org.jetbrains.compose.resources.getString
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalTestApi::class)
@@ -22,6 +18,6 @@ class SplashScreenTest {
                 }
             }
             onNodeWithText("InfraMap").assertIsDisplayed()
-            onNodeWithText(runBlocking { getString(Res.string.splash_tagline) }).assertIsDisplayed()
+            onNodeWithText("Descoberta & Mapeamento de Infraestrutura").assertIsDisplayed()
         }
 }
