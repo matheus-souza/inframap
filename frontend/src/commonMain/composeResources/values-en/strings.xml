@@ -312,8 +312,15 @@
     <string name="create_device_submit_button">Save Device</string>
     <string name="create_device_back_button">Back</string>
     <string name="create_device_cancel_button">Cancel</string>
+    <string name="device_type_router">Router</string>
+    <string name="device_type_switch">Switch</string>
+    <string name="device_type_server">Server</string>
+    <string name="device_type_firewall">Firewall</string>
+    <string name="device_type_access_point">Access Point</string>
+    <string name="device_type_iot">IoT</string>
+    <string name="device_type_other">Other</string>
     <string name="edit_device_header_title">Edit Device</string>
-    <string name="edit_device_header_subtitle">Update network asset information</string>
+    <string name="edit_device_header_subtitle">Update network asset ID: %1$s</string>
     <string name="edit_device_form_title">Device Details</string>
     <string name="edit_device_submit_button">Save Changes</string>
     <string name="edit_device_status_label">Status</string>

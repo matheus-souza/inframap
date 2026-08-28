@@ -7,6 +7,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.domain.model.StagingDevice
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.staging_action_approve
+import com.inframap.frontend.generated.resources.staging_dismiss_action
+import com.inframap.frontend.generated.resources.staging_empty_title
+import com.inframap.frontend.generated.resources.staging_header
+import kotlinx.coroutines.runBlocking
+import org.jetbrains.compose.resources.getString
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -39,8 +46,8 @@ class StagingScreenTest {
                 }
             }
 
-            onNodeWithText("Staging Queue").assertIsDisplayed()
-            onNodeWithText("No devices in staging queue").assertIsDisplayed()
+            onNodeWithText(runBlocking { getString(Res.string.staging_header) }).assertIsDisplayed()
+            onNodeWithText(runBlocking { getString(Res.string.staging_empty_title) }).assertIsDisplayed()
         }
 
     @Test
@@ -73,10 +80,10 @@ class StagingScreenTest {
             onNodeWithText("unverified-printer").assertIsDisplayed()
             onNodeWithText("192.168.1.50").assertIsDisplayed()
 
-            onNodeWithText("Approve").performClick()
+            onNodeWithText(runBlocking { getString(Res.string.staging_action_approve) }).performClick()
             assertEquals("stg-1", approvedDevice?.id)
 
-            onNodeWithText("Dismiss").performClick()
+            onNodeWithText(runBlocking { getString(Res.string.staging_dismiss_action) }).performClick()
             assertEquals("stg-1", dismissedDevice?.id)
         }
 }

@@ -8,6 +8,15 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.device_detail_back
+import com.inframap.frontend.generated.resources.device_detail_delete_action
+import com.inframap.frontend.generated.resources.device_detail_edit
+import com.inframap.frontend.generated.resources.device_detail_hardware
+import com.inframap.frontend.generated.resources.device_detail_id
+import com.inframap.frontend.generated.resources.device_detail_main_info
+import kotlinx.coroutines.runBlocking
+import org.jetbrains.compose.resources.getString
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -53,19 +62,19 @@ class DeviceDetailScreenTest {
             }
 
             onAllNodesWithText("core-switch-01")[0].assertIsDisplayed()
-            onNodeWithText("ID: dev-42").assertIsDisplayed()
-            onNodeWithText("Main Information").assertIsDisplayed()
-            onNodeWithText("Hardware & Manufacturer").assertIsDisplayed()
+            onNodeWithText(runBlocking { getString(Res.string.device_detail_id, "dev-42") }).assertIsDisplayed()
+            onNodeWithText(runBlocking { getString(Res.string.device_detail_main_info) }).assertIsDisplayed()
+            onNodeWithText(runBlocking { getString(Res.string.device_detail_hardware) }).assertIsDisplayed()
             onNodeWithText("Cisco").assertIsDisplayed()
             onNodeWithText("Catalyst 9300").assertIsDisplayed()
 
-            onNodeWithText("Back").performClick()
+            onNodeWithText(runBlocking { getString(Res.string.device_detail_back) }).performClick()
             assertTrue(backClicked)
 
-            onNodeWithText("Edit").performClick()
+            onNodeWithText(runBlocking { getString(Res.string.device_detail_edit) }).performClick()
             assertEquals("dev-42", editClickedId)
 
-            onNodeWithText("Delete").performClick()
+            onNodeWithText(runBlocking { getString(Res.string.device_detail_delete_action) }).performClick()
             assertTrue(deleteClicked)
         }
 }

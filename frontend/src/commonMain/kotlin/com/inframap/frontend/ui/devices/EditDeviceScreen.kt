@@ -46,6 +46,10 @@ import com.inframap.frontend.generated.resources.create_device_hostname_label
 import com.inframap.frontend.generated.resources.create_device_ip_label
 import com.inframap.frontend.generated.resources.create_device_mac_label
 import com.inframap.frontend.generated.resources.create_device_type_label
+import com.inframap.frontend.generated.resources.device_type_firewall
+import com.inframap.frontend.generated.resources.device_type_router
+import com.inframap.frontend.generated.resources.device_type_server
+import com.inframap.frontend.generated.resources.device_type_switch
 import com.inframap.frontend.generated.resources.devices_retry
 import com.inframap.frontend.generated.resources.edit_device_form_title
 import com.inframap.frontend.generated.resources.edit_device_header_subtitle
@@ -74,6 +78,7 @@ fun EditDeviceScreen(
                         .verticalScroll(rememberScrollState()),
             ) {
                 EditDeviceHeader(
+                    deviceId = state.deviceId,
                     onCancelClicked = actions.onCancelClicked,
                 )
 
@@ -94,7 +99,10 @@ fun EditDeviceScreen(
 }
 
 @Composable
-private fun EditDeviceHeader(onCancelClicked: () -> Unit) {
+private fun EditDeviceHeader(
+    deviceId: String,
+    onCancelClicked: () -> Unit,
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         InfraMapOutlinedButton(
             text = stringResource(Res.string.create_device_back_button),
@@ -109,7 +117,7 @@ private fun EditDeviceHeader(onCancelClicked: () -> Unit) {
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = stringResource(Res.string.edit_device_header_subtitle),
+                text = stringResource(Res.string.edit_device_header_subtitle, deviceId),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             )
@@ -219,10 +227,10 @@ private fun EditDeviceTypeField(
 ) {
     val deviceTypeOptions =
         listOf(
-            ChipOption("router", "Router", Icons.Default.Router),
-            ChipOption("switch", "Switch", InfraMapIcons.Lan),
-            ChipOption("server", "Server", InfraMapIcons.Dns),
-            ChipOption("firewall", "Firewall", Icons.Default.Security),
+            ChipOption("router", stringResource(Res.string.device_type_router), Icons.Default.Router),
+            ChipOption("switch", stringResource(Res.string.device_type_switch), InfraMapIcons.Lan),
+            ChipOption("server", stringResource(Res.string.device_type_server), InfraMapIcons.Dns),
+            ChipOption("firewall", stringResource(Res.string.device_type_firewall), Icons.Default.Security),
         )
 
     InfraMapChoiceChipGroup(

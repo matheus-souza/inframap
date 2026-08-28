@@ -46,6 +46,10 @@ import com.inframap.frontend.generated.resources.create_device_ip_label
 import com.inframap.frontend.generated.resources.create_device_mac_label
 import com.inframap.frontend.generated.resources.create_device_submit_button
 import com.inframap.frontend.generated.resources.create_device_type_label
+import com.inframap.frontend.generated.resources.device_type_firewall
+import com.inframap.frontend.generated.resources.device_type_router
+import com.inframap.frontend.generated.resources.device_type_server
+import com.inframap.frontend.generated.resources.device_type_switch
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -183,10 +187,10 @@ private fun CreateDeviceTypeField(
 ) {
     val deviceTypeOptions =
         listOf(
-            ChipOption("router", "Router", Icons.Default.Router),
-            ChipOption("switch", "Switch", InfraMapIcons.Lan),
-            ChipOption("server", "Server", InfraMapIcons.Dns),
-            ChipOption("firewall", "Firewall", Icons.Default.Security),
+            ChipOption("router", stringResource(Res.string.device_type_router), Icons.Default.Router),
+            ChipOption("switch", stringResource(Res.string.device_type_switch), InfraMapIcons.Lan),
+            ChipOption("server", stringResource(Res.string.device_type_server), InfraMapIcons.Dns),
+            ChipOption("firewall", stringResource(Res.string.device_type_firewall), Icons.Default.Security),
         )
 
     InfraMapChoiceChipGroup(

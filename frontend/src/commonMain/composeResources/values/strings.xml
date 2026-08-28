@@ -310,8 +310,15 @@
     <string name="create_device_submit_button">Salvar Dispositivo</string>
     <string name="create_device_back_button">Voltar</string>
     <string name="create_device_cancel_button">Cancelar</string>
+    <string name="device_type_router">Roteador</string>
+    <string name="device_type_switch">Switch</string>
+    <string name="device_type_server">Servidor</string>
+    <string name="device_type_firewall">Firewall</string>
+    <string name="device_type_access_point">Access Point</string>
+    <string name="device_type_iot">IoT</string>
+    <string name="device_type_other">Outro</string>
     <string name="edit_device_header_title">Editar Dispositivo</string>
-    <string name="edit_device_header_subtitle">Atualize as informações do ativo de rede</string>
+    <string name="edit_device_header_subtitle">Atualize as informações do ativo ID: %1$s</string>
     <string name="edit_device_form_title">Dados do Dispositivo</string>
     <string name="edit_device_submit_button">Salvar Alterações</string>
     <string name="edit_device_status_label">Status</string>
