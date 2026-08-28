@@ -218,9 +218,11 @@
     <string name="navrail_expand">Expand menu</string>
 
     <!-- TopBar -->
-    <string name="topbar_healthy_desc">System healthy</string>
-    <string name="topbar_unhealthy_desc">System unhealthy</string>
+    <string name="topbar_system_healthy">System healthy</string>
+    <string name="topbar_system_unhealthy">System unhealthy</string>
     <string name="topbar_restart_tour">Restart Guided Tour</string>
+    <string name="topbar_restart_tour_button_cd">Restart Guided Tour</string>
+    <string name="topbar_tour_icon_cd">Tour icon</string>
     <string name="topbar_search_placeholder">Search...</string>
     <string name="topbar_search_button_cd">Search trigger button</string>
     <string name="topbar_search_icon_cd">Search icon</string>

@@ -43,7 +43,7 @@ class TopBarTest {
             }
             onNodeWithText("Dashboard").assertIsDisplayed()
             onNodeWithText("InfraMap").assertIsDisplayed()
-            onNodeWithContentDescription("Sistema saudável").assertIsDisplayed()
+            onNodeWithContentDescription("System healthy").assertIsDisplayed()
         }
 
     @Test
@@ -55,7 +55,7 @@ class TopBarTest {
                 }
             }
             onNodeWithText("InfraMap").assertIsDisplayed()
-            onNodeWithContentDescription("Sistema não saudável").assertIsDisplayed()
+            onNodeWithContentDescription("System unhealthy").assertIsDisplayed()
         }
 
     @Test
@@ -66,9 +66,8 @@ class TopBarTest {
                     InfraMapTopBar(isSseConnected = true)
                 }
             }
-            onNodeWithText("K").assertIsDisplayed()
-            onNodeWithText("Live SSE").assertIsDisplayed()
-            onNodeWithContentDescription("Botão de busca").assertIsDisplayed()
+            onNodeWithContentDescription("SSE Status: Connected").assertIsDisplayed()
+            onNodeWithContentDescription("Search trigger button").assertIsDisplayed()
         }
 
     @Test
@@ -81,7 +80,6 @@ class TopBarTest {
                     )
                 }
             }
-            onNodeWithText("Refazer Tour Guiado").assertIsDisplayed()
-            onNodeWithContentDescription("Refazer Tour Guiado").assertIsDisplayed()
+            onNodeWithContentDescription("Restart Guided Tour").assertIsDisplayed()
         }
 }
