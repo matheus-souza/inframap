@@ -99,7 +99,7 @@ class CreateDiscoverySourceViewModelTest {
             vm.onSubnetSelected(summary)
 
             val state = vm.state.value
-            assertEquals("Scan Production", state.name)
+            assertEquals("Varredura Production", state.name)
             assertEquals("192.168.10.0/24", state.configCidr)
             assertFalse(state.validationErrors.containsKey("cidr"))
             assertFalse(state.validationErrors.containsKey("name"))

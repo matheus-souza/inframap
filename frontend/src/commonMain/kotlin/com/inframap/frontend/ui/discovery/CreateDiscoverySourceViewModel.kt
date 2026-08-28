@@ -62,7 +62,7 @@ class CreateDiscoverySourceViewModel(
     fun onSubnetSelected(subnet: SubnetSummary) {
         updateState { current ->
             val wasNameBlank = current.name.isBlank()
-            val newName = if (wasNameBlank) "Scan ${subnet.name}" else current.name
+            val newName = if (wasNameBlank) "Varredura ${subnet.name}" else current.name
             var errors = current.validationErrors - "cidr"
             if (wasNameBlank) {
                 errors = errors - "name"
