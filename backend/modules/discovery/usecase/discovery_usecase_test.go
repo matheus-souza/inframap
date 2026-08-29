@@ -34,11 +34,20 @@ func newMockDiscRepo() *mockDiscRepo {
 
 func (m *mockDiscRepo) CreateSource(_ context.Context, req *dto.CreateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
 	id := uuid.New()
+	cols := make([]dto.CollectorResponse, len(req.Collectors))
+	for i, c := range req.Collectors {
+		cols[i] = dto.CollectorResponse{
+			ID:            uuid.New(),
+			CollectorType: c.Type,
+			Enabled:       true,
+		}
+	}
 	resp := &dto.DiscoverySourceResponse{
 		ID:         id,
 		Name:       req.Name,
 		Type:       req.Type,
 		Enabled:    *req.Enabled,
+		Collectors: cols,
 		LastStatus: "idle",
 	}
 	if req.ScheduleCron != "" {
@@ -57,12 +66,18 @@ func (m *mockDiscRepo) GetSourceByID(_ context.Context, id uuid.UUID) (*dto.Disc
 	if !exists {
 		return nil, repository.ErrSourceNotFound
 	}
+	if src.Collectors == nil {
+		src.Collectors = make([]dto.CollectorResponse, 0)
+	}
 	return src, nil
 }
 
 func (m *mockDiscRepo) ListSources(_ context.Context) ([]*dto.DiscoverySourceResponse, error) {
 	res := make([]*dto.DiscoverySourceResponse, 0, len(m.sources))
 	for _, s := range m.sources {
+		if s.Collectors == nil {
+			s.Collectors = make([]dto.CollectorResponse, 0)
+		}
 		res = append(res, s)
 	}
 	return res, nil
@@ -235,7 +250,7 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
-	t.Run("CreateSource Success", func(t *testing.T) {
+	t.Run("CreateSource Legacy Format Round-Trip", func(t *testing.T) {
 		req := &dto.CreateDiscoverySourceRequest{
 			Name: "Local Proxmox VE",
 			Type: "proxmox",
@@ -246,6 +261,44 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 		if src.Name != "Local Proxmox VE" {
 			t.Errorf("expected name Local Proxmox VE, got %s", src.Name)
+		}
+		if src.Type != "proxmox" {
+			t.Errorf("expected legacy type proxmox, got %s", src.Type)
+		}
+		if len(src.Collectors) != 1 {
+			t.Fatalf("expected 1 populated collector, got %d", len(src.Collectors))
+		}
+		if src.Collectors[0].CollectorType != "proxmox" {
+			t.Errorf("expected collector type proxmox, got %s", src.Collectors[0].CollectorType)
+		}
+	})
+
+	t.Run("CreateSource Multi-Collector Plan Round-Trip", func(t *testing.T) {
+		req := &dto.CreateDiscoverySourceRequest{
+			Name: "Homelab Subnet Plan",
+			Collectors: []dto.CollectorConfig{
+				{Type: "icmp_sweep"},
+				{Type: "arp_sweep"},
+				{Type: "reverse_dns"},
+			},
+		}
+		src, err := uc.CreateSource(ctx, req)
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if src.Name != "Homelab Subnet Plan" {
+			t.Errorf("expected name Homelab Subnet Plan, got %s", src.Name)
+		}
+		if src.Type != "icmp_sweep" {
+			t.Errorf("expected primary type icmp_sweep, got %s", src.Type)
+		}
+		if len(src.Collectors) != 3 {
+			t.Fatalf("expected 3 populated collectors, got %d", len(src.Collectors))
+		}
+		if src.Collectors[0].CollectorType != "icmp_sweep" ||
+			src.Collectors[1].CollectorType != "arp_sweep" ||
+			src.Collectors[2].CollectorType != "reverse_dns" {
+			t.Errorf("unexpected collectors: %+v", src.Collectors)
 		}
 	})
 

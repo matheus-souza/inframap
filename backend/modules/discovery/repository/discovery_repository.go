@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -22,6 +23,11 @@ var (
 	// ErrRecordNotFound is returned when a requested discovery record does not exist.
 	ErrRecordNotFound = errors.New("discovery record not found")
 )
+
+// TxBeginner abstracts the transaction begin operation from pgxpool.Pool.
+type TxBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
 
 // DiscoveryRepository contract defines data persistence operations for discovery sources and records.
 type DiscoveryRepository interface {
@@ -41,6 +47,7 @@ type ConfigPayload struct {
 
 // PgDiscoveryRepository implements DiscoveryRepository backed by PostgreSQL.
 type PgDiscoveryRepository struct {
+	database  db.DBTX
 	queries   *db.Queries
 	encryptor crypto.Encryptor
 }
@@ -48,12 +55,13 @@ type PgDiscoveryRepository struct {
 // NewPgDiscoveryRepository constructs a PgDiscoveryRepository instance.
 func NewPgDiscoveryRepository(database db.DBTX, encryptor crypto.Encryptor) *PgDiscoveryRepository {
 	return &PgDiscoveryRepository{
+		database:  database,
 		queries:   db.New(database),
 		encryptor: encryptor,
 	}
 }
 
-// CreateSource inserts a new discovery source into PostgreSQL.
+// CreateSource inserts a new discovery source and its associated collectors into PostgreSQL in a single transaction.
 func (r *PgDiscoveryRepository) CreateSource(ctx context.Context, req *dto.CreateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
 	sourceID := uuid.New()
 	enabled := true
@@ -82,7 +90,19 @@ func (r *PgDiscoveryRepository) CreateSource(ctx context.Context, req *dto.Creat
 		encryptedConfig = pgtype.Text{String: encStr, Valid: true}
 	}
 
-	row, err := r.queries.CreateDiscoverySource(ctx, db.CreateDiscoverySourceParams{
+	var qtx = r.queries
+	var tx pgx.Tx
+	if beginner, ok := r.database.(TxBeginner); ok {
+		var err error
+		tx, err = beginner.Begin(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		qtx = r.queries.WithTx(tx)
+	}
+
+	row, err := qtx.CreateDiscoverySource(ctx, db.CreateDiscoverySourceParams{
 		ID:              sourceID,
 		Name:            req.Name,
 		Type:            req.Type,
@@ -95,10 +115,66 @@ func (r *PgDiscoveryRepository) CreateSource(ctx context.Context, req *dto.Creat
 		return nil, fmt.Errorf("failed to create discovery source: %w", err)
 	}
 
-	return r.mapSourceToDTO(&row)
+	collectorResponses := make([]dto.CollectorResponse, 0, len(req.Collectors))
+	for _, col := range req.Collectors {
+		colID := uuid.New()
+		colEnabled := true
+		if col.Enabled != nil {
+			colEnabled = *col.Enabled
+		}
+
+		var encColConfig pgtype.Text
+		if len(col.Config) > 0 {
+			colBytes, err := json.Marshal(col.Config)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal collector config for %s: %w", col.Type, err)
+			}
+			if r.encryptor == nil {
+				return nil, fmt.Errorf("collector config encryption is required but no encryptor is configured")
+			}
+			encStr, err := r.encryptor.Encrypt(colBytes)
+			if err != nil {
+				return nil, fmt.Errorf("failed to encrypt collector config for %s: %w", col.Type, err)
+			}
+			encColConfig = pgtype.Text{String: encStr, Valid: true}
+		} else if encryptedConfig.Valid {
+			encColConfig = encryptedConfig
+		}
+
+		colRow, err := qtx.CreateDiscoverySourceCollector(ctx, db.CreateDiscoverySourceCollectorParams{
+			ID:              colID,
+			SourceID:        sourceID,
+			CollectorType:   col.Type,
+			ConfigEncrypted: encColConfig,
+			Enabled:         colEnabled,
+			CreatedAt:       pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create discovery source collector %s: %w", col.Type, err)
+		}
+
+		collectorResponses = append(collectorResponses, dto.CollectorResponse{
+			ID:            colRow.ID,
+			CollectorType: colRow.CollectorType,
+			Enabled:       colRow.Enabled,
+		})
+	}
+
+	if tx != nil {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, fmt.Errorf("failed to commit discovery source transaction: %w", err)
+		}
+	}
+
+	resp, err := r.mapSourceToDTO(&row)
+	if err != nil {
+		return nil, err
+	}
+	resp.Collectors = collectorResponses
+	return resp, nil
 }
 
-// GetSourceByID retrieves a single discovery source by ID.
+// GetSourceByID retrieves a single discovery source by ID with its attached collectors.
 func (r *PgDiscoveryRepository) GetSourceByID(ctx context.Context, id uuid.UUID) (*dto.DiscoverySourceResponse, error) {
 	row, err := r.queries.GetDiscoverySourceByID(ctx, id)
 	if err != nil {
@@ -108,14 +184,47 @@ func (r *PgDiscoveryRepository) GetSourceByID(ctx context.Context, id uuid.UUID)
 		return nil, fmt.Errorf("failed to query discovery source: %w", err)
 	}
 
-	return r.mapSourceToDTO(&row)
+	resp, err := r.mapSourceToDTO(&row)
+	if err != nil {
+		return nil, err
+	}
+
+	collectors, err := r.queries.ListCollectorsBySourceID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list collectors for discovery source: %w", err)
+	}
+
+	resp.Collectors = make([]dto.CollectorResponse, len(collectors))
+	for i, c := range collectors {
+		resp.Collectors[i] = dto.CollectorResponse{
+			ID:            c.ID,
+			CollectorType: c.CollectorType,
+			Enabled:       c.Enabled,
+		}
+	}
+
+	return resp, nil
 }
 
-// ListSources retrieves all discovery sources ordered by creation date descending.
+// ListSources retrieves all discovery sources ordered by creation date descending with their collectors.
 func (r *PgDiscoveryRepository) ListSources(ctx context.Context) ([]*dto.DiscoverySourceResponse, error) {
 	rows, err := r.queries.ListDiscoverySources(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list discovery sources: %w", err)
+	}
+
+	allCollectors, err := r.queries.ListAllDiscoverySourceCollectors(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all discovery source collectors: %w", err)
+	}
+
+	collectorsBySource := make(map[uuid.UUID][]dto.CollectorResponse)
+	for _, c := range allCollectors {
+		collectorsBySource[c.SourceID] = append(collectorsBySource[c.SourceID], dto.CollectorResponse{
+			ID:            c.ID,
+			CollectorType: c.CollectorType,
+			Enabled:       c.Enabled,
+		})
 	}
 
 	items := make([]*dto.DiscoverySourceResponse, len(rows))
@@ -124,6 +233,11 @@ func (r *PgDiscoveryRepository) ListSources(ctx context.Context) ([]*dto.Discove
 		if mapErr != nil {
 			return nil, mapErr
 		}
+		cols := collectorsBySource[row.ID]
+		if cols == nil {
+			cols = make([]dto.CollectorResponse, 0)
+		}
+		mapped.Collectors = cols
 		items[i] = mapped
 	}
 	return items, nil
@@ -142,14 +256,36 @@ func (r *PgDiscoveryRepository) UpdateSourceStatus(ctx context.Context, id uuid.
 		return nil, fmt.Errorf("failed to update discovery source status: %w", err)
 	}
 
-	return r.mapSourceToDTO(&row)
+	resp, err := r.mapSourceToDTO(&row)
+	if err != nil {
+		return nil, err
+	}
+
+	collectors, err := r.queries.ListCollectorsBySourceID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list collectors for discovery source: %w", err)
+	}
+
+	resp.Collectors = make([]dto.CollectorResponse, len(collectors))
+	for i, c := range collectors {
+		resp.Collectors[i] = dto.CollectorResponse{
+			ID:            c.ID,
+			CollectorType: c.CollectorType,
+			Enabled:       c.Enabled,
+		}
+	}
+
+	return resp, nil
 }
 
 // DeleteSource removes a discovery source record.
 func (r *PgDiscoveryRepository) DeleteSource(ctx context.Context, id uuid.UUID) error {
-	err := r.queries.DeleteDiscoverySource(ctx, id)
+	rows, err := r.queries.DeleteDiscoverySource(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete discovery source: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("%w: %v", ErrSourceNotFound, id)
 	}
 	return nil
 }
@@ -196,6 +332,7 @@ func (r *PgDiscoveryRepository) mapSourceToDTO(row *db.DiscoverySource) (*dto.Di
 		Name:       row.Name,
 		Type:       row.Type,
 		Enabled:    row.Enabled,
+		Collectors: make([]dto.CollectorResponse, 0),
 		LastStatus: row.LastStatus,
 		CreatedAt:  row.CreatedAt.Time,
 		UpdatedAt:  row.UpdatedAt.Time,

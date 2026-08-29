@@ -9,7 +9,7 @@ INSERT INTO discovery_sources (
 SELECT * FROM discovery_sources WHERE id = $1;
 
 -- name: ListDiscoverySources :many
-SELECT * FROM discovery_sources ORDER BY created_at DESC;
+SELECT * FROM discovery_sources ORDER BY created_at DESC, id DESC;
 
 -- name: UpdateDiscoverySourceStatus :one
 UPDATE discovery_sources
@@ -34,13 +34,45 @@ RETURNING *;
 -- name: ListDiscoveryRecordsByDevice :many
 SELECT * FROM device_discovery_records
 WHERE device_id = $1
-ORDER BY last_scanned_at DESC;
+ORDER BY last_scanned_at DESC, id DESC;
 
 -- name: ListDiscoveryRecordsBySource :many
 SELECT * FROM device_discovery_records
 WHERE discovery_source_id = $1
-ORDER BY last_scanned_at DESC
+ORDER BY last_scanned_at DESC, id DESC
 LIMIT $2 OFFSET $3;
 
--- name: DeleteDiscoverySource :exec
+-- name: DeleteDiscoverySource :execrows
 DELETE FROM discovery_sources WHERE id = $1;
+
+-- name: CreateDiscoverySourceCollector :one
+INSERT INTO discovery_source_collectors (
+    id, source_id, collector_type, config_encrypted, enabled, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+) RETURNING *;
+
+-- name: ListCollectorsBySourceID :many
+SELECT * FROM discovery_source_collectors
+WHERE source_id = $1
+ORDER BY created_at ASC, id ASC;
+
+-- name: ListAllDiscoverySourceCollectors :many
+SELECT * FROM discovery_source_collectors
+ORDER BY created_at ASC, id ASC;
+
+-- name: DeleteCollectorsBySourceID :execrows
+DELETE FROM discovery_source_collectors WHERE source_id = $1;
+
+-- name: CreateCollectorRun :one
+INSERT INTO discovery_collector_runs (
+    id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+) RETURNING *;
+
+-- name: ListCollectorRunsBySource :many
+SELECT * FROM discovery_collector_runs
+WHERE source_id = $1
+ORDER BY started_at DESC, id DESC
+LIMIT $2 OFFSET $3;
