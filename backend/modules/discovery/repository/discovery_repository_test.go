@@ -31,22 +31,22 @@ func newMockDB() *mockDB {
 	}
 }
 
-func (m *mockDB) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+func (m *mockDB) Exec(_ context.Context, _ string, _ ...interface{}) (pgconn.CommandTag, error) {
 	if m.failExec {
 		return pgconn.CommandTag{}, errors.New("db exec failure")
 	}
 	return pgconn.NewCommandTag("DELETE 1"), nil
 }
 
-func (m *mockDB) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+func (m *mockDB) Query(_ context.Context, _ string, _ ...interface{}) (pgx.Rows, error) {
 	return nil, errors.New("query not directly supported on mockDB")
 }
 
-func (m *mockDB) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+func (m *mockDB) QueryRow(_ context.Context, _ string, _ ...interface{}) pgx.Row {
 	return nil
 }
 
-func (m *mockDB) Begin(ctx context.Context) (pgx.Tx, error) {
+func (m *mockDB) Begin(_ context.Context) (pgx.Tx, error) {
 	if m.failTx {
 		return nil, errors.New("tx begin failure")
 	}
@@ -59,25 +59,25 @@ type mockTx struct {
 	rolledBack bool
 }
 
-func (t *mockTx) Begin(ctx context.Context) (pgx.Tx, error) {
+func (t *mockTx) Begin(_ context.Context) (pgx.Tx, error) {
 	return t, nil
 }
 
-func (t *mockTx) Commit(ctx context.Context) error {
+func (t *mockTx) Commit(_ context.Context) error {
 	t.committed = true
 	return nil
 }
 
-func (t *mockTx) Rollback(ctx context.Context) error {
+func (t *mockTx) Rollback(_ context.Context) error {
 	t.rolledBack = true
 	return nil
 }
 
-func (t *mockTx) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+func (t *mockTx) CopyFrom(_ context.Context, _ pgx.Identifier, _ []string, _ pgx.CopyFromSource) (int64, error) {
 	return 0, nil
 }
 
-func (t *mockTx) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
+func (t *mockTx) SendBatch(_ context.Context, _ *pgx.Batch) pgx.BatchResults {
 	return nil
 }
 
@@ -85,7 +85,7 @@ func (t *mockTx) LargeObjects() pgx.LargeObjects {
 	return pgx.LargeObjects{}
 }
 
-func (t *mockTx) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementDescription, error) {
+func (t *mockTx) Prepare(_ context.Context, _ string, _ string) (*pgconn.StatementDescription, error) {
 	return nil, nil
 }
 

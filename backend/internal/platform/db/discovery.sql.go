@@ -298,7 +298,7 @@ func (q *Queries) ListCollectorsBySourceID(ctx context.Context, sourceID uuid.UU
 const listDiscoveryRecordsByDevice = `-- name: ListDiscoveryRecordsByDevice :many
 SELECT id, device_id, discovery_source_id, matched_by, raw_payload, last_scanned_at FROM device_discovery_records
 WHERE device_id = $1
-ORDER BY last_scanned_at DESC
+ORDER BY last_scanned_at DESC, id DESC
 `
 
 func (q *Queries) ListDiscoveryRecordsByDevice(ctx context.Context, deviceID uuid.UUID) ([]DeviceDiscoveryRecord, error) {
@@ -331,7 +331,7 @@ func (q *Queries) ListDiscoveryRecordsByDevice(ctx context.Context, deviceID uui
 const listDiscoveryRecordsBySource = `-- name: ListDiscoveryRecordsBySource :many
 SELECT id, device_id, discovery_source_id, matched_by, raw_payload, last_scanned_at FROM device_discovery_records
 WHERE discovery_source_id = $1
-ORDER BY last_scanned_at DESC
+ORDER BY last_scanned_at DESC, id DESC
 LIMIT $2 OFFSET $3
 `
 
