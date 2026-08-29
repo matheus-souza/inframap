@@ -76,6 +76,18 @@ type DeviceStaging struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
+type DiscoveryCollectorRun struct {
+	ID            uuid.UUID          `json:"id"`
+	SourceID      uuid.UUID          `json:"source_id"`
+	CollectorType string             `json:"collector_type"`
+	Status        string             `json:"status"`
+	DevicesFound  int32              `json:"devices_found"`
+	DurationMs    int32              `json:"duration_ms"`
+	ErrorMessage  pgtype.Text        `json:"error_message"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+	FinishedAt    pgtype.Timestamptz `json:"finished_at"`
+}
+
 type DiscoverySource struct {
 	ID              uuid.UUID          `json:"id"`
 	Name            string             `json:"name"`
@@ -87,6 +99,15 @@ type DiscoverySource struct {
 	LastStatus      string             `json:"last_status"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DiscoverySourceCollector struct {
+	ID              uuid.UUID          `json:"id"`
+	SourceID        uuid.UUID          `json:"source_id"`
+	CollectorType   string             `json:"collector_type"`
+	ConfigEncrypted pgtype.Text        `json:"config_encrypted"`
+	Enabled         bool               `json:"enabled"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
 type IpAddress struct {
