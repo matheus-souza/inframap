@@ -12,6 +12,53 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createCollectorRun = `-- name: CreateCollectorRun :one
+INSERT INTO discovery_collector_runs (
+    id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+) RETURNING id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
+`
+
+type CreateCollectorRunParams struct {
+	ID            uuid.UUID          `json:"id"`
+	SourceID      uuid.UUID          `json:"source_id"`
+	CollectorType string             `json:"collector_type"`
+	Status        string             `json:"status"`
+	DevicesFound  int32              `json:"devices_found"`
+	DurationMs    int32              `json:"duration_ms"`
+	ErrorMessage  pgtype.Text        `json:"error_message"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+	FinishedAt    pgtype.Timestamptz `json:"finished_at"`
+}
+
+func (q *Queries) CreateCollectorRun(ctx context.Context, arg CreateCollectorRunParams) (DiscoveryCollectorRun, error) {
+	row := q.db.QueryRow(ctx, createCollectorRun,
+		arg.ID,
+		arg.SourceID,
+		arg.CollectorType,
+		arg.Status,
+		arg.DevicesFound,
+		arg.DurationMs,
+		arg.ErrorMessage,
+		arg.StartedAt,
+		arg.FinishedAt,
+	)
+	var i DiscoveryCollectorRun
+	err := row.Scan(
+		&i.ID,
+		&i.SourceID,
+		&i.CollectorType,
+		&i.Status,
+		&i.DevicesFound,
+		&i.DurationMs,
+		&i.ErrorMessage,
+		&i.StartedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const createDiscoverySource = `-- name: CreateDiscoverySource :one
 INSERT INTO discovery_sources (
     id, name, type, enabled, schedule_cron, config_encrypted, last_status
@@ -56,13 +103,66 @@ func (q *Queries) CreateDiscoverySource(ctx context.Context, arg CreateDiscovery
 	return i, err
 }
 
-const deleteDiscoverySource = `-- name: DeleteDiscoverySource :exec
+const createDiscoverySourceCollector = `-- name: CreateDiscoverySourceCollector :one
+INSERT INTO discovery_source_collectors (
+    id, source_id, collector_type, config_encrypted, enabled, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+) RETURNING id, source_id, collector_type, config_encrypted, enabled, created_at
+`
+
+type CreateDiscoverySourceCollectorParams struct {
+	ID              uuid.UUID          `json:"id"`
+	SourceID        uuid.UUID          `json:"source_id"`
+	CollectorType   string             `json:"collector_type"`
+	ConfigEncrypted pgtype.Text        `json:"config_encrypted"`
+	Enabled         bool               `json:"enabled"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) CreateDiscoverySourceCollector(ctx context.Context, arg CreateDiscoverySourceCollectorParams) (DiscoverySourceCollector, error) {
+	row := q.db.QueryRow(ctx, createDiscoverySourceCollector,
+		arg.ID,
+		arg.SourceID,
+		arg.CollectorType,
+		arg.ConfigEncrypted,
+		arg.Enabled,
+		arg.CreatedAt,
+	)
+	var i DiscoverySourceCollector
+	err := row.Scan(
+		&i.ID,
+		&i.SourceID,
+		&i.CollectorType,
+		&i.ConfigEncrypted,
+		&i.Enabled,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const deleteCollectorsBySourceID = `-- name: DeleteCollectorsBySourceID :execrows
+DELETE FROM discovery_source_collectors WHERE source_id = $1
+`
+
+func (q *Queries) DeleteCollectorsBySourceID(ctx context.Context, sourceID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCollectorsBySourceID, sourceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDiscoverySource = `-- name: DeleteDiscoverySource :execrows
 DELETE FROM discovery_sources WHERE id = $1
 `
 
-func (q *Queries) DeleteDiscoverySource(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteDiscoverySource, id)
-	return err
+func (q *Queries) DeleteDiscoverySource(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDiscoverySource, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getDiscoverySourceByID = `-- name: GetDiscoverySourceByID :one
@@ -87,10 +187,118 @@ func (q *Queries) GetDiscoverySourceByID(ctx context.Context, id uuid.UUID) (Dis
 	return i, err
 }
 
+const listAllDiscoverySourceCollectors = `-- name: ListAllDiscoverySourceCollectors :many
+SELECT id, source_id, collector_type, config_encrypted, enabled, created_at FROM discovery_source_collectors
+ORDER BY created_at ASC, id ASC
+`
+
+func (q *Queries) ListAllDiscoverySourceCollectors(ctx context.Context) ([]DiscoverySourceCollector, error) {
+	rows, err := q.db.Query(ctx, listAllDiscoverySourceCollectors)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DiscoverySourceCollector{}
+	for rows.Next() {
+		var i DiscoverySourceCollector
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceID,
+			&i.CollectorType,
+			&i.ConfigEncrypted,
+			&i.Enabled,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCollectorRunsBySource = `-- name: ListCollectorRunsBySource :many
+SELECT id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at FROM discovery_collector_runs
+WHERE source_id = $1
+ORDER BY started_at DESC, id DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListCollectorRunsBySourceParams struct {
+	SourceID uuid.UUID `json:"source_id"`
+	Limit    int32     `json:"limit"`
+	Offset   int32     `json:"offset"`
+}
+
+func (q *Queries) ListCollectorRunsBySource(ctx context.Context, arg ListCollectorRunsBySourceParams) ([]DiscoveryCollectorRun, error) {
+	rows, err := q.db.Query(ctx, listCollectorRunsBySource, arg.SourceID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DiscoveryCollectorRun{}
+	for rows.Next() {
+		var i DiscoveryCollectorRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceID,
+			&i.CollectorType,
+			&i.Status,
+			&i.DevicesFound,
+			&i.DurationMs,
+			&i.ErrorMessage,
+			&i.StartedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCollectorsBySourceID = `-- name: ListCollectorsBySourceID :many
+SELECT id, source_id, collector_type, config_encrypted, enabled, created_at FROM discovery_source_collectors
+WHERE source_id = $1
+ORDER BY created_at ASC, id ASC
+`
+
+func (q *Queries) ListCollectorsBySourceID(ctx context.Context, sourceID uuid.UUID) ([]DiscoverySourceCollector, error) {
+	rows, err := q.db.Query(ctx, listCollectorsBySourceID, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DiscoverySourceCollector{}
+	for rows.Next() {
+		var i DiscoverySourceCollector
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceID,
+			&i.CollectorType,
+			&i.ConfigEncrypted,
+			&i.Enabled,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDiscoveryRecordsByDevice = `-- name: ListDiscoveryRecordsByDevice :many
 SELECT id, device_id, discovery_source_id, matched_by, raw_payload, last_scanned_at FROM device_discovery_records
 WHERE device_id = $1
-ORDER BY last_scanned_at DESC
+ORDER BY last_scanned_at DESC, id DESC
 `
 
 func (q *Queries) ListDiscoveryRecordsByDevice(ctx context.Context, deviceID uuid.UUID) ([]DeviceDiscoveryRecord, error) {
@@ -123,7 +331,7 @@ func (q *Queries) ListDiscoveryRecordsByDevice(ctx context.Context, deviceID uui
 const listDiscoveryRecordsBySource = `-- name: ListDiscoveryRecordsBySource :many
 SELECT id, device_id, discovery_source_id, matched_by, raw_payload, last_scanned_at FROM device_discovery_records
 WHERE discovery_source_id = $1
-ORDER BY last_scanned_at DESC
+ORDER BY last_scanned_at DESC, id DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -161,7 +369,7 @@ func (q *Queries) ListDiscoveryRecordsBySource(ctx context.Context, arg ListDisc
 }
 
 const listDiscoverySources = `-- name: ListDiscoverySources :many
-SELECT id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at FROM discovery_sources ORDER BY created_at DESC
+SELECT id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at FROM discovery_sources ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) ListDiscoverySources(ctx context.Context) ([]DiscoverySource, error) {

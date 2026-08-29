@@ -34,13 +34,23 @@ func (m *mockDiscoveryUseCase) CreateSource(_ context.Context, req *dto.CreateDi
 	if m.failCreateSource {
 		return nil, errors.New("internal create error")
 	}
-	if req.Name == "" {
+	req.Normalize()
+	if err := req.Validate(); err != nil {
 		return nil, usecase.ErrInvalidInput
+	}
+	cols := make([]dto.CollectorResponse, len(req.Collectors))
+	for i, c := range req.Collectors {
+		cols[i] = dto.CollectorResponse{
+			ID:            uuid.New(),
+			CollectorType: c.Type,
+			Enabled:       true,
+		}
 	}
 	resp := &dto.DiscoverySourceResponse{
 		ID:         uuid.New(),
 		Name:       req.Name,
 		Type:       req.Type,
+		Collectors: cols,
 		LastStatus: "idle",
 	}
 	m.sources = append(m.sources, resp)
@@ -149,7 +159,7 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		Type: "proxmox",
 	})
 
-	t.Run("CreateSource Success", func(t *testing.T) {
+	t.Run("CreateSource Legacy Format Success", func(t *testing.T) {
 		body := map[string]interface{}{
 			"name": "UniFi AP Controller",
 			"type": "unifi",
@@ -161,7 +171,57 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		mux.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusCreated {
-			t.Errorf("expected 201 Created, got %d", rec.Code)
+			t.Fatalf("expected 201 Created, got %d", rec.Code)
+		}
+
+		var env struct {
+			Data dto.DiscoverySourceResponse `json:"data"`
+		}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		created := env.Data
+		if created.Name != "UniFi AP Controller" || created.Type != "unifi" {
+			t.Errorf("unexpected name or type: %s, %s", created.Name, created.Type)
+		}
+		if len(created.Collectors) != 1 || created.Collectors[0].CollectorType != "unifi" {
+			t.Errorf("expected 1 collector of type unifi, got %+v", created.Collectors)
+		}
+	})
+
+	t.Run("CreateSource Multi-Collector Plan Success", func(t *testing.T) {
+		body := map[string]interface{}{
+			"name": "Local Network Plan",
+			"collectors": []map[string]interface{}{
+				{"type": "icmp_sweep"},
+				{"type": "arp_sweep"},
+			},
+		}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources", bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected 201 Created, got %d", rec.Code)
+		}
+
+		var env struct {
+			Data dto.DiscoverySourceResponse `json:"data"`
+		}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		created := env.Data
+		if created.Name != "Local Network Plan" {
+			t.Errorf("unexpected name: %s", created.Name)
+		}
+		if len(created.Collectors) != 2 {
+			t.Fatalf("expected 2 collectors, got %d", len(created.Collectors))
+		}
+		if created.Collectors[0].CollectorType != "icmp_sweep" || created.Collectors[1].CollectorType != "arp_sweep" {
+			t.Errorf("unexpected collectors: %+v", created.Collectors)
 		}
 	})
 

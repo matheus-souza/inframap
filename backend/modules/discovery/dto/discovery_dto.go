@@ -11,7 +11,7 @@ import (
 
 var (
 	// ErrInvalidDiscoveryType indicates an unsupported discovery source type.
-	ErrInvalidDiscoveryType = errors.New("invalid discovery source type; must be one of: icmp_sweep, arp_sweep, mdns, proxmox, docker, unifi")
+	ErrInvalidDiscoveryType = errors.New("invalid discovery source type; must be one of: icmp_sweep, arp_sweep, mdns, reverse_dns, snmp, proxmox, docker, unifi")
 
 	// ErrEmptySourceName indicates that discovery source name is empty.
 	ErrEmptySourceName = errors.New("discovery source name cannot be empty")
@@ -19,21 +19,38 @@ var (
 
 // ValidDiscoveryTypes lists supported discovery collector types per RFC-007 and RFC-016.
 var ValidDiscoveryTypes = map[string]bool{
-	"icmp_sweep": true,
-	"arp_sweep":  true,
-	"mdns":       true,
-	"proxmox":    true,
-	"docker":     true,
-	"unifi":      true,
+	"icmp_sweep":  true,
+	"arp_sweep":   true,
+	"mdns":        true,
+	"reverse_dns": true,
+	"snmp":        true,
+	"proxmox":     true,
+	"docker":      true,
+	"unifi":       true,
+}
+
+// CollectorConfig represents configuration for an individual collector in a discovery plan.
+type CollectorConfig struct {
+	Type    string                 `json:"type"`
+	Config  map[string]interface{} `json:"config,omitempty"`
+	Enabled *bool                  `json:"enabled,omitempty"`
+}
+
+// CollectorResponse represents an active collector attached to a discovery source.
+type CollectorResponse struct {
+	ID            uuid.UUID `json:"id"`
+	CollectorType string    `json:"collector_type"`
+	Enabled       bool      `json:"enabled"`
 }
 
 // CreateDiscoverySourceRequest represents the HTTP request payload to register a discovery source.
 type CreateDiscoverySourceRequest struct {
 	Name         string                 `json:"name"`
-	Type         string                 `json:"type"`
+	Type         string                 `json:"type,omitempty"`
 	Enabled      *bool                  `json:"enabled,omitempty"`
 	ScheduleCron string                 `json:"schedule_cron,omitempty"`
 	Config       map[string]interface{} `json:"config,omitempty"`
+	Collectors   []CollectorConfig      `json:"collectors,omitempty"`
 }
 
 // Normalize trims whitespace and sets default values on the request struct.
@@ -48,6 +65,37 @@ func (r *CreateDiscoverySourceRequest) Normalize() {
 	if r.Config == nil {
 		r.Config = make(map[string]interface{})
 	}
+	for i := range r.Collectors {
+		r.Collectors[i].Type = strings.ToLower(strings.TrimSpace(r.Collectors[i].Type))
+		if r.Collectors[i].Config == nil {
+			r.Collectors[i].Config = make(map[string]interface{})
+		}
+		if r.Collectors[i].Enabled == nil {
+			colEnabled := true
+			r.Collectors[i].Enabled = &colEnabled
+		}
+	}
+	if len(r.Collectors) == 0 && r.Type != "" {
+		colEnabled := true
+		if r.Enabled != nil {
+			colEnabled = *r.Enabled
+		}
+		r.Collectors = []CollectorConfig{
+			{
+				Type:    r.Type,
+				Config:  r.Config,
+				Enabled: &colEnabled,
+			},
+		}
+	} else if len(r.Collectors) > 0 && r.Type == "" {
+		r.Type = r.Collectors[0].Type
+		if len(r.Config) == 0 && len(r.Collectors[0].Config) > 0 {
+			r.Config = r.Collectors[0].Config
+		}
+	}
+	if r.Collectors == nil {
+		r.Collectors = make([]CollectorConfig, 0)
+	}
 }
 
 // Validate executes pure validation rules without mutating state.
@@ -55,24 +103,32 @@ func (r *CreateDiscoverySourceRequest) Validate() error {
 	if r.Name == "" {
 		return ErrEmptySourceName
 	}
-	if !ValidDiscoveryTypes[r.Type] {
-		return ErrInvalidDiscoveryType
+	if len(r.Collectors) == 0 {
+		if r.Type == "" || !ValidDiscoveryTypes[r.Type] {
+			return ErrInvalidDiscoveryType
+		}
+	}
+	for _, c := range r.Collectors {
+		if !ValidDiscoveryTypes[c.Type] {
+			return ErrInvalidDiscoveryType
+		}
 	}
 	return nil
 }
 
 // DiscoverySourceResponse represents a discovery source returned to API clients.
 type DiscoverySourceResponse struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Type         string    `json:"type"`
-	Enabled      bool      `json:"enabled"`
-	ScheduleCron *string   `json:"schedule_cron,omitempty"`
-	ConfigCIDR   string    `json:"config_cidr,omitempty"`
-	LastRunAt    *time.Time `json:"last_run_at,omitempty"`
-	LastStatus   string    `json:"last_status"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID           uuid.UUID           `json:"id"`
+	Name         string              `json:"name"`
+	Type         string              `json:"type"`
+	Enabled      bool                `json:"enabled"`
+	ScheduleCron *string             `json:"schedule_cron,omitempty"`
+	ConfigCIDR   string              `json:"config_cidr,omitempty"`
+	Collectors   []CollectorResponse `json:"collectors"`
+	LastRunAt    *time.Time          `json:"last_run_at,omitempty"`
+	LastStatus   string              `json:"last_status"`
+	CreatedAt    time.Time           `json:"created_at"`
+	UpdatedAt    time.Time           `json:"updated_at"`
 }
 
 // NormalizedDeviceDTO represents a normalized device observation parsed from raw scanner payloads.
