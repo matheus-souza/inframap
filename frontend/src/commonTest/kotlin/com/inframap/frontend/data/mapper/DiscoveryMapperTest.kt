@@ -1,14 +1,16 @@
 package com.inframap.frontend.data.mapper
 
+import com.inframap.frontend.data.dto.CollectorDto
 import com.inframap.frontend.data.dto.DiscoveryListResponse
 import com.inframap.frontend.data.dto.DiscoverySourceDto
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DiscoveryMapperTest {
     @Test
-    fun toDomainMapsAllFieldsCorrectly() {
+    fun toDomainMapsAllFieldsCorrectlyWithCollectorsFallback() {
         val dto =
             DiscoverySourceDto(
                 id = "src-1",
@@ -35,6 +37,67 @@ class DiscoveryMapperTest {
         assertEquals("completed", domain.lastStatus)
         assertEquals("2026-07-01T00:00:00Z", domain.createdAt)
         assertEquals("2026-07-20T10:05:00Z", domain.updatedAt)
+        assertEquals(1, domain.collectors.size)
+        assertEquals("", domain.collectors[0].id)
+        assertEquals("docker", domain.collectors[0].collectorType)
+        assertTrue(domain.collectors[0].enabled)
+    }
+
+    @Test
+    fun toDomainMapsExplicitCollectorsListCorrectly() {
+        val collectorsDto =
+            listOf(
+                CollectorDto(id = "col-1", collectorType = "icmp_sweep", enabled = true),
+                CollectorDto(id = "col-2", collectorType = "arp_sweep", enabled = false),
+                CollectorDto(id = "col-3", collectorType = "mdns", enabled = true),
+            )
+        val dto =
+            DiscoverySourceDto(
+                id = "src-2",
+                name = "Multi-Scan Source",
+                type = "icmp_sweep",
+                enabled = true,
+                _collectors = collectorsDto,
+            )
+
+        val domain = DiscoveryMapper.toDomain(dto)
+
+        assertEquals(3, domain.collectors.size)
+        assertEquals("col-1", domain.collectors[0].id)
+        assertEquals("icmp_sweep", domain.collectors[0].collectorType)
+        assertTrue(domain.collectors[0].enabled)
+
+        assertEquals("col-2", domain.collectors[1].id)
+        assertEquals("arp_sweep", domain.collectors[1].collectorType)
+        assertFalse(domain.collectors[1].enabled)
+
+        assertEquals("col-3", domain.collectors[2].id)
+        assertEquals("mdns", domain.collectors[2].collectorType)
+        assertTrue(domain.collectors[2].enabled)
+    }
+
+    @Test
+    fun toDomainHandlesEmptyCollectorsAndEmptyType() {
+        val dto =
+            DiscoverySourceDto(
+                id = "src-3",
+                name = "Empty Source",
+                type = "",
+            )
+
+        val domain = DiscoveryMapper.toDomain(dto)
+
+        assertTrue(domain.collectors.isEmpty())
+    }
+
+    @Test
+    fun toDomainMapsSingleCollectorDtoCorrectly() {
+        val dto = CollectorDto(id = "col-x", collectorType = "snmp", enabled = true)
+        val domain = DiscoveryMapper.toDomain(dto)
+
+        assertEquals("col-x", domain.id)
+        assertEquals("snmp", domain.collectorType)
+        assertTrue(domain.enabled)
     }
 
     @Test

@@ -22,6 +22,7 @@
     <string name="status_staged">Staged</string>
     <string name="status_idle">Inativa</string>
     <string name="status_running">Em execução</string>
+    <string name="status_partial">Parcial</string>
     <string name="status_error">Erro</string>
     <string name="status_cancelled">Cancelada</string>
 
@@ -132,6 +133,15 @@
     <string name="discovery_type_proxmox">Proxmox</string>
     <string name="discovery_type_docker">Docker</string>
     <string name="discovery_type_unifi">UniFi</string>
+    <string name="discovery_status_partial">Parcial</string>
+    <string name="collector_name_icmp_sweep">ICMP Ping</string>
+    <string name="collector_name_arp_sweep">Varredura ARP</string>
+    <string name="collector_name_mdns">mDNS</string>
+    <string name="collector_name_reverse_dns">DNS Reverso</string>
+    <string name="collector_name_snmp">SNMP</string>
+    <string name="collector_name_proxmox">Proxmox</string>
+    <string name="collector_name_docker">Docker</string>
+    <string name="collector_name_unifi">UniFi</string>
 
     <!-- Auth / Onboarding -->
     <string name="onboarding_title">Configuração Inicial</string>

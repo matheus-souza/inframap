@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.discovery_status_partial
 import com.inframap.frontend.generated.resources.status_active
 import com.inframap.frontend.generated.resources.status_cancelled
 import com.inframap.frontend.generated.resources.status_error
@@ -30,6 +31,7 @@ enum class DeviceStatus {
 enum class SourceStatus {
     IDLE,
     RUNNING,
+    PARTIAL,
     ERROR,
     CANCELLED,
 }
@@ -57,6 +59,8 @@ fun InfraMapStatusBadge(
         when (status) {
             SourceStatus.IDLE -> InfraMapComment to stringResource(Res.string.status_idle)
             SourceStatus.RUNNING -> InfraMapGreen to stringResource(Res.string.status_running)
+            SourceStatus.PARTIAL ->
+                MaterialTheme.colorScheme.tertiary to stringResource(Res.string.discovery_status_partial)
             SourceStatus.ERROR -> InfraMapRed to stringResource(Res.string.status_error)
             SourceStatus.CANCELLED -> InfraMapOrange to stringResource(Res.string.status_cancelled)
         }
