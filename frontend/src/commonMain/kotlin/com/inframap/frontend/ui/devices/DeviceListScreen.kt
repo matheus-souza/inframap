@@ -31,9 +31,28 @@ import com.inframap.frontend.designsystem.InfraMapTextField
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.Device
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.common_cancel
+import com.inframap.frontend.generated.resources.devices_action_delete
+import com.inframap.frontend.generated.resources.devices_action_edit
+import com.inframap.frontend.generated.resources.devices_action_view
+import com.inframap.frontend.generated.resources.devices_col_actions
+import com.inframap.frontend.generated.resources.devices_col_hostname
+import com.inframap.frontend.generated.resources.devices_col_ip
+import com.inframap.frontend.generated.resources.devices_col_status
+import com.inframap.frontend.generated.resources.devices_col_type
 import com.inframap.frontend.generated.resources.devices_create_button
+import com.inframap.frontend.generated.resources.devices_delete_action
+import com.inframap.frontend.generated.resources.devices_delete_confirm_message
+import com.inframap.frontend.generated.resources.devices_delete_dialog_title
+import com.inframap.frontend.generated.resources.devices_delete_error_retry
+import com.inframap.frontend.generated.resources.devices_delete_processing
 import com.inframap.frontend.generated.resources.devices_empty_subtitle
 import com.inframap.frontend.generated.resources.devices_empty_title
+import com.inframap.frontend.generated.resources.devices_new_button
+import com.inframap.frontend.generated.resources.devices_retry
+import com.inframap.frontend.generated.resources.devices_search_placeholder
+import com.inframap.frontend.generated.resources.devices_subtitle
+import com.inframap.frontend.generated.resources.devices_title
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.ceil
 
@@ -54,7 +73,7 @@ fun DeviceListScreen(
                     InfraMapTextField(
                         value = state.searchQuery,
                         onValueChange = actions.onSearchQueryChanged,
-                        label = "Buscar por hostname...",
+                        label = stringResource(Res.string.devices_search_placeholder),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -82,17 +101,20 @@ fun DeviceListScreen(
         if (state.deviceToDelete != null) {
             val confirmMessage =
                 if (state.deleteErrorMessage != null) {
-                    "Erro ao excluir: ${state.deleteErrorMessage.asString()}\n\n" +
-                        "Tem certeza que deseja tentar novamente?"
+                    stringResource(Res.string.devices_delete_error_retry, state.deleteErrorMessage.asString())
                 } else {
-                    "Tem certeza que deseja excluir o dispositivo '${state.deviceToDelete.hostname}'? " +
-                        "Esta ação marca o dispositivo como excluído."
+                    stringResource(Res.string.devices_delete_confirm_message, state.deviceToDelete.hostname)
                 }
             InfraMapConfirmDialog(
-                title = "Excluir Dispositivo",
+                title = stringResource(Res.string.devices_delete_dialog_title),
                 message = confirmMessage,
-                confirmText = if (state.isDeleting) "Excluindo..." else "Excluir",
-                dismissText = "Cancelar",
+                confirmText =
+                    if (state.isDeleting) {
+                        stringResource(Res.string.devices_delete_processing)
+                    } else {
+                        stringResource(Res.string.devices_delete_action)
+                    },
+                dismissText = stringResource(Res.string.common_cancel),
                 onConfirm = actions.onConfirmDelete,
                 onDismiss = actions.onCancelDelete,
             )
@@ -109,19 +131,19 @@ private fun DeviceListHeader(onCreateClicked: () -> Unit) {
     ) {
         Column {
             Text(
-                text = "Dispositivos",
+                text = stringResource(Res.string.devices_title),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = "Gerencie os ativos de infraestrutura da rede",
+                text = stringResource(Res.string.devices_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             )
         }
 
         InfraMapButton(
-            text = "+ Novo Dispositivo",
+            text = stringResource(Res.string.devices_new_button),
             onClick = onCreateClicked,
         )
     }
@@ -144,7 +166,7 @@ private fun DeviceListErrorCard(
             )
             Spacer(modifier = Modifier.height(12.dp))
             InfraMapOutlinedButton(
-                text = "Tentar Novamente",
+                text = stringResource(Res.string.devices_retry),
                 onClick = onRetryClicked,
             )
         }
@@ -167,11 +189,11 @@ private fun DeviceListTableCard(
     } else {
         val columns =
             listOf(
-                TableColumn(header = "Hostname", weight = 2f),
-                TableColumn(header = "IP", weight = 1.5f),
-                TableColumn(header = "Tipo", weight = 1.2f),
-                TableColumn(header = "Status", weight = 1f),
-                TableColumn(header = "Ações", weight = 2f),
+                TableColumn(header = stringResource(Res.string.devices_col_hostname), weight = 2f),
+                TableColumn(header = stringResource(Res.string.devices_col_ip), weight = 1.5f),
+                TableColumn(header = stringResource(Res.string.devices_col_type), weight = 1.2f),
+                TableColumn(header = stringResource(Res.string.devices_col_status), weight = 1f),
+                TableColumn(header = stringResource(Res.string.devices_col_actions), weight = 2f),
             )
 
         InfraMapCard(modifier = Modifier.fillMaxWidth()) {
@@ -238,17 +260,17 @@ private fun DeviceTableRowCell(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 InfraMapOutlinedButton(
-                    text = "Ver",
+                    text = stringResource(Res.string.devices_action_view),
                     onClick = { actions.onDeviceClicked(item.id) },
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 InfraMapOutlinedButton(
-                    text = "Editar",
+                    text = stringResource(Res.string.devices_action_edit),
                     onClick = { actions.onEditDeviceClicked(item.id) },
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 InfraMapOutlinedButton(
-                    text = "Excluir",
+                    text = stringResource(Res.string.devices_action_delete),
                     onClick = { actions.onDeleteDeviceClicked(item) },
                 )
             }

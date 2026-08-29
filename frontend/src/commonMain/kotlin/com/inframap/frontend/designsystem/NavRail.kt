@@ -47,6 +47,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.navrail_collapse_menu
+import com.inframap.frontend.generated.resources.navrail_expand_menu
+import org.jetbrains.compose.resources.stringResource
 
 data class NavRailItem(
     val label: String,
@@ -117,7 +121,12 @@ private fun NavRailToggleButton(
                     } else {
                         Icons.Filled.Menu
                     },
-                contentDescription = if (isExpanded) "Collapse menu" else "Expand menu",
+                contentDescription =
+                    if (isExpanded) {
+                        stringResource(Res.string.navrail_collapse_menu)
+                    } else {
+                        stringResource(Res.string.navrail_expand_menu)
+                    },
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

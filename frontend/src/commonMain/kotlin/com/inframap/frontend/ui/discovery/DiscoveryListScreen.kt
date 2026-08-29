@@ -34,9 +34,31 @@ import com.inframap.frontend.designsystem.SourceStatus
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.common_cancel
+import com.inframap.frontend.generated.resources.devices_retry
+import com.inframap.frontend.generated.resources.discovery_action_delete
+import com.inframap.frontend.generated.resources.discovery_action_execute
+import com.inframap.frontend.generated.resources.discovery_col_actions
+import com.inframap.frontend.generated.resources.discovery_col_cidr
+import com.inframap.frontend.generated.resources.discovery_col_name
+import com.inframap.frontend.generated.resources.discovery_col_schedule
+import com.inframap.frontend.generated.resources.discovery_col_status
+import com.inframap.frontend.generated.resources.discovery_col_type
+import com.inframap.frontend.generated.resources.discovery_delete_confirm_message
+import com.inframap.frontend.generated.resources.discovery_delete_dialog_title
 import com.inframap.frontend.generated.resources.discovery_empty_cta
 import com.inframap.frontend.generated.resources.discovery_empty_subtitle
 import com.inframap.frontend.generated.resources.discovery_empty_title
+import com.inframap.frontend.generated.resources.discovery_new_button
+import com.inframap.frontend.generated.resources.discovery_schedule_manual
+import com.inframap.frontend.generated.resources.discovery_subtitle
+import com.inframap.frontend.generated.resources.discovery_title
+import com.inframap.frontend.generated.resources.discovery_type_arp_sweep
+import com.inframap.frontend.generated.resources.discovery_type_docker
+import com.inframap.frontend.generated.resources.discovery_type_icmp_sweep
+import com.inframap.frontend.generated.resources.discovery_type_mdns
+import com.inframap.frontend.generated.resources.discovery_type_proxmox
+import com.inframap.frontend.generated.resources.discovery_type_unifi
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -87,12 +109,10 @@ fun DiscoveryListScreen(
 
         if (state.sourceToDelete != null) {
             InfraMapConfirmDialog(
-                title = "Excluir Fonte de Descoberta",
-                message =
-                    "Tem certeza que deseja excluir a fonte '${state.sourceToDelete.name}'? " +
-                        "Os agendamentos associados serão removidos.",
-                confirmText = "Excluir",
-                dismissText = "Cancelar",
+                title = stringResource(Res.string.discovery_delete_dialog_title),
+                message = stringResource(Res.string.discovery_delete_confirm_message, state.sourceToDelete.name),
+                confirmText = stringResource(Res.string.discovery_action_delete),
+                dismissText = stringResource(Res.string.common_cancel),
                 onConfirm = actions.onConfirmDelete,
                 onDismiss = actions.onCancelDelete,
             )
@@ -138,19 +158,19 @@ private fun DiscoveryListHeader(onCreateClicked: () -> Unit) {
     ) {
         Column {
             Text(
-                text = "Fontes de Descoberta",
+                text = stringResource(Res.string.discovery_title),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = "Gerencie as fontes de varredura automatica de rede",
+                text = stringResource(Res.string.discovery_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             )
         }
 
         InfraMapButton(
-            text = "+ Nova Fonte",
+            text = stringResource(Res.string.discovery_new_button),
             onClick = onCreateClicked,
         )
     }
@@ -173,7 +193,7 @@ private fun DiscoveryErrorCard(
             )
             Spacer(modifier = Modifier.height(16.dp))
             InfraMapButton(
-                text = "Tentar Novamente",
+                text = stringResource(Res.string.devices_retry),
                 onClick = onRetryClicked,
             )
         }
@@ -196,12 +216,12 @@ private fun DiscoveryTableCard(
     } else {
         val columns =
             listOf(
-                TableColumn(header = "Nome", weight = 2f),
-                TableColumn(header = "Tipo", weight = 1.2f),
-                TableColumn(header = "CIDR", weight = 1.5f),
-                TableColumn(header = "Agendamento", weight = 1.5f),
-                TableColumn(header = "Status", weight = 1f),
-                TableColumn(header = "Acoes", weight = 2.5f),
+                TableColumn(header = stringResource(Res.string.discovery_col_name), weight = 2f),
+                TableColumn(header = stringResource(Res.string.discovery_col_type), weight = 1.2f),
+                TableColumn(header = stringResource(Res.string.discovery_col_cidr), weight = 1.5f),
+                TableColumn(header = stringResource(Res.string.discovery_col_schedule), weight = 1.5f),
+                TableColumn(header = stringResource(Res.string.discovery_col_status), weight = 1f),
+                TableColumn(header = stringResource(Res.string.discovery_col_actions), weight = 2.5f),
             )
 
         InfraMapCard(modifier = Modifier.fillMaxWidth()) {
@@ -246,7 +266,7 @@ private fun DiscoveryRowCell(
             )
         3 ->
             Text(
-                text = item.scheduleCron ?: "Manual",
+                text = item.scheduleCron ?: stringResource(Res.string.discovery_schedule_manual),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
             )
@@ -266,13 +286,13 @@ private fun DiscoveryRowCell(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 InfraMapOutlinedButton(
-                    text = "Executar",
+                    text = stringResource(Res.string.discovery_action_execute),
                     onClick = { actions.onTriggerRunClicked(item.id) },
                     enabled = item.lastStatus != "running",
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 InfraMapOutlinedButton(
-                    text = "Excluir",
+                    text = stringResource(Res.string.discovery_action_delete),
                     onClick = { actions.onDeleteSourceClicked(item) },
                 )
             }
@@ -280,13 +300,14 @@ private fun DiscoveryRowCell(
     }
 }
 
+@Composable
 private fun formatSourceType(type: String): String =
     when (type.lowercase()) {
-        "icmp_sweep" -> "ICMP Sweep"
-        "arp_sweep" -> "ARP Sweep"
-        "mdns" -> "mDNS"
-        "proxmox" -> "Proxmox"
-        "docker" -> "Docker"
-        "unifi" -> "UniFi"
+        "icmp_sweep" -> stringResource(Res.string.discovery_type_icmp_sweep)
+        "arp_sweep" -> stringResource(Res.string.discovery_type_arp_sweep)
+        "mdns" -> stringResource(Res.string.discovery_type_mdns)
+        "proxmox" -> stringResource(Res.string.discovery_type_proxmox)
+        "docker" -> stringResource(Res.string.discovery_type_docker)
+        "unifi" -> stringResource(Res.string.discovery_type_unifi)
         else -> type
     }

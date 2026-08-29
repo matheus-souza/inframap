@@ -66,8 +66,7 @@ class TopBarTest {
                     InfraMapTopBar(isSseConnected = true)
                 }
             }
-            onNodeWithText("K").assertIsDisplayed()
-            onNodeWithText("Live SSE").assertIsDisplayed()
+            onNodeWithContentDescription("SSE Status: Connected").assertIsDisplayed()
             onNodeWithContentDescription("Search trigger button").assertIsDisplayed()
         }
 
@@ -81,7 +80,6 @@ class TopBarTest {
                     )
                 }
             }
-            onNodeWithText("Refazer Tour Guiado").assertIsDisplayed()
-            onNodeWithContentDescription("Refazer Tour Guiado button").assertIsDisplayed()
+            onNodeWithContentDescription("Restart Guided Tour").assertIsDisplayed()
         }
 }

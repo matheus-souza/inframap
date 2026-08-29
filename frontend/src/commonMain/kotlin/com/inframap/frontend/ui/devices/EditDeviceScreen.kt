@@ -14,6 +14,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Router
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,11 +27,39 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.ChipCustomOption
+import com.inframap.frontend.designsystem.ChipOption
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
+import com.inframap.frontend.designsystem.InfraMapChoiceChipGroup
 import com.inframap.frontend.designsystem.InfraMapFormSkeleton
+import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapTextField
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.create_device_back_button
+import com.inframap.frontend.generated.resources.create_device_cancel_button
+import com.inframap.frontend.generated.resources.create_device_custom_type
+import com.inframap.frontend.generated.resources.create_device_custom_type_label
+import com.inframap.frontend.generated.resources.create_device_custom_type_placeholder
+import com.inframap.frontend.generated.resources.create_device_hostname_label
+import com.inframap.frontend.generated.resources.create_device_ip_label
+import com.inframap.frontend.generated.resources.create_device_mac_label
+import com.inframap.frontend.generated.resources.create_device_type_label
+import com.inframap.frontend.generated.resources.device_type_firewall
+import com.inframap.frontend.generated.resources.device_type_router
+import com.inframap.frontend.generated.resources.device_type_server
+import com.inframap.frontend.generated.resources.device_type_switch
+import com.inframap.frontend.generated.resources.devices_retry
+import com.inframap.frontend.generated.resources.edit_device_form_title
+import com.inframap.frontend.generated.resources.edit_device_header_subtitle
+import com.inframap.frontend.generated.resources.edit_device_header_title
+import com.inframap.frontend.generated.resources.edit_device_status_active
+import com.inframap.frontend.generated.resources.edit_device_status_inactive
+import com.inframap.frontend.generated.resources.edit_device_status_label
+import com.inframap.frontend.generated.resources.edit_device_status_maintenance
+import com.inframap.frontend.generated.resources.edit_device_submit_button
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun EditDeviceScreen(
@@ -71,19 +105,19 @@ private fun EditDeviceHeader(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         InfraMapOutlinedButton(
-            text = "Voltar",
+            text = stringResource(Res.string.create_device_back_button),
             onClick = onCancelClicked,
             leadingIcon = Icons.AutoMirrored.Filled.ArrowBack,
         )
         Spacer(modifier = Modifier.width(16.dp))
         Column {
             Text(
-                text = "Editar Dispositivo",
+                text = stringResource(Res.string.edit_device_header_title),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = "Atualize as informações do ativo ID: $deviceId",
+                text = stringResource(Res.string.edit_device_header_subtitle, deviceId),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
             )
@@ -108,7 +142,7 @@ private fun EditDeviceErrorCard(
             )
             Spacer(modifier = Modifier.height(12.dp))
             InfraMapOutlinedButton(
-                text = "Tentar Novamente",
+                text = stringResource(Res.string.devices_retry),
                 onClick = onRetryClicked,
             )
         }
@@ -123,7 +157,7 @@ private fun EditDeviceFormCard(
     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
             Text(
-                text = "Informações do Ativo",
+                text = stringResource(Res.string.edit_device_form_title),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -144,52 +178,115 @@ private fun EditDeviceFormFields(
     actions: EditDeviceActions,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        InfraMapTextField(
-            value = state.hostname,
-            onValueChange = actions.onHostnameChanged,
-            label = "Hostname *",
-            error = state.validationErrors["hostname"]?.asString(),
-            modifier = Modifier.fillMaxWidth(),
+        EditDeviceNetworkFields(state = state, actions = actions)
+        Spacer(modifier = Modifier.height(16.dp))
+        EditDeviceTypeField(state = state, actions = actions)
+        Spacer(modifier = Modifier.height(16.dp))
+        EditDeviceStatusField(state = state, actions = actions)
+    }
+}
+
+@Composable
+private fun EditDeviceNetworkFields(
+    state: EditDeviceUiState,
+    actions: EditDeviceActions,
+) {
+    InfraMapTextField(
+        value = state.hostname,
+        onValueChange = actions.onHostnameChanged,
+        label = stringResource(Res.string.create_device_hostname_label),
+        error = state.validationErrors["hostname"]?.asString(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    InfraMapTextField(
+        value = state.ipAddress,
+        onValueChange = actions.onIpAddressChanged,
+        label = stringResource(Res.string.create_device_ip_label),
+        error = state.validationErrors["ip_address"]?.asString(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    InfraMapTextField(
+        value = state.macAddress,
+        onValueChange = actions.onMacAddressChanged,
+        label = stringResource(Res.string.create_device_mac_label),
+        error = state.validationErrors["mac_address"]?.asString(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun EditDeviceTypeField(
+    state: EditDeviceUiState,
+    actions: EditDeviceActions,
+) {
+    val deviceTypeOptions =
+        listOf(
+            ChipOption("router", stringResource(Res.string.device_type_router), Icons.Default.Router),
+            ChipOption("switch", stringResource(Res.string.device_type_switch), InfraMapIcons.Lan),
+            ChipOption("server", stringResource(Res.string.device_type_server), InfraMapIcons.Dns),
+            ChipOption("firewall", stringResource(Res.string.device_type_firewall), Icons.Default.Security),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+    InfraMapChoiceChipGroup(
+        options = deviceTypeOptions,
+        selected = state.deviceType,
+        onSelected = actions.onDeviceTypeChanged,
+        label = stringResource(Res.string.create_device_type_label),
+        customOption =
+            ChipCustomOption(
+                chipLabel = stringResource(Res.string.create_device_custom_type),
+                chipIcon = Icons.Default.MoreHoriz,
+                inputLabel = stringResource(Res.string.create_device_custom_type_label),
+                inputPlaceholder = stringResource(Res.string.create_device_custom_type_placeholder),
+                currentValue = state.deviceType,
+                onValueChanged = actions.onDeviceTypeChanged,
+                parseValue = { if (it in listOf("router", "switch", "server", "firewall", "")) "other" else it },
+                formatValue = { if (it == "other") "" else it },
+                isCustom = { it !in listOf("router", "switch", "server", "firewall", "") },
+            ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    if (state.validationErrors["device_type"] != null) {
+        Text(
+            text = state.validationErrors["device_type"]!!.asString(),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+        )
+    }
+}
 
-        InfraMapTextField(
-            value = state.ipAddress,
-            onValueChange = actions.onIpAddressChanged,
-            label = "Endereço IP",
-            error = state.validationErrors["ip_address"]?.asString(),
-            modifier = Modifier.fillMaxWidth(),
+@Composable
+private fun EditDeviceStatusField(
+    state: EditDeviceUiState,
+    actions: EditDeviceActions,
+) {
+    val statusOptions =
+        listOf(
+            ChipOption("active", stringResource(Res.string.edit_device_status_active), Icons.Default.CheckCircle),
+            ChipOption("inactive", stringResource(Res.string.edit_device_status_inactive), Icons.Default.Error),
+            ChipOption("maintenance", stringResource(Res.string.edit_device_status_maintenance), Icons.Default.Build),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        InfraMapTextField(
-            value = state.macAddress,
-            onValueChange = actions.onMacAddressChanged,
-            label = "Endereço MAC",
-            error = state.validationErrors["mac_address"]?.asString(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        InfraMapTextField(
-            value = state.deviceType,
-            onValueChange = actions.onDeviceTypeChanged,
-            label = "Tipo de Dispositivo",
-            error = state.validationErrors["device_type"]?.asString(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        InfraMapTextField(
-            value = state.status,
-            onValueChange = actions.onStatusChanged,
-            label = "Status (active, inactive, maintenance)",
-            error = state.validationErrors["status"]?.asString(),
-            modifier = Modifier.fillMaxWidth(),
+    InfraMapChoiceChipGroup(
+        options = statusOptions,
+        selected = state.status,
+        onSelected = actions.onStatusChanged,
+        label = stringResource(Res.string.edit_device_status_label),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    if (state.validationErrors["status"] != null) {
+        Text(
+            text = state.validationErrors["status"]!!.asString(),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 16.dp, top = 4.dp),
         )
     }
 }
@@ -205,7 +302,7 @@ private fun EditDeviceFormButtons(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         InfraMapOutlinedButton(
-            text = "Cancelar",
+            text = stringResource(Res.string.create_device_cancel_button),
             onClick = actions.onCancelClicked,
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -216,7 +313,7 @@ private fun EditDeviceFormButtons(
             )
         } else {
             InfraMapButton(
-                text = "Salvar Alterações",
+                text = stringResource(Res.string.edit_device_submit_button),
                 onClick = actions.onSubmitClicked,
             )
         }

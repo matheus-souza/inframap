@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapButton
@@ -29,6 +30,30 @@ import com.inframap.frontend.designsystem.InfraMapDetailSkeleton
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.common_cancel
+import com.inframap.frontend.generated.resources.device_detail_back
+import com.inframap.frontend.generated.resources.device_detail_created_at
+import com.inframap.frontend.generated.resources.device_detail_delete_action
+import com.inframap.frontend.generated.resources.device_detail_delete_confirm
+import com.inframap.frontend.generated.resources.device_detail_delete_dialog_title
+import com.inframap.frontend.generated.resources.device_detail_delete_processing
+import com.inframap.frontend.generated.resources.device_detail_edit
+import com.inframap.frontend.generated.resources.device_detail_hardware
+import com.inframap.frontend.generated.resources.device_detail_hostname
+import com.inframap.frontend.generated.resources.device_detail_id
+import com.inframap.frontend.generated.resources.device_detail_ip
+import com.inframap.frontend.generated.resources.device_detail_mac
+import com.inframap.frontend.generated.resources.device_detail_main_info
+import com.inframap.frontend.generated.resources.device_detail_manufacturer
+import com.inframap.frontend.generated.resources.device_detail_metadata
+import com.inframap.frontend.generated.resources.device_detail_model
+import com.inframap.frontend.generated.resources.device_detail_serial
+import com.inframap.frontend.generated.resources.device_detail_status
+import com.inframap.frontend.generated.resources.device_detail_type
+import com.inframap.frontend.generated.resources.device_detail_updated_at
+import com.inframap.frontend.generated.resources.devices_retry
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun DeviceDetailScreen(
@@ -53,10 +78,15 @@ fun DeviceDetailScreen(
 
         if (state.showDeleteDialog && state.device != null) {
             InfraMapConfirmDialog(
-                title = "Excluir Dispositivo",
-                message = "Deseja realmente excluir o dispositivo '${state.device.hostname}'?",
-                confirmText = if (state.isDeleting) "Excluindo..." else "Excluir",
-                dismissText = "Cancelar",
+                title = stringResource(Res.string.device_detail_delete_dialog_title),
+                message = stringResource(Res.string.device_detail_delete_confirm, state.device.hostname),
+                confirmText =
+                    if (state.isDeleting) {
+                        stringResource(Res.string.device_detail_delete_processing)
+                    } else {
+                        stringResource(Res.string.device_detail_delete_action)
+                    },
+                dismissText = stringResource(Res.string.common_cancel),
                 onConfirm = actions.onConfirmDelete,
                 onDismiss = actions.onCancelDelete,
             )
@@ -80,7 +110,10 @@ private fun DeviceDetailErrorView(
             style = MaterialTheme.typography.bodyLarge,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        InfraMapOutlinedButton(text = "Tentar Novamente", onClick = onRetryClicked)
+        InfraMapOutlinedButton(
+            text = stringResource(Res.string.devices_retry),
+            onClick = onRetryClicked,
+        )
     }
 }
 
@@ -131,7 +164,7 @@ private fun DeviceDetailHeader(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             InfraMapOutlinedButton(
-                text = "Voltar",
+                text = stringResource(Res.string.device_detail_back),
                 onClick = onBackClicked,
                 leadingIcon = Icons.AutoMirrored.Filled.ArrowBack,
             )
@@ -143,8 +176,11 @@ private fun DeviceDetailHeader(
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = "ID: ${device.id}",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = stringResource(Res.string.device_detail_id, device.id),
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                        ),
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                 )
             }
@@ -152,12 +188,12 @@ private fun DeviceDetailHeader(
 
         Row {
             InfraMapButton(
-                text = "Editar",
+                text = stringResource(Res.string.device_detail_edit),
                 onClick = { onEditClicked(device.id) },
             )
             Spacer(modifier = Modifier.width(12.dp))
             InfraMapOutlinedButton(
-                text = "Excluir",
+                text = stringResource(Res.string.device_detail_delete_action),
                 onClick = onDeleteClicked,
             )
         }
@@ -169,23 +205,23 @@ private fun DeviceMainInfoCard(device: Device) {
     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
-                text = "Informações Principais",
+                text = stringResource(Res.string.device_detail_main_info),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            DetailRow("Hostname", device.hostname)
-            DetailRow("Endereço IP", device.ipAddress ?: "—")
-            DetailRow("Endereço MAC", device.macAddress ?: "—")
-            DetailRow("Tipo de Dispositivo", device.deviceType)
+            DetailRow(stringResource(Res.string.device_detail_hostname), device.hostname)
+            DetailRow(stringResource(Res.string.device_detail_ip), device.ipAddress ?: "—", isMonospace = true)
+            DetailRow(stringResource(Res.string.device_detail_mac), device.macAddress ?: "—", isMonospace = true)
+            DetailRow(stringResource(Res.string.device_detail_type), device.deviceType)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Status",
+                    text = stringResource(Res.string.device_detail_status),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 )
@@ -206,17 +242,17 @@ private fun DeviceHardwareCard(device: Device) {
     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
-                text = "Hardware & Fabricante",
+                text = stringResource(Res.string.device_detail_hardware),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            DetailRow("Fabricante", device.manufacturer ?: "—")
-            DetailRow("Modelo", device.model ?: "—")
-            DetailRow("Número de Série", device.serialNumber ?: "—")
-            DetailRow("Criado em", device.createdAt ?: "—")
-            DetailRow("Atualizado em", device.updatedAt ?: "—")
+            DetailRow(stringResource(Res.string.device_detail_manufacturer), device.manufacturer ?: "—")
+            DetailRow(stringResource(Res.string.device_detail_model), device.model ?: "—")
+            DetailRow(stringResource(Res.string.device_detail_serial), device.serialNumber ?: "—")
+            DetailRow(stringResource(Res.string.device_detail_created_at), device.createdAt ?: "—")
+            DetailRow(stringResource(Res.string.device_detail_updated_at), device.updatedAt ?: "—")
         }
     }
 }
@@ -226,7 +262,7 @@ private fun DeviceMetadataCard(metadata: Map<String, String>) {
     InfraMapCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
-                text = "Metadados",
+                text = stringResource(Res.string.device_detail_metadata),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -242,6 +278,7 @@ private fun DeviceMetadataCard(metadata: Map<String, String>) {
 private fun DetailRow(
     label: String,
     value: String,
+    isMonospace: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -256,7 +293,14 @@ private fun DetailRow(
             )
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodyLarge,
+                style =
+                    if (isMonospace) {
+                        MaterialTheme.typography.bodyLarge.copy(
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    } else {
+                        MaterialTheme.typography.bodyLarge
+                    },
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }

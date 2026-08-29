@@ -124,6 +124,12 @@
     <string name="discovery_source_enabled">Source enabled</string>
     <string name="validation_discovery_name_required">Discovery source name is required.</string>
     <string name="validation_discovery_type_required">Source type is required.</string>
+    <string name="discovery_type_icmp_sweep">ICMP Ping</string>
+    <string name="discovery_type_arp_sweep">ARP Sweep</string>
+    <string name="discovery_type_mdns">mDNS</string>
+    <string name="discovery_type_proxmox">Proxmox</string>
+    <string name="discovery_type_docker">Docker</string>
+    <string name="discovery_type_unifi">UniFi</string>
 
     <!-- Auth / Onboarding -->
     <string name="onboarding_title">Initial Setup</string>
@@ -212,5 +218,156 @@
     <string name="edit_device_title">Edit Device</string>
     <string name="create_subnet_title">New Subnet</string>
     <string name="create_discovery_source_title">New Discovery Source</string>
+
+    <!-- Scaffold & NavRail -->
+    <string name="navrail_collapse">Collapse menu</string>
+    <string name="navrail_expand">Expand menu</string>
+
+    <!-- TopBar -->
+    <string name="topbar_system_healthy">System healthy</string>
+    <string name="topbar_system_unhealthy">System unhealthy</string>
+    <string name="topbar_restart_tour">Restart Guided Tour</string>
+    <string name="topbar_restart_tour_button_cd">Restart Guided Tour</string>
+    <string name="topbar_tour_icon_cd">Tour icon</string>
+    <string name="topbar_search_placeholder">Search...</string>
+    <string name="topbar_search_button_cd">Search trigger button</string>
+    <string name="topbar_search_icon_cd">Search icon</string>
+    <string name="topbar_search_tooltip">Search infrastructure (Cmd+K / Ctrl+K)</string>
+    <string name="topbar_search_shortcut_cd">Search shortcut key K</string>
+    <string name="topbar_search_shortcut_icon_cd">Key shortcut icon</string>
+    <string name="topbar_sse_live">Live SSE</string>
+    <string name="topbar_sse_disconnected">Disconnected</string>
+    <string name="topbar_sse_status_connected">SSE Status: Connected</string>
+    <string name="topbar_sse_status_disconnected">SSE Status: Disconnected</string>
+    <string name="topbar_sse_tooltip_active">Real-time SSE connection active</string>
+    <string name="topbar_sse_tooltip_disconnected">Real-time SSE disconnected</string>
+
+    <!-- NavRail -->
+    <string name="navrail_collapse_menu">Collapse menu</string>
+    <string name="navrail_expand_menu">Expand menu</string>
+
+    <!-- Staging Screen -->
+    <string name="staging_dismiss_error_prefix">Error dismissing: %1$s\n\nDo you want to retry?</string>
+    <string name="staging_dismiss_confirm_message">Are you sure you want to dismiss device \'%1$s\' from the staging queue?</string>
+    <string name="staging_dismiss_dialog_title">Dismiss Staged Device</string>
+    <string name="staging_dismiss_processing">Dismissing...</string>
+    <string name="staging_dismiss_action">Dismiss</string>
+    <string name="staging_retry">Try Again</string>
+    <string name="staging_col_hostname">Hostname</string>
+    <string name="staging_col_ip">IP Address</string>
+    <string name="staging_col_mac">MAC</string>
+    <string name="staging_col_type">Type</string>
+    <string name="staging_col_status">Status</string>
+    <string name="staging_col_actions">Actions</string>
+    <string name="staging_action_processing">Processing...</string>
+    <string name="staging_action_approve">Approve</string>
+    <string name="staging_value_empty">-</string>
+
+    <!-- Device List Screen -->
+    <string name="devices_search_placeholder">Search by hostname...</string>
+    <string name="devices_delete_dialog_title">Delete Device</string>
+    <string name="devices_delete_confirm_message">Are you sure you want to delete device \'%1$s\'? This action marks the device as deleted.</string>
+    <string name="devices_delete_error_retry">Error deleting: %1$s\n\nDo you want to retry?</string>
+    <string name="devices_delete_processing">Deleting...</string>
+    <string name="devices_delete_action">Delete</string>
+    <string name="devices_subtitle">Manage network infrastructure assets</string>
+    <string name="devices_new_button">+ New Device</string>
+    <string name="devices_retry">Try Again</string>
+    <string name="devices_col_hostname">Hostname</string>
+    <string name="devices_col_ip">IP</string>
+    <string name="devices_col_type">Type</string>
+    <string name="devices_col_status">Status</string>
+    <string name="devices_col_actions">Actions</string>
+    <string name="devices_action_view">View</string>
+    <string name="devices_action_edit">Edit</string>
+    <string name="devices_action_delete">Delete</string>
+
+    <!-- Device Detail Screen -->
+    <string name="device_detail_delete_dialog_title">Delete Device</string>
+    <string name="device_detail_delete_confirm">Are you sure you want to delete device \'%1$s\'?</string>
+    <string name="device_detail_delete_processing">Deleting...</string>
+    <string name="device_detail_delete_action">Delete</string>
+    <string name="device_detail_back">Back</string>
+    <string name="device_detail_edit">Edit</string>
+    <string name="device_detail_id">ID: %1$s</string>
+    <string name="device_detail_main_info">Main Information</string>
+    <string name="device_detail_hostname">Hostname</string>
+    <string name="device_detail_ip">IP Address</string>
+    <string name="device_detail_mac">MAC Address</string>
+    <string name="device_detail_type">Device Type</string>
+    <string name="device_detail_status">Status</string>
+    <string name="device_detail_hardware">Hardware &amp; Manufacturer</string>
+    <string name="device_detail_manufacturer">Manufacturer</string>
+    <string name="device_detail_model">Model</string>
+    <string name="device_detail_serial">Serial Number</string>
+    <string name="device_detail_created_at">Created at</string>
+    <string name="device_detail_updated_at">Updated at</string>
+    <string name="device_detail_metadata">Metadata</string>
+
+    <!-- Create / Edit Device Screens -->
+    <string name="create_device_header_title">New Device</string>
+    <string name="create_device_header_subtitle">Register a new asset in the network inventory</string>
+    <string name="create_device_form_title">Device Details</string>
+    <string name="create_device_hostname_label">Hostname *</string>
+    <string name="create_device_ip_label">IP Address (e.g. 192.168.1.1)</string>
+    <string name="create_device_mac_label">MAC Address (e.g. 00:11:22:33:44:55)</string>
+    <string name="create_device_type_label">Device Type</string>
+    <string name="create_device_custom_type">Other</string>
+    <string name="create_device_custom_type_label">Custom Type</string>
+    <string name="create_device_custom_type_placeholder">e.g. load_balancer</string>
+    <string name="create_device_submit_button">Save Device</string>
+    <string name="create_device_back_button">Back</string>
+    <string name="create_device_cancel_button">Cancel</string>
+    <string name="device_type_router">Router</string>
+    <string name="device_type_switch">Switch</string>
+    <string name="device_type_server">Server</string>
+    <string name="device_type_firewall">Firewall</string>
+    <string name="device_type_access_point">Access Point</string>
+    <string name="device_type_iot">IoT</string>
+    <string name="device_type_other">Other</string>
+    <string name="edit_device_header_title">Edit Device</string>
+    <string name="edit_device_header_subtitle">Update network asset ID: %1$s</string>
+    <string name="edit_device_form_title">Device Details</string>
+    <string name="edit_device_submit_button">Save Changes</string>
+    <string name="edit_device_status_label">Status</string>
+    <string name="edit_device_status_active">Active</string>
+    <string name="edit_device_status_inactive">Inactive</string>
+    <string name="edit_device_status_maintenance">Maintenance</string>
+
+    <!-- Discovery List Screen -->
+    <string name="discovery_new_button">+ New Source</string>
+    <string name="discovery_delete_dialog_title">Delete Discovery Source</string>
+    <string name="discovery_delete_confirm_message">Are you sure you want to delete source \'%1$s\'? Associated schedules will be removed.</string>
+    <string name="discovery_col_name">Name</string>
+    <string name="discovery_col_type">Type</string>
+    <string name="discovery_col_cidr">CIDR</string>
+    <string name="discovery_col_schedule">Schedule</string>
+    <string name="discovery_col_status">Status</string>
+    <string name="discovery_col_actions">Actions</string>
+    <string name="discovery_action_execute">Run</string>
+    <string name="discovery_schedule_manual">Manual</string>
+
+    <!-- Subnets & Create Subnet Screens -->
+    <string name="subnets_subtitle">Manage network ranges and scan settings</string>
+    <string name="subnets_new_button">+ New Subnet</string>
+    <string name="subnets_col_name">Name</string>
+    <string name="subnets_col_cidr">CIDR</string>
+    <string name="subnets_col_vlan">VLAN ID</string>
+    <string name="subnets_col_gateway">Gateway</string>
+    <string name="subnets_col_auto_discovery">Auto-Discovery</string>
+    <string name="subnets_col_description">Description</string>
+    <string name="subnets_detected_interfaces_desc">Network interfaces found on this server. Add as a subnet to start scanning.</string>
+    <string name="subnets_detected_interface_add">Add</string>
+    <string name="create_subnet_header_title">New Subnet</string>
+    <string name="create_subnet_header_subtitle">Register a new subnet range for segmentation and asset scanning</string>
+    <string name="create_subnet_name_label">Subnet Name *</string>
+    <string name="create_subnet_cidr_label">CIDR (e.g. 192.168.1.0/24) *</string>
+    <string name="create_subnet_vlan_label">VLAN ID (Optional)</string>
+    <string name="create_subnet_gateway_label">Gateway IP (Optional)</string>
+    <string name="create_subnet_description_label">Description (Optional)</string>
+    <string name="create_subnet_discovery_toggle">Enable Automatic Discovery Scanning</string>
+    <string name="create_subnet_suggestions_toggle">Fill from detected interface</string>
+    <string name="create_subnet_submitting">Creating...</string>
+    <string name="create_subnet_submit">Create Subnet</string>
 </resources>
 

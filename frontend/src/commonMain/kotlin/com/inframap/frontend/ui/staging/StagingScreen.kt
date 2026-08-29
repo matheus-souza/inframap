@@ -30,9 +30,27 @@ import com.inframap.frontend.designsystem.InfraMapTableSkeleton
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.StagingDevice
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.common_cancel
+import com.inframap.frontend.generated.resources.staging_action_approve
+import com.inframap.frontend.generated.resources.staging_action_processing
+import com.inframap.frontend.generated.resources.staging_col_actions
+import com.inframap.frontend.generated.resources.staging_col_hostname
+import com.inframap.frontend.generated.resources.staging_col_ip
+import com.inframap.frontend.generated.resources.staging_col_mac
+import com.inframap.frontend.generated.resources.staging_col_status
+import com.inframap.frontend.generated.resources.staging_col_type
 import com.inframap.frontend.generated.resources.staging_configure_discovery
+import com.inframap.frontend.generated.resources.staging_dismiss_action
+import com.inframap.frontend.generated.resources.staging_dismiss_confirm_message
+import com.inframap.frontend.generated.resources.staging_dismiss_dialog_title
+import com.inframap.frontend.generated.resources.staging_dismiss_error_prefix
+import com.inframap.frontend.generated.resources.staging_dismiss_processing
 import com.inframap.frontend.generated.resources.staging_empty_subtitle
 import com.inframap.frontend.generated.resources.staging_empty_title
+import com.inframap.frontend.generated.resources.staging_header
+import com.inframap.frontend.generated.resources.staging_retry
+import com.inframap.frontend.generated.resources.staging_subtitle
+import com.inframap.frontend.generated.resources.staging_value_empty
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.ceil
 
@@ -68,18 +86,21 @@ fun StagingScreen(
         if (state.deviceToDismiss != null) {
             val confirmMessage =
                 if (state.actionErrorMessage != null) {
-                    "Erro ao descartar: ${state.actionErrorMessage.asString()}\n\n" +
-                        "Deseja tentar novamente?"
+                    stringResource(Res.string.staging_dismiss_error_prefix, state.actionErrorMessage.asString())
                 } else {
-                    "Tem certeza que deseja descartar o dispositivo '${state.deviceToDismiss.hostname}' " +
-                        "da fila de staging?"
+                    stringResource(Res.string.staging_dismiss_confirm_message, state.deviceToDismiss.hostname)
                 }
 
             InfraMapConfirmDialog(
-                title = "Descartar Dispositivo em Staging",
+                title = stringResource(Res.string.staging_dismiss_dialog_title),
                 message = confirmMessage,
-                confirmText = if (state.isProcessingAction) "Descartando..." else "Descartar",
-                dismissText = "Cancelar",
+                confirmText =
+                    if (state.isProcessingAction) {
+                        stringResource(Res.string.staging_dismiss_processing)
+                    } else {
+                        stringResource(Res.string.staging_dismiss_action)
+                    },
+                dismissText = stringResource(Res.string.common_cancel),
                 onConfirm = actions.onConfirmDismiss,
                 onDismiss = actions.onCancelDismiss,
             )
@@ -91,12 +112,12 @@ fun StagingScreen(
 private fun StagingHeader() {
     Column {
         Text(
-            text = "Fila de Staging",
+            text = stringResource(Res.string.staging_header),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
-            text = "Dispositivos não verificados descobertos na rede aguardando aprovação",
+            text = stringResource(Res.string.staging_subtitle),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
         )
@@ -120,7 +141,7 @@ private fun StagingErrorCard(
             )
             Spacer(modifier = Modifier.height(16.dp))
             InfraMapButton(
-                text = "Tentar Novamente",
+                text = stringResource(Res.string.staging_retry),
                 onClick = onRetryClicked,
             )
         }
@@ -143,12 +164,12 @@ private fun StagingTableCard(
     } else {
         val columns =
             listOf(
-                TableColumn(header = "Hostname", weight = 2f),
-                TableColumn(header = "Endereço IP", weight = 1.5f),
-                TableColumn(header = "MAC", weight = 1.5f),
-                TableColumn(header = "Tipo", weight = 1.2f),
-                TableColumn(header = "Status", weight = 1f),
-                TableColumn(header = "Ações", weight = 2.5f),
+                TableColumn(header = stringResource(Res.string.staging_col_hostname), weight = 2f),
+                TableColumn(header = stringResource(Res.string.staging_col_ip), weight = 1.5f),
+                TableColumn(header = stringResource(Res.string.staging_col_mac), weight = 1.5f),
+                TableColumn(header = stringResource(Res.string.staging_col_type), weight = 1.2f),
+                TableColumn(header = stringResource(Res.string.staging_col_status), weight = 1f),
+                TableColumn(header = stringResource(Res.string.staging_col_actions), weight = 2.5f),
             )
 
         val totalPages = maxOf(1, ceil(state.totalItems.toDouble() / state.perPage.toDouble()).toInt())
@@ -193,14 +214,14 @@ private fun StagingRowCell(
             )
         1 ->
             Text(
-                text = item.ipAddress ?: "-",
+                text = item.ipAddress ?: stringResource(Res.string.staging_value_empty),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontFamily = FontFamily.Monospace,
             )
         2 ->
             Text(
-                text = item.macAddress ?: "-",
+                text = item.macAddress ?: stringResource(Res.string.staging_value_empty),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontFamily = FontFamily.Monospace,
@@ -216,13 +237,18 @@ private fun StagingRowCell(
         5 ->
             Row {
                 InfraMapButton(
-                    text = if (isActioningThis) "Processando..." else "Aprovar",
+                    text =
+                        if (isActioningThis) {
+                            stringResource(Res.string.staging_action_processing)
+                        } else {
+                            stringResource(Res.string.staging_action_approve)
+                        },
                     onClick = { actions.onApproveClicked(item) },
                     enabled = !state.isProcessingAction,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 InfraMapOutlinedButton(
-                    text = "Descartar",
+                    text = stringResource(Res.string.staging_dismiss_action),
                     onClick = { actions.onDismissClicked(item) },
                     enabled = !state.isProcessingAction,
                 )

@@ -126,6 +126,12 @@
     <string name="discovery_source_enabled">Fonte habilitada</string>
     <string name="validation_discovery_name_required">Nome da fonte de descoberta é obrigatório.</string>
     <string name="validation_discovery_type_required">Tipo da fonte é obrigatório.</string>
+    <string name="discovery_type_icmp_sweep">ICMP Ping</string>
+    <string name="discovery_type_arp_sweep">Varredura ARP</string>
+    <string name="discovery_type_mdns">mDNS</string>
+    <string name="discovery_type_proxmox">Proxmox</string>
+    <string name="discovery_type_docker">Docker</string>
+    <string name="discovery_type_unifi">UniFi</string>
 
     <!-- Auth / Onboarding -->
     <string name="onboarding_title">Configuração Inicial</string>
@@ -214,6 +220,153 @@
     <string name="edit_device_title">Editar Dispositivo</string>
     <string name="create_subnet_title">Nova Sub-rede</string>
     <string name="create_discovery_source_title">Nova Fonte de Descoberta</string>
+
+    <!-- TopBar -->
+    <string name="topbar_system_healthy">Sistema saudável</string>
+    <string name="topbar_system_unhealthy">Sistema não saudável</string>
+    <string name="topbar_restart_tour">Refazer Tour Guiado</string>
+    <string name="topbar_restart_tour_button_cd">Refazer Tour Guiado</string>
+    <string name="topbar_tour_icon_cd">Ícone do tour</string>
+    <string name="topbar_search_placeholder">Buscar...</string>
+    <string name="topbar_search_button_cd">Botão de busca</string>
+    <string name="topbar_search_icon_cd">Ícone de busca</string>
+    <string name="topbar_search_tooltip">Buscar infraestrutura (Cmd+K / Ctrl+K)</string>
+    <string name="topbar_search_shortcut_cd">Tecla de atalho da busca K</string>
+    <string name="topbar_search_shortcut_icon_cd">Ícone de atalho de teclado</string>
+    <string name="topbar_sse_live">SSE em tempo real</string>
+    <string name="topbar_sse_disconnected">Desconectado</string>
+    <string name="topbar_sse_status_connected">Status do SSE: Conectado</string>
+    <string name="topbar_sse_status_disconnected">Status do SSE: Desconectado</string>
+    <string name="topbar_sse_tooltip_active">Conexão SSE em tempo real ativa</string>
+    <string name="topbar_sse_tooltip_disconnected">SSE em tempo real desconectado</string>
+
+    <!-- NavRail -->
+    <string name="navrail_collapse_menu">Recolher menu</string>
+    <string name="navrail_expand_menu">Expandir menu</string>
+
+    <!-- Staging Screen -->
+    <string name="staging_dismiss_error_prefix">Erro ao descartar: %1$s\n\nDeseja tentar novamente?</string>
+    <string name="staging_dismiss_confirm_message">Tem certeza que deseja descartar o dispositivo \'%1$s\' da fila de staging?</string>
+    <string name="staging_dismiss_dialog_title">Descartar Dispositivo em Staging</string>
+    <string name="staging_dismiss_processing">Descartando...</string>
+    <string name="staging_dismiss_action">Descartar</string>
+    <string name="staging_retry">Tentar Novamente</string>
+    <string name="staging_col_hostname">Hostname</string>
+    <string name="staging_col_ip">Endereço IP</string>
+    <string name="staging_col_mac">MAC</string>
+    <string name="staging_col_type">Tipo</string>
+    <string name="staging_col_status">Status</string>
+    <string name="staging_col_actions">Ações</string>
+    <string name="staging_action_processing">Processando...</string>
+    <string name="staging_action_approve">Aprovar</string>
+    <string name="staging_value_empty">-</string>
+
+    <!-- Device List Screen -->
+    <string name="devices_search_placeholder">Buscar por hostname...</string>
+    <string name="devices_delete_dialog_title">Excluir Dispositivo</string>
+    <string name="devices_delete_confirm_message">Tem certeza que deseja excluir o dispositivo \'%1$s\'? Esta ação marca o dispositivo como excluído.</string>
+    <string name="devices_delete_error_retry">Erro ao excluir: %1$s\n\nTem certeza que deseja tentar novamente?</string>
+    <string name="devices_delete_processing">Excluindo...</string>
+    <string name="devices_delete_action">Excluir</string>
+    <string name="devices_subtitle">Gerencie os ativos de infraestrutura da rede</string>
+    <string name="devices_new_button">+ Novo Dispositivo</string>
+    <string name="devices_retry">Tentar Novamente</string>
+    <string name="devices_col_hostname">Hostname</string>
+    <string name="devices_col_ip">IP</string>
+    <string name="devices_col_type">Tipo</string>
+    <string name="devices_col_status">Status</string>
+    <string name="devices_col_actions">Ações</string>
+    <string name="devices_action_view">Ver</string>
+    <string name="devices_action_edit">Editar</string>
+    <string name="devices_action_delete">Excluir</string>
+
+    <!-- Device Detail Screen -->
+    <string name="device_detail_delete_dialog_title">Excluir Dispositivo</string>
+    <string name="device_detail_delete_confirm">Deseja realmente excluir o dispositivo \'%1$s\'?</string>
+    <string name="device_detail_delete_processing">Excluindo...</string>
+    <string name="device_detail_delete_action">Excluir</string>
+    <string name="device_detail_back">Voltar</string>
+    <string name="device_detail_edit">Editar</string>
+    <string name="device_detail_id">ID: %1$s</string>
+    <string name="device_detail_main_info">Informações Principais</string>
+    <string name="device_detail_hostname">Hostname</string>
+    <string name="device_detail_ip">Endereço IP</string>
+    <string name="device_detail_mac">Endereço MAC</string>
+    <string name="device_detail_type">Tipo de Dispositivo</string>
+    <string name="device_detail_status">Status</string>
+    <string name="device_detail_hardware">Hardware &amp; Fabricante</string>
+    <string name="device_detail_manufacturer">Fabricante</string>
+    <string name="device_detail_model">Modelo</string>
+    <string name="device_detail_serial">Número de Série</string>
+    <string name="device_detail_created_at">Criado em</string>
+    <string name="device_detail_updated_at">Atualizado em</string>
+    <string name="device_detail_metadata">Metadados</string>
+
+    <!-- Create / Edit Device Screens -->
+    <string name="create_device_header_title">Novo Dispositivo</string>
+    <string name="create_device_header_subtitle">Cadastre um novo ativo no inventário da rede</string>
+    <string name="create_device_form_title">Dados do Dispositivo</string>
+    <string name="create_device_hostname_label">Hostname *</string>
+    <string name="create_device_ip_label">Endereço IP (ex: 192.168.1.1)</string>
+    <string name="create_device_mac_label">Endereço MAC (ex: 00:11:22:33:44:55)</string>
+    <string name="create_device_type_label">Tipo de Dispositivo</string>
+    <string name="create_device_custom_type">Outro</string>
+    <string name="create_device_custom_type_label">Tipo Personalizado</string>
+    <string name="create_device_custom_type_placeholder">ex: load_balancer</string>
+    <string name="create_device_submit_button">Salvar Dispositivo</string>
+    <string name="create_device_back_button">Voltar</string>
+    <string name="create_device_cancel_button">Cancelar</string>
+    <string name="device_type_router">Roteador</string>
+    <string name="device_type_switch">Switch</string>
+    <string name="device_type_server">Servidor</string>
+    <string name="device_type_firewall">Firewall</string>
+    <string name="device_type_access_point">Access Point</string>
+    <string name="device_type_iot">IoT</string>
+    <string name="device_type_other">Outro</string>
+    <string name="edit_device_header_title">Editar Dispositivo</string>
+    <string name="edit_device_header_subtitle">Atualize as informações do ativo ID: %1$s</string>
+    <string name="edit_device_form_title">Dados do Dispositivo</string>
+    <string name="edit_device_submit_button">Salvar Alterações</string>
+    <string name="edit_device_status_label">Status</string>
+    <string name="edit_device_status_active">Ativo</string>
+    <string name="edit_device_status_inactive">Inativo</string>
+    <string name="edit_device_status_maintenance">Manutenção</string>
+
+    <!-- Discovery List Screen -->
+    <string name="discovery_new_button">+ Nova Fonte</string>
+    <string name="discovery_delete_dialog_title">Excluir Fonte de Descoberta</string>
+    <string name="discovery_delete_confirm_message">Tem certeza que deseja excluir a fonte \'%1$s\'? Os agendamentos associados serão removidos.</string>
+    <string name="discovery_col_name">Nome</string>
+    <string name="discovery_col_type">Tipo</string>
+    <string name="discovery_col_cidr">CIDR</string>
+    <string name="discovery_col_schedule">Agendamento</string>
+    <string name="discovery_col_status">Status</string>
+    <string name="discovery_col_actions">Ações</string>
+    <string name="discovery_action_execute">Executar</string>
+    <string name="discovery_schedule_manual">Manual</string>
+
+    <!-- Subnets & Create Subnet Screens -->
+    <string name="subnets_subtitle">Gerencie as faixas de rede e configurações de varredura</string>
+    <string name="subnets_new_button">+ Nova Sub-rede</string>
+    <string name="subnets_col_name">Nome</string>
+    <string name="subnets_col_cidr">CIDR</string>
+    <string name="subnets_col_vlan">VLAN ID</string>
+    <string name="subnets_col_gateway">Gateway</string>
+    <string name="subnets_col_auto_discovery">Auto-Descoberta</string>
+    <string name="subnets_col_description">Descrição</string>
+    <string name="subnets_detected_interfaces_desc">Interfaces de rede encontradas neste servidor. Adicione como sub-rede para iniciar a varredura.</string>
+    <string name="subnets_detected_interface_add">Adicionar</string>
+    <string name="create_subnet_header_title">Nova Sub-rede</string>
+    <string name="create_subnet_header_subtitle">Cadastre uma nova faixa de sub-rede para segmentação e varredura de ativos</string>
+    <string name="create_subnet_name_label">Nome da Sub-rede *</string>
+    <string name="create_subnet_cidr_label">CIDR (ex: 192.168.1.0/24) *</string>
+    <string name="create_subnet_vlan_label">VLAN ID (Opcional)</string>
+    <string name="create_subnet_gateway_label">Gateway IP (Opcional)</string>
+    <string name="create_subnet_description_label">Descrição (Opcional)</string>
+    <string name="create_subnet_discovery_toggle">Habilitar Varredura Automática de Descoberta</string>
+    <string name="create_subnet_suggestions_toggle">Preencher a partir de interface detectada</string>
+    <string name="create_subnet_submitting">Cadastrando...</string>
+    <string name="create_subnet_submit">Cadastrar Sub-rede</string>
 </resources>
 
 
