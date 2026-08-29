@@ -376,6 +376,9 @@
     <string name="create_subnet_suggestions_toggle">Preencher a partir de interface detectada</string>
     <string name="create_subnet_submitting">Cadastrando...</string>
     <string name="create_subnet_submit">Cadastrar Sub-rede</string>
+
+    <!-- Design System Chips -->
+    <string name="chip_integration_coming_soon">Em breve</string>
 </resources>
 
 

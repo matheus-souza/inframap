@@ -3,6 +3,7 @@ package dto
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -118,17 +119,18 @@ func (r *CreateDiscoverySourceRequest) Validate() error {
 
 // DiscoverySourceResponse represents a discovery source returned to API clients.
 type DiscoverySourceResponse struct {
-	ID           uuid.UUID           `json:"id"`
-	Name         string              `json:"name"`
-	Type         string              `json:"type"`
-	Enabled      bool                `json:"enabled"`
-	ScheduleCron *string             `json:"schedule_cron,omitempty"`
-	ConfigCIDR   string              `json:"config_cidr,omitempty"`
-	Collectors   []CollectorResponse `json:"collectors"`
-	LastRunAt    *time.Time          `json:"last_run_at,omitempty"`
-	LastStatus   string              `json:"last_status"`
-	CreatedAt    time.Time           `json:"created_at"`
-	UpdatedAt    time.Time           `json:"updated_at"`
+	ID           uuid.UUID            `json:"id"`
+	Name         string               `json:"name"`
+	Type         string               `json:"type"`
+	Enabled      bool                 `json:"enabled"`
+	ScheduleCron *string              `json:"schedule_cron,omitempty"`
+	ConfigCIDR   string               `json:"config_cidr,omitempty"`
+	Collectors   []CollectorResponse  `json:"collectors"`
+	LastRunAt    *time.Time           `json:"last_run_at,omitempty"`
+	LastStatus   string               `json:"last_status"`
+	LastRun      *CollectorRunSummary `json:"last_run,omitempty"`
+	CreatedAt    time.Time            `json:"created_at"`
+	UpdatedAt    time.Time            `json:"updated_at"`
 }
 
 // NormalizedDeviceDTO represents a normalized device observation parsed from raw scanner payloads.
@@ -142,6 +144,7 @@ type NormalizedDeviceDTO struct {
 	DeviceType      string                 `json:"device_type"`
 	ProviderUUID    string                 `json:"provider_uuid,omitempty"`
 	ConfidenceScore int                    `json:"confidence_score"`
+	ProtocolSource  string                 `json:"protocol_source,omitempty"`
 	RawPayload      map[string]interface{} `json:"raw_payload"`
 }
 
@@ -155,11 +158,44 @@ type DiscoveryRecordResponse struct {
 	LastScannedAt     time.Time              `json:"last_scanned_at"`
 }
 
+// CollectorRunSummary represents aggregated summary metrics of the latest discovery run for a source.
+type CollectorRunSummary struct {
+	Status       string               `json:"status"`
+	DevicesFound int                  `json:"devices_found"`
+	DurationMs   int64                `json:"duration_ms"`
+	StartedAt    time.Time            `json:"started_at"`
+	FinishedAt   time.Time            `json:"finished_at"`
+	Collectors   []CollectorRunDetail `json:"collectors,omitempty"`
+}
+
+// CollectorRunResponse represents an individual recorded collector execution.
+type CollectorRunResponse struct {
+	ID            uuid.UUID `json:"id"`
+	SourceID      uuid.UUID `json:"source_id"`
+	CollectorType string    `json:"collector_type"`
+	Status        string    `json:"status"`
+	DevicesFound  int       `json:"devices_found"`
+	DurationMs    int64     `json:"duration_ms"`
+	ErrorMessage  string    `json:"error_message,omitempty"`
+	StartedAt     time.Time `json:"started_at"`
+	FinishedAt    time.Time `json:"finished_at"`
+}
+
+// CollectorRunDetail represents the execution metrics and outcome of an individual collector in a scan.
+type CollectorRunDetail struct {
+	CollectorType string `json:"collector_type"`
+	Status        string `json:"status"`
+	DevicesFound  int    `json:"devices_found"`
+	DurationMs    int64  `json:"duration_ms"`
+	ErrorMessage  string `json:"error_message,omitempty"`
+}
+
 // TriggerScanRequest represents the request payload to initiate an active network scan.
 type TriggerScanRequest struct {
-	CIDR            string  `json:"cidr"`
-	SubnetID        string  `json:"subnet_id,omitempty"`
-	CredentialSetID *string `json:"credential_set_id,omitempty"`
+	CIDR            string   `json:"cidr"`
+	SubnetID        string   `json:"subnet_id,omitempty"`
+	CredentialSetID *string  `json:"credential_set_id,omitempty"`
+	Collectors      []string `json:"collectors,omitempty"`
 }
 
 // Normalize trims whitespace and normalizes payload parameters.
@@ -174,23 +210,40 @@ func (r *TriggerScanRequest) Normalize() {
 			r.CredentialSetID = &val
 		}
 	}
+	if len(r.Collectors) > 0 {
+		seen := make(map[string]bool)
+		var normalized []string
+		for _, col := range r.Collectors {
+			c := strings.ToLower(strings.TrimSpace(col))
+			if c != "" && !seen[c] {
+				seen[c] = true
+				normalized = append(normalized, c)
+			}
+		}
+		r.Collectors = normalized
+	}
 }
 
-// Validate checks that CIDR is present and valid.
+// Validate checks that CIDR is present and valid, and validates any requested collectors against ValidDiscoveryTypes.
 func (r *TriggerScanRequest) Validate() error {
 	if r.CIDR == "" {
 		return errors.New("cidr target string cannot be empty")
+	}
+	for _, col := range r.Collectors {
+		if !ValidDiscoveryTypes[col] {
+			return fmt.Errorf("%w: %s", ErrInvalidDiscoveryType, col)
+		}
 	}
 	return nil
 }
 
 // ScanResultResponse represents the HTTP API response summarizing an active discovery scan execution.
 type ScanResultResponse struct {
-	CIDR            string `json:"cidr"`
-	TotalCollected  int    `json:"total_collected"`
-	TotalValid      int    `json:"total_valid"`
-	TotalDiscovered int    `json:"total_discovered"`
-	TotalUpdated    int    `json:"total_updated"`
-	DurationMs      int64  `json:"duration_ms"`
+	CIDR            string               `json:"cidr"`
+	TotalCollected  int                  `json:"total_collected"`
+	TotalValid      int                  `json:"total_valid"`
+	TotalDiscovered int                  `json:"total_discovered"`
+	TotalUpdated    int                  `json:"total_updated"`
+	DurationMs      int64                `json:"duration_ms"`
+	Collectors      []CollectorRunDetail `json:"collectors,omitempty"`
 }
-

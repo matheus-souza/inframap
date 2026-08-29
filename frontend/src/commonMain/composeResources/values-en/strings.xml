@@ -378,5 +378,8 @@
     <string name="create_subnet_suggestions_toggle">Fill from detected interface</string>
     <string name="create_subnet_submitting">Creating...</string>
     <string name="create_subnet_submit">Create Subnet</string>
+
+    <!-- Design System Chips -->
+    <string name="chip_integration_coming_soon">Coming soon</string>
 </resources>
 

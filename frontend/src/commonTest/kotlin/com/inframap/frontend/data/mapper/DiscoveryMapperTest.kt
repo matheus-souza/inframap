@@ -49,6 +49,23 @@ class DiscoveryMapperTest {
     }
 
     @Test
+    fun toDomainMapsDisabledLegacySourceWithDisabledCollector() {
+        val dto =
+            DiscoverySourceDto(
+                id = "src-disabled",
+                name = "Disabled Scanner",
+                type = "icmp_sweep",
+                enabled = false,
+            )
+
+        val domain = DiscoveryMapper.toDomain(dto)
+
+        assertFalse(domain.enabled)
+        assertEquals(1, domain.collectors.size)
+        assertFalse(domain.collectors[0].enabled)
+    }
+
+    @Test
     fun toDomainMapsExplicitCollectorsListCorrectly() {
         val collectorsDto =
             listOf(

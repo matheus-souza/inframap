@@ -17,7 +17,7 @@ object DiscoveryMapper {
             if (dto.collectors.isNotEmpty()) {
                 dto.collectors.map { toDomain(it) }
             } else if (dto.type.isNotBlank()) {
-                listOf(SourceCollector(id = "", collectorType = dto.type, enabled = true))
+                listOf(SourceCollector(id = "", collectorType = dto.type, enabled = dto.enabled))
             } else {
                 emptyList()
             }
