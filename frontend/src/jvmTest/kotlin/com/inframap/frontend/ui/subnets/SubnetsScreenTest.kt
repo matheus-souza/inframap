@@ -6,12 +6,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.domain.model.Subnet
-import com.inframap.frontend.generated.resources.Res
-import com.inframap.frontend.generated.resources.subnets_empty_title
-import com.inframap.frontend.generated.resources.subnets_new_button
-import com.inframap.frontend.generated.resources.subnets_title
-import kotlinx.coroutines.runBlocking
-import org.jetbrains.compose.resources.getString
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalTestApi::class)
@@ -36,9 +30,9 @@ class SubnetsScreenTest {
                 }
             }
 
-            onNodeWithText(runBlocking { getString(Res.string.subnets_title) }).assertIsDisplayed()
-            onNodeWithText(runBlocking { getString(Res.string.subnets_new_button) }).assertIsDisplayed()
-            onNodeWithText(runBlocking { getString(Res.string.subnets_empty_title) }).assertIsDisplayed()
+            onNodeWithText("Subnets").assertIsDisplayed()
+            onNodeWithText("New Subnet").assertIsDisplayed()
+            onNodeWithText("No subnets registered yet").assertIsDisplayed()
         }
 
     @Test

@@ -7,15 +7,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.domain.model.Device
-import com.inframap.frontend.generated.resources.Res
-import com.inframap.frontend.generated.resources.devices_action_delete
-import com.inframap.frontend.generated.resources.devices_action_edit
-import com.inframap.frontend.generated.resources.devices_action_view
-import com.inframap.frontend.generated.resources.devices_empty_title
-import com.inframap.frontend.generated.resources.devices_new_button
-import com.inframap.frontend.generated.resources.devices_title
-import kotlinx.coroutines.runBlocking
-import org.jetbrains.compose.resources.getString
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -28,15 +19,15 @@ class DeviceListScreenTest {
     ) = DeviceListActions(
         onSearchQueryChanged = {},
         onPageChanged = {},
-        onDeviceClicked = onDeviceClicked,
         onCreateDeviceClicked = {},
+        onDeviceClicked = onDeviceClicked,
         onEditDeviceClicked = onEditDeviceClicked,
         onDeleteDeviceClicked = onDeleteDeviceClicked,
         onConfirmDelete = {},
         onCancelDelete = {},
-        onRetryClicked = {},
-        onDismissToast = {},
         onDismissDeleteError = {},
+        onDismissToast = {},
+        onRetryClicked = {},
     )
 
     @Test
@@ -51,9 +42,9 @@ class DeviceListScreenTest {
                 }
             }
 
-            onNodeWithText(runBlocking { getString(Res.string.devices_title) }).assertIsDisplayed()
-            onNodeWithText(runBlocking { getString(Res.string.devices_new_button) }).assertIsDisplayed()
-            onNodeWithText(runBlocking { getString(Res.string.devices_empty_title) }).assertIsDisplayed()
+            onNodeWithText("Devices").assertIsDisplayed()
+            onNodeWithText("New Device").assertIsDisplayed()
+            onNodeWithText("No devices registered yet").assertIsDisplayed()
         }
 
     @Test
@@ -93,13 +84,13 @@ class DeviceListScreenTest {
 
             onNodeWithText("core-router-01").assertIsDisplayed()
             onNodeWithText("192.168.1.1").assertIsDisplayed()
-            onNodeWithText(runBlocking { getString(Res.string.devices_action_view) }).performClick()
+            onNodeWithText("View").performClick()
             assertEquals("dev-1", clickedDeviceId)
 
-            onNodeWithText(runBlocking { getString(Res.string.devices_action_edit) }).performClick()
+            onNodeWithText("Edit").performClick()
             assertEquals("dev-1", editedDeviceId)
 
-            onNodeWithText(runBlocking { getString(Res.string.devices_action_delete) }).performClick()
+            onNodeWithText("Delete").performClick()
             assertEquals("dev-1", deletedDevice?.id)
         }
 }
