@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"net/netip"
 	"os"
@@ -276,13 +277,27 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 			}
 			dbColType := normalizeToDBCollectorType(c.CollectorType)
 
+			devicesFound := c.DevicesFound
+			if devicesFound < 0 {
+				devicesFound = 0
+			} else if devicesFound > math.MaxInt32 {
+				devicesFound = math.MaxInt32
+			}
+
+			durationMs := c.DurationMs
+			if durationMs < 0 {
+				durationMs = 0
+			} else if durationMs > math.MaxInt32 {
+				durationMs = math.MaxInt32
+			}
+
 			colRunParams := &db.CreateCollectorRunParams{
 				ID:            uuid.New(),
 				SourceID:      source.ID,
 				CollectorType: dbColType,
 				Status:        runStatus,
-				DevicesFound:  int32(c.DevicesFound),
-				DurationMs:    int32(c.DurationMs),
+				DevicesFound:  int32(devicesFound),
+				DurationMs:    int32(durationMs),
 				ErrorMessage:  errMsg,
 				StartedAt:     pgtype.Timestamptz{Time: startTime, Valid: true},
 				FinishedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},

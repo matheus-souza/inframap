@@ -414,6 +414,8 @@ func (r *PgDiscoveryRepository) CreateCollectorRun(ctx context.Context, run *db.
 func (r *PgDiscoveryRepository) ListRunsBySourceID(ctx context.Context, sourceID uuid.UUID, limit int) ([]*dto.CollectorRunResponse, error) {
 	if limit <= 0 {
 		limit = 50
+	} else if limit > 1000 {
+		limit = 1000
 	}
 	rows, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
 		SourceID: sourceID,
