@@ -40,7 +40,7 @@ class StagingScreenTest {
             }
 
             onNodeWithText("Staging Queue").assertIsDisplayed()
-            onNodeWithText("No devices in staging").assertIsDisplayed()
+            onNodeWithText("No devices in staging queue").assertIsDisplayed()
         }
 
     @Test

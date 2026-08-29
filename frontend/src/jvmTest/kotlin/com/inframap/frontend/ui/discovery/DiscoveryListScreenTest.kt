@@ -36,7 +36,7 @@ class DiscoveryListScreenTest {
             }
 
             onNodeWithText("Discovery Sources").assertIsDisplayed()
-            onNodeWithText("New Discovery Source").assertIsDisplayed()
+            onNodeWithText("+ New Source").assertIsDisplayed()
             onNodeWithText("No discovery sources configured").assertIsDisplayed()
         }
 
@@ -78,7 +78,7 @@ class DiscoveryListScreenTest {
             onNodeWithText("LAN Ping Scan").assertIsDisplayed()
             onNodeWithText("192.168.1.0/24").assertIsDisplayed()
 
-            onNodeWithText("Run Scan").performClick()
+            onNodeWithText("Run").performClick()
             assertEquals("disc-1", triggeredId)
 
             onNodeWithText("Delete").performClick()

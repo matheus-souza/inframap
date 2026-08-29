@@ -43,8 +43,8 @@ class DeviceListScreenTest {
             }
 
             onNodeWithText("Devices").assertIsDisplayed()
-            onNodeWithText("New Device").assertIsDisplayed()
-            onNodeWithText("No devices registered yet").assertIsDisplayed()
+            onNodeWithText("+ New Device").assertIsDisplayed()
+            onNodeWithText("No devices in inventory").assertIsDisplayed()
         }
 
     @Test

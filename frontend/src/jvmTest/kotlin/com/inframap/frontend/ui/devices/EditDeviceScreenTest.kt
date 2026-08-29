@@ -43,7 +43,7 @@ class EditDeviceScreenTest {
             }
 
             onNodeWithText("Edit Device").assertIsDisplayed()
-            onNodeWithText("Device Data").assertIsDisplayed()
+            onNodeWithText("Device Details").assertIsDisplayed()
             onNodeWithText("Status").assertIsDisplayed()
 
             onNodeWithText("Cancel").performClick()

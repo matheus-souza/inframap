@@ -31,8 +31,8 @@ class SubnetsScreenTest {
             }
 
             onNodeWithText("Subnets").assertIsDisplayed()
-            onNodeWithText("New Subnet").assertIsDisplayed()
-            onNodeWithText("No subnets registered yet").assertIsDisplayed()
+            onNodeWithText("+ New Subnet").assertIsDisplayed()
+            onNodeWithText("No subnets registered").assertIsDisplayed()
         }
 
     @Test

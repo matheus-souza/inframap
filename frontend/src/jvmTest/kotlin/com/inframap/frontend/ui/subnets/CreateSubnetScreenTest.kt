@@ -38,16 +38,16 @@ class CreateSubnetScreenTest {
                 }
             }
 
-            onNodeWithText("Register Subnet").assertIsDisplayed()
-            onNodeWithText("Subnet Name").assertIsDisplayed()
-            onNodeWithText("CIDR Block (e.g. 192.168.1.0/24)").assertIsDisplayed()
+            onNodeWithText("New Subnet").assertIsDisplayed()
+            onNodeWithText("Subnet Name *").assertIsDisplayed()
+            onNodeWithText("CIDR (e.g. 192.168.1.0/24) *").assertIsDisplayed()
             onNodeWithText("VLAN ID (Optional)").assertIsDisplayed()
-            onNodeWithText("Auto-create discovery source for this subnet").assertIsDisplayed()
+            onNodeWithText("Enable Automatic Discovery Scanning").assertIsDisplayed()
 
             onNodeWithText("Cancel").performClick()
             assertTrue(cancelClicked)
 
-            onNodeWithText("Register Subnet").performClick()
+            onNodeWithText("Create Subnet").performClick()
             assertTrue(submitClicked)
         }
 }
