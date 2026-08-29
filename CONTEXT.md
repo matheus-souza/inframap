@@ -14,8 +14,11 @@
 | **Link** | Point-to-point connection between two interfaces on separate nodes. | `Table: links`, `struct Link` |
 | **Topology** | Graph representation of Nodes, Interfaces, and Links forming the network map. | Domain package: `internal/domain/topology` |
 | **Discovery Engine** | Subsystem responsible for scanning IP ranges, executing plugins, and ingesting assets. | Domain package: `internal/domain/discovery` |
-| **Discovery Source** | Configuration targeting a range, subnet, or provider API for automated discovery. | `Table: discovery_sources` |
+| **Discovery Source** | Configuration targeting a range, subnet, or provider API for automated discovery. A source acts as a Discovery Plan grouping one or more Source Collectors. | `Table: discovery_sources` |
+| **Source Collector** | Individual discovery method (ICMP, ARP, mDNS, Proxmox, Docker, UniFi) attached to a Discovery Source. Each collector has its own config and runs independently. | `Table: discovery_source_collectors` |
+| **Collector Run** | Timestamped execution record of a single collector within a Discovery Source run, capturing status, duration, devices found, and error details. | `Table: discovery_collector_runs` |
 | **Discovery Record** | Timestamped raw observation output produced by a discovery scan. | `Table: device_discovery_records` |
+| **Partial Status** | Discovery Source execution outcome when some collectors succeed and others fail. Distinct from `error` (all failed) and `success` (all succeeded). | `discovery_sources.last_status = 'partial'` |
 | **Credential** | Encrypted authentication secret used by discovery collectors (SNMP, SSH, API token). | `Table: credentials` |
 | **System State** | Singleton configuration entity tracking installation status, telemetry, and technical metadata. | `Table: system_state`, `struct SystemState` |
 | **Onboarding** | Single-shot system initialization process creating instance ID, system roles, and initial admin user. | `modules/configuration/usecase` |
@@ -62,6 +65,7 @@
 - **ADR-005**: Discovery Background Scheduler (AD-032 to AD-041)
 - **ADR-006**: Excalidraw-Inspired Dark Canvas UI/UX Redesign System
 - **ADR-007**: UI Refinement v2 — Onboarding Unification, Collapsible NavRail & i18n (AD-042 to AD-046)
+- **ADR-011**: Discovery Plan — Multi-Collector Sources
 
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.
 
