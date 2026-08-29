@@ -90,17 +90,17 @@ func (r *PgDiscoveryRepository) CreateSource(ctx context.Context, req *dto.Creat
 		encryptedConfig = pgtype.Text{String: encStr, Valid: true}
 	}
 
-	var qtx = r.queries
-	var tx pgx.Tx
-	if beginner, ok := r.database.(TxBeginner); ok {
-		var err error
-		tx, err = beginner.Begin(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to begin transaction: %w", err)
-		}
-		defer func() { _ = tx.Rollback(ctx) }()
-		qtx = r.queries.WithTx(tx)
+	beginner, ok := r.database.(TxBeginner)
+	if !ok {
+		return nil, fmt.Errorf("database driver must implement TxBeginner for atomic multi-collector source creation")
 	}
+
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := r.queries.WithTx(tx)
 
 	row, err := qtx.CreateDiscoverySource(ctx, db.CreateDiscoverySourceParams{
 		ID:              sourceID,
@@ -137,8 +137,6 @@ func (r *PgDiscoveryRepository) CreateSource(ctx context.Context, req *dto.Creat
 				return nil, fmt.Errorf("failed to encrypt collector config for %s: %w", col.Type, err)
 			}
 			encColConfig = pgtype.Text{String: encStr, Valid: true}
-		} else if encryptedConfig.Valid {
-			encColConfig = encryptedConfig
 		}
 
 		colRow, err := qtx.CreateDiscoverySourceCollector(ctx, db.CreateDiscoverySourceCollectorParams{

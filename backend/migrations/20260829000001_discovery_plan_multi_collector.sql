@@ -56,6 +56,10 @@ ALTER TABLE discovery_sources
     ADD CONSTRAINT discovery_sources_last_status_check
     CHECK (last_status IN ('idle', 'running', 'error', 'cancelled')) NOT VALID;
 
+UPDATE discovery_sources
+    SET last_status = 'error'
+    WHERE last_status = 'partial';
+
 ALTER TABLE discovery_sources
     VALIDATE CONSTRAINT discovery_sources_last_status_check;
 -- +goose StatementEnd
