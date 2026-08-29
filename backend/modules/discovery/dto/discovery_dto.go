@@ -12,7 +12,7 @@ import (
 
 var (
 	// ErrInvalidDiscoveryType indicates an unsupported discovery source type.
-	ErrInvalidDiscoveryType = errors.New("invalid discovery source type; must be one of: icmp_sweep, arp_sweep, reverse_dns, snmp, mdns, proxmox, docker, unifi")
+	ErrInvalidDiscoveryType = errors.New("invalid discovery source type; must be one of: icmp_sweep, arp_sweep, mdns, reverse_dns, snmp, proxmox, docker, unifi")
 
 	// ErrEmptySourceName indicates that discovery source name is empty.
 	ErrEmptySourceName = errors.New("discovery source name cannot be empty")
@@ -22,21 +22,36 @@ var (
 var ValidDiscoveryTypes = map[string]bool{
 	"icmp_sweep":  true,
 	"arp_sweep":   true,
+	"mdns":        true,
 	"reverse_dns": true,
 	"snmp":        true,
-	"mdns":        true,
 	"proxmox":     true,
 	"docker":      true,
 	"unifi":       true,
 }
 
+// CollectorConfig represents configuration for an individual collector in a discovery plan.
+type CollectorConfig struct {
+	Type    string                 `json:"type"`
+	Config  map[string]interface{} `json:"config,omitempty"`
+	Enabled *bool                  `json:"enabled,omitempty"`
+}
+
+// CollectorResponse represents an active collector attached to a discovery source.
+type CollectorResponse struct {
+	ID            uuid.UUID `json:"id"`
+	CollectorType string    `json:"collector_type"`
+	Enabled       bool      `json:"enabled"`
+}
+
 // CreateDiscoverySourceRequest represents the HTTP request payload to register a discovery source.
 type CreateDiscoverySourceRequest struct {
 	Name         string                 `json:"name"`
-	Type         string                 `json:"type"`
+	Type         string                 `json:"type,omitempty"`
 	Enabled      *bool                  `json:"enabled,omitempty"`
 	ScheduleCron string                 `json:"schedule_cron,omitempty"`
 	Config       map[string]interface{} `json:"config,omitempty"`
+	Collectors   []CollectorConfig      `json:"collectors,omitempty"`
 }
 
 // Normalize trims whitespace and sets default values on the request struct.
@@ -51,6 +66,37 @@ func (r *CreateDiscoverySourceRequest) Normalize() {
 	if r.Config == nil {
 		r.Config = make(map[string]interface{})
 	}
+	for i := range r.Collectors {
+		r.Collectors[i].Type = strings.ToLower(strings.TrimSpace(r.Collectors[i].Type))
+		if r.Collectors[i].Config == nil {
+			r.Collectors[i].Config = make(map[string]interface{})
+		}
+		if r.Collectors[i].Enabled == nil {
+			colEnabled := true
+			r.Collectors[i].Enabled = &colEnabled
+		}
+	}
+	if len(r.Collectors) == 0 && r.Type != "" {
+		colEnabled := true
+		if r.Enabled != nil {
+			colEnabled = *r.Enabled
+		}
+		r.Collectors = []CollectorConfig{
+			{
+				Type:    r.Type,
+				Config:  r.Config,
+				Enabled: &colEnabled,
+			},
+		}
+	} else if len(r.Collectors) > 0 && r.Type == "" {
+		r.Type = r.Collectors[0].Type
+		if len(r.Config) == 0 && len(r.Collectors[0].Config) > 0 {
+			r.Config = r.Collectors[0].Config
+		}
+	}
+	if r.Collectors == nil {
+		r.Collectors = make([]CollectorConfig, 0)
+	}
 }
 
 // Validate executes pure validation rules without mutating state.
@@ -58,24 +104,33 @@ func (r *CreateDiscoverySourceRequest) Validate() error {
 	if r.Name == "" {
 		return ErrEmptySourceName
 	}
-	if !ValidDiscoveryTypes[r.Type] {
-		return ErrInvalidDiscoveryType
+	if len(r.Collectors) == 0 {
+		if r.Type == "" || !ValidDiscoveryTypes[r.Type] {
+			return ErrInvalidDiscoveryType
+		}
+	}
+	for _, c := range r.Collectors {
+		if !ValidDiscoveryTypes[c.Type] {
+			return ErrInvalidDiscoveryType
+		}
 	}
 	return nil
 }
 
 // DiscoverySourceResponse represents a discovery source returned to API clients.
 type DiscoverySourceResponse struct {
-	ID           uuid.UUID  `json:"id"`
-	Name         string     `json:"name"`
-	Type         string     `json:"type"`
-	Enabled      bool       `json:"enabled"`
-	ScheduleCron *string    `json:"schedule_cron,omitempty"`
-	ConfigCIDR   string     `json:"config_cidr,omitempty"`
-	LastRunAt    *time.Time `json:"last_run_at,omitempty"`
-	LastStatus   string     `json:"last_status"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID           uuid.UUID            `json:"id"`
+	Name         string               `json:"name"`
+	Type         string               `json:"type"`
+	Enabled      bool                 `json:"enabled"`
+	ScheduleCron *string              `json:"schedule_cron,omitempty"`
+	ConfigCIDR   string               `json:"config_cidr,omitempty"`
+	Collectors   []CollectorResponse  `json:"collectors"`
+	LastRunAt    *time.Time           `json:"last_run_at,omitempty"`
+	LastStatus   string               `json:"last_status"`
+	LastRun      *CollectorRunSummary `json:"last_run,omitempty"`
+	CreatedAt    time.Time            `json:"created_at"`
+	UpdatedAt    time.Time            `json:"updated_at"`
 }
 
 // NormalizedDeviceDTO represents a normalized device observation parsed from raw scanner payloads.
@@ -89,6 +144,7 @@ type NormalizedDeviceDTO struct {
 	DeviceType      string                 `json:"device_type"`
 	ProviderUUID    string                 `json:"provider_uuid,omitempty"`
 	ConfidenceScore int                    `json:"confidence_score"`
+	ProtocolSource  string                 `json:"protocol_source,omitempty"`
 	RawPayload      map[string]interface{} `json:"raw_payload"`
 }
 
@@ -100,6 +156,29 @@ type DiscoveryRecordResponse struct {
 	MatchedBy         string                 `json:"matched_by"`
 	RawPayload        map[string]interface{} `json:"raw_payload"`
 	LastScannedAt     time.Time              `json:"last_scanned_at"`
+}
+
+// CollectorRunSummary represents aggregated summary metrics of the latest discovery run for a source.
+type CollectorRunSummary struct {
+	Status       string               `json:"status"`
+	DevicesFound int                  `json:"devices_found"`
+	DurationMs   int64                `json:"duration_ms"`
+	StartedAt    time.Time            `json:"started_at"`
+	FinishedAt   time.Time            `json:"finished_at"`
+	Collectors   []CollectorRunDetail `json:"collectors,omitempty"`
+}
+
+// CollectorRunResponse represents an individual recorded collector execution.
+type CollectorRunResponse struct {
+	ID            uuid.UUID `json:"id"`
+	SourceID      uuid.UUID `json:"source_id"`
+	CollectorType string    `json:"collector_type"`
+	Status        string    `json:"status"`
+	DevicesFound  int       `json:"devices_found"`
+	DurationMs    int64     `json:"duration_ms"`
+	ErrorMessage  string    `json:"error_message,omitempty"`
+	StartedAt     time.Time `json:"started_at"`
+	FinishedAt    time.Time `json:"finished_at"`
 }
 
 // CollectorRunDetail represents the execution metrics and outcome of an individual collector in a scan.

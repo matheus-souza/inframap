@@ -369,4 +369,253 @@ class ChipTest {
             assertEquals(24f, icon.viewportHeight)
         }
     }
+
+    @Test
+    fun choiceChipGroupPerOptionDisabledCannotBeSelected() =
+        runComposeUiTest {
+            val options =
+                listOf(
+                    ChipOption(value = "opt1", label = "Option 1", enabled = true),
+                    ChipOption(
+                        value = "opt2",
+                        label = "Option 2",
+                        enabled = false,
+                        disabledHint = "Coming soon",
+                    ),
+                )
+            var selectedValue by mutableStateOf("opt1")
+            setContent {
+                InfraMapTheme {
+                    InfraMapChoiceChipGroup(
+                        options = options,
+                        selected = selectedValue,
+                        onSelected = { selectedValue = it },
+                    )
+                }
+            }
+            onNodeWithText("Option 1").assertIsDisplayed()
+            onNodeWithText("Option 2").assertIsDisplayed()
+            onNodeWithText("Option 2").assertIsNotEnabled()
+            onNodeWithText("Option 2").performClick()
+            assertEquals("opt1", selectedValue)
+        }
+
+    @Test
+    fun filterChipGroupPerOptionDisabledCannotBeToggled() =
+        runComposeUiTest {
+            val options =
+                listOf(
+                    ChipOption(value = "opt1", label = "Option 1", enabled = true),
+                    ChipOption(
+                        value = "opt2",
+                        label = "Option 2",
+                        enabled = false,
+                        disabledHint = "Coming soon",
+                    ),
+                    ChipOption(value = "opt3", label = "Option 3", enabled = true),
+                )
+            var selection by mutableStateOf(setOf("opt1"))
+            setContent {
+                InfraMapTheme {
+                    InfraMapFilterChipGroup(
+                        options = options,
+                        selected = selection,
+                        onSelectionChanged = { selection = it },
+                    )
+                }
+            }
+            onNodeWithText("Option 1").assertIsDisplayed()
+            onNodeWithText("Option 2").assertIsDisplayed()
+            onNodeWithText("Option 2").assertIsNotEnabled()
+            onNodeWithText("Option 2").performClick()
+            assertEquals(setOf("opt1"), selection)
+
+            // Option 3 is enabled and can be toggled
+            onNodeWithText("Option 3").performClick()
+            assertEquals(setOf("opt1", "opt3"), selection)
+        }
+
+    @Test
+    fun choiceChipGroupWithSectionsRendersTitlesAndDividers() =
+        runComposeUiTest {
+            val sections =
+                listOf(
+                    ChipSection(
+                        title = "Basic",
+                        options =
+                            listOf(
+                                ChipOption(value = "5m", label = "5 min"),
+                                ChipOption(value = "15m", label = "15 min"),
+                            ),
+                    ),
+                    ChipSection(
+                        title = "Advanced",
+                        options =
+                            listOf(
+                                ChipOption(value = "1d", label = "Diário"),
+                                ChipOption(value = "custom", label = "Custom", enabled = false),
+                            ),
+                    ),
+                )
+            var selectedValue by mutableStateOf("5m")
+            setContent {
+                InfraMapTheme {
+                    InfraMapChoiceChipGroup(
+                        sections = sections,
+                        selected = selectedValue,
+                        onSelected = { selectedValue = it },
+                        label = "Schedule Sections",
+                    )
+                }
+            }
+            onNodeWithText("Schedule Sections").assertIsDisplayed()
+            onNodeWithText("Basic").assertIsDisplayed()
+            onNodeWithText("Advanced").assertIsDisplayed()
+            onNodeWithText("5 min").assertIsDisplayed()
+            onNodeWithText("15 min").assertIsDisplayed()
+            onNodeWithText("Diário").assertIsDisplayed()
+            onNodeWithText("Custom").assertIsDisplayed()
+            onNodeWithText("Custom").assertIsNotEnabled()
+
+            onNodeWithText("Diário").performClick()
+            assertEquals("1d", selectedValue)
+        }
+
+    @Test
+    fun filterChipGroupWithSectionsRendersTitlesAndDividers() =
+        runComposeUiTest {
+            val sections =
+                listOf(
+                    ChipSection(
+                        title = "Active Collectors",
+                        options =
+                            listOf(
+                                ChipOption(value = "ping", label = "Ping"),
+                                ChipOption(value = "arp", label = "ARP"),
+                            ),
+                    ),
+                    ChipSection(
+                        title = "Cloud Integrations",
+                        options =
+                            listOf(
+                                ChipOption(value = "docker", label = "Docker"),
+                                ChipOption(
+                                    value = "unifi",
+                                    label = "UniFi",
+                                    enabled = false,
+                                    disabledHint = "Coming soon",
+                                ),
+                            ),
+                    ),
+                )
+            var selection by mutableStateOf(setOf("ping"))
+            setContent {
+                InfraMapTheme {
+                    InfraMapFilterChipGroup(
+                        sections = sections,
+                        selected = selection,
+                        onSelectionChanged = { selection = it },
+                        label = "Collectors",
+                    )
+                }
+            }
+            onNodeWithText("Collectors").assertIsDisplayed()
+            onNodeWithText("Active Collectors").assertIsDisplayed()
+            onNodeWithText("Cloud Integrations").assertIsDisplayed()
+            onNodeWithText("Ping").assertIsDisplayed()
+            onNodeWithText("ARP").assertIsDisplayed()
+            onNodeWithText("Docker").assertIsDisplayed()
+            onNodeWithText("UniFi").assertIsDisplayed()
+            onNodeWithText("UniFi").assertIsNotEnabled()
+
+            // Toggle Docker
+            onNodeWithText("Docker").performClick()
+            assertEquals(setOf("ping", "docker"), selection)
+
+            // Click disabled UniFi
+            onNodeWithText("UniFi").performClick()
+            assertEquals(setOf("ping", "docker"), selection)
+        }
+
+    @Test
+    fun choiceChipGroupDisabledSectionDisablesAllSectionOptions() =
+        runComposeUiTest {
+            val sections =
+                listOf(
+                    ChipSection(
+                        title = "Enabled Section",
+                        options = listOf(ChipOption(value = "opt1", label = "Option 1")),
+                        enabled = true,
+                    ),
+                    ChipSection(
+                        title = "Disabled Section",
+                        options = listOf(ChipOption(value = "opt2", label = "Option 2")),
+                        enabled = false,
+                    ),
+                )
+            var selectedValue by mutableStateOf("opt1")
+            setContent {
+                InfraMapTheme {
+                    InfraMapChoiceChipGroup(
+                        sections = sections,
+                        selected = selectedValue,
+                        onSelected = { selectedValue = it },
+                    )
+                }
+            }
+            onNodeWithText("Option 2").assertIsNotEnabled()
+            onNodeWithText("Option 2").performClick()
+            assertEquals("opt1", selectedValue)
+        }
+
+    @Test
+    fun filterChipGroupDisabledSectionDisablesAllSectionOptions() =
+        runComposeUiTest {
+            val sections =
+                listOf(
+                    ChipSection(
+                        title = "Enabled Section",
+                        options = listOf(ChipOption(value = "opt1", label = "Option 1")),
+                        enabled = true,
+                    ),
+                    ChipSection(
+                        title = "Disabled Section",
+                        options = listOf(ChipOption(value = "opt2", label = "Option 2")),
+                        enabled = false,
+                    ),
+                )
+            var selection by mutableStateOf(setOf<String>())
+            setContent {
+                InfraMapTheme {
+                    InfraMapFilterChipGroup(
+                        sections = sections,
+                        selected = selection,
+                        onSelectionChanged = { selection = it },
+                    )
+                }
+            }
+            onNodeWithText("Option 2").assertIsNotEnabled()
+            onNodeWithText("Option 2").performClick()
+            assertTrue(selection.isEmpty())
+        }
+
+    @Test
+    fun chipOptionDataClassDefaults() {
+        val option = ChipOption(value = "test", label = "Test")
+        assertEquals("test", option.value)
+        assertEquals("Test", option.label)
+        assertEquals(null, option.icon)
+        assertEquals(null, option.description)
+        assertTrue(option.enabled)
+        assertEquals(null, option.disabledHint)
+    }
+
+    @Test
+    fun chipSectionDataClassDefaults() {
+        val options = listOf(ChipOption(value = "test", label = "Test"))
+        val section = ChipSection(options = options)
+        assertEquals(null, section.title)
+        assertEquals(options, section.options)
+        assertTrue(section.enabled)
+    }
 }
