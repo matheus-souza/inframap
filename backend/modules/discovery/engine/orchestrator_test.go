@@ -6,7 +6,7 @@ import (
 	"net"
 	"runtime"
 	"testing"
-
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/db"
@@ -21,11 +21,19 @@ type fakeCollector struct {
 	name         string
 	observations []collectors.RawObservation
 	err          error
+	delay        time.Duration
 }
 
 func (f *fakeCollector) ID() string   { return f.id }
 func (f *fakeCollector) Name() string { return f.name }
-func (f *fakeCollector) Collect(_ context.Context, _ collectors.DiscoveryTarget) ([]collectors.RawObservation, error) {
+func (f *fakeCollector) Collect(ctx context.Context, _ collectors.DiscoveryTarget) ([]collectors.RawObservation, error) {
+	if f.delay > 0 {
+		select {
+		case <-time.After(f.delay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -49,7 +57,6 @@ func TestDefaultWorkerPoolSize(t *testing.T) {
 		if got := engine.DefaultWorkerPoolSize(); got != 8 {
 			t.Errorf("expected 8, got %d", got)
 		}
-
 	})
 
 	t.Run("Falls back on invalid env string", func(t *testing.T) {
@@ -98,7 +105,6 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		bus := eventbus.NewInMemoryEventBus(2, 100)
 		defer func() { _ = bus.Close() }()
 
-
 		eventsChan := make(chan eventbus.DomainEvent, 10)
 		_ = bus.Subscribe("device.discovered", func(_ context.Context, e eventbus.DomainEvent) error {
 			eventsChan <- e
@@ -119,13 +125,12 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		// Set MacAddress for active device
 		activeDevices[0].MacAddress, _ = net.ParseMAC("aa:bb:cc:dd:ee:01")
 
-
 		orch := engine.NewDefaultOrchestrator(bus)
 		orch.RegisterCollector(c1)
 		orch.RegisterCollector(c2)
 
 		target := collectors.DiscoveryTarget{CIDR: "192.168.1.0/24", SubnetID: "sub-1"}
-		res, err := orch.RunScan(context.Background(), target, activeDevices)
+		res, err := orch.RunScan(context.Background(), target, activeDevices, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -143,9 +148,12 @@ func TestOrchestrator_RunScan(t *testing.T) {
 			t.Errorf("expected TotalUpdated 1 (core-sw), got %d", res.TotalUpdated)
 		}
 
+		if len(res.Collectors) != 2 {
+			t.Fatalf("expected 2 collector details, got %d", len(res.Collectors))
+		}
 	})
 
-	t.Run("Resilient to failing collector in worker pool", func(t *testing.T) {
+	t.Run("Resilient to failing collector in worker pool with metrics tracking", func(t *testing.T) {
 		goodCol := &fakeCollector{
 			id:   "arp",
 			name: "ARP Reader",
@@ -164,12 +172,172 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		orch.RegisterCollector(badCol)
 
 		target := collectors.DiscoveryTarget{CIDR: "192.168.1.0/24", SubnetID: "sub-1"}
-		res, err := orch.RunScan(context.Background(), target, nil)
+		res, err := orch.RunScan(context.Background(), target, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected scan failure: %v", err)
 		}
 		if res.TotalCollected != 1 {
 			t.Errorf("expected 1 collected observation from good worker, got %d", res.TotalCollected)
+		}
+
+		if len(res.Collectors) != 2 {
+			t.Fatalf("expected 2 collector details, got %d", len(res.Collectors))
+		}
+
+		foundError := false
+		foundSuccess := false
+		for _, col := range res.Collectors {
+			if col.CollectorType == "failing" {
+				foundError = true
+				if col.Status != "error" {
+					t.Errorf("expected status 'error' for failing collector, got %q", col.Status)
+				}
+				if col.ErrorMessage != "network interface down" {
+					t.Errorf("expected error message 'network interface down', got %q", col.ErrorMessage)
+				}
+				if col.DevicesFound != 0 {
+					t.Errorf("expected 0 devices found for failing collector, got %d", col.DevicesFound)
+				}
+			}
+			if col.CollectorType == "arp" {
+				foundSuccess = true
+				if col.Status != "success" {
+					t.Errorf("expected status 'success' for good collector, got %q", col.Status)
+				}
+				if col.DevicesFound != 1 {
+					t.Errorf("expected 1 device found for arp collector, got %d", col.DevicesFound)
+				}
+			}
+		}
+
+		if !foundError || !foundSuccess {
+			t.Errorf("expected both error and success collector metrics: foundError=%v, foundSuccess=%v", foundError, foundSuccess)
+		}
+	})
+
+	t.Run("Selective scan runs only requested collectors", func(t *testing.T) {
+		c1 := &fakeCollector{
+			id:   "icmp",
+			name: "ICMP",
+			observations: []collectors.RawObservation{
+				{IPAddress: "192.168.1.10", LatencyMs: 5, ProtocolSource: "icmp", ConfidenceScore: 50},
+			},
+		}
+		c2 := &fakeCollector{
+			id:   "arp",
+			name: "ARP",
+			observations: []collectors.RawObservation{
+				{IPAddress: "192.168.1.10", MACAddress: "aa:bb:cc:dd:ee:01", ProtocolSource: "arp", ConfidenceScore: 40},
+			},
+		}
+		c3 := &fakeCollector{
+			id:   "snmp",
+			name: "SNMP",
+			observations: []collectors.RawObservation{
+				{IPAddress: "192.168.1.10", Hostname: "switch-1", ProtocolSource: "snmp", ConfidenceScore: 80},
+			},
+		}
+
+		orch := engine.NewDefaultOrchestrator(nil)
+		orch.RegisterCollector(c1)
+		orch.RegisterCollector(c2)
+		orch.RegisterCollector(c3)
+
+		// Request only "arp"
+		target := collectors.DiscoveryTarget{CIDR: "192.168.1.0/24"}
+		res, err := orch.RunScan(context.Background(), target, nil, []string{"arp"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if res.TotalCollected != 1 {
+			t.Errorf("expected 1 observation from selective arp collector, got %d", res.TotalCollected)
+		}
+		if len(res.Collectors) != 1 {
+			t.Fatalf("expected 1 collector detail, got %d", len(res.Collectors))
+		}
+		if res.Collectors[0].CollectorType != "arp" {
+			t.Errorf("expected collector type 'arp', got %q", res.Collectors[0].CollectorType)
+		}
+	})
+
+	t.Run("Selective scan maps canonical type names to registered collectors", func(t *testing.T) {
+		c1 := &fakeCollector{
+			id:   "icmp",
+			name: "ICMP",
+			observations: []collectors.RawObservation{
+				{IPAddress: "192.168.1.10", LatencyMs: 5, ProtocolSource: "icmp", ConfidenceScore: 50},
+			},
+		}
+		c2 := &fakeCollector{
+			id:   "reverse-dns",
+			name: "Reverse DNS",
+			observations: []collectors.RawObservation{
+				{IPAddress: "192.168.1.10", Hostname: "host.local", ProtocolSource: "reverse-dns", ConfidenceScore: 30},
+			},
+		}
+
+		orch := engine.NewDefaultOrchestrator(nil)
+		orch.RegisterCollector(c1)
+		orch.RegisterCollector(c2)
+
+		// Request with canonical type names "icmp_sweep" and "reverse_dns"
+		target := collectors.DiscoveryTarget{CIDR: "192.168.1.0/24"}
+		res, err := orch.RunScan(context.Background(), target, nil, []string{"icmp_sweep", "reverse_dns"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if res.TotalCollected != 2 {
+			t.Errorf("expected 2 observations from mapped collectors, got %d", res.TotalCollected)
+		}
+		if len(res.Collectors) != 2 {
+			t.Fatalf("expected 2 collector details, got %d", len(res.Collectors))
+		}
+	})
+
+	t.Run("Selective scan with unimplemented collector records error without failing scan", func(t *testing.T) {
+		c1 := &fakeCollector{
+			id:   "arp",
+			name: "ARP",
+			observations: []collectors.RawObservation{
+				{IPAddress: "192.168.1.10", MACAddress: "aa:bb:cc:dd:ee:01", ProtocolSource: "arp", ConfidenceScore: 40},
+			},
+		}
+
+		orch := engine.NewDefaultOrchestrator(nil)
+		orch.RegisterCollector(c1)
+
+		// Request implemented "arp" and unimplemented "proxmox"
+		target := collectors.DiscoveryTarget{CIDR: "192.168.1.0/24"}
+		res, err := orch.RunScan(context.Background(), target, nil, []string{"arp", "proxmox"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if res.TotalCollected != 1 {
+			t.Errorf("expected 1 observation from implemented arp collector, got %d", res.TotalCollected)
+		}
+		if len(res.Collectors) != 2 {
+			t.Fatalf("expected 2 collector details, got %d", len(res.Collectors))
+		}
+
+		var proxmoxDetail *engine.CollectorRunDetail
+		for i := range res.Collectors {
+			if res.Collectors[i].CollectorType == "proxmox" {
+				proxmoxDetail = &res.Collectors[i]
+				break
+			}
+		}
+
+		if proxmoxDetail == nil {
+			t.Fatal("expected collector detail for 'proxmox'")
+		}
+		if proxmoxDetail.Status != "error" {
+			t.Errorf("expected status 'error' for unimplemented proxmox, got %q", proxmoxDetail.Status)
+		}
+		if proxmoxDetail.ErrorMessage == "" {
+			t.Error("expected non-empty error message for unimplemented collector")
 		}
 	})
 
@@ -188,7 +356,7 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		orch.RegisterCollector(c1)
 
 		target := collectors.DiscoveryTarget{CIDR: "192.168.1.0/24", SubnetID: "sub-1"}
-		_, err := orch.RunScan(ctx, target, nil)
+		_, err := orch.RunScan(ctx, target, nil, nil)
 		if err == nil {
 			t.Fatal("expected context cancellation error, got nil")
 		}
@@ -213,7 +381,7 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		})
 
 		target := collectors.DiscoveryTarget{CIDR: "10.0.0.0/24"}
-		_, err := orch.RunScan(context.Background(), target, nil)
+		_, err := orch.RunScan(context.Background(), target, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -248,7 +416,7 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		})
 
 		target := collectors.DiscoveryTarget{CIDR: "10.0.0.0/24"}
-		_, err := orch.RunScan(context.Background(), target, activeDevices)
+		_, err := orch.RunScan(context.Background(), target, activeDevices, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -279,7 +447,7 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		})
 
 		target := collectors.DiscoveryTarget{CIDR: "10.0.0.0/24"}
-		_, err := orch.RunScan(context.Background(), target, nil)
+		_, err := orch.RunScan(context.Background(), target, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

@@ -233,9 +233,23 @@ func (u *DefaultDiscoveryUseCase) TriggerScan(ctx context.Context, req *dto.Trig
 		CredentialSetID: req.CredentialSetID,
 	}
 
-	res, err := u.orchestrator.RunScan(ctx, target, activeDevices)
+	res, err := u.orchestrator.RunScan(ctx, target, activeDevices, req.Collectors)
 	if err != nil {
 		return nil, err
+	}
+
+	var collectorDTOs []dto.CollectorRunDetail
+	if res.Collectors != nil {
+		collectorDTOs = make([]dto.CollectorRunDetail, len(res.Collectors))
+		for i, c := range res.Collectors {
+			collectorDTOs[i] = dto.CollectorRunDetail{
+				CollectorType: c.CollectorType,
+				Status:        c.Status,
+				DevicesFound:  c.DevicesFound,
+				DurationMs:    c.DurationMs,
+				ErrorMessage:  c.ErrorMessage,
+			}
+		}
 	}
 
 	return &dto.ScanResultResponse{
@@ -245,6 +259,7 @@ func (u *DefaultDiscoveryUseCase) TriggerScan(ctx context.Context, req *dto.Trig
 		TotalDiscovered: res.TotalDiscovered,
 		TotalUpdated:    res.TotalUpdated,
 		DurationMs:      res.Duration.Milliseconds(),
+		Collectors:      collectorDTOs,
 	}, nil
 }
 
