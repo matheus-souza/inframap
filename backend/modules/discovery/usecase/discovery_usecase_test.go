@@ -631,6 +631,27 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		if res.CIDR != "192.168.1.0/30" {
 			t.Errorf("expected CIDR '192.168.1.0/30', got %q", res.CIDR)
 		}
+
+		// Selective scan with valid collectors
+		selRes, err := uc.TriggerScan(ctx, &dto.TriggerScanRequest{
+			CIDR:       "192.168.1.0/30",
+			Collectors: []string{"icmp_sweep", "arp_sweep"},
+		})
+		if err != nil {
+			t.Fatalf("expected nil error on selective TriggerScan, got %v", err)
+		}
+		if selRes == nil || len(selRes.Collectors) != 2 {
+			t.Errorf("expected 2 collector details in response, got %v", selRes)
+		}
+
+		// Selective scan with invalid collector
+		_, err = uc.TriggerScan(ctx, &dto.TriggerScanRequest{
+			CIDR:       "192.168.1.0/30",
+			Collectors: []string{"unknown_bad_collector"},
+		})
+		if !errors.Is(err, usecase.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput for invalid collector, got %v", err)
+		}
 	})
 }
 

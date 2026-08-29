@@ -83,17 +83,38 @@ func (m *mockDiscoveryUseCase) TriggerRun(_ context.Context, idStr string) (*dto
 }
 
 func (m *mockDiscoveryUseCase) TriggerScan(_ context.Context, req *dto.TriggerScanRequest) (*dto.ScanResultResponse, error) {
-
 	if m.failTriggerScan {
 		return nil, errors.New("internal scan error")
 	}
 	if req == nil || req.CIDR == "" {
 		return nil, usecase.ErrInvalidInput
 	}
+	for _, col := range req.Collectors {
+		if !dto.ValidDiscoveryTypes[col] {
+			return nil, usecase.ErrInvalidInput
+		}
+	}
+	var cols []dto.CollectorRunDetail
+	if len(req.Collectors) > 0 {
+		for _, col := range req.Collectors {
+			cols = append(cols, dto.CollectorRunDetail{
+				CollectorType: col,
+				Status:        "success",
+				DevicesFound:  1,
+				DurationMs:    10,
+			})
+		}
+	} else {
+		cols = []dto.CollectorRunDetail{
+			{CollectorType: "icmp", Status: "success", DevicesFound: 2, DurationMs: 15},
+			{CollectorType: "arp", Status: "success", DevicesFound: 2, DurationMs: 5},
+		}
+	}
 	return &dto.ScanResultResponse{
 		CIDR:           req.CIDR,
 		TotalCollected: 4,
 		TotalValid:     3,
+		Collectors:     cols,
 	}, nil
 }
 
@@ -471,6 +492,66 @@ func TestDiscoveryController_Unit(t *testing.T) {
 			t.Errorf("expected 500 Internal Server Error, got %d", rec.Code)
 		}
 		uc.failTriggerScan = false
+	})
+
+	t.Run("TriggerScan Success With Selective Collectors", func(t *testing.T) {
+		body := map[string]interface{}{
+			"cidr":       "192.168.1.0/24",
+			"collectors": []string{"icmp_sweep", "arp_sweep"},
+		}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("POST", "/api/v1/discovery/scan", bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+
+		var env map[string]interface{}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		data, ok := env["data"].(map[string]interface{})
+		if !ok {
+			t.Fatal("expected data map in response envelope")
+		}
+		if cidr, _ := data["cidr"].(string); cidr != "192.168.1.0/24" {
+			t.Errorf("expected cidr '192.168.1.0/24', got %q", cidr)
+		}
+		cols, ok := data["collectors"].([]interface{})
+		if !ok || len(cols) != 2 {
+			t.Fatalf("expected 2 collector details in response, got %v", data["collectors"])
+		}
+	})
+
+	t.Run("TriggerScan Invalid Collector Name", func(t *testing.T) {
+		body := map[string]interface{}{
+			"cidr":       "192.168.1.0/24",
+			"collectors": []string{"unsupported_collector_type"},
+		}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("POST", "/api/v1/discovery/scan", bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request for invalid collector name, got %d", rec.Code)
+		}
+
+		var resp map[string]interface{}
+		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		errMap, ok := resp["error"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected error map in response, got %v", resp["error"])
+		}
+		if code, _ := errMap["code"].(string); code != "INVALID_INPUT" {
+			t.Errorf("expected error code 'INVALID_INPUT', got %q", code)
+		}
 	})
 }
 

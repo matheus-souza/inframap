@@ -1,6 +1,7 @@
 package dto_test
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -25,6 +26,19 @@ func TestCreateDiscoverySourceRequest_NormalizeAndValidate(t *testing.T) {
 		}
 		if req.Enabled == nil || !*req.Enabled {
 			t.Error("expected default enabled = true")
+		}
+	})
+
+	t.Run("All ValidDiscoveryTypes pass validation", func(t *testing.T) {
+		for discType := range dto.ValidDiscoveryTypes {
+			req := &dto.CreateDiscoverySourceRequest{
+				Name: "Source for " + discType,
+				Type: discType,
+			}
+			req.Normalize()
+			if err := req.Validate(); err != nil {
+				t.Errorf("expected type %q to be valid, got %v", discType, err)
+			}
 		}
 	})
 
@@ -95,5 +109,94 @@ func TestTriggerScanRequest_NormalizeAndValidate(t *testing.T) {
 			t.Error("expected error for empty CIDR, got nil")
 		}
 	})
+
+	t.Run("Collectors field trims, lowercases, deduplicates and removes blanks", func(t *testing.T) {
+		req := &dto.TriggerScanRequest{
+			CIDR: "192.168.1.0/24",
+			Collectors: []string{
+				"  ICMP_SWEEP  ",
+				"arp_sweep",
+				"  ",
+				"icmp_sweep",
+				"  SNMP ",
+			},
+		}
+		req.Normalize()
+		if len(req.Collectors) != 3 {
+			t.Fatalf("expected 3 normalized collectors, got %d: %v", len(req.Collectors), req.Collectors)
+		}
+		expected := []string{"icmp_sweep", "arp_sweep", "snmp"}
+		for i, exp := range expected {
+			if req.Collectors[i] != exp {
+				t.Errorf("at index %d, expected %q, got %q", i, exp, req.Collectors[i])
+			}
+		}
+
+		if err := req.Validate(); err != nil {
+			t.Fatalf("expected valid collectors, got %v", err)
+		}
+	})
+
+	t.Run("Invalid collector in list fails validation", func(t *testing.T) {
+		req := &dto.TriggerScanRequest{
+			CIDR: "192.168.1.0/24",
+			Collectors: []string{
+				"icmp_sweep",
+				"invalid_collector",
+			},
+		}
+		req.Normalize()
+		err := req.Validate()
+		if err == nil {
+			t.Fatal("expected validation error for invalid collector, got nil")
+		}
+		if !errors.Is(err, dto.ErrInvalidDiscoveryType) {
+			t.Errorf("expected ErrInvalidDiscoveryType, got %v", err)
+		}
+	})
 }
 
+func TestScanResultResponse_Serialization(t *testing.T) {
+	resp := dto.ScanResultResponse{
+		CIDR:            "192.168.1.0/24",
+		TotalCollected:  5,
+		TotalValid:      4,
+		TotalDiscovered: 2,
+		TotalUpdated:    2,
+		DurationMs:      123,
+		Collectors: []dto.CollectorRunDetail{
+			{
+				CollectorType: "icmp",
+				Status:        "success",
+				DevicesFound:  2,
+				DurationMs:    45,
+			},
+			{
+				CollectorType: "proxmox",
+				Status:        "error",
+				DevicesFound:  0,
+				DurationMs:    0,
+				ErrorMessage:  "collector not implemented",
+			},
+		},
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("failed to marshal ScanResultResponse: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal JSON: %v", err)
+	}
+
+	if parsed["cidr"] != "192.168.1.0/24" {
+		t.Errorf("expected cidr 192.168.1.0/24, got %v", parsed["cidr"])
+	}
+
+	cols, ok := parsed["collectors"].([]interface{})
+	if !ok || len(cols) != 2 {
+		t.Fatalf("expected 2 collector run details, got %v", parsed["collectors"])
+	}
+}
