@@ -494,7 +494,7 @@ func TestExtractVendorAndOS(t *testing.T) {
 	}
 
 	// Windows OS detection
-	_, osName = mdns.ExtractVendorAndOS("_smb._tcp", map[string]string{"os": "Windows 11"})
+	_, osName := mdns.ExtractVendorAndOS("_smb._tcp", map[string]string{"os": "Windows 11"})
 	if osName != "Windows" {
 		t.Errorf("expected Windows, got %s", osName)
 	}
