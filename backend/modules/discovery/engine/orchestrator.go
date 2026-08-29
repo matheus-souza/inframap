@@ -358,7 +358,7 @@ func classifyDeviceType(obs collectors.RawObservation) string {
 	switch obs.ProtocolSource {
 	case "snmp":
 		return "network_device"
-	case "icmp", "arp":
+	case "icmp", "arp", "mdns":
 		return "host"
 	default:
 		return "unknown"

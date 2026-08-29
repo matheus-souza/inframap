@@ -54,6 +54,7 @@ func TestIsImplemented(t *testing.T) {
 		"arp_sweep", "arp",
 		"reverse_dns", "reversedns", "reverse-dns",
 		"snmp",
+		"mdns",
 	}
 
 	for _, name := range implemented {
@@ -63,7 +64,7 @@ func TestIsImplemented(t *testing.T) {
 	}
 
 	unimplemented := []string{
-		"mdns", "proxmox", "docker", "unifi", "unknown_type",
+		"proxmox", "docker", "unifi", "unknown_type",
 	}
 
 	for _, name := range unimplemented {
@@ -74,6 +75,13 @@ func TestIsImplemented(t *testing.T) {
 }
 
 func TestRegistry(t *testing.T) {
+	t.Run("DefaultRegistry returns valid registry", func(t *testing.T) {
+		reg := collectors.DefaultRegistry()
+		if reg == nil {
+			t.Fatal("expected non-nil DefaultRegistry")
+		}
+	})
+
 	t.Run("Register and Get by ID and Alias", func(t *testing.T) {
 		reg := collectors.NewRegistry()
 

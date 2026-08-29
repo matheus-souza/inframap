@@ -17,7 +17,7 @@ var SourceConfidenceMatrix = map[string]int{
 	"proxmox":       80,
 	"docker":        80,
 	"unifi":         80,
-	"mdns":          50,
+	"mdns":          70,
 	"lldp":          50,
 	"snmp":          50,
 	"icmp_sweep":    20,

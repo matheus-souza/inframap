@@ -16,6 +16,7 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/discovery/collectors"
+	"github.com/matheussouza/inframap/modules/discovery/collectors/mdns"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 
 	"github.com/matheussouza/inframap/modules/discovery/engine"
@@ -72,6 +73,7 @@ func NewDefaultDiscoveryUseCase(
 	orch.RegisterCollector(collectors.NewARPCollector(arpReader))
 	orch.RegisterCollector(collectors.NewReverseDNSCollector(dnsResolver))
 	orch.RegisterCollector(collectors.NewSNMPCollector(nil, nil))
+	orch.RegisterCollector(mdns.NewMDNSCollector(nil))
 
 	uc := &DefaultDiscoveryUseCase{
 		discRepo:     discRepo,
