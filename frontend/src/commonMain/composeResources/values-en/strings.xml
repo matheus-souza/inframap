@@ -124,6 +124,12 @@
     <string name="discovery_source_enabled">Source enabled</string>
     <string name="validation_discovery_name_required">Discovery source name is required.</string>
     <string name="validation_discovery_type_required">Source type is required.</string>
+    <string name="discovery_type_icmp_sweep">ICMP Ping</string>
+    <string name="discovery_type_arp_sweep">ARP Sweep</string>
+    <string name="discovery_type_mdns">mDNS</string>
+    <string name="discovery_type_proxmox">Proxmox</string>
+    <string name="discovery_type_docker">Docker</string>
+    <string name="discovery_type_unifi">UniFi</string>
 
     <!-- Auth / Onboarding -->
     <string name="onboarding_title">Initial Setup</string>

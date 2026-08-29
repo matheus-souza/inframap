@@ -126,6 +126,12 @@
     <string name="discovery_source_enabled">Fonte habilitada</string>
     <string name="validation_discovery_name_required">Nome da fonte de descoberta é obrigatório.</string>
     <string name="validation_discovery_type_required">Tipo da fonte é obrigatório.</string>
+    <string name="discovery_type_icmp_sweep">ICMP Ping</string>
+    <string name="discovery_type_arp_sweep">Varredura ARP</string>
+    <string name="discovery_type_mdns">mDNS</string>
+    <string name="discovery_type_proxmox">Proxmox</string>
+    <string name="discovery_type_docker">Docker</string>
+    <string name="discovery_type_unifi">UniFi</string>
 
     <!-- Auth / Onboarding -->
     <string name="onboarding_title">Configuração Inicial</string>
@@ -227,7 +233,7 @@
     <string name="topbar_search_tooltip">Buscar infraestrutura (Cmd+K / Ctrl+K)</string>
     <string name="topbar_search_shortcut_cd">Tecla de atalho da busca K</string>
     <string name="topbar_search_shortcut_icon_cd">Ícone de atalho de teclado</string>
-    <string name="topbar_sse_live">Live SSE</string>
+    <string name="topbar_sse_live">SSE em tempo real</string>
     <string name="topbar_sse_disconnected">Desconectado</string>
     <string name="topbar_sse_status_connected">Status do SSE: Conectado</string>
     <string name="topbar_sse_status_disconnected">Status do SSE: Desconectado</string>

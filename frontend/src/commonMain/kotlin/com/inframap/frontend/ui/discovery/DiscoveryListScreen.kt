@@ -53,6 +53,12 @@ import com.inframap.frontend.generated.resources.discovery_new_button
 import com.inframap.frontend.generated.resources.discovery_schedule_manual
 import com.inframap.frontend.generated.resources.discovery_subtitle
 import com.inframap.frontend.generated.resources.discovery_title
+import com.inframap.frontend.generated.resources.discovery_type_arp_sweep
+import com.inframap.frontend.generated.resources.discovery_type_docker
+import com.inframap.frontend.generated.resources.discovery_type_icmp_sweep
+import com.inframap.frontend.generated.resources.discovery_type_mdns
+import com.inframap.frontend.generated.resources.discovery_type_proxmox
+import com.inframap.frontend.generated.resources.discovery_type_unifi
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -294,13 +300,14 @@ private fun DiscoveryRowCell(
     }
 }
 
+@Composable
 private fun formatSourceType(type: String): String =
     when (type.lowercase()) {
-        "icmp_sweep" -> "ICMP Sweep"
-        "arp_sweep" -> "ARP Sweep"
-        "mdns" -> "mDNS"
-        "proxmox" -> "Proxmox"
-        "docker" -> "Docker"
-        "unifi" -> "UniFi"
+        "icmp_sweep" -> stringResource(Res.string.discovery_type_icmp_sweep)
+        "arp_sweep" -> stringResource(Res.string.discovery_type_arp_sweep)
+        "mdns" -> stringResource(Res.string.discovery_type_mdns)
+        "proxmox" -> stringResource(Res.string.discovery_type_proxmox)
+        "docker" -> stringResource(Res.string.discovery_type_docker)
+        "unifi" -> stringResource(Res.string.discovery_type_unifi)
         else -> type
     }

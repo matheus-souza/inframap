@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -51,5 +52,40 @@ class EditDeviceScreenTest {
 
             onNodeWithText("Save Changes").performClick()
             assertTrue(submitClicked)
+        }
+
+    @Test
+    fun selectsCustomDeviceTypeFromStandardOption() =
+        runComposeUiTest {
+            var selectedType = "router"
+
+            setContent {
+                InfraMapTheme {
+                    EditDeviceScreen(
+                        state =
+                            EditDeviceUiState(
+                                deviceId = "dev-100",
+                                hostname = "router-core",
+                                deviceType = selectedType,
+                                status = "active",
+                                isLoading = false,
+                            ),
+                        actions =
+                            EditDeviceActions(
+                                onHostnameChanged = {},
+                                onIpAddressChanged = {},
+                                onMacAddressChanged = {},
+                                onDeviceTypeChanged = { selectedType = it },
+                                onStatusChanged = {},
+                                onSubmitClicked = {},
+                                onCancelClicked = {},
+                                onRetryClicked = {},
+                            ),
+                    )
+                }
+            }
+
+            onNodeWithText("Other").performClick()
+            assertEquals("other", selectedType)
         }
 }
