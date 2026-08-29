@@ -174,10 +174,13 @@ func TestDiscoveryController_Unit(t *testing.T) {
 			t.Fatalf("expected 201 Created, got %d", rec.Code)
 		}
 
-		var created dto.DiscoverySourceResponse
-		if err := json.NewDecoder(rec.Body).Decode(&created); err != nil {
+		var env struct {
+			Data dto.DiscoverySourceResponse `json:"data"`
+		}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
 			t.Fatalf("failed to decode response: %v", err)
 		}
+		created := env.Data
 		if created.Name != "UniFi AP Controller" || created.Type != "unifi" {
 			t.Errorf("unexpected name or type: %s, %s", created.Name, created.Type)
 		}
@@ -204,10 +207,13 @@ func TestDiscoveryController_Unit(t *testing.T) {
 			t.Fatalf("expected 201 Created, got %d", rec.Code)
 		}
 
-		var created dto.DiscoverySourceResponse
-		if err := json.NewDecoder(rec.Body).Decode(&created); err != nil {
+		var env struct {
+			Data dto.DiscoverySourceResponse `json:"data"`
+		}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
 			t.Fatalf("failed to decode response: %v", err)
 		}
+		created := env.Data
 		if created.Name != "Local Network Plan" {
 			t.Errorf("unexpected name: %s", created.Name)
 		}

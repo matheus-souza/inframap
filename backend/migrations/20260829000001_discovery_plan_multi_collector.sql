@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS discovery_source_collectors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     source_id UUID NOT NULL REFERENCES discovery_sources(id) ON DELETE CASCADE,
-    collector_type VARCHAR(64) NOT NULL,
+    collector_type VARCHAR(64) NOT NULL CHECK (collector_type IN ('icmp_sweep', 'arp_sweep', 'mdns', 'reverse_dns', 'snmp', 'proxmox', 'docker', 'unifi')),
     config_encrypted TEXT,
     enabled BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -15,7 +15,7 @@ CREATE INDEX IF NOT EXISTS idx_discovery_source_collectors_source_id ON discover
 CREATE TABLE IF NOT EXISTS discovery_collector_runs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     source_id UUID NOT NULL REFERENCES discovery_sources(id) ON DELETE CASCADE,
-    collector_type VARCHAR(64) NOT NULL,
+    collector_type VARCHAR(64) NOT NULL CHECK (collector_type IN ('icmp_sweep', 'arp_sweep', 'mdns', 'reverse_dns', 'snmp', 'proxmox', 'docker', 'unifi')),
     status VARCHAR(32) NOT NULL CHECK (status IN ('success', 'error', 'timeout', 'skipped')),
     devices_found INT NOT NULL DEFAULT 0,
     duration_ms INT NOT NULL DEFAULT 0,
@@ -36,19 +36,11 @@ ALTER TABLE discovery_sources
 ALTER TABLE discovery_sources
     VALIDATE CONSTRAINT discovery_sources_last_status_check;
 
--- Data migration: seed network sweep sources with icmp_sweep, arp_sweep, reverse_dns collectors
-INSERT INTO discovery_source_collectors (id, source_id, collector_type, config_encrypted, enabled, created_at)
-SELECT gen_random_uuid(), ds.id, c.collector_type, ds.config_encrypted, ds.enabled, ds.created_at
-FROM discovery_sources ds
-CROSS JOIN (VALUES ('icmp_sweep'), ('arp_sweep'), ('reverse_dns')) AS c(collector_type)
-WHERE ds.type IN ('icmp_sweep', 'arp_sweep', 'mdns')
-ON CONFLICT (source_id, collector_type) DO NOTHING;
-
--- Data migration: seed provider sources with literal type
+-- Data migration: seed source collectors with identical type as defined in ADR-011
 INSERT INTO discovery_source_collectors (id, source_id, collector_type, config_encrypted, enabled, created_at)
 SELECT gen_random_uuid(), ds.id, ds.type, ds.config_encrypted, ds.enabled, ds.created_at
 FROM discovery_sources ds
-WHERE ds.type NOT IN ('icmp_sweep', 'arp_sweep', 'mdns')
+WHERE ds.type IS NOT NULL AND ds.type != ''
 ON CONFLICT (source_id, collector_type) DO NOTHING;
 -- +goose StatementEnd
 
