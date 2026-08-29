@@ -565,7 +565,7 @@ func TestDefaultMDNSClient_Query(t *testing.T) {
 		packets: [][]byte{packed},
 	}
 
-	client := mdns.NewDefaultMDNSClientWithConn(func(_ string, laddr *net.UDPAddr) (mdns.PacketConn, error) {
+	client := mdns.NewDefaultMDNSClientWithConn(func(_ string, _ *net.UDPAddr) (mdns.PacketConn, error) {
 		return mockConn, nil
 	})
 
