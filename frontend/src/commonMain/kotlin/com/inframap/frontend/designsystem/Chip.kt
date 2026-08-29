@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,28 +16,44 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.motion.m3InteractiveScale
+import kotlin.jvm.JvmName
 
 private val ChipIconSize = 18.dp
 private val ChipSpacing = 8.dp
 private val CustomInputTopPadding = 12.dp
 private val HelperTextTopPadding = 4.dp
 private val HelperTextStartPadding = 16.dp
+private const val DISABLED_ALPHA = 0.38f
+private const val DISABLED_BORDER_ALPHA = 0.12f
 
 data class ChipOption<T>(
     val value: T,
     val label: String,
     val icon: ImageVector? = null,
     val description: String? = null,
+    val enabled: Boolean = true,
+    val disabledHint: String? = null,
+)
+
+data class ChipSection<T>(
+    val title: String? = null,
+    val options: List<ChipOption<T>>,
+    val enabled: Boolean = true,
 )
 
 @Suppress("LongParameterList")
@@ -53,10 +70,11 @@ data class ChipCustomOption<T>(
     val isCustom: (T) -> Boolean,
 )
 
-@OptIn(ExperimentalLayoutApi::class)
+@JvmName("InfraMapChoiceChipGroupSections")
+@Suppress("LongParameterList")
 @Composable
 fun <T> InfraMapChoiceChipGroup(
-    options: List<ChipOption<T>>,
+    sections: List<ChipSection<T>>,
     selected: T,
     onSelected: (T) -> Unit,
     modifier: Modifier = Modifier,
@@ -73,35 +91,37 @@ fun <T> InfraMapChoiceChipGroup(
                 modifier = Modifier.padding(bottom = ChipSpacing),
             )
         }
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(ChipSpacing),
-            verticalArrangement = Arrangement.spacedBy(ChipSpacing),
-        ) {
-            options.forEach { option ->
-                InfraMapChoiceChipItem(
-                    label = option.label,
-                    description = option.description,
-                    icon = option.icon,
-                    isSelected = option.value == selected,
-                    enabled = enabled,
-                    onClick = { onSelected(option.value) },
+        sections.forEachIndexed { sectionIndex, section ->
+            if (sectionIndex > 0) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(vertical = ChipSpacing),
                 )
             }
-            if (customOption != null) {
-                InfraMapChoiceChipItem(
-                    label = customOption.chipLabel,
-                    description = null,
-                    icon = customOption.chipIcon,
-                    isSelected = customOption.isCustom(selected),
-                    enabled = enabled,
-                    onClick = {
-                        val parsed = customOption.parseValue(customOption.currentValue)
-                        if (parsed != null) {
-                            onSelected(parsed)
-                        }
-                    },
+            if (section.title != null) {
+                Text(
+                    text = section.title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = ChipSpacing),
                 )
             }
+            ChoiceSectionFlowRow(
+                section = section,
+                selected = selected,
+                onSelected = onSelected,
+                enabled = enabled,
+                isLastSection = sectionIndex == sections.lastIndex,
+                customOption = customOption,
+            )
+        }
+        if (sections.isEmpty() && customOption != null) {
+            CustomOptionFlowRow(
+                customOption = customOption,
+                selected = selected,
+                onSelected = onSelected,
+                enabled = enabled,
+            )
         }
         if (customOption != null) {
             AnimatedVisibility(
@@ -119,10 +139,112 @@ fun <T> InfraMapChoiceChipGroup(
     }
 }
 
+@Suppress("LongParameterList")
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T> ChoiceSectionFlowRow(
+    section: ChipSection<T>,
+    selected: T,
+    onSelected: (T) -> Unit,
+    enabled: Boolean,
+    isLastSection: Boolean,
+    customOption: ChipCustomOption<T>?,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(ChipSpacing),
+        verticalArrangement = Arrangement.spacedBy(ChipSpacing),
+    ) {
+        section.options.forEach { option ->
+            val isOptionEnabled = enabled && section.enabled && option.enabled
+            InfraMapChoiceChipItem(
+                label = option.label,
+                description = option.description,
+                icon = option.icon,
+                isSelected = option.value == selected,
+                enabled = isOptionEnabled,
+                disabledHint = option.disabledHint,
+                onClick = { onSelected(option.value) },
+            )
+        }
+        if (customOption != null && isLastSection) {
+            CustomChipItem(
+                customOption = customOption,
+                selected = selected,
+                onSelected = onSelected,
+                enabled = enabled,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T> CustomOptionFlowRow(
+    customOption: ChipCustomOption<T>,
+    selected: T,
+    onSelected: (T) -> Unit,
+    enabled: Boolean,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(ChipSpacing),
+        verticalArrangement = Arrangement.spacedBy(ChipSpacing),
+    ) {
+        CustomChipItem(
+            customOption = customOption,
+            selected = selected,
+            onSelected = onSelected,
+            enabled = enabled,
+        )
+    }
+}
+
+@Composable
+private fun <T> CustomChipItem(
+    customOption: ChipCustomOption<T>,
+    selected: T,
+    onSelected: (T) -> Unit,
+    enabled: Boolean,
+) {
+    InfraMapChoiceChipItem(
+        label = customOption.chipLabel,
+        description = null,
+        icon = customOption.chipIcon,
+        isSelected = customOption.isCustom(selected),
+        enabled = enabled,
+        disabledHint = null,
+        onClick = {
+            val parsed = customOption.parseValue(customOption.currentValue)
+            if (parsed != null) {
+                onSelected(parsed)
+            }
+        },
+    )
+}
+
+@Composable
+fun <T> InfraMapChoiceChipGroup(
+    options: List<ChipOption<T>>,
+    selected: T,
+    onSelected: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    customOption: ChipCustomOption<T>? = null,
+    enabled: Boolean = true,
+) = InfraMapChoiceChipGroup(
+    sections = listOf(ChipSection(options = options)),
+    selected = selected,
+    onSelected = onSelected,
+    modifier = modifier,
+    label = label,
+    customOption = customOption,
+    enabled = enabled,
+)
+
+@JvmName("InfraMapFilterChipGroupSections")
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun <T> InfraMapFilterChipGroup(
-    options: List<ChipOption<T>>,
+    sections: List<ChipSection<T>>,
     selected: Set<T>,
     onSelectionChanged: (Set<T>) -> Unit,
     modifier: Modifier = Modifier,
@@ -138,33 +260,69 @@ fun <T> InfraMapFilterChipGroup(
                 modifier = Modifier.padding(bottom = ChipSpacing),
             )
         }
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(ChipSpacing),
-            verticalArrangement = Arrangement.spacedBy(ChipSpacing),
-        ) {
-            options.forEach { option ->
-                val isSelected = selected.contains(option.value)
-                InfraMapChoiceChipItem(
-                    label = option.label,
-                    description = option.description,
-                    icon = option.icon,
-                    isSelected = isSelected,
-                    enabled = enabled,
-                    onClick = {
-                        val newSelection =
-                            if (isSelected) {
-                                selected - option.value
-                            } else {
-                                selected + option.value
-                            }
-                        onSelectionChanged(newSelection)
-                    },
+        sections.forEachIndexed { sectionIndex, section ->
+            if (sectionIndex > 0) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(vertical = ChipSpacing),
                 )
+            }
+            if (section.title != null) {
+                Text(
+                    text = section.title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = ChipSpacing),
+                )
+            }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(ChipSpacing),
+                verticalArrangement = Arrangement.spacedBy(ChipSpacing),
+            ) {
+                section.options.forEach { option ->
+                    val isSelected = selected.contains(option.value)
+                    val isOptionEnabled = enabled && section.enabled && option.enabled
+                    InfraMapChoiceChipItem(
+                        label = option.label,
+                        description = option.description,
+                        icon = option.icon,
+                        isSelected = isSelected,
+                        enabled = isOptionEnabled,
+                        disabledHint = option.disabledHint,
+                        onClick = {
+                            val newSelection =
+                                if (isSelected) {
+                                    selected - option.value
+                                } else {
+                                    selected + option.value
+                                }
+                            onSelectionChanged(newSelection)
+                        },
+                    )
+                }
             }
         }
     }
 }
 
+@Composable
+fun <T> InfraMapFilterChipGroup(
+    options: List<ChipOption<T>>,
+    selected: Set<T>,
+    onSelectionChanged: (Set<T>) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    enabled: Boolean = true,
+) = InfraMapFilterChipGroup(
+    sections = listOf(ChipSection(options = options)),
+    selected = selected,
+    onSelectionChanged = onSelectionChanged,
+    modifier = modifier,
+    label = label,
+    enabled = enabled,
+)
+
+@Suppress("LongParameterList")
 @Composable
 private fun InfraMapChoiceChipItem(
     label: String,
@@ -173,34 +331,30 @@ private fun InfraMapChoiceChipItem(
     isSelected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
+    disabledHint: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = DISABLED_ALPHA)
     FilterChip(
         selected = isSelected,
         onClick = onClick,
         label = {
-            if (description != null) {
-                Column {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color =
-                            if (isSelected) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                    )
-                }
-            } else {
-                Text(text = label, style = MaterialTheme.typography.labelLarge)
-            }
+            ChipItemContent(
+                label = label,
+                description = description,
+                enabled = enabled,
+                isSelected = isSelected,
+                disabledContentColor = disabledContentColor,
+            )
         },
-        modifier = Modifier.m3InteractiveScale(interactionSource),
+        modifier =
+            Modifier
+                .m3InteractiveScale(interactionSource)
+                .semantics {
+                    if (disabledHint != null) {
+                        stateDescription = disabledHint
+                    }
+                },
         enabled = enabled,
         leadingIcon =
             icon?.let { imageVector ->
@@ -213,24 +367,81 @@ private fun InfraMapChoiceChipItem(
                 }
             },
         interactionSource = interactionSource,
-        colors =
-            FilterChipDefaults.filterChipColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                labelColor = MaterialTheme.colorScheme.onSurface,
-                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-        border =
-            FilterChipDefaults.filterChipBorder(
-                enabled = enabled,
-                selected = isSelected,
-                borderColor = MaterialTheme.colorScheme.outlineVariant,
-                selectedBorderColor = MaterialTheme.colorScheme.primary,
-            ),
+        colors = chipItemColors(disabledContentColor),
+        border = chipItemBorder(enabled = enabled, isSelected = isSelected),
     )
 }
+
+@Composable
+private fun ChipItemContent(
+    label: String,
+    description: String?,
+    enabled: Boolean,
+    isSelected: Boolean,
+    disabledContentColor: Color,
+) {
+    if (description != null) {
+        Column {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (!enabled) disabledContentColor else Color.Unspecified,
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color =
+                    if (!enabled) {
+                        disabledContentColor
+                    } else if (isSelected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+            )
+        }
+    } else {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (!enabled) disabledContentColor else Color.Unspecified,
+        )
+    }
+}
+
+@Composable
+private fun chipItemColors(disabledContentColor: Color): SelectableChipColors =
+    FilterChipDefaults.filterChipColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        labelColor = MaterialTheme.colorScheme.onSurface,
+        iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        disabledLabelColor = disabledContentColor,
+        disabledLeadingIconColor = disabledContentColor,
+        disabledTrailingIconColor = disabledContentColor,
+        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        disabledSelectedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    )
+
+@Composable
+private fun chipItemBorder(
+    enabled: Boolean,
+    isSelected: Boolean,
+): BorderStroke? =
+    FilterChipDefaults.filterChipBorder(
+        enabled = enabled,
+        selected = isSelected,
+        borderColor = MaterialTheme.colorScheme.outlineVariant,
+        selectedBorderColor = MaterialTheme.colorScheme.primary,
+        disabledBorderColor =
+            MaterialTheme.colorScheme.outlineVariant
+                .copy(alpha = DISABLED_BORDER_ALPHA),
+        disabledSelectedBorderColor =
+            MaterialTheme.colorScheme.outlineVariant
+                .copy(alpha = DISABLED_BORDER_ALPHA),
+    )
 
 @Composable
 private fun <T> CustomInputSection(
