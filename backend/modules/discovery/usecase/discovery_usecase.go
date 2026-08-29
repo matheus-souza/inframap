@@ -296,8 +296,8 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 				SourceID:      source.ID,
 				CollectorType: dbColType,
 				Status:        runStatus,
-				DevicesFound:  int32(devicesFound),
-				DurationMs:    int32(durationMs),
+				DevicesFound:  int32(devicesFound),  //nolint:gosec // clamped to MaxInt32 above
+				DurationMs:    int32(durationMs),    //nolint:gosec // clamped to MaxInt32 above
 				ErrorMessage:  errMsg,
 				StartedAt:     pgtype.Timestamptz{Time: startTime, Valid: true},
 				FinishedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},

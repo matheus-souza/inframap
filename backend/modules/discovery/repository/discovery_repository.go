@@ -419,7 +419,7 @@ func (r *PgDiscoveryRepository) ListRunsBySourceID(ctx context.Context, sourceID
 	}
 	rows, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
 		SourceID: sourceID,
-		Limit:    int32(limit),
+		Limit:    int32(limit), //nolint:gosec // clamped to [1,1000] above
 		Offset:   0,
 	})
 	if err != nil {
