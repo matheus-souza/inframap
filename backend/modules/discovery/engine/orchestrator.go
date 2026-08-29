@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +17,15 @@ import (
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 )
 
+// CollectorRunDetail represents the execution metrics and outcome of an individual collector in a scan.
+type CollectorRunDetail struct {
+	CollectorType string
+	Status        string
+	DevicesFound  int
+	DurationMs    int64
+	ErrorMessage  string
+}
+
 // ScanResult summarizes the outcome of a discovery engine pipeline execution.
 type ScanResult struct {
 	Target          collectors.DiscoveryTarget
@@ -24,12 +34,13 @@ type ScanResult struct {
 	TotalDiscovered int
 	TotalUpdated    int
 	Duration        time.Duration
+	Collectors      []CollectorRunDetail
 }
 
 // Orchestrator manages worker pool concurrency and executes the 7-stage discovery pipeline.
 type Orchestrator interface {
 	RegisterCollector(c collectors.Collector)
-	RunScan(ctx context.Context, target collectors.DiscoveryTarget, activeDevices []db.Device) (*ScanResult, error)
+	RunScan(ctx context.Context, target collectors.DiscoveryTarget, activeDevices []db.Device, requestedCollectors []string) (*ScanResult, error)
 }
 
 // DefaultWorkerPoolSize calculates the worker pool concurrency limit.
@@ -98,11 +109,13 @@ type collectorResult struct {
 	collectorID  string
 	observations []collectors.RawObservation
 	err          error
+	durationMs   int64
 }
 
-// RunScan executes all registered collectors concurrently using a bounded worker pool,
-// then processes observations through normalization, validation, matching, reconciliation, and event publishing.
-func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.DiscoveryTarget, activeDevices []db.Device) (*ScanResult, error) {
+// RunScan executes requested collectors (or all registered collectors if none specified) concurrently
+// using a bounded worker pool, isolates individual worker errors, tracks per-collector metrics,
+// and processes observations through normalization, validation, matching, reconciliation, and event publishing.
+func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.DiscoveryTarget, activeDevices []db.Device, requestedCollectors []string) (*ScanResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("orchestrator scan aborted: %w", err)
 	}
@@ -110,17 +123,77 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 	start := time.Now()
 
 	o.mu.RLock()
-	cols := make([]collectors.Collector, len(o.collectors))
-	copy(cols, o.collectors)
+	allCols := make([]collectors.Collector, len(o.collectors))
+	copy(allCols, o.collectors)
 	o.mu.RUnlock()
+
+	var colsToRun []collectors.Collector
+	var missingDetails []CollectorRunDetail
+
+	if len(requestedCollectors) == 0 {
+		colsToRun = allCols
+	} else {
+		// Index registered collectors by raw ID and canonical alias
+		registeredMap := make(map[string]collectors.Collector)
+		for _, c := range allCols {
+			cID := strings.ToLower(strings.TrimSpace(c.ID()))
+			registeredMap[cID] = c
+			canonical := collectors.CanonicalType(cID)
+			if canonical != "" {
+				registeredMap[canonical] = c
+			}
+		}
+
+		seen := make(map[collectors.Collector]bool)
+		for _, req := range requestedCollectors {
+			reqNorm := strings.ToLower(strings.TrimSpace(req))
+			if reqNorm == "" {
+				continue
+			}
+
+			// Check if collector is explicitly marked as not implemented in this wave
+			if !collectors.IsImplemented(reqNorm) {
+				missingDetails = append(missingDetails, CollectorRunDetail{
+					CollectorType: reqNorm,
+					Status:        "error",
+					ErrorMessage:  fmt.Sprintf("collector %q is not implemented in this wave", reqNorm),
+					DevicesFound:  0,
+					DurationMs:    0,
+				})
+				continue
+			}
+
+			// Lookup in registered collectors
+			col, found := registeredMap[reqNorm]
+			if !found {
+				canonical := collectors.CanonicalType(reqNorm)
+				col, found = registeredMap[canonical]
+			}
+
+			if found {
+				if !seen[col] {
+					seen[col] = true
+					colsToRun = append(colsToRun, col)
+				}
+			} else {
+				missingDetails = append(missingDetails, CollectorRunDetail{
+					CollectorType: reqNorm,
+					Status:        "error",
+					ErrorMessage:  fmt.Sprintf("collector %q is not registered", reqNorm),
+					DevicesFound:  0,
+					DurationMs:    0,
+				})
+			}
+		}
+	}
 
 	workerLimit := DefaultWorkerPoolSize()
 	sem := make(chan struct{}, workerLimit)
-	resultsChan := make(chan collectorResult, len(cols))
+	resultsChan := make(chan collectorResult, len(colsToRun))
 
 	var wg sync.WaitGroup
 
-	for _, col := range cols {
+	for _, col := range colsToRun {
 		wg.Add(1)
 		go func(c collectors.Collector) {
 			defer wg.Done()
@@ -129,12 +202,23 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
 			case <-ctx.Done():
-				resultsChan <- collectorResult{collectorID: c.ID(), err: ctx.Err()}
+				resultsChan <- collectorResult{
+					collectorID: c.ID(),
+					err:         ctx.Err(),
+				}
 				return
 			}
 
+			colStart := time.Now()
 			obs, err := c.Collect(ctx, target)
-			resultsChan <- collectorResult{collectorID: c.ID(), observations: obs, err: err}
+			colDuration := time.Since(colStart).Milliseconds()
+
+			resultsChan <- collectorResult{
+				collectorID:  c.ID(),
+				observations: obs,
+				err:          err,
+				durationMs:   colDuration,
+			}
 		}(col)
 	}
 
@@ -146,12 +230,25 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 	}
 
 	var allObservations []collectors.RawObservation
+	collectorDetails := make([]CollectorRunDetail, 0, len(colsToRun)+len(missingDetails))
+	collectorDetails = append(collectorDetails, missingDetails...)
+
 	for res := range resultsChan {
+		detail := CollectorRunDetail{
+			CollectorType: res.collectorID,
+			DurationMs:    res.durationMs,
+		}
 		if res.err != nil {
 			slog.Warn("collector failed during discovery run", "collector_id", res.collectorID, "error", res.err)
-			continue
+			detail.Status = "error"
+			detail.ErrorMessage = res.err.Error()
+			detail.DevicesFound = 0
+		} else {
+			detail.Status = "success"
+			detail.DevicesFound = len(res.observations)
+			allObservations = append(allObservations, res.observations...)
 		}
-		allObservations = append(allObservations, res.observations...)
+		collectorDetails = append(collectorDetails, detail)
 	}
 
 	totalCollected := len(allObservations)
@@ -183,7 +280,6 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 			ConfidenceScore: normalized.ConfidenceScore,
 			RawPayload:      normalized.RawMetadata,
 		}
-
 
 		matchRes := o.matcher.MatchDevice(normDTO, activeDevices)
 
@@ -254,6 +350,7 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 		TotalDiscovered: totalDiscovered,
 		TotalUpdated:    totalUpdated,
 		Duration:        time.Since(start),
+		Collectors:      collectorDetails,
 	}, nil
 }
 
