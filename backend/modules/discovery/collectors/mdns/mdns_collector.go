@@ -44,11 +44,15 @@ var DefaultMDNSServices = []string{
 }
 
 // MDNSClient abstracts mDNS multicast query and response reception for testability.
+//
+//nolint:revive // MDNSClient name is intentional: callers reference mdns.MDNSClient and the prefix aids clarity.
 type MDNSClient interface {
 	Query(ctx context.Context, services []string, timeout time.Duration) ([]collectors.RawObservation, error)
 }
 
 // MDNSCollector discovers hosts and services on the local subnet via mDNS/Bonjour.
+//
+//nolint:revive // MDNSCollector name is intentional: callers reference mdns.MDNSCollector and the prefix aids clarity.
 type MDNSCollector struct {
 	client   MDNSClient
 	timeout  time.Duration

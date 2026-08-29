@@ -470,7 +470,7 @@ func TestCleanMDNSHostname(t *testing.T) {
 
 func TestExtractVendorAndOS(t *testing.T) {
 	// Canon printer
-	v, osName := mdns.ExtractVendorAndOS("_printer._tcp", map[string]string{"model": "Canon MG7500"})
+	v, _ := mdns.ExtractVendorAndOS("_printer._tcp", map[string]string{"model": "Canon MG7500"})
 	if v != "Canon" {
 		t.Errorf("expected Canon, got %s", v)
 	}
@@ -565,7 +565,7 @@ func TestDefaultMDNSClient_Query(t *testing.T) {
 		packets: [][]byte{packed},
 	}
 
-	client := mdns.NewDefaultMDNSClientWithConn(func(network string, laddr *net.UDPAddr) (mdns.PacketConn, error) {
+	client := mdns.NewDefaultMDNSClientWithConn(func(_ string, laddr *net.UDPAddr) (mdns.PacketConn, error) {
 		return mockConn, nil
 	})
 
