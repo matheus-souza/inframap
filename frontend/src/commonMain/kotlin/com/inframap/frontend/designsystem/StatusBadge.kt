@@ -12,12 +12,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.generated.resources.Res
-import com.inframap.frontend.generated.resources.discovery_status_partial
 import com.inframap.frontend.generated.resources.status_active
 import com.inframap.frontend.generated.resources.status_cancelled
 import com.inframap.frontend.generated.resources.status_error
 import com.inframap.frontend.generated.resources.status_idle
 import com.inframap.frontend.generated.resources.status_offline
+import com.inframap.frontend.generated.resources.status_partial
 import com.inframap.frontend.generated.resources.status_running
 import com.inframap.frontend.generated.resources.status_staged
 import org.jetbrains.compose.resources.stringResource
@@ -60,7 +60,7 @@ fun InfraMapStatusBadge(
             SourceStatus.IDLE -> InfraMapComment to stringResource(Res.string.status_idle)
             SourceStatus.RUNNING -> InfraMapGreen to stringResource(Res.string.status_running)
             SourceStatus.PARTIAL ->
-                MaterialTheme.colorScheme.tertiary to stringResource(Res.string.discovery_status_partial)
+                MaterialTheme.colorScheme.tertiary to stringResource(Res.string.status_partial)
             SourceStatus.ERROR -> InfraMapRed to stringResource(Res.string.status_error)
             SourceStatus.CANCELLED -> InfraMapOrange to stringResource(Res.string.status_cancelled)
         }

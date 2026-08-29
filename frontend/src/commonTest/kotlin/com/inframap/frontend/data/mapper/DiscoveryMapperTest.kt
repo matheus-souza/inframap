@@ -1,11 +1,15 @@
 package com.inframap.frontend.data.mapper
 
 import com.inframap.frontend.data.dto.CollectorDto
+import com.inframap.frontend.data.dto.CollectorRunDetailDto
+import com.inframap.frontend.data.dto.CollectorRunSummaryDto
 import com.inframap.frontend.data.dto.DiscoveryListResponse
 import com.inframap.frontend.data.dto.DiscoverySourceDto
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DiscoveryMapperTest {
@@ -41,6 +45,7 @@ class DiscoveryMapperTest {
         assertEquals("", domain.collectors[0].id)
         assertEquals("docker", domain.collectors[0].collectorType)
         assertTrue(domain.collectors[0].enabled)
+        assertNull(domain.lastRun)
     }
 
     @Test
@@ -74,6 +79,80 @@ class DiscoveryMapperTest {
         assertEquals("col-3", domain.collectors[2].id)
         assertEquals("mdns", domain.collectors[2].collectorType)
         assertTrue(domain.collectors[2].enabled)
+    }
+
+    @Test
+    fun toDomainMapsNewOnlyPayloadCorrectly() {
+        val collectorsDto =
+            listOf(
+                CollectorDto(id = "col-docker", collectorType = "docker", enabled = true),
+                CollectorDto(id = "col-proxmox", collectorType = "proxmox", enabled = true),
+            )
+        val dto =
+            DiscoverySourceDto(
+                id = "src-new",
+                name = "New Plan Source",
+                type = "",
+                _collectors = collectorsDto,
+            )
+
+        val domain = DiscoveryMapper.toDomain(dto)
+
+        assertEquals("", domain.sourceType)
+        assertEquals(2, domain.collectors.size)
+        assertEquals("col-docker", domain.collectors[0].id)
+        assertEquals("docker", domain.collectors[0].collectorType)
+        assertEquals("col-proxmox", domain.collectors[1].id)
+        assertEquals("proxmox", domain.collectors[1].collectorType)
+    }
+
+    @Test
+    fun toDomainMapsLastRunCorrectly() {
+        val lastRunDto =
+            CollectorRunSummaryDto(
+                status = "partial",
+                _collectors =
+                    listOf(
+                        CollectorRunDetailDto(
+                            collectorType = "icmp_sweep",
+                            status = "success",
+                            devicesFound = 5,
+                            durationMs = 1200L,
+                        ),
+                        CollectorRunDetailDto(
+                            collectorType = "snmp",
+                            status = "error",
+                            devicesFound = 0,
+                            durationMs = 500L,
+                            errorMessage = "SNMP timeout",
+                        ),
+                    ),
+            )
+        val dto =
+            DiscoverySourceDto(
+                id = "src-run",
+                name = "Source with Run",
+                type = "icmp_sweep",
+                lastRun = lastRunDto,
+            )
+
+        val domain = DiscoveryMapper.toDomain(dto)
+        val lastRun = domain.lastRun
+
+        assertNotNull(lastRun)
+        assertEquals("partial", lastRun.status)
+        assertEquals(2, lastRun.collectors.size)
+        assertEquals("icmp_sweep", lastRun.collectors[0].collectorType)
+        assertEquals("success", lastRun.collectors[0].status)
+        assertEquals(5, lastRun.collectors[0].devicesFound)
+        assertEquals(1200L, lastRun.collectors[0].durationMs)
+        assertNull(lastRun.collectors[0].errorMessage)
+
+        assertEquals("snmp", lastRun.collectors[1].collectorType)
+        assertEquals("error", lastRun.collectors[1].status)
+        assertEquals(0, lastRun.collectors[1].devicesFound)
+        assertEquals(500L, lastRun.collectors[1].durationMs)
+        assertEquals("SNMP timeout", lastRun.collectors[1].errorMessage)
     }
 
     @Test

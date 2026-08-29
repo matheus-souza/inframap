@@ -49,6 +49,7 @@ class DiscoveryListScreenTest {
                     id = "disc-1",
                     name = "LAN Ping Scan",
                     sourceType = "icmp_sweep",
+                    collectors = listOf(SourceCollector(id = "c1", collectorType = "icmp_sweep", enabled = true)),
                     configCidr = "192.168.1.0/24",
                     scheduleCron = "*/15 * * * *",
                     lastStatus = "idle",
@@ -132,5 +133,41 @@ class DiscoveryListScreenTest {
             onNodeWithText("SNMP").assertIsDisplayed()
             onNodeWithText("Reverse DNS").assertIsDisplayed()
             onNodeWithText("Partial").assertIsDisplayed()
+        }
+
+    @Test
+    fun rendersEmptyCollectorsAsDash() =
+        runComposeUiTest {
+            val source =
+                DiscoverySource(
+                    id = "disc-empty-col",
+                    name = "Empty Collectors Plan",
+                    configCidr = "10.1.0.0/24",
+                    collectors = emptyList(),
+                )
+
+            setContent {
+                InfraMapTheme {
+                    DiscoveryListScreen(
+                        state = DiscoveryListUiState(sources = listOf(source), isLoading = false),
+                        actions =
+                            DiscoveryListActions(
+                                onCreateSourceClicked = {},
+                                onTriggerRunClicked = {},
+                                onDeleteSourceClicked = {},
+                                onConfirmDelete = {},
+                                onCancelDelete = {},
+                                onRetryClicked = {},
+                                onDismissToast = {},
+                                onDismissDeleteError = {},
+                                onDismissTriggerRunError = {},
+                            ),
+                    )
+                }
+            }
+
+            onNodeWithText("Empty Collectors Plan").assertIsDisplayed()
+            onNodeWithText("10.1.0.0/24").assertIsDisplayed()
+            onNodeWithText("-").assertIsDisplayed()
         }
 }

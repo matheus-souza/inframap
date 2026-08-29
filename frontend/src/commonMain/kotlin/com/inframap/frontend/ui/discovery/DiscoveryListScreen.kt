@@ -37,7 +37,6 @@ import com.inframap.frontend.designsystem.SnackbarType
 import com.inframap.frontend.designsystem.SourceStatus
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.DiscoverySource
-import com.inframap.frontend.domain.model.SourceCollector
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.collector_name_arp_sweep
 import com.inframap.frontend.generated.resources.collector_name_docker
@@ -279,16 +278,7 @@ private fun DiscoveryRowCell(
 
 @Composable
 private fun DiscoveryCollectorsCell(item: DiscoverySource) {
-    val collectors =
-        if (item.collectors.isNotEmpty()) {
-            item.collectors
-        } else if (item.sourceType.isNotBlank()) {
-            listOf(SourceCollector(id = "", collectorType = item.sourceType, enabled = true))
-        } else {
-            emptyList()
-        }
-
-    if (collectors.isEmpty()) {
+    if (item.collectors.isEmpty()) {
         Text(
             text = "-",
             style = MaterialTheme.typography.bodyMedium,
@@ -299,7 +289,7 @@ private fun DiscoveryCollectorsCell(item: DiscoverySource) {
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            collectors.forEach { collector ->
+            item.collectors.forEach { collector ->
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     shape = RoundedCornerShape(4.dp),
