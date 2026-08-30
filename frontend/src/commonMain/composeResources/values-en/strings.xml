@@ -49,6 +49,13 @@
     <string name="dashboard_discovery_sources_subtitle">Configured targets</string>
     <string name="dashboard_welcome_title">Welcome to InfraMap</string>
     <string name="dashboard_welcome_subtitle">To get started, register a subnet in the Subnets section and configure a discovery source to scan your network automatically.</string>
+    <string name="dashboard_welcome_cta_subnet">Register Subnet</string>
+    <string name="dashboard_welcome_cta_discovery">Configure Discovery</string>
+    <string name="dashboard_welcome_stage2_title">Subnet configured!</string>
+    <string name="dashboard_welcome_stage2_subtitle">Now configure a discovery source to find your devices automatically.</string>
+    <string name="dashboard_welcome_stage3_title">Discovery source ready!</string>
+    <string name="dashboard_welcome_stage3_subtitle">Trigger a scan to discover and map devices on your network.</string>
+    <string name="dashboard_welcome_cta_trigger_scan">Go to Discovery</string>
 
     <!-- Login -->
     <string name="login_title">Login</string>
