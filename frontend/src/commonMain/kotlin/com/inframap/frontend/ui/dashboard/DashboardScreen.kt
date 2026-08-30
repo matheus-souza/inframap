@@ -2,6 +2,7 @@ package com.inframap.frontend.ui.dashboard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +66,11 @@ import com.inframap.frontend.generated.resources.dashboard_system_health
 import com.inframap.frontend.generated.resources.dashboard_title
 import com.inframap.frontend.generated.resources.dashboard_welcome_cta_discovery
 import com.inframap.frontend.generated.resources.dashboard_welcome_cta_subnet
+import com.inframap.frontend.generated.resources.dashboard_welcome_cta_trigger_scan
+import com.inframap.frontend.generated.resources.dashboard_welcome_stage2_subtitle
+import com.inframap.frontend.generated.resources.dashboard_welcome_stage2_title
+import com.inframap.frontend.generated.resources.dashboard_welcome_stage3_subtitle
+import com.inframap.frontend.generated.resources.dashboard_welcome_stage3_title
 import com.inframap.frontend.generated.resources.dashboard_welcome_subtitle
 import com.inframap.frontend.generated.resources.dashboard_welcome_title
 import org.jetbrains.compose.resources.stringResource
@@ -80,6 +86,7 @@ fun DashboardScreen(
     onNavigateToSubnets: () -> Unit,
     onNavigateToDiscovery: () -> Unit,
     onNavigateToStaging: () -> Unit,
+    onNavigateToDevices: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
@@ -109,6 +116,7 @@ fun DashboardScreen(
             onNavigateToSubnets = onNavigateToSubnets,
             onNavigateToDiscovery = onNavigateToDiscovery,
             onNavigateToStaging = onNavigateToStaging,
+            onNavigateToDevices = onNavigateToDevices,
         )
     }
 }
@@ -205,11 +213,10 @@ private fun DashboardContent(
     onNavigateToSubnets: () -> Unit,
     onNavigateToDiscovery: () -> Unit,
     onNavigateToStaging: () -> Unit,
+    onNavigateToDevices: () -> Unit,
 ) {
-    val isEmpty =
-        state.totalActiveDevices == 0L &&
-            state.totalStagedDevices == 0L &&
-            state.totalDiscoverySources == 0L
+    val hasDevices = state.totalActiveDevices > 0L || state.totalStagedDevices > 0L
+    val isEmpty = !hasDevices && state.totalDiscoverySources == 0L && state.totalSubnets == 0L
 
     if (state.isLoading && isEmpty && state.errorMessage == null) {
         DashboardLoadingSkeleton()
@@ -225,40 +232,82 @@ private fun DashboardContent(
             onNavigateToStaging = onNavigateToStaging,
         )
         Spacer(modifier = Modifier.height(16.dp))
-    } else if (isEmpty && state.errorMessage == null) {
-        DashboardWelcomeBanner(
-            onNavigateToSubnets = onNavigateToSubnets,
-            onNavigateToDiscovery = onNavigateToDiscovery,
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+    } else if (!hasDevices && state.errorMessage == null) {
+        when {
+            state.totalSubnets == 0L -> {
+                DashboardWelcomeBanner(
+                    title = stringResource(Res.string.dashboard_welcome_title),
+                    subtitle = stringResource(Res.string.dashboard_welcome_subtitle),
+                    primaryCtaText = stringResource(Res.string.dashboard_welcome_cta_subnet),
+                    onPrimaryCtaClick = onNavigateToSubnets,
+                    secondaryCtaText = stringResource(Res.string.dashboard_welcome_cta_discovery),
+                    onSecondaryCtaClick = onNavigateToDiscovery,
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            state.totalDiscoverySources == 0L -> {
+                DashboardWelcomeBanner(
+                    title = stringResource(Res.string.dashboard_welcome_stage2_title),
+                    subtitle = stringResource(Res.string.dashboard_welcome_stage2_subtitle),
+                    primaryCtaText = stringResource(Res.string.dashboard_welcome_cta_discovery),
+                    onPrimaryCtaClick = onNavigateToDiscovery,
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            else -> {
+                DashboardWelcomeBanner(
+                    title = stringResource(Res.string.dashboard_welcome_stage3_title),
+                    subtitle = stringResource(Res.string.dashboard_welcome_stage3_subtitle),
+                    primaryCtaText = stringResource(Res.string.dashboard_welcome_cta_trigger_scan),
+                    onPrimaryCtaClick = onNavigateToDiscovery,
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
     }
 
-    DashboardMetrics(state = state)
+    DashboardMetrics(
+        state = state,
+        onNavigateToDevices = onNavigateToDevices,
+        onNavigateToStaging = onNavigateToStaging,
+        onNavigateToDiscovery = onNavigateToDiscovery,
+    )
 }
 
 @Composable
 private fun DashboardWelcomeBanner(
-    onNavigateToSubnets: () -> Unit,
-    onNavigateToDiscovery: () -> Unit,
+    title: String,
+    subtitle: String,
+    primaryCtaText: String,
+    onPrimaryCtaClick: () -> Unit,
+    secondaryCtaText: String? = null,
+    onSecondaryCtaClick: (() -> Unit)? = null,
 ) {
     InfraMapEmptyState(
         icon = Icons.Filled.Rocket,
-        title = stringResource(Res.string.dashboard_welcome_title),
-        subtitle = stringResource(Res.string.dashboard_welcome_subtitle),
-        ctaLabel = stringResource(Res.string.dashboard_welcome_cta_subnet),
-        onCtaClick = onNavigateToSubnets,
+        title = title,
+        subtitle = subtitle,
+        ctaLabel = primaryCtaText,
+        onCtaClick = onPrimaryCtaClick,
         extraActions = {
-            InfraMapOutlinedButton(
-                text = stringResource(Res.string.dashboard_welcome_cta_discovery),
-                onClick = onNavigateToDiscovery,
-            )
+            if (secondaryCtaText != null && onSecondaryCtaClick != null) {
+                InfraMapOutlinedButton(
+                    text = secondaryCtaText,
+                    onClick = onSecondaryCtaClick,
+                )
+            }
         },
     )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DashboardMetrics(state: DashboardUiState) {
+private fun DashboardMetrics(
+    state: DashboardUiState,
+    onNavigateToDevices: () -> Unit,
+    onNavigateToStaging: () -> Unit,
+    onNavigateToDiscovery: () -> Unit,
+) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -270,6 +319,7 @@ private fun DashboardMetrics(state: DashboardUiState) {
             value = state.totalActiveDevices.toString(),
             subtitle = stringResource(Res.string.dashboard_active_devices_subtitle),
             icon = InfraMapIcons.Dns,
+            onClick = onNavigateToDevices,
             modifier = Modifier.width(260.dp).height(124.dp),
         )
         MetricCard(
@@ -277,6 +327,7 @@ private fun DashboardMetrics(state: DashboardUiState) {
             value = state.totalStagedDevices.toString(),
             subtitle = stringResource(Res.string.dashboard_staged_devices_subtitle),
             icon = InfraMapIcons.MoveToInbox,
+            onClick = onNavigateToStaging,
             modifier = Modifier.width(260.dp).height(124.dp),
         )
         HealthMetricCard(
@@ -291,6 +342,7 @@ private fun DashboardMetrics(state: DashboardUiState) {
             subtitle =
                 stringResource(Res.string.dashboard_discovery_sources_subtitle),
             icon = InfraMapIcons.Radar,
+            onClick = onNavigateToDiscovery,
             modifier = Modifier.width(260.dp).height(124.dp),
         )
     }
@@ -303,8 +355,16 @@ private fun MetricCard(
     subtitle: String,
     icon: ImageVector,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
-    InfraMapCard(modifier = modifier) {
+    val clickableModifier =
+        if (onClick != null) {
+            modifier.clickable(onClick = onClick)
+        } else {
+            modifier
+        }
+
+    InfraMapCard(modifier = clickableModifier) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween,
