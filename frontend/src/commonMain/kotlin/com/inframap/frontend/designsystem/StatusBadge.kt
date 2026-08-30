@@ -17,6 +17,7 @@ import com.inframap.frontend.generated.resources.status_cancelled
 import com.inframap.frontend.generated.resources.status_error
 import com.inframap.frontend.generated.resources.status_idle
 import com.inframap.frontend.generated.resources.status_offline
+import com.inframap.frontend.generated.resources.status_partial
 import com.inframap.frontend.generated.resources.status_running
 import com.inframap.frontend.generated.resources.status_staged
 import org.jetbrains.compose.resources.stringResource
@@ -30,6 +31,7 @@ enum class DeviceStatus {
 enum class SourceStatus {
     IDLE,
     RUNNING,
+    PARTIAL,
     ERROR,
     CANCELLED,
 }
@@ -57,6 +59,8 @@ fun InfraMapStatusBadge(
         when (status) {
             SourceStatus.IDLE -> InfraMapComment to stringResource(Res.string.status_idle)
             SourceStatus.RUNNING -> InfraMapGreen to stringResource(Res.string.status_running)
+            SourceStatus.PARTIAL ->
+                MaterialTheme.colorScheme.tertiary to stringResource(Res.string.status_partial)
             SourceStatus.ERROR -> InfraMapRed to stringResource(Res.string.status_error)
             SourceStatus.CANCELLED -> InfraMapOrange to stringResource(Res.string.status_cancelled)
         }
