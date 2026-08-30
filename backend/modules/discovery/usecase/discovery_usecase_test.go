@@ -684,10 +684,13 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
-	t.Run("IngestNormalizedDevice Auto-Approves Trusted Provider per Collector Type", func(t *testing.T) {
+	t.Run("IngestNormalizedDevice Auto-Approves Trusted Provider when Collector Configured", func(t *testing.T) {
 		sweepSrc, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
-			Name: "Multi-Collector Sweep Plan",
-			Type: "icmp_sweep",
+			Name: "Multi-Collector Plan with Proxmox",
+			Collectors: []dto.CollectorConfig{
+				{Type: "icmp_sweep"},
+				{Type: "proxmox"},
+			},
 		})
 		if err != nil {
 			t.Fatalf("CreateSource error: %v", err)
@@ -714,6 +717,34 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 		if dev.Status != "active" {
 			t.Errorf("expected device status 'active', got %q", dev.Status)
+		}
+	})
+
+	t.Run("IngestNormalizedDevice Stages Device When ProtocolSource Not Configured on Source", func(t *testing.T) {
+		icmpSrc, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "ICMP Only Source",
+			Type: "icmp_sweep",
+		})
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
+		}
+
+		norm := &dto.NormalizedDeviceDTO{
+			Hostname:       "spoofed-proxmox-claim",
+			IPAddress:      "192.168.1.151",
+			DeviceType:     "server",
+			ProtocolSource: "proxmox", // Claiming proxmox on an ICMP-only source
+		}
+
+		rec, err := uc.IngestNormalizedDevice(ctx, icmpSrc.ID, norm)
+		if err != nil {
+			t.Fatalf("IngestNormalizedDevice error: %v", err)
+		}
+
+		// Because source is only icmp_sweep, device must be sent to staging (staged_devices), not active inventory
+		dev, err := invRepo.GetDeviceByID(ctx, rec.DeviceID, false)
+		if err == nil && dev != nil {
+			t.Fatalf("expected device NOT to be auto-approved into active inventory, got: %v", dev)
 		}
 	})
 

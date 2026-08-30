@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -203,14 +204,7 @@ func (r *PgDiscoveryRepository) GetSourceByID(ctx context.Context, id uuid.UUID)
 		}
 	}
 
-	runs, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
-		SourceID: id,
-		Limit:    10,
-		Offset:   0,
-	})
-	if err == nil && len(runs) > 0 {
-		resp.LastRun = buildLastRunSummary(runs)
-	}
+	r.attachLastRun(ctx, resp)
 
 	return resp, nil
 }
@@ -284,14 +278,7 @@ func (r *PgDiscoveryRepository) UpdateSourceStatus(ctx context.Context, id uuid.
 		}
 	}
 
-	runs, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
-		SourceID: id,
-		Limit:    10,
-		Offset:   0,
-	})
-	if err == nil && len(runs) > 0 {
-		resp.LastRun = buildLastRunSummary(runs)
-	}
+	r.attachLastRun(ctx, resp)
 
 	return resp, nil
 }
@@ -512,4 +499,25 @@ func buildLastRunSummary(runs []db.DiscoveryCollectorRun) *dto.CollectorRunSumma
 	}
 
 	return summary
+}
+
+func (r *PgDiscoveryRepository) attachLastRun(ctx context.Context, resp *dto.DiscoverySourceResponse) {
+	if resp == nil {
+		return
+	}
+	runs, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
+		SourceID: resp.ID,
+		Limit:    10,
+		Offset:   0,
+	})
+	if err != nil {
+		slog.Warn("failed to list recent collector runs for discovery source",
+			slog.String("source_id", resp.ID.String()),
+			slog.Any("error", err),
+		)
+		return
+	}
+	if len(runs) > 0 {
+		resp.LastRun = buildLastRunSummary(runs)
+	}
 }

@@ -460,9 +460,20 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 
 	rawBytes, _ := json.Marshal(norm.RawPayload)
 
-	effectiveType := norm.ProtocolSource
-	if effectiveType == "" {
-		effectiveType = source.Type
+	effectiveType := source.Type
+	if norm.ProtocolSource != "" {
+		isAllowedProtocol := strings.EqualFold(source.Type, norm.ProtocolSource)
+		if !isAllowedProtocol {
+			for _, col := range source.Collectors {
+				if col.Enabled && strings.EqualFold(col.CollectorType, norm.ProtocolSource) {
+					isAllowedProtocol = true
+					break
+				}
+			}
+		}
+		if isAllowedProtocol {
+			effectiveType = norm.ProtocolSource
+		}
 	}
 
 	if match.DeviceID != nil {

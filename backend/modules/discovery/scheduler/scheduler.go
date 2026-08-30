@@ -296,7 +296,7 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 	}))
 
 	start := time.Now()
-	_, err := s.uc.TriggerRun(s.ctx, sourceID.String())
+	res, err := s.uc.TriggerRun(s.ctx, sourceID.String())
 	durationMs := time.Since(start).Milliseconds()
 
 	if err != nil {
@@ -317,12 +317,16 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 		return
 	}
 
-	_ = s.bus.Publish(s.ctx, eventbus.NewBaseEvent("discovery_source.scan.completed", map[string]interface{}{
+	payload := map[string]interface{}{
 		"source_id":   sourceID.String(),
 		"trigger":     "scheduled",
 		"duration_ms": durationMs,
 		"success":     true,
-	}))
+	}
+	if res != nil && res.LastStatus != "" {
+		payload["status"] = res.LastStatus
+	}
+	_ = s.bus.Publish(s.ctx, eventbus.NewBaseEvent("discovery_source.scan.completed", payload))
 }
 
 func (s *Scheduler) reconcileLoop() {
