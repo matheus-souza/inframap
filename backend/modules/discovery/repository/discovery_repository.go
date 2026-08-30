@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,8 @@ type DiscoveryRepository interface {
 	DeleteSource(ctx context.Context, id uuid.UUID) error
 	UpsertRecord(ctx context.Context, deviceID, sourceID uuid.UUID, matchedBy string, rawPayload map[string]interface{}) (*dto.DiscoveryRecordResponse, error)
 	ListRecordsByDevice(ctx context.Context, deviceID uuid.UUID) ([]*dto.DiscoveryRecordResponse, error)
+	CreateCollectorRun(ctx context.Context, run *db.CreateCollectorRunParams) error
+	ListRunsBySourceID(ctx context.Context, sourceID uuid.UUID, limit int) ([]*dto.CollectorRunResponse, error)
 }
 
 // ConfigPayload represents decrypted discovery source configuration.
@@ -201,6 +204,8 @@ func (r *PgDiscoveryRepository) GetSourceByID(ctx context.Context, id uuid.UUID)
 		}
 	}
 
+	r.attachLastRun(ctx, resp)
+
 	return resp, nil
 }
 
@@ -272,6 +277,8 @@ func (r *PgDiscoveryRepository) UpdateSourceStatus(ctx context.Context, id uuid.
 			Enabled:       c.Enabled,
 		}
 	}
+
+	r.attachLastRun(ctx, resp)
 
 	return resp, nil
 }
@@ -372,5 +379,145 @@ func mapRecordToDTO(row *db.DeviceDiscoveryRecord) *dto.DiscoveryRecordResponse 
 		MatchedBy:         row.MatchedBy,
 		RawPayload:        payload,
 		LastScannedAt:     row.LastScannedAt.Time,
+	}
+}
+
+// CreateCollectorRun records an execution record for an individual collector.
+func (r *PgDiscoveryRepository) CreateCollectorRun(ctx context.Context, run *db.CreateCollectorRunParams) error {
+	if run == nil {
+		return errors.New("collector run params cannot be nil")
+	}
+	if run.ID == uuid.Nil {
+		run.ID = uuid.New()
+	}
+	_, err := r.queries.CreateCollectorRun(ctx, *run)
+	if err != nil {
+		return fmt.Errorf("failed to create collector run: %w", err)
+	}
+	return nil
+}
+
+// ListRunsBySourceID retrieves the latest collector execution records for a source.
+func (r *PgDiscoveryRepository) ListRunsBySourceID(ctx context.Context, sourceID uuid.UUID, limit int) ([]*dto.CollectorRunResponse, error) {
+	if limit <= 0 {
+		limit = 50
+	} else if limit > 1000 {
+		limit = 1000
+	}
+	rows, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
+		SourceID: sourceID,
+		Limit:    int32(limit), //nolint:gosec // clamped to [1,1000] above
+		Offset:   0,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list collector runs for source %s: %w", sourceID, err)
+	}
+
+	items := make([]*dto.CollectorRunResponse, len(rows))
+	for i, row := range rows {
+		var errMsg string
+		if row.ErrorMessage.Valid {
+			errMsg = row.ErrorMessage.String
+		}
+		items[i] = &dto.CollectorRunResponse{
+			ID:            row.ID,
+			SourceID:      row.SourceID,
+			CollectorType: row.CollectorType,
+			Status:        row.Status,
+			DevicesFound:  int(row.DevicesFound),
+			DurationMs:    int64(row.DurationMs),
+			ErrorMessage:  errMsg,
+			StartedAt:     row.StartedAt.Time,
+			FinishedAt:    row.FinishedAt.Time,
+		}
+	}
+	return items, nil
+}
+
+func buildLastRunSummary(runs []db.DiscoveryCollectorRun) *dto.CollectorRunSummary {
+	if len(runs) == 0 {
+		return nil
+	}
+	latestTime := runs[0].StartedAt.Time
+	var batch []db.DiscoveryCollectorRun
+	for _, r := range runs {
+		diff := latestTime.Sub(r.StartedAt.Time)
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff <= 5*time.Second {
+			batch = append(batch, r)
+		}
+	}
+	if len(batch) == 0 {
+		batch = runs[:1]
+	}
+
+	summary := &dto.CollectorRunSummary{
+		StartedAt:  batch[0].StartedAt.Time,
+		FinishedAt: batch[0].FinishedAt.Time,
+		Collectors: make([]dto.CollectorRunDetail, 0, len(batch)),
+	}
+
+	successCount := 0
+	errorCount := 0
+	for _, r := range batch {
+		var errMsg string
+		if r.ErrorMessage.Valid {
+			errMsg = r.ErrorMessage.String
+		}
+		if r.Status == "success" {
+			successCount++
+		} else {
+			errorCount++
+		}
+		summary.DevicesFound += int(r.DevicesFound)
+		if int64(r.DurationMs) > summary.DurationMs {
+			summary.DurationMs = int64(r.DurationMs)
+		}
+		if r.StartedAt.Time.Before(summary.StartedAt) {
+			summary.StartedAt = r.StartedAt.Time
+		}
+		if r.FinishedAt.Time.After(summary.FinishedAt) {
+			summary.FinishedAt = r.FinishedAt.Time
+		}
+		summary.Collectors = append(summary.Collectors, dto.CollectorRunDetail{
+			CollectorType: r.CollectorType,
+			Status:        r.Status,
+			DevicesFound:  int(r.DevicesFound),
+			DurationMs:    int64(r.DurationMs),
+			ErrorMessage:  errMsg,
+		})
+	}
+
+	if errorCount == 0 {
+		summary.Status = "success"
+	} else if successCount > 0 && errorCount > 0 {
+		summary.Status = "partial"
+	} else {
+		summary.Status = "error"
+	}
+
+	return summary
+}
+
+func (r *PgDiscoveryRepository) attachLastRun(ctx context.Context, resp *dto.DiscoverySourceResponse) {
+	if resp == nil {
+		return
+	}
+	runs, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
+		SourceID: resp.ID,
+		Limit:    10,
+		Offset:   0,
+	})
+	if err != nil {
+		slog.Warn("failed to list recent collector runs for discovery source",
+			slog.String("source_id", resp.ID.String()),
+			slog.Any("error", err),
+		)
+		return
+	}
+	if len(runs) > 0 {
+		resp.LastRun = buildLastRunSummary(runs)
 	}
 }

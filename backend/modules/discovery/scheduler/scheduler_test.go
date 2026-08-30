@@ -22,6 +22,7 @@ type fakeUseCase struct {
 	triggerCalls   []string
 	triggerDelay   time.Duration
 	triggerErr     error
+	triggerResult  *dto.DiscoverySourceResponse
 	onTriggerStart func()
 }
 
@@ -49,6 +50,9 @@ func (f *fakeUseCase) TriggerRun(ctx context.Context, sourceID string) (*dto.Dis
 	f.mu.Unlock()
 	if f.triggerErr != nil {
 		return nil, f.triggerErr
+	}
+	if f.triggerResult != nil {
+		return f.triggerResult, nil
 	}
 	return &dto.DiscoverySourceResponse{}, nil
 }
@@ -809,4 +813,55 @@ func TestScheduler_TriggerRunErrorDoesNotCrashScheduler(t *testing.T) {
 	defer s.Stop()
 
 	waitForCalls(t, uc, 2, 4*time.Second)
+}
+
+func TestScheduler_MultiCollector_PartialStatus(t *testing.T) {
+	srcID := uuid.New()
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{
+			{ID: srcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle"},
+		},
+		triggerResult: &dto.DiscoverySourceResponse{
+			ID:         srcID,
+			Enabled:    true,
+			LastStatus: "partial",
+		},
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	completedEvents := make(chan eventbus.DomainEvent, 10)
+	_ = bus.Subscribe("discovery_source.scan.completed", func(_ context.Context, e eventbus.DomainEvent) error {
+		completedEvents <- e
+		return nil
+	})
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	select {
+	case evt := <-completedEvents:
+		payload, ok := evt.Payload().(map[string]interface{})
+		if !ok {
+			t.Fatal("completed event payload is not map[string]interface{}")
+		}
+		if payload["source_id"] != srcID.String() {
+			t.Errorf("expected source_id %s, got %v", srcID, payload["source_id"])
+		}
+		if payload["success"] != true {
+			t.Errorf("expected success true for completed scan, got %v", payload["success"])
+		}
+		if payload["status"] != "partial" {
+			t.Errorf("expected status 'partial' in scan.completed payload, got %v", payload["status"])
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("discovery_source.scan.completed event not received within 3s")
+	}
 }
