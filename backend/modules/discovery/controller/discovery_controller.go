@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/matheussouza/inframap/internal/platform/httputil"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
@@ -158,4 +159,43 @@ func (c *DiscoveryController) TriggerScan(w http.ResponseWriter, r *http.Request
 
 	httputil.WriteJSON(w, r, http.StatusOK, resp)
 }
+
+// ListRunsBySource handles GET /api/v1/discovery/sources/{id}/runs
+func (c *DiscoveryController) ListRunsBySource(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	limit := 20
+	offset := 0
+
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil {
+			limit = parsed
+		}
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil {
+			offset = parsed
+		}
+	}
+
+	runs, err := c.uc.ListRunsBySource(r.Context(), idStr, limit, offset)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
+			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid discovery source UUID format", nil)
+			return
+		}
+		if errors.Is(err, repository.ErrSourceNotFound) {
+			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Discovery source not found", nil)
+			return
+		}
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list collector runs", nil)
+		return
+	}
+
+	if runs == nil {
+		runs = make([]*dto.CollectorRunDetail, 0)
+	}
+
+	httputil.WriteJSON(w, r, http.StatusOK, runs)
+}
+
 

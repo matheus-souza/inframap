@@ -262,6 +262,50 @@ func (q *Queries) ListCollectorRunsBySource(ctx context.Context, arg ListCollect
 	return items, nil
 }
 
+const listCollectorRunsBySourcePaged = `-- name: ListCollectorRunsBySourcePaged :many
+SELECT id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
+FROM discovery_collector_runs
+WHERE source_id = $1
+ORDER BY started_at DESC, id DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListCollectorRunsBySourcePagedParams struct {
+	SourceID uuid.UUID `json:"source_id"`
+	Limit    int32     `json:"limit"`
+	Offset   int32     `json:"offset"`
+}
+
+func (q *Queries) ListCollectorRunsBySourcePaged(ctx context.Context, arg ListCollectorRunsBySourcePagedParams) ([]DiscoveryCollectorRun, error) {
+	rows, err := q.db.Query(ctx, listCollectorRunsBySourcePaged, arg.SourceID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DiscoveryCollectorRun{}
+	for rows.Next() {
+		var i DiscoveryCollectorRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceID,
+			&i.CollectorType,
+			&i.Status,
+			&i.DevicesFound,
+			&i.DurationMs,
+			&i.ErrorMessage,
+			&i.StartedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCollectorsBySourceID = `-- name: ListCollectorsBySourceID :many
 SELECT id, source_id, collector_type, config_encrypted, enabled, created_at FROM discovery_source_collectors
 WHERE source_id = $1
@@ -401,6 +445,29 @@ func (q *Queries) ListDiscoverySources(ctx context.Context) ([]DiscoverySource, 
 		return nil, err
 	}
 	return items, nil
+}
+
+const purgeOldCollectorRunsChunk = `-- name: PurgeOldCollectorRunsChunk :execrows
+DELETE FROM discovery_collector_runs
+WHERE id IN (
+    SELECT sub.id FROM discovery_collector_runs sub
+    WHERE sub.finished_at < $1
+    ORDER BY sub.finished_at ASC, sub.id ASC
+    LIMIT $2
+)
+`
+
+type PurgeOldCollectorRunsChunkParams struct {
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+	Limit      int32              `json:"limit"`
+}
+
+func (q *Queries) PurgeOldCollectorRunsChunk(ctx context.Context, arg PurgeOldCollectorRunsChunkParams) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeOldCollectorRunsChunk, arg.FinishedAt, arg.Limit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateDiscoverySourceStatus = `-- name: UpdateDiscoverySourceStatus :one

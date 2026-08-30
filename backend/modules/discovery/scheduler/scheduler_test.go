@@ -2,6 +2,7 @@ package scheduler_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"testing"
@@ -24,6 +25,9 @@ type fakeUseCase struct {
 	triggerErr     error
 	triggerResult  *dto.DiscoverySourceResponse
 	onTriggerStart func()
+	purgeCalls     []int
+	purgeResult    int64
+	purgeErr       error
 }
 
 func (f *fakeUseCase) ListSources(_ context.Context) ([]*dto.DiscoverySourceResponse, error) {
@@ -55,6 +59,21 @@ func (f *fakeUseCase) TriggerRun(ctx context.Context, sourceID string) (*dto.Dis
 		return f.triggerResult, nil
 	}
 	return &dto.DiscoverySourceResponse{}, nil
+}
+
+func (f *fakeUseCase) PurgeCollectorRuns(_ context.Context, retentionDays int) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.purgeCalls = append(f.purgeCalls, retentionDays)
+	return f.purgeResult, f.purgeErr
+}
+
+func (f *fakeUseCase) getPurgeCalls() []int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	cp := make([]int, len(f.purgeCalls))
+	copy(cp, f.purgeCalls)
+	return cp
 }
 
 func (f *fakeUseCase) getTriggerCalls() []string {
@@ -865,3 +884,107 @@ func TestScheduler_MultiCollector_PartialStatus(t *testing.T) {
 		t.Fatal("discovery_source.scan.completed event not received within 3s")
 	}
 }
+
+func TestScheduler_BackgroundPurgeWorker_ExecutesOnSchedule(t *testing.T) {
+	uc := &fakeUseCase{
+		purgeResult: 10,
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	s.SetStartupPurgeDelay(20 * time.Millisecond)
+	s.SetPurgeInterval(50 * time.Millisecond)
+	s.SetRetentionDays(14)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	// Wait for at least 2 purge runs
+	deadline := time.After(500 * time.Millisecond)
+	for {
+		calls := uc.getPurgeCalls()
+		if len(calls) >= 2 {
+			if calls[0] != 14 {
+				t.Errorf("expected retention days 14, got %d", calls[0])
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected at least 2 purge calls within 500ms, got %d", len(uc.getPurgeCalls()))
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+
+func TestScheduler_BackgroundPurgeWorker_HandlesErrorGracefully(t *testing.T) {
+	uc := &fakeUseCase{
+		purgeErr: errors.New("database connection down"),
+	}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	s.SetStartupPurgeDelay(20 * time.Millisecond)
+	s.SetPurgeInterval(50 * time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	// Stop should complete without hanging
+	s.Stop()
+
+	if len(uc.getPurgeCalls()) == 0 {
+		t.Error("expected at least 1 purge call despite error")
+	}
+}
+
+func TestScheduler_BackgroundPurgeWorker_ConfigOverrides(t *testing.T) {
+	t.Setenv("INFRAMAP_DISCOVERY_RUN_RETENTION_DAYS", "21")
+	uc := &fakeUseCase{}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	s.SetStartupPurgeDelay(10 * time.Millisecond)
+	s.SetPurgeInterval(100 * time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	defer s.Stop()
+
+	deadline := time.After(300 * time.Millisecond)
+	for {
+		calls := uc.getPurgeCalls()
+		if len(calls) >= 1 {
+			if calls[0] != 21 {
+				t.Errorf("expected retention days from env 21, got %d", calls[0])
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected at least 1 purge call within 300ms, got %d", len(uc.getPurgeCalls()))
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+

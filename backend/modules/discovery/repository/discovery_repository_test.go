@@ -22,6 +22,7 @@ type mockDB struct {
 	collectors map[uuid.UUID][]db.DiscoverySourceCollector
 	failExec   bool
 	failTx     bool
+	execFunc   func(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
 }
 
 func newMockDB() *mockDB {
@@ -31,7 +32,10 @@ func newMockDB() *mockDB {
 	}
 }
 
-func (m *mockDB) Exec(_ context.Context, _ string, _ ...interface{}) (pgconn.CommandTag, error) {
+func (m *mockDB) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+	if m.execFunc != nil {
+		return m.execFunc(ctx, sql, args...)
+	}
 	if m.failExec {
 		return pgconn.CommandTag{}, errors.New("db exec failure")
 	}
@@ -220,3 +224,81 @@ func TestPgDiscoveryRepository_CollectorRuns(t *testing.T) {
 		}
 	})
 }
+
+func TestPgDiscoveryRepository_PurgeOldCollectorRuns(t *testing.T) {
+	t.Run("Purges runs in chunks until 0 rows remain", func(t *testing.T) {
+		mdb := newMockDB()
+		callCount := 0
+		mdb.execFunc = func(_ context.Context, _ string, _ ...interface{}) (pgconn.CommandTag, error) {
+			callCount++
+			if callCount == 1 {
+				return pgconn.NewCommandTag("DELETE 500"), nil
+			}
+			if callCount == 2 {
+				return pgconn.NewCommandTag("DELETE 250"), nil
+			}
+			return pgconn.NewCommandTag("DELETE 0"), nil
+		}
+
+		repo := repository.NewPgDiscoveryRepository(mdb, nil)
+		deleted, err := repo.PurgeOldCollectorRuns(context.Background(), time.Now().Add(-7*24*time.Hour), 500)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if deleted != 750 {
+			t.Errorf("expected 750 deleted rows, got %d", deleted)
+		}
+		if callCount != 2 {
+			t.Errorf("expected 2 exec calls, got %d", callCount)
+		}
+	})
+
+	t.Run("Returns error when DB exec fails", func(t *testing.T) {
+		mdb := newMockDB()
+		mdb.failExec = true
+		repo := repository.NewPgDiscoveryRepository(mdb, nil)
+		_, err := repo.PurgeOldCollectorRuns(context.Background(), time.Now().Add(-7*24*time.Hour), 500)
+		if err == nil {
+			t.Error("expected error when DB exec fails")
+		}
+	})
+
+	t.Run("Aborts immediately when context is canceled", func(t *testing.T) {
+		mdb := newMockDB()
+		repo := repository.NewPgDiscoveryRepository(mdb, nil)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := repo.PurgeOldCollectorRuns(ctx, time.Now().Add(-7*24*time.Hour), 500)
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("expected context.Canceled error, got %v", err)
+		}
+	})
+
+	t.Run("Normalizes non-positive batchSize to default 500", func(t *testing.T) {
+		mdb := newMockDB()
+		mdb.execFunc = func(_ context.Context, _ string, _ ...interface{}) (pgconn.CommandTag, error) {
+			return pgconn.NewCommandTag("DELETE 0"), nil
+		}
+		repo := repository.NewPgDiscoveryRepository(mdb, nil)
+		deleted, err := repo.PurgeOldCollectorRuns(context.Background(), time.Now().Add(-7*24*time.Hour), -10)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if deleted != 0 {
+			t.Errorf("expected 0 deleted, got %d", deleted)
+		}
+	})
+}
+
+func TestPgDiscoveryRepository_ListRunsBySourceIDPaged(t *testing.T) {
+	t.Run("Fails when DB query fails", func(t *testing.T) {
+		mdb := newMockDB()
+		repo := repository.NewPgDiscoveryRepository(mdb, nil)
+		_, err := repo.ListRunsBySourceIDPaged(context.Background(), uuid.New(), 20, 0)
+		if err == nil {
+			t.Error("expected error when DB query fails on mockDB")
+		}
+	})
+}
+
