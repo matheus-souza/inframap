@@ -4,7 +4,7 @@
 Approved / Ready for Implementation
 
 ## Problem Statement
-Durante o uso contínuo da aplicação e testes visuais do InfraMap, foram identificados pontos de fricção na experiência do usuário e falhas de ciclo de vida de sessão:
+Durante o uso contínuo da aplicação e testes visuais do InfraMap, foram identificados cinco pontos de fricção na experiência do usuário e de ciclo de vida de sessão:
 1. **NavRail**: No estado expandido, rótulos como "Fontes de Descoberta" sofriam quebra de linha ao serem selecionados devido ao deslocamento causado pelo indicador ativo e largura restrita de 200dp. A transição de abertura/fechamento não era animada e a altura dos itens no modo slim (56dp) era maior que no modo expandido (44dp).
 2. **Focus Ring Indesejado**: Ao interagir com o canvas Compose WASM, o navegador exibia uma borda azul ao redor do viewport inteiro.
 3. **Seleção de Texto**: Usuários não conseguiam selecionar e copiar informações textuais técnicas (endereços IP, blocos CIDR, endereços MAC, identificadores).
@@ -66,7 +66,7 @@ Implementar uma suíte coordenada de refinamentos de UI/UX, transições e ciclo
 - Estruturar a máquina de estados de boas-vindas:
   - Estágio 1 (`totalSubnets == 0`): Banner sugerindo cadastro de sub-rede / auto-setup.
   - Estágio 2 (`totalSubnets > 0 && totalDiscoverySources == 0`): Banner sugerindo cadastrar Fonte de Descoberta.
-  - Estágio 3 (`totalDiscoverySources > 0 && totalActiveDevices == 0`): Banner sugerindo executar primeira varredura.
+  - Estágio 3 (`totalDiscoverySources > 0 && totalActiveDevices == 0 && totalStagedDevices == 0`): Banner sugerindo executar primeira varredura.
   - Estágio 4 (`totalActiveDevices > 0 || totalStagedDevices > 0`): Omitir banner de boas-vindas.
 
 ### 4. Global 401 Session Interceptor (`ApiClient.kt` & `InfraMapApp.kt`)

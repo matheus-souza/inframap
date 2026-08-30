@@ -6,7 +6,7 @@ Date: 2026-08-29
 Accepted
 
 ## Context
-O uso contínuo da aplicação e sessões de testes manuais identificaram quatro comportamentos visuais e de ciclo de vida que demandavam padronização e refinamento arquitetural:
+O uso contínuo da aplicação e sessões de testes manuais identificaram cinco comportamentos visuais e de ciclo de vida que demandavam padronização e refinamento arquitetural:
 1. **NavRail (Menu Lateral)**: Itens com rótulos mais longos em pt-BR (ex.: "Fontes de Descoberta") sofriam quebra de linha indesejada quando selecionados, devido ao recuo adicional de 12dp introduzido pelo indicador ativo e largura restrita de 200dp. Além disso, a alternância de largura não possuía transição animada e a altura dos itens no estado fechado (56dp) destoava do estado aberto (44dp).
 2. **Focus Outline do HTML5 Canvas**: Em navegadores modernos, ao clicar no canvas onde o Compose WASM é renderizado, uma borda azul de foco padrão envolvia o viewport inteiro.
 3. **Seleção de Texto**: No Compose Multiplatform, elementos de texto sobre Canvas são desenhados sem seleção nativa habilitada por padrão, impedindo o usuário de copiar dados técnicos (IPs, CIDRs, MACs, status).
@@ -33,11 +33,11 @@ O uso contínuo da aplicação e sessões de testes manuais identificaram quatro
 - O card de onboarding adota um modelo de máquina de estados progressiva:
   - `totalSubnets == 0`: Sugere criação de sub-rede / Auto Setup.
   - `totalSubnets > 0 && totalDiscoverySources == 0`: Sugere criação de Fonte de Descoberta.
-  - `totalDiscoverySources > 0 && totalActiveDevices == 0`: Sugere disparo da primeira varredura.
+  - `totalDiscoverySources > 0 && totalActiveDevices == 0 && totalStagedDevices == 0`: Sugere disparo da primeira varredura.
   - `totalActiveDevices > 0 || totalStagedDevices > 0`: Card omitido, dando foco total às métricas.
 
 ### 4. Global 401 Session Redirection
-- O `ApiClient` emite um sinal global de expiração de sessão quando qualquer resposta HTTP for `401 Unauthorized`.
+- O `ApiClient` emite um sinal global de expiração de sessão (`onSessionExpired`) quando qualquer resposta HTTP for status `401 Unauthorized` ou possuir código de erro `"UNAUTHORIZED"`.
 - O listener global (conectado ao `Navigator`) executa imediatamente `navigator.navigateTo(Route.Login)`, limpando dados de sessão e prevenindo alertas parciais sobrepostos em dados obsoletos.
 
 ## Consequences
