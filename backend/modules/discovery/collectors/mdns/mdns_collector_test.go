@@ -856,7 +856,7 @@ type errPacketConn struct {
 
 func (e *errPacketConn) SetReadDeadline(_ time.Time) error  { return nil }
 func (e *errPacketConn) SetWriteDeadline(_ time.Time) error { return nil }
-func (e *errPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
+func (e *errPacketConn) WriteTo(_ []byte, _ net.Addr) (int, error) {
 	return 0, e.err
 }
 func (e *errPacketConn) ReadFrom(_ []byte) (int, net.Addr, error) {
