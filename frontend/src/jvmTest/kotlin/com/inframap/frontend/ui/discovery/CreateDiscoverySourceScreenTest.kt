@@ -5,8 +5,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
@@ -25,6 +27,8 @@ class CreateDiscoverySourceScreenTest {
         onConfigCidrChanged: (String) -> Unit = {},
         onEnabledChanged: (Boolean) -> Unit = {},
         onSubnetSelected: (SubnetSummary) -> Unit = {},
+        onToggleCollector: (String) -> Unit = {},
+        onCollectorsChanged: (Set<String>) -> Unit = {},
         onSubmitClicked: () -> Unit = {},
         onCancelClicked: () -> Unit = {},
     ) = CreateDiscoverySourceActions(
@@ -34,6 +38,8 @@ class CreateDiscoverySourceScreenTest {
         onConfigCidrChanged = onConfigCidrChanged,
         onEnabledChanged = onEnabledChanged,
         onSubnetSelected = onSubnetSelected,
+        onToggleCollector = onToggleCollector,
+        onCollectorsChanged = onCollectorsChanged,
         onSubmitClicked = onSubmitClicked,
         onCancelClicked = onCancelClicked,
     )
@@ -50,41 +56,86 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("Nova Fonte de Descoberta").assertIsDisplayed()
-            onNodeWithText("Nome da Fonte *").assertIsDisplayed()
-            onNodeWithText("Tipo de Fonte *").assertIsDisplayed()
-            onNodeWithText("CIDR Alvo (ex: 192.168.1.0/24)").assertIsDisplayed()
-            onNodeWithText("Agendamento").assertIsDisplayed()
-            onNodeWithText("Fonte habilitada").assertIsDisplayed()
-            onNodeWithText("Criar Fonte").assertIsDisplayed()
-            onNodeWithText("Cancelar").assertIsDisplayed()
+            onNodeWithText("New Discovery Source").assertIsDisplayed()
+            onNodeWithText("Source Name *").assertIsDisplayed()
+            onNodeWithText("Discovery Collectors *").assertIsDisplayed()
+            onNodeWithText("Network Sweep").assertIsDisplayed()
+            onNodeWithText("Infrastructure Providers").assertIsDisplayed()
+            onNodeWithText("Select one or more collectors to run for this discovery source").assertIsDisplayed()
+            onNodeWithText("Target CIDR (e.g. 192.168.1.0/24)").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Schedule").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Source enabled").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Create Source").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Cancel").performScrollTo().assertIsDisplayed()
         }
 
     @Test
-    fun rendersAllSourceTypeChipsAndSelects() =
+    fun rendersAllCollectorChipsAndDefaultSelection() =
         runComposeUiTest {
-            var selectedType by mutableStateOf("")
+            var selectedCollectors by mutableStateOf(setOf("icmp_sweep", "arp_sweep", "mdns", "reverse_dns"))
             setContent {
                 InfraMapTheme {
                     CreateDiscoverySourceScreen(
-                        state = CreateDiscoverySourceUiState(sourceType = selectedType),
-                        actions = defaultActions(onSourceTypeChanged = { selectedType = it }),
+                        state = CreateDiscoverySourceUiState(selectedCollectors = selectedCollectors),
+                        actions = defaultActions(onCollectorsChanged = { selectedCollectors = it }),
                     )
                 }
             }
 
             onNodeWithText("ICMP Ping").assertIsDisplayed()
             onNodeWithText("ARP Sweep").assertIsDisplayed()
-            onNodeWithText("mDNS").assertIsDisplayed()
-            onNodeWithText("Proxmox").assertIsDisplayed()
+            onNodeWithText("mDNS / Bonjour").assertIsDisplayed()
+            onNodeWithText("Reverse DNS").assertIsDisplayed()
+            onNodeWithText("SNMP").assertIsDisplayed()
+            onNodeWithText("Proxmox VE").assertIsDisplayed()
             onNodeWithText("Docker").assertIsDisplayed()
             onNodeWithText("UniFi").assertIsDisplayed()
+        }
 
-            onNodeWithText("ARP Sweep").performClick()
-            assertEquals("arp_sweep", selectedType)
+    @Test
+    fun togglingCollectorChipUpdatesSelection() =
+        runComposeUiTest {
+            var selectedCollectors by mutableStateOf(setOf("icmp_sweep", "arp_sweep", "mdns", "reverse_dns"))
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state = CreateDiscoverySourceUiState(selectedCollectors = selectedCollectors),
+                        actions = defaultActions(onCollectorsChanged = { selectedCollectors = it }),
+                    )
+                }
+            }
+
+            // Click SNMP to add
+            onNodeWithText("SNMP").performClick()
+            assertTrue(selectedCollectors.contains("snmp"))
+
+            // Click ICMP Ping to remove
+            onNodeWithText("ICMP Ping").performClick()
+            assertTrue(!selectedCollectors.contains("icmp_sweep"))
+        }
+
+    @Test
+    fun disabledProviderChipsCannotBeToggled() =
+        runComposeUiTest {
+            var selectedCollectors by mutableStateOf(setOf("icmp_sweep", "arp_sweep"))
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state = CreateDiscoverySourceUiState(selectedCollectors = selectedCollectors),
+                        actions = defaultActions(onCollectorsChanged = { selectedCollectors = it }),
+                    )
+                }
+            }
+
+            onNodeWithText("Proxmox VE").assertIsNotEnabled()
+            onNodeWithText("Docker").assertIsNotEnabled()
+            onNodeWithText("UniFi").assertIsNotEnabled()
+
+            onNodeWithText("Proxmox VE").performClick()
+            assertEquals(setOf("icmp_sweep", "arp_sweep"), selectedCollectors)
 
             onNodeWithText("Docker").performClick()
-            assertEquals("docker", selectedType)
+            assertEquals(setOf("icmp_sweep", "arp_sweep"), selectedCollectors)
         }
 
     @Test
@@ -100,18 +151,18 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("Manual").assertIsDisplayed()
-            onNodeWithText("5 min").assertIsDisplayed()
-            onNodeWithText("15 min").assertIsDisplayed()
-            onNodeWithText("1 hora").assertIsDisplayed()
-            onNodeWithText("6 horas").assertIsDisplayed()
-            onNodeWithText("Diário").assertIsDisplayed()
-            onNodeWithText("Personalizado").assertIsDisplayed()
+            onNodeWithText("Manual").performScrollTo().assertIsDisplayed()
+            onNodeWithText("5 min").performScrollTo().assertIsDisplayed()
+            onNodeWithText("15 min").performScrollTo().assertIsDisplayed()
+            onNodeWithText("1 hour").performScrollTo().assertIsDisplayed()
+            onNodeWithText("6 hours").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Daily").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Custom").performScrollTo().assertIsDisplayed()
 
             onNodeWithText("15 min").performClick()
             assertEquals("*/15 * * * *", selectedCron)
 
-            onNodeWithText("6 horas").performClick()
+            onNodeWithText("6 hours").performClick()
             assertEquals("0 */6 * * *", selectedCron)
         }
 
@@ -128,11 +179,11 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("Personalizado").performClick()
-            onNodeWithText("Expressão Cron").assertIsDisplayed()
-            onNodeWithText("Formato cron de 5 campos").assertIsDisplayed()
+            onNodeWithText("Custom").performScrollTo().performClick()
+            onNodeWithText("Cron Expression").performScrollTo().assertIsDisplayed()
+            onNodeWithText("5-field cron format").performScrollTo().assertIsDisplayed()
 
-            onNodeWithText("Expressão Cron").performTextInput("*/20 * * * *")
+            onNodeWithText("Cron Expression").performTextInput("*/20 * * * *")
             assertTrue(selectedCron.contains("*/20"))
         }
 
@@ -155,11 +206,11 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("Sub-redes cadastradas").assertIsDisplayed()
-            onNodeWithText("Home LAN").assertIsDisplayed()
-            onNodeWithText("192.168.1.0/24").assertIsDisplayed()
-            onNodeWithText("DMZ").assertIsDisplayed()
-            onNodeWithText("10.0.0.0/24").assertIsDisplayed()
+            onNodeWithText("Sub-redes cadastradas").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Home LAN").performScrollTo().assertIsDisplayed()
+            onNodeWithText("192.168.1.0/24").performScrollTo().assertIsDisplayed()
+            onNodeWithText("DMZ").performScrollTo().assertIsDisplayed()
+            onNodeWithText("10.0.0.0/24").performScrollTo().assertIsDisplayed()
 
             onNodeWithText("Home LAN").performClick()
             assertEquals(subnets[0], selectedSubnet)
@@ -178,7 +229,7 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("Fonte habilitada").performClick()
+            onNodeWithText("Source enabled").performScrollTo().performClick()
             assertEquals(false, enabledState)
         }
 
@@ -187,9 +238,9 @@ class CreateDiscoverySourceScreenTest {
         runComposeUiTest {
             val errors =
                 mapOf(
-                    "name" to UiText.DynamicString("Nome obrigatorio"),
-                    "type" to UiText.DynamicString("Tipo obrigatorio"),
-                    "cidr" to UiText.DynamicString("CIDR invalido"),
+                    "name" to UiText.DynamicString("Source name is required"),
+                    "collectors" to UiText.DynamicString("At least one collector required"),
+                    "cidr" to UiText.DynamicString("Invalid CIDR"),
                 )
             setContent {
                 InfraMapTheme {
@@ -197,17 +248,17 @@ class CreateDiscoverySourceScreenTest {
                         state =
                             CreateDiscoverySourceUiState(
                                 validationErrors = errors,
-                                errorMessage = UiText.DynamicString("Erro no servidor"),
+                                errorMessage = UiText.DynamicString("Server error"),
                             ),
                         actions = defaultActions(),
                     )
                 }
             }
 
-            onNodeWithText("Nome obrigatorio").assertIsDisplayed()
-            onNodeWithText("Tipo obrigatorio").assertIsDisplayed()
-            onNodeWithText("CIDR invalido").assertIsDisplayed()
-            onNodeWithText("Erro no servidor").assertIsDisplayed()
+            onNodeWithText("Source name is required").performScrollTo().assertIsDisplayed()
+            onNodeWithText("At least one collector required").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Invalid CIDR").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Server error").performScrollTo().assertIsDisplayed()
         }
 
     @Test
@@ -222,6 +273,6 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("Criando...").assertIsDisplayed()
+            onNodeWithText("Creating...").performScrollTo().assertIsDisplayed()
         }
 }

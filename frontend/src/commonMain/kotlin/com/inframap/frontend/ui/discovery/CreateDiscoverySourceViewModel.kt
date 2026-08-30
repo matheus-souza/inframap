@@ -1,6 +1,7 @@
 package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.CollectorDto
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.model.toSummary
@@ -8,9 +9,9 @@ import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCa
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.discovery_error_create
+import com.inframap.frontend.generated.resources.discovery_validation_collector_required
 import com.inframap.frontend.generated.resources.validation_cidr_invalid
 import com.inframap.frontend.generated.resources.validation_discovery_name_required
-import com.inframap.frontend.generated.resources.validation_discovery_type_required
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
@@ -48,7 +49,60 @@ class CreateDiscoverySourceViewModel(
     }
 
     fun onSourceTypeChanged(sourceType: String) {
-        updateState { it.copy(sourceType = sourceType, validationErrors = it.validationErrors - "type") }
+        updateState {
+            val updatedCollectors = if (sourceType.isNotEmpty()) setOf(sourceType) else it.selectedCollectors
+            it.copy(
+                sourceType = sourceType,
+                selectedCollectors = updatedCollectors,
+                validationErrors = it.validationErrors - "type" - "collectors",
+            )
+        }
+    }
+
+    fun toggleCollector(collectorType: String) {
+        updateState { current ->
+            val updated =
+                if (current.selectedCollectors.contains(collectorType)) {
+                    current.selectedCollectors - collectorType
+                } else {
+                    current.selectedCollectors + collectorType
+                }
+            val errors =
+                if (updated.isNotEmpty()) {
+                    current.validationErrors - "collectors" - "type"
+                } else {
+                    current.validationErrors
+                }
+            current.copy(
+                selectedCollectors = updated,
+                sourceType = updated.firstOrNull().orEmpty(),
+                validationErrors = errors,
+            )
+        }
+    }
+
+    fun onToggleCollector(collectorType: String) = toggleCollector(collectorType)
+
+    fun handleIntent(intent: CreateDiscoverySourceIntent) {
+        when (intent) {
+            is CreateDiscoverySourceIntent.ToggleCollector -> toggleCollector(intent.collectorType)
+        }
+    }
+
+    fun onCollectorsChanged(collectors: Set<String>) {
+        updateState { current ->
+            val errors =
+                if (collectors.isNotEmpty()) {
+                    current.validationErrors - "collectors" - "type"
+                } else {
+                    current.validationErrors
+                }
+            current.copy(
+                selectedCollectors = collectors,
+                sourceType = collectors.firstOrNull().orEmpty(),
+                validationErrors = errors,
+            )
+        }
     }
 
     fun onScheduleCronChanged(cron: String) {
@@ -82,15 +136,15 @@ class CreateDiscoverySourceViewModel(
     fun validate(): Boolean {
         val errors = mutableMapOf<String, UiText>()
         val name = state.value.name.trim()
-        val sourceType = state.value.sourceType
         val cidr = state.value.configCidr.trim()
+        val selectedCollectors = state.value.selectedCollectors
 
         if (name.isEmpty()) {
             errors["name"] = UiText.Resource(Res.string.validation_discovery_name_required)
         }
 
-        if (sourceType.isEmpty()) {
-            errors["type"] = UiText.Resource(Res.string.validation_discovery_type_required)
+        if (selectedCollectors.isEmpty()) {
+            errors["collectors"] = UiText.Resource(Res.string.discovery_validation_collector_required)
         }
 
         if (cidr.isNotEmpty() && !isValidCidr(cidr)) {
@@ -116,16 +170,19 @@ class CreateDiscoverySourceViewModel(
                 null
             }
 
+        val collectors = stateVal.selectedCollectors.map { CollectorDto(collectorType = it) }
+
         launchJob("submit") {
             when (
                 val result =
                     createSourceUseCase(
                         CreateDiscoverySourceRequest(
                             name = stateVal.name.trim(),
-                            type = stateVal.sourceType,
+                            type = stateVal.selectedCollectors.firstOrNull().orEmpty(),
                             enabled = stateVal.enabled,
                             scheduleCron = stateVal.scheduleCron.trim().ifEmpty { null },
                             config = config,
+                            collectors = collectors,
                         ),
                     )
             ) {

@@ -718,6 +718,8 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
             onConfigCidrChanged = viewModel::onConfigCidrChanged,
             onEnabledChanged = viewModel::onEnabledChanged,
             onSubnetSelected = viewModel::onSubnetSelected,
+            onToggleCollector = viewModel::toggleCollector,
+            onCollectorsChanged = viewModel::onCollectorsChanged,
             onSubmitClicked = {
                 viewModel.createSource {
                     navigator.navigateTo(Route.DiscoverySources)

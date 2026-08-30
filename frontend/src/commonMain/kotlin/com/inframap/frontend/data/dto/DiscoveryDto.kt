@@ -58,8 +58,9 @@ data class DiscoveryListResponse(
 @Serializable
 data class CreateDiscoverySourceRequest(
     val name: String,
-    val type: String,
+    val type: String = "",
     val enabled: Boolean = true,
     @SerialName("schedule_cron") val scheduleCron: String? = null,
     val config: Map<String, String>? = null,
+    val collectors: List<CollectorDto> = emptyList(),
 )
