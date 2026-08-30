@@ -294,4 +294,49 @@ class ApiClientTest {
             assertEquals("ok", result.data["message"])
             assertEquals("req-post-nobody", result.requestId)
         }
+
+    @Test
+    fun unauthorized401TriggersOnSessionExpiredCallback() =
+        runTest {
+            val json =
+                """
+                {"error":{"code":"UNAUTHORIZED","message":"Invalid or expired session token","details":null},"meta":{"request_id":"req-401"}}
+                """.trimIndent()
+            val client =
+                ApiClient(
+                    "http://localhost",
+                    mockClient(status = HttpStatusCode.Unauthorized, responseBody = json),
+                )
+            var sessionExpiredCalled = false
+            client.onSessionExpired = { sessionExpiredCalled = true }
+
+            val result = client.get<Map<String, String>>("/api/v1/devices")
+
+            assertIs<ApiResult.Error>(result)
+            assertEquals(401, result.httpStatus)
+            assertEquals("UNAUTHORIZED", result.code)
+            assertTrue(sessionExpiredCalled)
+        }
+
+    @Test
+    fun non401ErrorDoesNotTriggerOnSessionExpiredCallback() =
+        runTest {
+            val json =
+                """
+                {"error":{"code":"NOT_FOUND","message":"Not found","details":null},"meta":{"request_id":"req-404"}}
+                """.trimIndent()
+            val client =
+                ApiClient(
+                    "http://localhost",
+                    mockClient(status = HttpStatusCode.NotFound, responseBody = json),
+                )
+            var sessionExpiredCalled = false
+            client.onSessionExpired = { sessionExpiredCalled = true }
+
+            val result = client.get<Map<String, String>>("/api/v1/devices/999")
+
+            assertIs<ApiResult.Error>(result)
+            assertEquals(404, result.httpStatus)
+            assertEquals(false, sessionExpiredCalled)
+        }
 }
