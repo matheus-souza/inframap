@@ -67,8 +67,8 @@ func TestE2E_DiscoveryFlow(t *testing.T) {
 	var sourceID string
 	t.Run("Step 2: Create Discovery Source", func(t *testing.T) {
 		createPayload := discdto.CreateDiscoverySourceRequest{
-			Name: "Cluster Proxmox VE",
-			Type: "proxmox",
+			Name: "Local Subnet Scanner",
+			Type: "icmp_sweep",
 			Config: map[string]interface{}{
 				"cidr": "127.0.0.1/32",
 			},

@@ -88,6 +88,19 @@ func TestCreateDiscoverySourceRequest_NormalizeAndValidate(t *testing.T) {
 		}
 	})
 
+	t.Run("All ValidDiscoveryTypes pass validation", func(t *testing.T) {
+		for discType := range dto.ValidDiscoveryTypes {
+			req := &dto.CreateDiscoverySourceRequest{
+				Name: "Source for " + discType,
+				Type: discType,
+			}
+			req.Normalize()
+			if err := req.Validate(); err != nil {
+				t.Errorf("expected type %q to be valid, got %v", discType, err)
+			}
+		}
+	})
+
 	t.Run("Empty name returns ErrEmptySourceName", func(t *testing.T) {
 		req := &dto.CreateDiscoverySourceRequest{
 			Name: "   ",

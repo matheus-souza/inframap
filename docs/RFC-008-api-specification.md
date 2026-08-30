@@ -163,7 +163,32 @@ All endpoints are prefixed with `/api/v1`.
 ### 6. Discovery Engine (`discovery`)
 - `GET  /api/v1/discovery/sources` — List configured scanners/providers.
 - `POST /api/v1/discovery/sources` — Add new discovery source.
+  - **Request body** accepts both legacy `type` field and new `collectors[]` array for backward compatibility.
+  - `collectors[]` — Optional array of collector type strings to enable on this source. Supported values: `icmp_sweep`, `arp_sweep`, `mdns`, `reverse_dns`, `snmp`, `proxmox`, `docker`, `unifi`. If omitted, falls back to legacy `type` field.
+- `PUT  /api/v1/discovery/sources/:id` — Update discovery source collectors and config.
+- `GET  /api/v1/discovery/sources/:id` — Get single discovery source with collector details and last run summary.
+- `DELETE /api/v1/discovery/sources/:id` — Remove discovery source.
 - `POST /api/v1/discovery/sources/:id/run` — Manually trigger scan for a source.
+  - **Multi-collector execution**: All enabled collectors run in parallel. Per-collector results are stored in `discovery_collector_runs` table.
+  - **Partial status**: Response `last_status` is `"partial"` when some collectors succeed and some fail; `"idle"` when all succeed; `"error"` when all fail; `"cancelled"` on context cancellation.
+- `GET  /api/v1/discovery/sources/:id/runs` — List collector run history for a source (default retention: 7 days).
+
+#### Supported Collectors (Network phase)
+| Collector | Type string | Description |
+|-----------|-------------|-------------|
+| ICMP Sweep | `icmp_sweep` | Ping sweep across subnet CIDR |
+| ARP Sweep | `arp_sweep` | Layer-2 ARP table discovery |
+| mDNS/Bonjour | `mdns` | Multicast DNS RFC 6762/6763 listener (pure Go, no CGO) |
+| Reverse DNS | `reverse_dns` | PTR record resolution for discovered IPs |
+| SNMP | `snmp` | SNMP v1/v2c/v3 device fingerprinting |
+
+#### Provider Integrations (next cycle — rendered as "Em breve" chips)
+| Collector | Type string | Description |
+|-----------|-------------|-------------|
+| Proxmox VE | `proxmox` | REST API import of VMs and containers |
+| Docker | `docker` | Docker Engine API container discovery |
+| UniFi | `unifi` | Ubiquiti UniFi controller client list |
+
 
 ### 7. Audit & Activity Logs (`audit`)
 - `GET /api/v1/audit/logs` — List audit events (Cursor pagination with UUIDv7).

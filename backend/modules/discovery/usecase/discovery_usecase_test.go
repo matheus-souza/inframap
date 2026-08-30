@@ -21,14 +21,17 @@ import (
 type mockDiscRepo struct {
 	sources map[uuid.UUID]*dto.DiscoverySourceResponse
 	records []*dto.DiscoveryRecordResponse
+	runs    []*db.CreateCollectorRunParams
 
 	failGetSource          bool
 	failUpdateSourceStatus bool
+	failCreateCollectorRun bool
 }
 
 func newMockDiscRepo() *mockDiscRepo {
 	return &mockDiscRepo{
 		sources: make(map[uuid.UUID]*dto.DiscoverySourceResponse),
+		runs:    make([]*db.CreateCollectorRunParams, 0),
 	}
 }
 
@@ -117,6 +120,41 @@ func (m *mockDiscRepo) ListRecordsByDevice(_ context.Context, deviceID uuid.UUID
 	for _, r := range m.records {
 		if r.DeviceID == deviceID {
 			res = append(res, r)
+		}
+	}
+	return res, nil
+}
+
+func (m *mockDiscRepo) CreateCollectorRun(_ context.Context, run *db.CreateCollectorRunParams) error {
+	if m.failCreateCollectorRun {
+		return errors.New("db collector run error")
+	}
+	m.runs = append(m.runs, run)
+	return nil
+}
+
+func (m *mockDiscRepo) ListRunsBySourceID(_ context.Context, sourceID uuid.UUID, limit int) ([]*dto.CollectorRunResponse, error) {
+	var res []*dto.CollectorRunResponse
+	for _, r := range m.runs {
+		if r.SourceID == sourceID {
+			var errMsg string
+			if r.ErrorMessage.Valid {
+				errMsg = r.ErrorMessage.String
+			}
+			res = append(res, &dto.CollectorRunResponse{
+				ID:            r.ID,
+				SourceID:      r.SourceID,
+				CollectorType: r.CollectorType,
+				Status:        r.Status,
+				DevicesFound:  int(r.DevicesFound),
+				DurationMs:    int64(r.DurationMs),
+				ErrorMessage:  errMsg,
+				StartedAt:     r.StartedAt.Time,
+				FinishedAt:    r.FinishedAt.Time,
+			})
+			if limit > 0 && len(res) >= limit {
+				break
+			}
 		}
 	}
 	return res, nil
@@ -432,20 +470,159 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
-	t.Run("TriggerRun with CIDR executes scan and resets to idle", func(t *testing.T) {
-		sources, _ := uc.ListSources(ctx)
-		if len(sources) == 0 {
-			t.Fatal("expected at least 1 source")
+	t.Run("TriggerRun with All Success resets to idle and records runs", func(t *testing.T) {
+		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "All Success Source",
+			Collectors: []dto.CollectorConfig{
+				{Type: "icmp_sweep"},
+				{Type: "arp_sweep"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
 		}
-		sources[0].ConfigCIDR = "192.168.1.0/24"
+		src.ConfigCIDR = "192.168.1.0/30"
 
-		res, err := uc.TriggerRun(ctx, sources[0].ID.String())
+		res, err := uc.TriggerRun(ctx, src.ID.String())
 		if err != nil {
 			t.Fatalf("expected nil error, got %v", err)
 		}
 		if res.LastStatus != "idle" {
-			t.Errorf("expected status idle, got %s", res.LastStatus)
+			t.Errorf("expected status 'idle', got %s", res.LastStatus)
 		}
+
+		runs, err := discRepo.ListRunsBySourceID(ctx, src.ID, 10)
+		if err != nil {
+			t.Fatalf("ListRunsBySourceID error: %v", err)
+		}
+		if len(runs) != 2 {
+			t.Fatalf("expected 2 collector runs recorded, got %d", len(runs))
+		}
+		for _, r := range runs {
+			if r.Status != "success" {
+				t.Errorf("expected run status 'success', got %q for %s", r.Status, r.CollectorType)
+			}
+		}
+	})
+
+	t.Run("TriggerRun with Mixed Success/Error sets partial status and records runs", func(t *testing.T) {
+		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "Partial Success Source",
+			Collectors: []dto.CollectorConfig{
+				{Type: "arp_sweep"},
+				{Type: "proxmox"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
+		}
+		src.ConfigCIDR = "192.168.1.0/30"
+
+		res, err := uc.TriggerRun(ctx, src.ID.String())
+		if err != nil {
+			t.Fatalf("expected nil error on partial status run, got %v", err)
+		}
+		if res.LastStatus != "partial" {
+			t.Errorf("expected status 'partial', got %q", res.LastStatus)
+		}
+
+		runs, err := discRepo.ListRunsBySourceID(ctx, src.ID, 10)
+		if err != nil {
+			t.Fatalf("ListRunsBySourceID error: %v", err)
+		}
+		if len(runs) != 2 {
+			t.Fatalf("expected 2 collector runs recorded, got %d", len(runs))
+		}
+		successCount := 0
+		errorCount := 0
+		for _, r := range runs {
+			if r.Status == "success" {
+				successCount++
+			} else if r.Status == "error" {
+				errorCount++
+			}
+		}
+		if successCount != 1 || errorCount != 1 {
+			t.Errorf("expected 1 success and 1 error run, got %d success, %d error", successCount, errorCount)
+		}
+	})
+
+	t.Run("TriggerRun with All Error sets error status and records runs", func(t *testing.T) {
+		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "All Error Source",
+			Collectors: []dto.CollectorConfig{
+				{Type: "proxmox"},
+				{Type: "docker"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
+		}
+		src.ConfigCIDR = "192.168.1.0/30"
+
+		res, err := uc.TriggerRun(ctx, src.ID.String())
+		if err == nil {
+			t.Fatal("expected error on all-error scan, got nil")
+		}
+		if res.LastStatus != "error" {
+			t.Errorf("expected status 'error', got %q", res.LastStatus)
+		}
+
+		runs, err := discRepo.ListRunsBySourceID(ctx, src.ID, 10)
+		if err != nil {
+			t.Fatalf("ListRunsBySourceID error: %v", err)
+		}
+		if len(runs) != 2 {
+			t.Fatalf("expected 2 collector runs recorded, got %d", len(runs))
+		}
+		for _, r := range runs {
+			if r.Status != "error" {
+				t.Errorf("expected run status 'error', got %q for %s", r.Status, r.CollectorType)
+			}
+		}
+	})
+
+	t.Run("TriggerRun with Context Cancellation sets cancelled status", func(t *testing.T) {
+		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "Cancelled Source",
+			Type: "icmp_sweep",
+		})
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
+		}
+		src.ConfigCIDR = "192.168.1.0/30"
+
+		cancelCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		res, err := uc.TriggerRun(cancelCtx, src.ID.String())
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("expected context.Canceled error, got %v", err)
+		}
+		if res.LastStatus != "cancelled" {
+			t.Errorf("expected status 'cancelled', got %q", res.LastStatus)
+		}
+	})
+
+	t.Run("TriggerRun handles CreateCollectorRun failure gracefully (Guideline #85)", func(t *testing.T) {
+		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "Repo Error Source",
+			Type: "arp_sweep",
+		})
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
+		}
+		src.ConfigCIDR = "192.168.1.0/30"
+
+		discRepo.failCreateCollectorRun = true
+		res, err := uc.TriggerRun(ctx, src.ID.String())
+		if err != nil {
+			t.Fatalf("expected nil error even when CreateCollectorRun fails, got %v", err)
+		}
+		if res.LastStatus != "idle" {
+			t.Errorf("expected status 'idle', got %q", res.LastStatus)
+		}
+		discRepo.failCreateCollectorRun = false
 	})
 
 	t.Run("IngestNormalizedDevice Matches Existing Device & Reconciles", func(t *testing.T) {
@@ -504,6 +681,70 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 		if rec.MatchedBy != "new_discovery" {
 			t.Errorf("expected matchedBy new_discovery, got %s", rec.MatchedBy)
+		}
+	})
+
+	t.Run("IngestNormalizedDevice Auto-Approves Trusted Provider when Collector Configured", func(t *testing.T) {
+		sweepSrc, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "Multi-Collector Plan with Proxmox",
+			Collectors: []dto.CollectorConfig{
+				{Type: "icmp_sweep"},
+				{Type: "proxmox"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
+		}
+
+		norm := &dto.NormalizedDeviceDTO{
+			Hostname:       "proxmox-pve-02",
+			IPAddress:      "192.168.1.150",
+			DeviceType:     "hypervisor",
+			ProtocolSource: "proxmox",
+		}
+
+		rec, err := uc.IngestNormalizedDevice(ctx, sweepSrc.ID, norm)
+		if err != nil {
+			t.Fatalf("IngestNormalizedDevice error: %v", err)
+		}
+		if rec.MatchedBy != "new_discovery" {
+			t.Errorf("expected matchedBy new_discovery, got %s", rec.MatchedBy)
+		}
+
+		dev, err := invRepo.GetDeviceByID(ctx, rec.DeviceID, false)
+		if err != nil {
+			t.Fatalf("expected device in active inventory, got error: %v", err)
+		}
+		if dev.Status != "active" {
+			t.Errorf("expected device status 'active', got %q", dev.Status)
+		}
+	})
+
+	t.Run("IngestNormalizedDevice Stages Device When ProtocolSource Not Configured on Source", func(t *testing.T) {
+		icmpSrc, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "ICMP Only Source",
+			Type: "icmp_sweep",
+		})
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
+		}
+
+		norm := &dto.NormalizedDeviceDTO{
+			Hostname:       "spoofed-proxmox-claim",
+			IPAddress:      "192.168.1.151",
+			DeviceType:     "server",
+			ProtocolSource: "proxmox", // Claiming proxmox on an ICMP-only source
+		}
+
+		rec, err := uc.IngestNormalizedDevice(ctx, icmpSrc.ID, norm)
+		if err != nil {
+			t.Fatalf("IngestNormalizedDevice error: %v", err)
+		}
+
+		// Because source is only icmp_sweep, device must be sent to staging (staged_devices), not active inventory
+		dev, err := invRepo.GetDeviceByID(ctx, rec.DeviceID, false)
+		if err == nil && dev != nil {
+			t.Fatalf("expected device NOT to be auto-approved into active inventory, got: %v", dev)
 		}
 	})
 
