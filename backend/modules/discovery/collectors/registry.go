@@ -25,6 +25,7 @@ const (
 	CollectorIDARP        = "arp"
 	CollectorIDReverseDNS = "reversedns"
 	CollectorIDSNMP       = "snmp"
+	CollectorIDMDNS       = "mdns"
 )
 
 // ErrCollectorNotImplemented is returned when a collector type is not implemented in this wave.
@@ -49,7 +50,7 @@ var CanonicalMapping = map[string]string{
 	"reversedns":          CollectorIDReverseDNS,
 	"reverse-dns":         CollectorIDReverseDNS,
 	TypeSNMP:              CollectorIDSNMP,
-	TypeMDNS:              TypeMDNS,
+	TypeMDNS:              CollectorIDMDNS,
 	TypeProxmox:           TypeProxmox,
 	TypeDocker:            TypeDocker,
 	TypeUniFi:             TypeUniFi,
@@ -65,7 +66,7 @@ var ImplementedStatus = map[string]bool{
 	TypeARPSweep:          true,
 	TypeReverseDNS:        true,
 	"reverse-dns":         true,
-	TypeMDNS:              false, // Not implemented in this wave
+	TypeMDNS:              true,
 	TypeProxmox:           false, // Not implemented in this wave
 	TypeDocker:            false, // Not implemented in this wave
 	TypeUniFi:             false, // Not implemented in this wave
@@ -101,6 +102,11 @@ func NewRegistry() *Registry {
 	return &Registry{
 		collectors: make(map[string]Collector),
 	}
+}
+
+// DefaultRegistry creates and returns an initialized Registry instance.
+func DefaultRegistry() *Registry {
+	return NewRegistry()
 }
 
 // Register registers a concrete Collector under its ID and canonical aliases.
