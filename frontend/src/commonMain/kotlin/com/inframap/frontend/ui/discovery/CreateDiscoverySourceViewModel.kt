@@ -1,7 +1,7 @@
 package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.CollectorDto
+import com.inframap.frontend.data.dto.CollectorConfigDto
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.model.toSummary
@@ -11,6 +11,7 @@ import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.discovery_error_create
 import com.inframap.frontend.generated.resources.discovery_validation_collector_required
 import com.inframap.frontend.generated.resources.validation_cidr_invalid
+import com.inframap.frontend.generated.resources.validation_cidr_required
 import com.inframap.frontend.generated.resources.validation_discovery_name_required
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
@@ -48,58 +49,23 @@ class CreateDiscoverySourceViewModel(
         updateState { it.copy(name = name, validationErrors = it.validationErrors - "name") }
     }
 
-    fun onSourceTypeChanged(sourceType: String) {
-        updateState {
-            val updatedCollectors = if (sourceType.isNotEmpty()) setOf(sourceType) else it.selectedCollectors
-            it.copy(
-                sourceType = sourceType,
-                selectedCollectors = updatedCollectors,
-                validationErrors = it.validationErrors - "type" - "collectors",
-            )
-        }
-    }
-
     fun toggleCollector(collectorType: String) {
-        updateState { current ->
-            val updated =
-                if (current.selectedCollectors.contains(collectorType)) {
-                    current.selectedCollectors - collectorType
-                } else {
-                    current.selectedCollectors + collectorType
-                }
-            val errors =
-                if (updated.isNotEmpty()) {
-                    current.validationErrors - "collectors" - "type"
-                } else {
-                    current.validationErrors
-                }
-            current.copy(
-                selectedCollectors = updated,
-                sourceType = updated.firstOrNull().orEmpty(),
-                validationErrors = errors,
-            )
-        }
-    }
-
-    fun onToggleCollector(collectorType: String) = toggleCollector(collectorType)
-
-    fun handleIntent(intent: CreateDiscoverySourceIntent) {
-        when (intent) {
-            is CreateDiscoverySourceIntent.ToggleCollector -> toggleCollector(intent.collectorType)
-        }
+        val current = state.value.selectedCollectors
+        onCollectorsChanged(
+            if (collectorType in current) current - collectorType else current + collectorType,
+        )
     }
 
     fun onCollectorsChanged(collectors: Set<String>) {
         updateState { current ->
             val errors =
                 if (collectors.isNotEmpty()) {
-                    current.validationErrors - "collectors" - "type"
+                    current.validationErrors - "collectors"
                 } else {
                     current.validationErrors
                 }
             current.copy(
                 selectedCollectors = collectors,
-                sourceType = collectors.firstOrNull().orEmpty(),
                 validationErrors = errors,
             )
         }
@@ -147,7 +113,9 @@ class CreateDiscoverySourceViewModel(
             errors["collectors"] = UiText.Resource(Res.string.discovery_validation_collector_required)
         }
 
-        if (cidr.isNotEmpty() && !isValidCidr(cidr)) {
+        if (cidr.isEmpty()) {
+            errors["cidr"] = UiText.Resource(Res.string.validation_cidr_required)
+        } else if (!isValidCidr(cidr)) {
             errors["cidr"] = UiText.Resource(Res.string.validation_cidr_invalid)
         }
 
@@ -170,7 +138,7 @@ class CreateDiscoverySourceViewModel(
                 null
             }
 
-        val collectors = stateVal.selectedCollectors.map { CollectorDto(collectorType = it) }
+        val collectors = stateVal.selectedCollectors.map { CollectorConfigDto(type = it) }
 
         launchJob("submit") {
             when (
@@ -178,7 +146,6 @@ class CreateDiscoverySourceViewModel(
                     createSourceUseCase(
                         CreateDiscoverySourceRequest(
                             name = stateVal.name.trim(),
-                            type = stateVal.selectedCollectors.firstOrNull().orEmpty(),
                             enabled = stateVal.enabled,
                             scheduleCron = stateVal.scheduleCron.trim().ifEmpty { null },
                             config = config,

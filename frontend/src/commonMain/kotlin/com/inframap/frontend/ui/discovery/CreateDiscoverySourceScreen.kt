@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,17 +36,16 @@ import com.inframap.frontend.designsystem.InfraMapTextField
 import com.inframap.frontend.designsystem.SubnetSuggestionChips
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.chip_coming_soon
-import com.inframap.frontend.generated.resources.collector_arp_sweep
-import com.inframap.frontend.generated.resources.collector_docker
-import com.inframap.frontend.generated.resources.collector_icmp_sweep
-import com.inframap.frontend.generated.resources.collector_mdns
-import com.inframap.frontend.generated.resources.collector_multi_selection_hint
-import com.inframap.frontend.generated.resources.collector_proxmox
-import com.inframap.frontend.generated.resources.collector_reverse_dns
+import com.inframap.frontend.generated.resources.collector_name_arp_sweep
+import com.inframap.frontend.generated.resources.collector_name_docker
+import com.inframap.frontend.generated.resources.collector_name_icmp_sweep
+import com.inframap.frontend.generated.resources.collector_name_mdns
+import com.inframap.frontend.generated.resources.collector_name_proxmox
+import com.inframap.frontend.generated.resources.collector_name_reverse_dns
+import com.inframap.frontend.generated.resources.collector_name_snmp
+import com.inframap.frontend.generated.resources.collector_name_unifi
 import com.inframap.frontend.generated.resources.collector_section_network
 import com.inframap.frontend.generated.resources.collector_section_providers
-import com.inframap.frontend.generated.resources.collector_snmp
-import com.inframap.frontend.generated.resources.collector_unifi
 import com.inframap.frontend.generated.resources.common_cancel
 import com.inframap.frontend.generated.resources.create_discovery_source_cidr_label
 import com.inframap.frontend.generated.resources.create_discovery_source_enabled_label
@@ -68,16 +66,6 @@ import com.inframap.frontend.generated.resources.schedule_preset_custom
 import com.inframap.frontend.generated.resources.schedule_preset_daily
 import com.inframap.frontend.generated.resources.schedule_preset_manual
 import org.jetbrains.compose.resources.stringResource
-
-private val presetScheduleValues =
-    setOf(
-        "",
-        "*/5 * * * *",
-        "*/15 * * * *",
-        "0 * * * *",
-        "0 */6 * * *",
-        "0 0 * * *",
-    )
 
 @Composable
 fun CreateDiscoverySourceScreen(
@@ -136,15 +124,13 @@ private fun CreateDiscoverySourceFormFields(
         CollectorsSection(
             selectedCollectors = state.selectedCollectors,
             onSelectionChanged = actions.onCollectorsChanged,
-            error = (state.validationErrors["collectors"] ?: state.validationErrors["type"])?.asString(),
+            error = state.validationErrors["collectors"]?.asString(),
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         SubnetSuggestionChips(
             subnets = state.subnets,
-            selectedCidr = state.configCidr.ifEmpty { null },
-            isLoading = state.isLoadingSubnets,
             onSubnetSelected = actions.onSubnetSelected,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -155,8 +141,8 @@ private fun CreateDiscoverySourceFormFields(
             value = state.configCidr,
             onValueChange = actions.onConfigCidrChanged,
             label = stringResource(Res.string.create_discovery_source_cidr_label),
-            textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace),
             error = state.validationErrors["cidr"]?.asString(),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -195,13 +181,6 @@ private fun CollectorsSection(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Text(
-            text = stringResource(Res.string.collector_multi_selection_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, top = 4.dp),
-        )
-
         if (error != null) {
             Text(
                 text = error,
@@ -225,22 +204,22 @@ private fun rememberCollectorSections(): List<ChipSection<String>> {
 @Composable
 private fun rememberNetworkSection(): ChipSection<String> {
     val title = stringResource(Res.string.collector_section_network)
-    val icmpLabel = stringResource(Res.string.collector_icmp_sweep)
-    val arpLabel = stringResource(Res.string.collector_arp_sweep)
-    val mdnsLabel = stringResource(Res.string.collector_mdns)
-    val reverseDnsLabel = stringResource(Res.string.collector_reverse_dns)
-    val snmpLabel = stringResource(Res.string.collector_snmp)
+    val icmpLabel = stringResource(Res.string.collector_name_icmp_sweep)
+    val arpLabel = stringResource(Res.string.collector_name_arp_sweep)
+    val mdnsLabel = stringResource(Res.string.collector_name_mdns)
+    val reverseDnsLabel = stringResource(Res.string.collector_name_reverse_dns)
+    val snmpLabel = stringResource(Res.string.collector_name_snmp)
 
     return remember(title, icmpLabel, arpLabel, mdnsLabel, reverseDnsLabel, snmpLabel) {
         ChipSection(
             title = title,
             options =
                 listOf(
-                    ChipOption("icmp_sweep", icmpLabel, InfraMapIcons.NetworkPing, enabled = true),
-                    ChipOption("arp_sweep", arpLabel, InfraMapIcons.Lan, enabled = true),
-                    ChipOption("mdns", mdnsLabel, InfraMapIcons.Dns, enabled = true),
-                    ChipOption("reverse_dns", reverseDnsLabel, InfraMapIcons.Dns, enabled = true),
-                    ChipOption("snmp", snmpLabel, InfraMapIcons.NetworkCheck, enabled = true),
+                    ChipOption("icmp_sweep", icmpLabel, InfraMapIcons.NetworkPing),
+                    ChipOption("arp_sweep", arpLabel, InfraMapIcons.Lan),
+                    ChipOption("mdns", mdnsLabel, InfraMapIcons.Dns),
+                    ChipOption("reverse_dns", reverseDnsLabel, InfraMapIcons.Dns),
+                    ChipOption("snmp", snmpLabel, InfraMapIcons.NetworkCheck),
                 ),
         )
     }
@@ -250,9 +229,9 @@ private fun rememberNetworkSection(): ChipSection<String> {
 private fun rememberProvidersSection(): ChipSection<String> {
     val title = stringResource(Res.string.collector_section_providers)
     val comingSoonHint = stringResource(Res.string.chip_coming_soon)
-    val proxmoxLabel = stringResource(Res.string.collector_proxmox)
-    val dockerLabel = stringResource(Res.string.collector_docker)
-    val unifiLabel = stringResource(Res.string.collector_unifi)
+    val proxmoxLabel = stringResource(Res.string.collector_name_proxmox)
+    val dockerLabel = stringResource(Res.string.collector_name_docker)
+    val unifiLabel = stringResource(Res.string.collector_name_unifi)
 
     return remember(title, comingSoonHint, proxmoxLabel, dockerLabel, unifiLabel) {
         ChipSection(
@@ -265,6 +244,7 @@ private fun rememberProvidersSection(): ChipSection<String> {
                         icon = InfraMapIcons.Cloud,
                         enabled = false,
                         disabledHint = comingSoonHint,
+                        description = comingSoonHint,
                     ),
                     ChipOption(
                         value = "docker",
@@ -272,6 +252,7 @@ private fun rememberProvidersSection(): ChipSection<String> {
                         icon = InfraMapIcons.ViewInAr,
                         enabled = false,
                         disabledHint = comingSoonHint,
+                        description = comingSoonHint,
                     ),
                     ChipOption(
                         value = "unifi",
@@ -279,9 +260,34 @@ private fun rememberProvidersSection(): ChipSection<String> {
                         icon = InfraMapIcons.Wifi,
                         enabled = false,
                         disabledHint = comingSoonHint,
+                        description = comingSoonHint,
                     ),
                 ),
         )
+    }
+}
+
+@Composable
+private fun rememberScheduleOptions(): Pair<List<ChipOption<String>>, Set<String>> {
+    val manual = stringResource(Res.string.schedule_preset_manual)
+    val fiveMin = stringResource(Res.string.schedule_preset_5min)
+    val fifteenMin = stringResource(Res.string.schedule_preset_15min)
+    val oneHour = stringResource(Res.string.schedule_preset_1hour)
+    val sixHours = stringResource(Res.string.schedule_preset_6hours)
+    val daily = stringResource(Res.string.schedule_preset_daily)
+
+    return remember(manual, fiveMin, fifteenMin, oneHour, sixHours, daily) {
+        val options =
+            listOf(
+                ChipOption("", manual, InfraMapIcons.PauseCircle),
+                ChipOption("*/5 * * * *", fiveMin, InfraMapIcons.Timer),
+                ChipOption("*/15 * * * *", fifteenMin, InfraMapIcons.Timer),
+                ChipOption("0 * * * *", oneHour, InfraMapIcons.Schedule),
+                ChipOption("0 */6 * * *", sixHours, InfraMapIcons.Schedule),
+                ChipOption("0 0 * * *", daily, InfraMapIcons.NightsStay),
+            )
+        val values = options.map { it.value }.toSet()
+        options to values
     }
 }
 
@@ -291,17 +297,8 @@ private fun ScheduleSection(
     onCronSelected: (String) -> Unit,
 ) {
     var customCronDraft by remember { mutableStateOf("*/10 * * * *") }
-    val isCustomCron: (String) -> Boolean = { it.isNotEmpty() && it !in presetScheduleValues }
-
-    val scheduleChipOptions =
-        listOf(
-            ChipOption("", stringResource(Res.string.schedule_preset_manual), InfraMapIcons.PauseCircle),
-            ChipOption("*/5 * * * *", stringResource(Res.string.schedule_preset_5min), InfraMapIcons.Timer),
-            ChipOption("*/15 * * * *", stringResource(Res.string.schedule_preset_15min), InfraMapIcons.Timer),
-            ChipOption("0 * * * *", stringResource(Res.string.schedule_preset_1hour), InfraMapIcons.Schedule),
-            ChipOption("0 */6 * * *", stringResource(Res.string.schedule_preset_6hours), InfraMapIcons.Schedule),
-            ChipOption("0 0 * * *", stringResource(Res.string.schedule_preset_daily), InfraMapIcons.NightsStay),
-        )
+    val (scheduleChipOptions, presetValues) = rememberScheduleOptions()
+    val isCustomCron: (String) -> Boolean = { it.isNotEmpty() && it !in presetValues }
 
     val scheduleCustomOption =
         ChipCustomOption(

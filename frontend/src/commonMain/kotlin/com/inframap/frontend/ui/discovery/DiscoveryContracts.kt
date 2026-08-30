@@ -31,17 +31,8 @@ data class DiscoveryListActions(
     val onRetryClicked: () -> Unit,
 )
 
-typealias CreateDiscoverySourceState = CreateDiscoverySourceUiState
-
-sealed interface CreateDiscoverySourceIntent {
-    data class ToggleCollector(
-        val collectorType: String,
-    ) : CreateDiscoverySourceIntent
-}
-
 data class CreateDiscoverySourceUiState(
     val name: String = "",
-    val sourceType: String = "",
     val selectedCollectors: Set<String> = setOf("icmp_sweep", "arp_sweep", "mdns", "reverse_dns"),
     val scheduleCron: String = "",
     val configCidr: String = "",
@@ -56,12 +47,10 @@ data class CreateDiscoverySourceUiState(
 
 data class CreateDiscoverySourceActions(
     val onNameChanged: (String) -> Unit,
-    val onSourceTypeChanged: (String) -> Unit = {},
     val onScheduleCronChanged: (String) -> Unit,
     val onConfigCidrChanged: (String) -> Unit,
     val onEnabledChanged: (Boolean) -> Unit,
     val onSubnetSelected: (SubnetSummary) -> Unit,
-    val onToggleCollector: (String) -> Unit = {},
     val onCollectorsChanged: (Set<String>) -> Unit = {},
     val onSubmitClicked: () -> Unit,
     val onCancelClicked: () -> Unit,

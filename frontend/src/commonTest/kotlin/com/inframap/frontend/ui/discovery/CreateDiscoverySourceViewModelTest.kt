@@ -153,8 +153,8 @@ class CreateDiscoverySourceViewModelTest {
                     .contains("snmp"),
             )
 
-            // Use handleIntent
-            vm.handleIntent(CreateDiscoverySourceIntent.ToggleCollector("snmp"))
+            // Remove snmp
+            vm.toggleCollector("snmp")
             assertFalse(
                 vm.state.value.selectedCollectors
                     .contains("snmp"),
@@ -177,6 +177,7 @@ class CreateDiscoverySourceViewModelTest {
             val errors = vm.state.value.validationErrors
             assertTrue(errors.containsKey("name"))
             assertTrue(errors.containsKey("collectors"))
+            assertTrue(errors.containsKey("cidr"))
             vm.clear()
         }
 
@@ -187,11 +188,28 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.onNameChanged("ICMP Scanner")
             vm.onCollectorsChanged(setOf("icmp_sweep"))
+            vm.onConfigCidrChanged("192.168.1.0/24")
 
             assertTrue(vm.validate())
             assertTrue(
                 vm.state.value.validationErrors
                     .isEmpty(),
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun validationFailsOnEmptyCidr() =
+        runTest {
+            val vm = makeVm(scope = this)
+
+            vm.onNameChanged("ICMP Scanner")
+            vm.onConfigCidrChanged("")
+
+            assertFalse(vm.validate())
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("cidr"),
             )
             vm.clear()
         }
@@ -236,7 +254,7 @@ class CreateDiscoverySourceViewModelTest {
             vm.onNameChanged("Test Source")
             assertEquals("Test Source", vm.state.value.name)
 
-            vm.onToggleCollector("snmp")
+            vm.toggleCollector("snmp")
             assertTrue(
                 vm.state.value.selectedCollectors
                     .contains("snmp"),
@@ -312,7 +330,7 @@ class CreateDiscoverySourceViewModelTest {
                 val collectors =
                     discoveryRepo.lastCreateSourceRequest
                         ?.collectors
-                        ?.map { it.collectorType }
+                        ?.map { it.type }
                         ?.toSet()
                 assertEquals(setOf("icmp_sweep", "arp_sweep"), collectors)
                 cancelAndIgnoreRemainingEvents()
@@ -328,13 +346,14 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.onNameChanged("Fast Scanner")
             vm.onCollectorsChanged(setOf("arp_sweep"))
+            vm.onConfigCidrChanged("192.168.1.0/24")
             vm.onScheduleCronChanged("*/15 * * * *")
 
             vm.createSource()
             advanceUntilIdle()
 
             assertEquals("*/15 * * * *", discoveryRepo.lastCreateSourceRequest?.scheduleCron)
-            assertEquals(listOf("arp_sweep"), discoveryRepo.lastCreateSourceRequest?.collectors?.map { it.collectorType })
+            assertEquals(listOf("arp_sweep"), discoveryRepo.lastCreateSourceRequest?.collectors?.map { it.type })
             vm.clear()
         }
 
@@ -346,6 +365,7 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.onNameChanged("Custom Cron Scanner")
             vm.onCollectorsChanged(setOf("docker"))
+            vm.onConfigCidrChanged("192.168.1.0/24")
             vm.onScheduleCronChanged("30 3 * * 1-5")
 
             vm.createSource()
@@ -360,6 +380,7 @@ class CreateDiscoverySourceViewModelTest {
         runTest {
             val vm = makeVm(scope = this)
             vm.onNameChanged("ICMP Scanner")
+            vm.onConfigCidrChanged("192.168.1.0/24")
 
             vm.createSource()
             assertTrue(vm.state.value.isSubmitting)
@@ -386,6 +407,7 @@ class CreateDiscoverySourceViewModelTest {
                 )
             val vm = makeVm(discoveryRepo = repo, scope = this)
             vm.onNameChanged("ICMP Scanner")
+            vm.onConfigCidrChanged("192.168.1.0/24")
 
             vm.state.test {
                 skipItems(1)
@@ -410,6 +432,7 @@ class CreateDiscoverySourceViewModelTest {
                 )
             val vm = makeVm(discoveryRepo = repo, scope = this)
             vm.onNameChanged("ICMP Scanner")
+            vm.onConfigCidrChanged("192.168.1.0/24")
 
             vm.state.test {
                 skipItems(1)
@@ -445,6 +468,7 @@ class CreateDiscoverySourceViewModelTest {
         runTest {
             val vm = makeVm(scope = this)
             vm.onNameChanged("  ")
+            vm.onConfigCidrChanged("192.168.1.0/24")
 
             assertFalse(vm.validate())
             assertTrue(

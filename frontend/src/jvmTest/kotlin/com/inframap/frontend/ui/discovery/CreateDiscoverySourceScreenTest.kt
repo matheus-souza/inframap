@@ -22,23 +22,19 @@ import org.junit.jupiter.api.Test
 class CreateDiscoverySourceScreenTest {
     private fun defaultActions(
         onNameChanged: (String) -> Unit = {},
-        onSourceTypeChanged: (String) -> Unit = {},
         onScheduleCronChanged: (String) -> Unit = {},
         onConfigCidrChanged: (String) -> Unit = {},
         onEnabledChanged: (Boolean) -> Unit = {},
         onSubnetSelected: (SubnetSummary) -> Unit = {},
-        onToggleCollector: (String) -> Unit = {},
         onCollectorsChanged: (Set<String>) -> Unit = {},
         onSubmitClicked: () -> Unit = {},
         onCancelClicked: () -> Unit = {},
     ) = CreateDiscoverySourceActions(
         onNameChanged = onNameChanged,
-        onSourceTypeChanged = onSourceTypeChanged,
         onScheduleCronChanged = onScheduleCronChanged,
         onConfigCidrChanged = onConfigCidrChanged,
         onEnabledChanged = onEnabledChanged,
         onSubnetSelected = onSubnetSelected,
-        onToggleCollector = onToggleCollector,
         onCollectorsChanged = onCollectorsChanged,
         onSubmitClicked = onSubmitClicked,
         onCancelClicked = onCancelClicked,
@@ -61,8 +57,7 @@ class CreateDiscoverySourceScreenTest {
             onNodeWithText("Discovery Collectors *").assertIsDisplayed()
             onNodeWithText("Network Sweep").assertIsDisplayed()
             onNodeWithText("Infrastructure Providers").assertIsDisplayed()
-            onNodeWithText("Select one or more collectors to run for this discovery source").assertIsDisplayed()
-            onNodeWithText("Target CIDR (e.g. 192.168.1.0/24)").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Target CIDR (e.g. 192.168.1.0/24) *").performScrollTo().assertIsDisplayed()
             onNodeWithText("Schedule").performScrollTo().assertIsDisplayed()
             onNodeWithText("Source enabled").performScrollTo().assertIsDisplayed()
             onNodeWithText("Create Source").performScrollTo().assertIsDisplayed()
@@ -82,14 +77,14 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("ICMP Ping").assertIsDisplayed()
-            onNodeWithText("ARP Sweep").assertIsDisplayed()
-            onNodeWithText("mDNS / Bonjour").assertIsDisplayed()
-            onNodeWithText("Reverse DNS").assertIsDisplayed()
-            onNodeWithText("SNMP").assertIsDisplayed()
-            onNodeWithText("Proxmox VE").assertIsDisplayed()
-            onNodeWithText("Docker").assertIsDisplayed()
-            onNodeWithText("UniFi").assertIsDisplayed()
+            onNodeWithText("ICMP Ping").performScrollTo().assertIsDisplayed()
+            onNodeWithText("ARP Sweep").performScrollTo().assertIsDisplayed()
+            onNodeWithText("mDNS / Bonjour").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Reverse DNS").performScrollTo().assertIsDisplayed()
+            onNodeWithText("SNMP").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Proxmox VE").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Docker").performScrollTo().assertIsDisplayed()
+            onNodeWithText("UniFi").performScrollTo().assertIsDisplayed()
         }
 
     @Test
@@ -106,11 +101,11 @@ class CreateDiscoverySourceScreenTest {
             }
 
             // Click SNMP to add
-            onNodeWithText("SNMP").performClick()
+            onNodeWithText("SNMP").performScrollTo().performClick()
             assertTrue(selectedCollectors.contains("snmp"))
 
             // Click ICMP Ping to remove
-            onNodeWithText("ICMP Ping").performClick()
+            onNodeWithText("ICMP Ping").performScrollTo().performClick()
             assertTrue(!selectedCollectors.contains("icmp_sweep"))
         }
 
@@ -127,9 +122,9 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("Proxmox VE").assertIsNotEnabled()
-            onNodeWithText("Docker").assertIsNotEnabled()
-            onNodeWithText("UniFi").assertIsNotEnabled()
+            onNodeWithText("Proxmox VE").performScrollTo().assertIsNotEnabled()
+            onNodeWithText("Docker").performScrollTo().assertIsNotEnabled()
+            onNodeWithText("UniFi").performScrollTo().assertIsNotEnabled()
 
             onNodeWithText("Proxmox VE").performClick()
             assertEquals(setOf("icmp_sweep", "arp_sweep"), selectedCollectors)
