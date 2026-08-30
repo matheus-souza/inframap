@@ -49,4 +49,43 @@ class NavRailTest {
             onNodeWithContentDescription("Devices").performClick()
             assertEquals("devices", selected)
         }
+
+    @Test
+    fun navRailSlimModeRendersItemsByContentDescription() =
+        runComposeUiTest {
+            var selected: String? = null
+            setContent {
+                InfraMapTheme {
+                    InfraMapNavRail(
+                        items = sampleItems,
+                        selectedRoute = "dashboard",
+                        onItemSelected = { selected = it },
+                        isExpanded = false,
+                    )
+                }
+            }
+            onNodeWithContentDescription("Dashboard").assertIsDisplayed()
+            onNodeWithContentDescription("Devices").assertIsDisplayed()
+            onNodeWithContentDescription("Devices").performClick()
+            assertEquals("devices", selected)
+        }
+
+    @Test
+    fun navRailToggleButtonTriggersCallback() =
+        runComposeUiTest {
+            var toggled = false
+            setContent {
+                InfraMapTheme {
+                    InfraMapNavRail(
+                        items = sampleItems,
+                        selectedRoute = "dashboard",
+                        onItemSelected = {},
+                        isExpanded = true,
+                        onToggleExpanded = { toggled = true },
+                    )
+                }
+            }
+            onNodeWithContentDescription("Collapse menu").performClick()
+            assertEquals(true, toggled)
+        }
 }
