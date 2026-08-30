@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"net/netip"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -147,7 +150,7 @@ func (u *DefaultDiscoveryUseCase) DeleteSource(ctx context.Context, idStr string
 	return nil
 }
 
-// TriggerRun triggers a manual scan sweep for a discovery source.
+// TriggerRun triggers a manual or scheduled scan sweep for a discovery source.
 func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) (*dto.DiscoverySourceResponse, error) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -159,7 +162,9 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		return nil, err
 	}
 
-	if _, updateErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "running"); updateErr != nil {
+	persistCtx := context.WithoutCancel(ctx)
+
+	if _, updateErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "running"); updateErr != nil {
 		return nil, fmt.Errorf("failed to set discovery status to running: %w", updateErr)
 	}
 
@@ -168,26 +173,188 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		if u.logger != nil {
 			u.logger.Warn("discovery source has no CIDR configured, skipping scan", slog.String("source_id", source.ID.String()))
 		}
-		if _, errStatusErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "error"); errStatusErr != nil {
+		if _, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error"); errStatusErr != nil {
 			return nil, fmt.Errorf("failed to set error status for missing CIDR: %w", errStatusErr)
 		}
 		return nil, fmt.Errorf("discovery source %s has no CIDR configured", source.ID)
 	}
 
-	scanReq := &dto.TriggerScanRequest{CIDR: cidr}
-	if _, scanErr := u.TriggerScan(ctx, scanReq); scanErr != nil {
+	if _, err := collectors.ParseTargetPrefix(cidr); err != nil {
 		if u.logger != nil {
-			u.logger.Error("discovery source scan failed", slog.String("source_id", source.ID.String()), slog.Any("error", scanErr))
+			u.logger.Error("discovery source has invalid CIDR configured", slog.String("source_id", source.ID.String()), slog.Any("error", err))
 		}
-		if _, idleErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "error"); idleErr != nil {
-			return nil, fmt.Errorf("failed to set error status after scan failure: %w", idleErr)
+		if _, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error"); errStatusErr != nil {
+			return nil, fmt.Errorf("failed to set error status for invalid CIDR: %w", errStatusErr)
 		}
-		return nil, fmt.Errorf("discovery scan failed for source %s: %w", source.ID, scanErr)
+		return nil, fmt.Errorf("discovery source %s has invalid CIDR %q: %w", source.ID, cidr, err)
 	}
 
-	res, finishErr := u.discRepo.UpdateSourceStatus(ctx, source.ID, "idle")
-	if finishErr != nil {
-		return nil, fmt.Errorf("failed to complete discovery run: %w", finishErr)
+	// 1. Determine enabled collectors
+	var enabledCollectorTypes []string
+	for _, col := range source.Collectors {
+		if col.Enabled {
+			enabledCollectorTypes = append(enabledCollectorTypes, col.CollectorType)
+		}
+	}
+	if len(enabledCollectorTypes) == 0 {
+		if source.Type != "" {
+			enabledCollectorTypes = []string{source.Type}
+		}
+	}
+
+	// 2. Load active devices from inventory (paginated)
+	var activeDevices []db.Device
+	if u.invRepo != nil {
+		const pageSize int32 = 1000
+		var offset int32
+		for {
+			devs, total, listErr := u.invRepo.ListDevices(ctx, "", "", pageSize, offset, false)
+			if listErr != nil {
+				if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+					_, _ = u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "cancelled")
+					return nil, ctx.Err()
+				}
+				_, _ = u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error")
+				return nil, fmt.Errorf("failed to load active inventory: %w", listErr)
+			}
+			activeDevices = append(activeDevices, devs...)
+			offset += pageSize
+			if int64(offset) >= total {
+				break
+			}
+		}
+	}
+
+	target := collectors.DiscoveryTarget{
+		CIDR: cidr,
+	}
+
+	startTime := time.Now()
+	scanResult, scanErr := u.orchestrator.RunScan(ctx, target, activeDevices, enabledCollectorTypes)
+	duration := time.Since(startTime)
+
+	// 3. Compute overall source outcome status
+	var finalStatus string
+	isCancelled := errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) ||
+		errors.Is(scanErr, context.Canceled) || errors.Is(scanErr, context.DeadlineExceeded)
+
+	if isCancelled {
+		finalStatus = "cancelled"
+	} else if scanErr != nil {
+		finalStatus = "error"
+	} else if scanResult != nil && len(scanResult.Collectors) > 0 {
+		successCount := 0
+		errorCount := 0
+		for _, c := range scanResult.Collectors {
+			if c.Status == "success" {
+				successCount++
+			} else {
+				errorCount++
+			}
+		}
+		if errorCount == 0 {
+			finalStatus = "idle"
+		} else if successCount > 0 && errorCount > 0 {
+			finalStatus = "partial"
+		} else {
+			finalStatus = "error"
+		}
+	} else {
+		finalStatus = "idle"
+	}
+
+	// 4. Record individual collector runs in discovery_collector_runs (Guideline #85: errors do not abort the scan)
+	if scanResult != nil && len(scanResult.Collectors) > 0 {
+		for _, c := range scanResult.Collectors {
+			var errMsg pgtype.Text
+			if c.ErrorMessage != "" {
+				errMsg = pgtype.Text{String: c.ErrorMessage, Valid: true}
+			}
+
+			runStatus := c.Status
+			if isCancelled && runStatus != "success" {
+				runStatus = "timeout"
+			}
+			dbColType := normalizeToDBCollectorType(c.CollectorType)
+
+			devicesFound := c.DevicesFound
+			if devicesFound < 0 {
+				devicesFound = 0
+			} else if devicesFound > math.MaxInt32 {
+				devicesFound = math.MaxInt32
+			}
+
+			durationMs := c.DurationMs
+			if durationMs < 0 {
+				durationMs = 0
+			} else if durationMs > math.MaxInt32 {
+				durationMs = math.MaxInt32
+			}
+
+			colRunParams := &db.CreateCollectorRunParams{
+				ID:            uuid.New(),
+				SourceID:      source.ID,
+				CollectorType: dbColType,
+				Status:        runStatus,
+				DevicesFound:  int32(devicesFound),  //nolint:gosec // clamped to MaxInt32 above
+				DurationMs:    int32(durationMs),    //nolint:gosec // clamped to MaxInt32 above
+				ErrorMessage:  errMsg,
+				StartedAt:     pgtype.Timestamptz{Time: startTime, Valid: true},
+				FinishedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			}
+
+			if recErr := u.discRepo.CreateCollectorRun(persistCtx, colRunParams); recErr != nil {
+				if u.logger != nil {
+					u.logger.Warn("failed to record collector run",
+						slog.String("source_id", source.ID.String()),
+						slog.String("collector_type", c.CollectorType),
+						slog.Any("error", recErr),
+					)
+				}
+			}
+		}
+	}
+
+	// 5. Update discovery source last_status and last_run_at
+	res, updateErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, finalStatus)
+	if updateErr != nil {
+		return nil, fmt.Errorf("failed to update discovery source status to %s: %w", finalStatus, updateErr)
+	}
+
+	// 6. Emit discovery_source.run_finished on eventbus
+	if u.eventBus != nil {
+		payload := map[string]interface{}{
+			"source_id":   source.ID.String(),
+			"status":      finalStatus,
+			"duration_ms": duration.Milliseconds(),
+		}
+		if scanResult != nil {
+			payload["total_collected"] = scanResult.TotalCollected
+			payload["total_valid"] = scanResult.TotalValid
+			payload["total_discovered"] = scanResult.TotalDiscovered
+			payload["total_updated"] = scanResult.TotalUpdated
+		}
+		if pubErr := u.eventBus.Publish(persistCtx, eventbus.NewBaseEvent("discovery_source.run_finished", payload)); pubErr != nil {
+			if u.logger != nil {
+				u.logger.Warn("failed to publish discovery_source.run_finished event",
+					slog.String("source_id", source.ID.String()),
+					slog.Any("error", pubErr),
+				)
+			}
+		}
+	}
+
+	if isCancelled {
+		if scanErr != nil {
+			return res, scanErr
+		}
+		return res, ctx.Err()
+	}
+	if finalStatus == "error" {
+		if scanErr != nil {
+			return res, scanErr
+		}
+		return res, fmt.Errorf("discovery scan failed for source %s: all collectors failed", source.ID)
 	}
 
 	return res, nil
@@ -224,8 +391,6 @@ func (u *DefaultDiscoveryUseCase) TriggerScan(ctx context.Context, req *dto.Trig
 			}
 		}
 	}
-
-
 
 	target := collectors.DiscoveryTarget{
 		CIDR:            req.CIDR,
@@ -295,6 +460,22 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 
 	rawBytes, _ := json.Marshal(norm.RawPayload)
 
+	effectiveType := source.Type
+	if norm.ProtocolSource != "" {
+		isAllowedProtocol := strings.EqualFold(source.Type, norm.ProtocolSource)
+		if !isAllowedProtocol {
+			for _, col := range source.Collectors {
+				if col.Enabled && strings.EqualFold(col.CollectorType, norm.ProtocolSource) {
+					isAllowedProtocol = true
+					break
+				}
+			}
+		}
+		if isAllowedProtocol {
+			effectiveType = norm.ProtocolSource
+		}
+	}
+
 	if match.DeviceID != nil {
 		targetDeviceID = *match.DeviceID
 		matchedBy = match.MatchedBy
@@ -307,7 +488,7 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 			return nil, fmt.Errorf("failed to fetch matched device %s: %w", targetDeviceID, fetchErr)
 		}
 
-		reconciledDB, changed := u.reconciler.Reconcile(existingDB, norm, source.Type)
+		reconciledDB, changed := u.reconciler.Reconcile(existingDB, norm, effectiveType)
 		if changed {
 			updateParams := db.UpdateDeviceParams{
 				ID:           reconciledDB.ID,
@@ -332,13 +513,13 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 				_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.updated", map[string]interface{}{
 					"device_id":   targetDeviceID.String(),
 					"matched_by":  matchedBy,
-					"source_type": source.Type,
+					"source_type": effectiveType,
 				}))
 			}
 		}
 	} else {
 		matchedBy = "new_discovery"
-		if isTrustedProvider(source.Type) {
+		if isTrustedProvider(effectiveType) {
 			createParams := db.CreateDeviceParams{
 				ID:         uuid.New(),
 				Hostname:   norm.Hostname,
@@ -378,7 +559,7 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 			if u.eventBus != nil {
 				_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.created", map[string]interface{}{
 					"device_id": targetDeviceID.String(),
-					"source":    source.Type,
+					"source":    effectiveType,
 				}))
 			}
 		} else {
@@ -412,7 +593,7 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 			if u.eventBus != nil {
 				_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.staged", map[string]interface{}{
 					"staging_id": staged.ID.String(),
-					"source":     source.Type,
+					"source":     effectiveType,
 				}))
 			}
 		}
@@ -481,11 +662,34 @@ func (u *DefaultDiscoveryUseCase) persistDiscoveredDevice(ctx context.Context, n
 }
 
 func isTrustedProvider(sourceType string) bool {
-	switch sourceType {
+	switch collectors.CanonicalType(sourceType) {
 	case "proxmox", "docker", "unifi":
 		return true
 	default:
 		return false
+	}
+}
+
+func normalizeToDBCollectorType(t string) string {
+	switch strings.ToLower(strings.TrimSpace(t)) {
+	case "icmp", "icmp_sweep":
+		return "icmp_sweep"
+	case "arp", "arp_sweep":
+		return "arp_sweep"
+	case "reversedns", "reverse_dns", "reverse-dns":
+		return "reverse_dns"
+	case "snmp":
+		return "snmp"
+	case "mdns":
+		return "mdns"
+	case "proxmox":
+		return "proxmox"
+	case "docker":
+		return "docker"
+	case "unifi":
+		return "unifi"
+	default:
+		return t
 	}
 }
 

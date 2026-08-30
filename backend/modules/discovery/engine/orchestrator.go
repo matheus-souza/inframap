@@ -278,6 +278,7 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 			Manufacturer:    normalized.Vendor,
 			DeviceType:      classifyDeviceType(normalized),
 			ConfidenceScore: normalized.ConfidenceScore,
+			ProtocolSource:  normalized.ProtocolSource,
 			RawPayload:      normalized.RawMetadata,
 		}
 

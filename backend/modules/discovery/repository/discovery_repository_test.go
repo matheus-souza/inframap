@@ -42,8 +42,19 @@ func (m *mockDB) Query(_ context.Context, _ string, _ ...interface{}) (pgx.Rows,
 	return nil, errors.New("query not directly supported on mockDB")
 }
 
+type mockRow struct {
+	err error
+}
+
+func (r *mockRow) Scan(_ ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	return errors.New("query row failed in mock")
+}
+
 func (m *mockDB) QueryRow(_ context.Context, _ string, _ ...interface{}) pgx.Row {
-	return nil
+	return &mockRow{err: errors.New("db query failure on mockDB")}
 }
 
 func (m *mockDB) Begin(_ context.Context) (pgx.Tx, error) {
@@ -176,4 +187,36 @@ func TestDiscoveryRepository_DTO_EmptySlices(t *testing.T) {
 	if len(cols) != 0 {
 		t.Errorf("expected 0 collectors, got %d", len(cols))
 	}
+}
+
+func TestPgDiscoveryRepository_CollectorRuns(t *testing.T) {
+	mdb := newMockDB()
+	repo := repository.NewPgDiscoveryRepository(mdb, nil)
+
+	t.Run("CreateCollectorRun returns error for nil params", func(t *testing.T) {
+		err := repo.CreateCollectorRun(context.Background(), nil)
+		if err == nil {
+			t.Error("expected error when CreateCollectorRun receives nil params")
+		}
+	})
+
+	t.Run("CreateCollectorRun fails when DB query fails", func(t *testing.T) {
+		mdb.failExec = true
+		err := repo.CreateCollectorRun(context.Background(), &db.CreateCollectorRunParams{
+			SourceID:      uuid.New(),
+			CollectorType: "icmp_sweep",
+			Status:        "success",
+		})
+		if err == nil {
+			t.Error("expected error when DB exec fails")
+		}
+		mdb.failExec = false
+	})
+
+	t.Run("ListRunsBySourceID fails when DB query fails", func(t *testing.T) {
+		_, err := repo.ListRunsBySourceID(context.Background(), uuid.New(), 0)
+		if err == nil {
+			t.Error("expected error when DB query fails on mockDB")
+		}
+	})
 }
