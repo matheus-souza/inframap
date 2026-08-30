@@ -3,6 +3,9 @@
 package com.inframap.frontend.designsystem
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -44,6 +47,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
@@ -67,7 +71,12 @@ fun InfraMapNavRail(
     onToggleExpanded: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val railWidth = if (isExpanded) 200.dp else 56.dp
+    val targetWidth = if (isExpanded) 220.dp else 56.dp
+    val railWidth by animateDpAsState(
+        targetValue = targetWidth,
+        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        label = "NavRailWidthAnimation",
+    )
     val scrollState = rememberScrollState()
 
     Surface(
@@ -166,7 +175,6 @@ private fun ExpandedNavRailItem(
                 ).semantics { contentDescription = item.label },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Spacer(modifier = Modifier.width(12.dp))
         ExpandedNavRailItemContent(item = item, isSelected = isSelected, foreground = foreground)
     }
 }
@@ -186,8 +194,10 @@ private fun ExpandedNavRailItemContent(
                     .clip(RoundedCornerShape(2.dp))
                     .background(MaterialTheme.colorScheme.primary),
         )
-        Spacer(modifier = Modifier.width(9.dp))
+    } else {
+        Spacer(modifier = Modifier.width(3.dp))
     }
+    Spacer(modifier = Modifier.width(9.dp))
     Icon(
         imageVector = item.icon,
         contentDescription = null,
@@ -199,6 +209,9 @@ private fun ExpandedNavRailItemContent(
         text = item.label,
         style = MaterialTheme.typography.labelLarge,
         color = if (isSelected) foreground else MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
@@ -216,7 +229,7 @@ private fun SlimNavRailItem(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(44.dp)
                 .hoverable(interactionSource)
                 .clickable(
                     interactionSource = interactionSource,
@@ -242,7 +255,7 @@ private fun BoxScope.NavRailActiveIndicator() {
             Modifier
                 .align(Alignment.CenterStart)
                 .width(4.dp)
-                .height(24.dp)
+                .height(20.dp)
                 .clip(RoundedCornerShape(topEnd = 2.dp, bottomEnd = 2.dp))
                 .background(MaterialTheme.colorScheme.primary),
     )
@@ -256,8 +269,8 @@ private fun NavRailIconContainer(
     Box(
         modifier =
             Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .size(36.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .background(
                     if (isSelected) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
@@ -270,6 +283,7 @@ private fun NavRailIconContainer(
         Icon(
             imageVector = item.icon,
             contentDescription = item.label,
+            modifier = Modifier.size(20.dp),
             tint =
                 if (isSelected) {
                     MaterialTheme.colorScheme.primary
