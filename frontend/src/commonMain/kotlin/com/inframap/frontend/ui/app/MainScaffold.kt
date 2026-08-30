@@ -3,12 +3,12 @@
 package com.inframap.frontend.ui.app
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -298,7 +298,7 @@ private fun ScaffoldMainContent(
     onHealthChanged: (Boolean?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier) {
+    SelectionContainer(modifier = modifier) {
         AnimatedContent(
             targetState = currentRoute,
             transitionSpec = {
