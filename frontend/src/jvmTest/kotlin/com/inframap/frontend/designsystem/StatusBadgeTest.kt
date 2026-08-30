@@ -64,6 +64,17 @@ class StatusBadgeTest {
         }
 
     @Test
+    fun sourcePartialBadgeShowsPartialLabel() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapStatusBadge(status = SourceStatus.PARTIAL)
+                }
+            }
+            onNodeWithText("Partial").assertIsDisplayed()
+        }
+
+    @Test
     fun sourceErrorBadgeShowsErrorLabel() =
         runComposeUiTest {
             setContent {
