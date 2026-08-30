@@ -42,7 +42,7 @@ type DiscoveryRepository interface {
 	ListRecordsByDevice(ctx context.Context, deviceID uuid.UUID) ([]*dto.DiscoveryRecordResponse, error)
 	CreateCollectorRun(ctx context.Context, run *db.CreateCollectorRunParams) error
 	ListRunsBySourceID(ctx context.Context, sourceID uuid.UUID, limit int) ([]*dto.CollectorRunResponse, error)
-	ListRunsBySourceIDPaged(ctx context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunDetail, error)
+	ListRunsBySourceIDPaged(ctx context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunResponse, int64, error)
 	PurgeOldCollectorRuns(ctx context.Context, cutoff time.Time, batchSize int) (int64, error)
 }
 
@@ -400,6 +400,24 @@ func (r *PgDiscoveryRepository) CreateCollectorRun(ctx context.Context, run *db.
 	return nil
 }
 
+func mapCollectorRunToResponse(row db.DiscoveryCollectorRun) *dto.CollectorRunResponse {
+	var errMsg string
+	if row.ErrorMessage.Valid {
+		errMsg = row.ErrorMessage.String
+	}
+	return &dto.CollectorRunResponse{
+		ID:            row.ID,
+		SourceID:      row.SourceID,
+		CollectorType: row.CollectorType,
+		Status:        row.Status,
+		DevicesFound:  int(row.DevicesFound),
+		DurationMs:    int64(row.DurationMs),
+		ErrorMessage:  errMsg,
+		StartedAt:     row.StartedAt.Time,
+		FinishedAt:    row.FinishedAt.Time,
+	}
+}
+
 // ListRunsBySourceID retrieves the latest collector execution records for a source.
 func (r *PgDiscoveryRepository) ListRunsBySourceID(ctx context.Context, sourceID uuid.UUID, limit int) ([]*dto.CollectorRunResponse, error) {
 	if limit <= 0 {
@@ -418,21 +436,7 @@ func (r *PgDiscoveryRepository) ListRunsBySourceID(ctx context.Context, sourceID
 
 	items := make([]*dto.CollectorRunResponse, len(rows))
 	for i, row := range rows {
-		var errMsg string
-		if row.ErrorMessage.Valid {
-			errMsg = row.ErrorMessage.String
-		}
-		items[i] = &dto.CollectorRunResponse{
-			ID:            row.ID,
-			SourceID:      row.SourceID,
-			CollectorType: row.CollectorType,
-			Status:        row.Status,
-			DevicesFound:  int(row.DevicesFound),
-			DurationMs:    int64(row.DurationMs),
-			ErrorMessage:  errMsg,
-			StartedAt:     row.StartedAt.Time,
-			FinishedAt:    row.FinishedAt.Time,
-		}
+		items[i] = mapCollectorRunToResponse(row)
 	}
 	return items, nil
 }
@@ -527,7 +531,7 @@ func (r *PgDiscoveryRepository) attachLastRun(ctx context.Context, resp *dto.Dis
 
 // ListRunsBySourceIDPaged retrieves collector execution records with pagination.
 // Returns an empty slice (never nil) if no records are found.
-func (r *PgDiscoveryRepository) ListRunsBySourceIDPaged(ctx context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunDetail, error) {
+func (r *PgDiscoveryRepository) ListRunsBySourceIDPaged(ctx context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunResponse, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	} else if limit > 1000 {
@@ -539,30 +543,25 @@ func (r *PgDiscoveryRepository) ListRunsBySourceIDPaged(ctx context.Context, sou
 		offset = math.MaxInt32
 	}
 
-	rows, err := r.queries.ListCollectorRunsBySourcePaged(ctx, db.ListCollectorRunsBySourcePagedParams{
+	total, err := r.queries.CountCollectorRunsBySource(ctx, sourceID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count collector runs for source %s: %w", sourceID, err)
+	}
+
+	rows, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
 		SourceID: sourceID,
 		Limit:    int32(limit),  //nolint:gosec // clamped to [1, 1000] above
 		Offset:   int32(offset), //nolint:gosec // clamped to [0, math.MaxInt32] above
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list paged collector runs for source %s: %w", sourceID, err)
+		return nil, 0, fmt.Errorf("failed to list paged collector runs for source %s: %w", sourceID, err)
 	}
 
-	items := make([]*dto.CollectorRunDetail, len(rows))
+	items := make([]*dto.CollectorRunResponse, len(rows))
 	for i, row := range rows {
-		var errMsg string
-		if row.ErrorMessage.Valid {
-			errMsg = row.ErrorMessage.String
-		}
-		items[i] = &dto.CollectorRunDetail{
-			CollectorType: row.CollectorType,
-			Status:        row.Status,
-			DevicesFound:  int(row.DevicesFound),
-			DurationMs:    int64(row.DurationMs),
-			ErrorMessage:  errMsg,
-		}
+		items[i] = mapCollectorRunToResponse(row)
 	}
-	return items, nil
+	return items, total, nil
 }
 
 // PurgeOldCollectorRuns deletes discovery collector runs finished before cutoff in chunks of batchSize

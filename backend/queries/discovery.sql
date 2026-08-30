@@ -77,12 +77,9 @@ WHERE source_id = $1
 ORDER BY started_at DESC, id DESC
 LIMIT $2 OFFSET $3;
 
--- name: ListCollectorRunsBySourcePaged :many
-SELECT id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
-FROM discovery_collector_runs
-WHERE source_id = $1
-ORDER BY started_at DESC, id DESC
-LIMIT $2 OFFSET $3;
+-- name: CountCollectorRunsBySource :one
+SELECT COUNT(*) FROM discovery_collector_runs
+WHERE source_id = $1;
 
 -- name: PurgeOldCollectorRunsChunk :execrows
 DELETE FROM discovery_collector_runs

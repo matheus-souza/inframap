@@ -295,7 +295,7 @@ func TestPgDiscoveryRepository_ListRunsBySourceIDPaged(t *testing.T) {
 	t.Run("Fails when DB query fails", func(t *testing.T) {
 		mdb := newMockDB()
 		repo := repository.NewPgDiscoveryRepository(mdb, nil)
-		_, err := repo.ListRunsBySourceIDPaged(context.Background(), uuid.New(), 20, 0)
+		_, _, err := repo.ListRunsBySourceIDPaged(context.Background(), uuid.New(), 20, 0)
 		if err == nil {
 			t.Error("expected error when DB query fails on mockDB")
 		}

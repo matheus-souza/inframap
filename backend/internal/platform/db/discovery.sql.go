@@ -12,6 +12,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCollectorRunsBySource = `-- name: CountCollectorRunsBySource :one
+SELECT COUNT(*) FROM discovery_collector_runs
+WHERE source_id = $1
+`
+
+func (q *Queries) CountCollectorRunsBySource(ctx context.Context, sourceID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCollectorRunsBySource, sourceID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCollectorRun = `-- name: CreateCollectorRun :one
 INSERT INTO discovery_collector_runs (
     id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
@@ -234,50 +246,6 @@ type ListCollectorRunsBySourceParams struct {
 
 func (q *Queries) ListCollectorRunsBySource(ctx context.Context, arg ListCollectorRunsBySourceParams) ([]DiscoveryCollectorRun, error) {
 	rows, err := q.db.Query(ctx, listCollectorRunsBySource, arg.SourceID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DiscoveryCollectorRun{}
-	for rows.Next() {
-		var i DiscoveryCollectorRun
-		if err := rows.Scan(
-			&i.ID,
-			&i.SourceID,
-			&i.CollectorType,
-			&i.Status,
-			&i.DevicesFound,
-			&i.DurationMs,
-			&i.ErrorMessage,
-			&i.StartedAt,
-			&i.FinishedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listCollectorRunsBySourcePaged = `-- name: ListCollectorRunsBySourcePaged :many
-SELECT id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
-FROM discovery_collector_runs
-WHERE source_id = $1
-ORDER BY started_at DESC, id DESC
-LIMIT $2 OFFSET $3
-`
-
-type ListCollectorRunsBySourcePagedParams struct {
-	SourceID uuid.UUID `json:"source_id"`
-	Limit    int32     `json:"limit"`
-	Offset   int32     `json:"offset"`
-}
-
-func (q *Queries) ListCollectorRunsBySourcePaged(ctx context.Context, arg ListCollectorRunsBySourcePagedParams) ([]DiscoveryCollectorRun, error) {
-	rows, err := q.db.Query(ctx, listCollectorRunsBySourcePaged, arg.SourceID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

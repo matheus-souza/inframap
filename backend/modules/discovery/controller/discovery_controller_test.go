@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/modules/discovery/controller"
@@ -19,7 +20,7 @@ import (
 type mockDiscoveryUseCase struct {
 	sources []*dto.DiscoverySourceResponse
 	records []*dto.DiscoveryRecordResponse
-	runs    map[uuid.UUID][]*dto.CollectorRunDetail
+	runs    map[uuid.UUID][]*dto.CollectorRunResponse
 
 	failCreateSource        bool
 	failGetSource           bool
@@ -166,13 +167,13 @@ func (m *mockDiscoveryUseCase) PurgeCollectorRuns(_ context.Context, _ int) (int
 	return 0, nil
 }
 
-func (m *mockDiscoveryUseCase) ListRunsBySource(_ context.Context, idStr string, limit, offset int) ([]*dto.CollectorRunDetail, error) {
+func (m *mockDiscoveryUseCase) ListRunsBySource(_ context.Context, idStr string, limit, offset int) ([]*dto.CollectorRunResponse, int64, error) {
 	if m.failListRuns {
-		return nil, errors.New("internal list runs error")
+		return nil, 0, errors.New("internal list runs error")
 	}
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, usecase.ErrInvalidUUID
+		return nil, 0, usecase.ErrInvalidUUID
 	}
 	found := false
 	for _, s := range m.sources {
@@ -182,15 +183,16 @@ func (m *mockDiscoveryUseCase) ListRunsBySource(_ context.Context, idStr string,
 		}
 	}
 	if !found {
-		return nil, repository.ErrSourceNotFound
+		return nil, 0, repository.ErrSourceNotFound
 	}
 	if m.runs == nil {
-		return make([]*dto.CollectorRunDetail, 0), nil
+		return make([]*dto.CollectorRunResponse, 0), 0, nil
 	}
 	allRuns := m.runs[id]
 	if allRuns == nil {
-		return make([]*dto.CollectorRunDetail, 0), nil
+		return make([]*dto.CollectorRunResponse, 0), 0, nil
 	}
+	total := int64(len(allRuns))
 	if offset < len(allRuns) {
 		allRuns = allRuns[offset:]
 	} else {
@@ -200,9 +202,9 @@ func (m *mockDiscoveryUseCase) ListRunsBySource(_ context.Context, idStr string,
 		allRuns = allRuns[:limit]
 	}
 	if allRuns == nil {
-		allRuns = make([]*dto.CollectorRunDetail, 0)
+		allRuns = make([]*dto.CollectorRunResponse, 0)
 	}
-	return allRuns, nil
+	return allRuns, total, nil
 }
 
 func TestDiscoveryController_Unit(t *testing.T) {
@@ -716,12 +718,12 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		})
 
 		if uc.runs == nil {
-			uc.runs = make(map[uuid.UUID][]*dto.CollectorRunDetail)
+			uc.runs = make(map[uuid.UUID][]*dto.CollectorRunResponse)
 		}
-		uc.runs[validSrc.ID] = []*dto.CollectorRunDetail{
-			{CollectorType: "icmp_sweep", Status: "success", DevicesFound: 5, DurationMs: 120},
-			{CollectorType: "arp_sweep", Status: "success", DevicesFound: 3, DurationMs: 80},
-			{CollectorType: "mdns", Status: "error", DevicesFound: 0, DurationMs: 30, ErrorMessage: "socket error"},
+		uc.runs[validSrc.ID] = []*dto.CollectorRunResponse{
+			{ID: uuid.New(), SourceID: validSrc.ID, CollectorType: "icmp_sweep", Status: "success", DevicesFound: 5, DurationMs: 120, StartedAt: time.Now(), FinishedAt: time.Now()},
+			{ID: uuid.New(), SourceID: validSrc.ID, CollectorType: "arp_sweep", Status: "success", DevicesFound: 3, DurationMs: 80, StartedAt: time.Now(), FinishedAt: time.Now()},
+			{ID: uuid.New(), SourceID: validSrc.ID, CollectorType: "mdns", Status: "error", DevicesFound: 0, DurationMs: 30, ErrorMessage: "socket error", StartedAt: time.Now(), FinishedAt: time.Now()},
 		}
 
 		req := httptest.NewRequest("GET", "/api/v1/discovery/sources/"+validSrc.ID.String()+"/runs?limit=2&offset=0", nil)
@@ -733,19 +735,25 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		}
 
 		var envelope struct {
-			Data []map[string]interface{} `json:"data"`
+			Data struct {
+				Items []map[string]interface{} `json:"items"`
+				Total int64                    `json:"total"`
+			} `json:"data"`
 		}
 		if err := json.NewDecoder(rec.Body).Decode(&envelope); err != nil {
 			t.Fatalf("failed to decode response: %v", err)
 		}
-		if len(envelope.Data) != 2 {
-			t.Fatalf("expected 2 runs on page 1, got %d", len(envelope.Data))
+		if envelope.Data.Total != 3 {
+			t.Errorf("expected total 3, got %d", envelope.Data.Total)
 		}
-		if envelope.Data[0]["collector_type"] != "icmp_sweep" {
-			t.Errorf("expected collector_type 'icmp_sweep', got %v", envelope.Data[0]["collector_type"])
+		if len(envelope.Data.Items) != 2 {
+			t.Fatalf("expected 2 runs on page 1, got %d", len(envelope.Data.Items))
 		}
-		if int(envelope.Data[0]["devices_found"].(float64)) != 5 {
-			t.Errorf("expected devices_found 5, got %v", envelope.Data[0]["devices_found"])
+		if envelope.Data.Items[0]["collector_type"] != "icmp_sweep" {
+			t.Errorf("expected collector_type 'icmp_sweep', got %v", envelope.Data.Items[0]["collector_type"])
+		}
+		if int(envelope.Data.Items[0]["devices_found"].(float64)) != 5 {
+			t.Errorf("expected devices_found 5, got %v", envelope.Data.Items[0]["devices_found"])
 		}
 
 		// Page 2
@@ -758,19 +766,25 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		}
 
 		var envelope2 struct {
-			Data []map[string]interface{} `json:"data"`
+			Data struct {
+				Items []map[string]interface{} `json:"items"`
+				Total int64                    `json:"total"`
+			} `json:"data"`
 		}
 		if err := json.NewDecoder(rec2.Body).Decode(&envelope2); err != nil {
 			t.Fatalf("failed to decode response: %v", err)
 		}
-		if len(envelope2.Data) != 1 {
-			t.Fatalf("expected 1 run on page 2, got %d", len(envelope2.Data))
+		if envelope2.Data.Total != 3 {
+			t.Errorf("expected total 3 on page 2, got %d", envelope2.Data.Total)
 		}
-		if envelope2.Data[0]["collector_type"] != "mdns" {
-			t.Errorf("expected collector_type 'mdns', got %v", envelope2.Data[0]["collector_type"])
+		if len(envelope2.Data.Items) != 1 {
+			t.Fatalf("expected 1 run on page 2, got %d", len(envelope2.Data.Items))
 		}
-		if envelope2.Data[0]["error_message"] != "socket error" {
-			t.Errorf("expected error_message 'socket error', got %v", envelope2.Data[0]["error_message"])
+		if envelope2.Data.Items[0]["collector_type"] != "mdns" {
+			t.Errorf("expected collector_type 'mdns', got %v", envelope2.Data.Items[0]["collector_type"])
+		}
+		if envelope2.Data.Items[0]["error_message"] != "socket error" {
+			t.Errorf("expected error_message 'socket error', got %v", envelope2.Data.Items[0]["error_message"])
 		}
 	})
 
@@ -788,16 +802,22 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		}
 
 		var envelope struct {
-			Data []dto.CollectorRunDetail `json:"data"`
+			Data struct {
+				Items []dto.CollectorRunResponse `json:"items"`
+				Total int64                      `json:"total"`
+			} `json:"data"`
 		}
 		if err := json.NewDecoder(rec.Body).Decode(&envelope); err != nil {
 			t.Fatalf("failed to decode response: %v", err)
 		}
-		if envelope.Data == nil {
+		if envelope.Data.Items == nil {
 			t.Fatal("expected non-nil empty data slice")
 		}
-		if len(envelope.Data) != 0 {
-			t.Errorf("expected 0 runs, got %d", len(envelope.Data))
+		if len(envelope.Data.Items) != 0 {
+			t.Errorf("expected 0 runs, got %d", len(envelope.Data.Items))
+		}
+		if envelope.Data.Total != 0 {
+			t.Errorf("expected total 0, got %d", envelope.Data.Total)
 		}
 	})
 }

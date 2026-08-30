@@ -943,17 +943,23 @@ func TestScheduler_BackgroundPurgeWorker_HandlesErrorGracefully(t *testing.T) {
 		t.Fatalf("Start() error: %v", err)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	deadline := time.After(500 * time.Millisecond)
+	for {
+		if len(uc.getPurgeCalls()) >= 2 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected at least 2 purge calls despite error within 500ms, got %d", len(uc.getPurgeCalls()))
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+
 	// Stop should complete without hanging
 	s.Stop()
-
-	if len(uc.getPurgeCalls()) == 0 {
-		t.Error("expected at least 1 purge call despite error")
-	}
 }
 
 func TestScheduler_BackgroundPurgeWorker_ConfigOverrides(t *testing.T) {
-	t.Setenv("INFRAMAP_DISCOVERY_RUN_RETENTION_DAYS", "21")
 	uc := &fakeUseCase{}
 	updater := &fakeStatusUpdater{}
 	bus := eventbus.NewInMemoryEventBus(1, 16)
@@ -962,6 +968,7 @@ func TestScheduler_BackgroundPurgeWorker_ConfigOverrides(t *testing.T) {
 	s := scheduler.New(uc, updater, bus, slog.Default())
 	s.SetStartupPurgeDelay(10 * time.Millisecond)
 	s.SetPurgeInterval(100 * time.Millisecond)
+	s.SetRetentionDays(21)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -976,7 +983,7 @@ func TestScheduler_BackgroundPurgeWorker_ConfigOverrides(t *testing.T) {
 		calls := uc.getPurgeCalls()
 		if len(calls) >= 1 {
 			if calls[0] != 21 {
-				t.Errorf("expected retention days from env 21, got %d", calls[0])
+				t.Errorf("expected retention days from SetRetentionDays 21, got %d", calls[0])
 			}
 			break
 		}

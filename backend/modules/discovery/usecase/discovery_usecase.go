@@ -32,15 +32,22 @@ const (
 	// DefaultRetentionDays is the default retention period in days for discovery collector runs.
 	DefaultRetentionDays = 7
 
+	// MaxRetentionDays defines the upper boundary for retention duration in days (100 years)
+	// to prevent integer overflow when calculating time.Duration.
+	MaxRetentionDays = 36500
+
 	// RunRetentionDaysEnvVar is the environment variable key for configuring run retention.
 	RunRetentionDaysEnvVar = "INFRAMAP_DISCOVERY_RUN_RETENTION_DAYS"
 )
 
 // GetRetentionDays returns the configured retention duration in days, checking INFRAMAP_DISCOVERY_RUN_RETENTION_DAYS
-// and falling back to DefaultRetentionDays (7).
+// and falling back to DefaultRetentionDays (7). Clamps to MaxRetentionDays.
 func GetRetentionDays() int {
 	if envVal := os.Getenv(RunRetentionDaysEnvVar); envVal != "" {
 		if parsed, err := strconv.Atoi(envVal); err == nil && parsed > 0 {
+			if parsed > MaxRetentionDays {
+				return MaxRetentionDays
+			}
 			return parsed
 		}
 	}
@@ -69,7 +76,7 @@ type DiscoveryUseCase interface {
 	IngestNormalizedDevice(ctx context.Context, sourceID uuid.UUID, norm *dto.NormalizedDeviceDTO) (*dto.DiscoveryRecordResponse, error)
 	ListRecordsByDevice(ctx context.Context, deviceID string) ([]*dto.DiscoveryRecordResponse, error)
 	PurgeCollectorRuns(ctx context.Context, retentionDays int) (int64, error)
-	ListRunsBySource(ctx context.Context, sourceID string, limit, offset int) ([]*dto.CollectorRunDetail, error)
+	ListRunsBySource(ctx context.Context, sourceID string, limit, offset int) ([]*dto.CollectorRunResponse, int64, error)
 }
 
 // DefaultDiscoveryUseCase implements DiscoveryUseCase interface.
@@ -722,6 +729,9 @@ func (u *DefaultDiscoveryUseCase) PurgeCollectorRuns(ctx context.Context, retent
 	if retentionDays <= 0 {
 		retentionDays = GetRetentionDays()
 	}
+	if retentionDays > MaxRetentionDays {
+		retentionDays = MaxRetentionDays
+	}
 	cutoff := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour)
 	const batchSize = 500
 
@@ -749,14 +759,14 @@ func (u *DefaultDiscoveryUseCase) PurgeCollectorRuns(ctx context.Context, retent
 }
 
 // ListRunsBySource retrieves execution history records for a discovery source with pagination.
-func (u *DefaultDiscoveryUseCase) ListRunsBySource(ctx context.Context, sourceID string, limit, offset int) ([]*dto.CollectorRunDetail, error) {
+func (u *DefaultDiscoveryUseCase) ListRunsBySource(ctx context.Context, sourceID string, limit, offset int) ([]*dto.CollectorRunResponse, int64, error) {
 	id, err := uuid.Parse(sourceID)
 	if err != nil {
-		return nil, ErrInvalidUUID
+		return nil, 0, ErrInvalidUUID
 	}
 
 	if _, err := u.discRepo.GetSourceByID(ctx, id); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	if limit <= 0 {

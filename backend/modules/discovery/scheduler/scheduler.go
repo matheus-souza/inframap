@@ -4,8 +4,6 @@ package scheduler
 import (
 	"context"
 	"log/slog"
-	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -74,13 +72,6 @@ type Scheduler struct {
 
 // New creates a Scheduler. Call Start to begin scheduling.
 func New(uc SourceLister, updater StatusUpdater, bus eventbus.EventBus, logger *slog.Logger) *Scheduler {
-	retentionDays := defaultRetentionDays
-	if envVal := os.Getenv("INFRAMAP_DISCOVERY_RUN_RETENTION_DAYS"); envVal != "" {
-		if parsed, err := strconv.Atoi(envVal); err == nil && parsed > 0 {
-			retentionDays = parsed
-		}
-	}
-
 	return &Scheduler{
 		uc:                uc,
 		updater:           updater,
@@ -93,7 +84,7 @@ func New(uc SourceLister, updater StatusUpdater, bus eventbus.EventBus, logger *
 		reconcileInterval: defaultReconcileInterval,
 		purgeInterval:     defaultPurgeInterval,
 		startupPurgeDelay: defaultStartupPurgeDelay,
-		retentionDays:     retentionDays,
+		retentionDays:     0,
 	}
 }
 
@@ -123,6 +114,10 @@ func (s *Scheduler) SetRetentionDays(days int) {
 func (s *Scheduler) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
 	s.cron = cron.New()
+
+	if _, ok := s.uc.(RunPurger); !ok {
+		s.logger.Warn("discovery usecase does not implement RunPurger; background retention purge is disabled")
+	}
 
 	sources, err := s.uc.ListSources(s.ctx)
 	if err != nil {

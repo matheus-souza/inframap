@@ -177,7 +177,7 @@ func (c *DiscoveryController) ListRunsBySource(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	runs, err := c.uc.ListRunsBySource(r.Context(), idStr, limit, offset)
+	runs, total, err := c.uc.ListRunsBySource(r.Context(), idStr, limit, offset)
 	if err != nil {
 		if errors.Is(err, usecase.ErrInvalidUUID) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid discovery source UUID format", nil)
@@ -192,10 +192,13 @@ func (c *DiscoveryController) ListRunsBySource(w http.ResponseWriter, r *http.Re
 	}
 
 	if runs == nil {
-		runs = make([]*dto.CollectorRunDetail, 0)
+		runs = make([]*dto.CollectorRunResponse, 0)
 	}
 
-	httputil.WriteJSON(w, r, http.StatusOK, runs)
+	httputil.WriteJSON(w, r, http.StatusOK, map[string]interface{}{
+		"items": runs,
+		"total": total,
+	})
 }
 
 
