@@ -62,7 +62,6 @@ var ImplementedStatus = map[string]bool{
 	CollectorIDARP:        true,
 	CollectorIDReverseDNS: true,
 	CollectorIDSNMP:       true,
-	CollectorIDMDNS:       true,
 	TypeICMPSweep:         true,
 	TypeARPSweep:          true,
 	TypeReverseDNS:        true,
