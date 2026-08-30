@@ -584,3 +584,299 @@ func TestDefaultMDNSClient_Query(t *testing.T) {
 		t.Errorf("expected Hostname 'test-host', got %s", obs[0].Hostname)
 	}
 }
+
+func TestExtractVendorAndOS_AllBranches(t *testing.T) {
+	tests := []struct {
+		name           string
+		service        string
+		txt            map[string]string
+		expectedVendor string
+		expectedOS     string
+	}{
+		{"Synology model", "_http._tcp", map[string]string{"model": "Synology DS920+"}, "Synology", ""},
+		{"HP printer", "_printer._tcp", map[string]string{"model": "HP LaserJet Pro"}, "HP", ""},
+		{"Brother printer", "_printer._tcp", map[string]string{"model": "Brother MFC-L2710DW"}, "Brother", ""},
+		{"Epson printer", "_printer._tcp", map[string]string{"model": "Epson EcoTank"}, "Epson", ""},
+		{"Ubiquiti router", "_http._tcp", map[string]string{"model": "UniFi Dream Machine"}, "Ubiquiti", ""},
+		{"Apple MacBook model", "_workstation._tcp", map[string]string{"model": "MacBookPro18,1"}, "Apple", ""},
+		{"Google Cast service", "_googlecast._tcp", nil, "Google", ""},
+		{"Spotify service", "_spotify._tcp", nil, "Spotify", ""},
+		{"AirPlay service", "_airplay._tcp", nil, "Apple", ""},
+		{"RAOP service", "_raop._tcp", nil, "Apple", ""},
+		{"Companion-link service", "_companion-link._tcp", nil, "Apple", ""},
+		{"Darwin OS", "_workstation._tcp", map[string]string{"os": "Darwin Kernel 21.6.0"}, "", "macOS"},
+		{"Linux OS", "_workstation._tcp", map[string]string{"os": "Linux 5.15.0-generic"}, "", "Linux"},
+		{"Android OS", "_workstation._tcp", map[string]string{"os": "Android 13"}, "", "Android"},
+		{"OSX OS key", "_workstation._tcp", map[string]string{"osx": "1"}, "", "macOS"},
+		{"Vendor in TXT vendor key", "_workstation._tcp", map[string]string{"vendor": "Dell Inc."}, "Dell Inc.", ""},
+		{"OS in TXT osversion key", "_workstation._tcp", map[string]string{"osversion": "Ubuntu 22.04 (Linux)"}, "", "Linux"},
+		{"OS in TXT osversion windows", "_workstation._tcp", map[string]string{"osversion": "Windows Server 2022"}, "", "Windows"},
+		{"OS in TXT osversion macos", "_workstation._tcp", map[string]string{"osversion": "macOS Sonoma"}, "", "macOS"},
+		{"Arbitrary OS value", "_workstation._tcp", map[string]string{"os": "CustomOS 1.0"}, "", "CustomOS 1.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, osName := mdns.ExtractVendorAndOS(tt.service, tt.txt)
+			if tt.expectedVendor != "" && v != tt.expectedVendor {
+				t.Errorf("ExtractVendorAndOS(%q, %v) vendor = %q, expected %q", tt.service, tt.txt, v, tt.expectedVendor)
+			}
+			if tt.expectedOS != "" && osName != tt.expectedOS {
+				t.Errorf("ExtractVendorAndOS(%q, %v) os = %q, expected %q", tt.service, tt.txt, osName, tt.expectedOS)
+			}
+		})
+	}
+}
+
+func TestParseMDNSPacket_EdgeCases(t *testing.T) {
+	t.Run("invalid or truncated packet", func(t *testing.T) {
+		obs := mdns.ParseMDNSPacket([]byte{0x00, 0x01}, nil)
+		if len(obs) != 0 {
+			t.Errorf("expected 0 observations for corrupted packet, got %d", len(obs))
+		}
+	})
+
+	t.Run("packet without answers or authority", func(t *testing.T) {
+		msg := dnsmessage.Message{
+			Header: dnsmessage.Header{Response: true},
+		}
+		packed, _ := msg.Pack()
+		obs := mdns.ParseMDNSPacket(packed, nil)
+		if len(obs) != 0 {
+			t.Errorf("expected 0 observations for empty answer packet, got %d", len(obs))
+		}
+	})
+
+	t.Run("packet with SRV and TXT records", func(t *testing.T) {
+		msg := dnsmessage.Message{
+			Header: dnsmessage.Header{Response: true},
+			Answers: []dnsmessage.Resource{
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  dnsmessage.MustNewName("MyPrinter._printer._tcp.local."),
+						Type:  dnsmessage.TypePTR,
+						Class: dnsmessage.ClassINET,
+					},
+					Body: &dnsmessage.PTRResource{
+						PTR: dnsmessage.MustNewName("MyPrinter._printer._tcp.local."),
+					},
+				},
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  dnsmessage.MustNewName("MyPrinter._printer._tcp.local."),
+						Type:  dnsmessage.TypeSRV,
+						Class: dnsmessage.ClassINET,
+					},
+					Body: &dnsmessage.SRVResource{
+						Target: dnsmessage.MustNewName("printer-host.local."),
+						Port:   9100,
+					},
+				},
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  dnsmessage.MustNewName("MyPrinter._printer._tcp.local."),
+						Type:  dnsmessage.TypeTXT,
+						Class: dnsmessage.ClassINET,
+					},
+					Body: &dnsmessage.TXTResource{
+						TXT: []string{"model=HP LaserJet 400", "pdl=application/pdf"},
+					},
+				},
+			},
+			Additionals: []dnsmessage.Resource{
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  dnsmessage.MustNewName("printer-host.local."),
+						Type:  dnsmessage.TypeA,
+						Class: dnsmessage.ClassINET,
+					},
+					Body: &dnsmessage.AResource{
+						A: [4]byte{192, 168, 1, 50},
+					},
+				},
+			},
+		}
+		packed, err := msg.Pack()
+		if err != nil {
+			t.Fatalf("failed to pack SRV/TXT message: %v", err)
+		}
+
+		obs := mdns.ParseMDNSPacket(packed, net.ParseIP("192.168.1.50"))
+		if len(obs) != 1 {
+			t.Fatalf("expected 1 observation, got %d", len(obs))
+		}
+		if obs[0].IPAddress != "192.168.1.50" {
+			t.Errorf("expected IP 192.168.1.50, got %s", obs[0].IPAddress)
+		}
+		if obs[0].Hostname != "printer-host" {
+			t.Errorf("expected Hostname 'printer-host', got %s", obs[0].Hostname)
+		}
+		if obs[0].Vendor != "HP" {
+			t.Errorf("expected Vendor 'HP', got %s", obs[0].Vendor)
+		}
+	})
+
+	t.Run("packet with AAAA record and senderIP fallback", func(t *testing.T) {
+		msg := dnsmessage.Message{
+			Header: dnsmessage.Header{Response: true},
+			Answers: []dnsmessage.Resource{
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  dnsmessage.MustNewName("srv._workstation._tcp.local."),
+						Type:  dnsmessage.TypeSRV,
+						Class: dnsmessage.ClassINET,
+					},
+					Body: &dnsmessage.SRVResource{
+						Target: dnsmessage.MustNewName("node1.local."),
+						Port:   22,
+					},
+				},
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  dnsmessage.MustNewName("node1.local."),
+						Type:  dnsmessage.TypeAAAA,
+						Class: dnsmessage.ClassINET,
+					},
+					Body: &dnsmessage.AAAAResource{
+						AAAA: [16]byte{0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+					},
+				},
+			},
+		}
+		packed, _ := msg.Pack()
+		obs := mdns.ParseMDNSPacket(packed, nil)
+		if len(obs) != 1 {
+			t.Fatalf("expected 1 observation for AAAA record, got %d", len(obs))
+		}
+	})
+
+	t.Run("packet with multiple PTR services on same IP tests appendUnique", func(t *testing.T) {
+		msg := dnsmessage.Message{
+			Header: dnsmessage.Header{Response: true},
+			Answers: []dnsmessage.Resource{
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  dnsmessage.MustNewName("_http._tcp.local."),
+						Type:  dnsmessage.TypePTR,
+						Class: dnsmessage.ClassINET,
+					},
+					Body: &dnsmessage.PTRResource{
+						PTR: dnsmessage.MustNewName("web.local."),
+					},
+				},
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  dnsmessage.MustNewName("_ssh._tcp.local."),
+						Type:  dnsmessage.TypePTR,
+						Class: dnsmessage.ClassINET,
+					},
+					Body: &dnsmessage.PTRResource{
+						PTR: dnsmessage.MustNewName("web.local."),
+					},
+				},
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  dnsmessage.MustNewName("web.local."),
+						Type:  dnsmessage.TypeA,
+						Class: dnsmessage.ClassINET,
+					},
+					Body: &dnsmessage.AResource{
+						A: [4]byte{192, 168, 1, 20},
+					},
+				},
+			},
+		}
+		packed, _ := msg.Pack()
+		obs := mdns.ParseMDNSPacket(packed, nil)
+		if len(obs) != 1 {
+			t.Fatalf("expected 1 observation, got %d", len(obs))
+		}
+		services, ok := obs[0].RawMetadata["services"].([]string)
+		if !ok || len(services) < 2 {
+			t.Errorf("expected at least 2 services merged via appendUnique, got %v", services)
+		}
+	})
+
+	t.Run("packet with senderIP fallback when no A record present", func(t *testing.T) {
+		msg := dnsmessage.Message{
+			Header: dnsmessage.Header{Response: true},
+			Answers: []dnsmessage.Resource{
+				{
+					Header: dnsmessage.ResourceHeader{
+						Name:  dnsmessage.MustNewName("only-srv._http._tcp.local."),
+						Type:  dnsmessage.TypeSRV,
+						Class: dnsmessage.ClassINET,
+					},
+					Body: &dnsmessage.SRVResource{
+						Target: dnsmessage.MustNewName("fallback-host.local."),
+						Port:   8080,
+					},
+				},
+			},
+		}
+		packed, _ := msg.Pack()
+		obs := mdns.ParseMDNSPacket(packed, net.ParseIP("192.168.1.75"))
+		if len(obs) != 1 {
+			t.Fatalf("expected 1 observation with senderIP fallback, got %d", len(obs))
+		}
+		if obs[0].IPAddress != "192.168.1.75" {
+			t.Errorf("expected IP 192.168.1.75, got %s", obs[0].IPAddress)
+		}
+	})
+}
+
+func TestNewDefaultMDNSClient(t *testing.T) {
+	client := mdns.NewDefaultMDNSClient()
+	if client == nil {
+		t.Fatal("expected non-nil DefaultMDNSClient")
+	}
+}
+
+func TestParseTXTStrings(t *testing.T) {
+	txt := mdns.ParseTXTStrings([]string{
+		"key=value",
+		"flag",
+		"empty=",
+		"=valonly",
+	})
+	if txt["key"] != "value" {
+		t.Errorf("expected key=value, got %s", txt["key"])
+	}
+	if txt["flag"] != "true" {
+		t.Errorf("expected 'true' for boolean flag, got %s", txt["flag"])
+	}
+	if txt["empty"] != "" {
+		t.Errorf("expected empty string for empty=, got %s", txt["empty"])
+	}
+}
+
+type errPacketConn struct {
+	err error
+}
+
+func (e *errPacketConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (e *errPacketConn) SetWriteDeadline(_ time.Time) error { return nil }
+func (e *errPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
+	return 0, e.err
+}
+func (e *errPacketConn) ReadFrom(_ []byte) (int, net.Addr, error) {
+	return 0, nil, e.err
+}
+func (e *errPacketConn) Close() error { return nil }
+
+func TestDefaultMDNSClient_ErrorHandling(t *testing.T) {
+	t.Run("write error does not crash and returns observations", func(t *testing.T) {
+		errConn := &errPacketConn{err: errors.New("write failed")}
+		client := mdns.NewDefaultMDNSClientWithConn(func(_ string, _ *net.UDPAddr) (mdns.PacketConn, error) {
+			return errConn, nil
+		})
+		obs, err := client.Query(context.Background(), []string{"_workstation._tcp.local."}, 50*time.Millisecond)
+		if err != nil {
+			t.Fatalf("expected nil error on query write failure, got %v", err)
+		}
+		if len(obs) != 0 {
+			t.Errorf("expected 0 observations, got %d", len(obs))
+		}
+	})
+}
+
