@@ -67,12 +67,12 @@ Implementar uma suíte coordenada de refinamentos de UI/UX, transições e ciclo
   - Estágio 1 (`totalSubnets == 0`): Banner sugerindo cadastro de sub-rede / auto-setup.
   - Estágio 2 (`totalSubnets > 0 && totalDiscoverySources == 0`): Banner sugerindo cadastrar Fonte de Descoberta.
   - Estágio 3 (`totalDiscoverySources > 0 && totalActiveDevices == 0 && totalStagedDevices == 0`): Banner sugerindo executar primeira varredura.
-  - Estágio 4 (`totalActiveDevices > 0 || totalStagedDevices > 0`): Omitir banner de boas-vindas.
+  - Estágio 4 (`totalActiveDevices > 0 || totalStagedDevices > 0`): Omitir banner de boas-vindas (precedência máxima: qualquer dispositivo ativo ou em staging suprime o banner).
 
 ### 4. Global 401 Session Interceptor (`ApiClient.kt` & `InfraMapApp.kt`)
 - O `ApiClient` expõe uma propriedade/callback `var onSessionExpired: (() -> Unit)? = null`.
 - Quando `safeCall` recebe `httpStatus == 401` ou código `"UNAUTHORIZED"`, invoca `onSessionExpired?.invoke()`.
-- O ponto de entrada `InfraMapApp` registra o listener no `ApiClient` que aciona `navigator.navigateTo(Route.Login)`.
+- O ponto de entrada `InfraMapApp` registra o listener no `ApiClient` que limpa o token/estado de sessão e aciona `navigator.navigateTo(Route.Login)`.
 
 ---
 

@@ -34,11 +34,11 @@ O uso contínuo da aplicação e sessões de testes manuais identificaram cinco 
   - `totalSubnets == 0`: Sugere criação de sub-rede / Auto Setup.
   - `totalSubnets > 0 && totalDiscoverySources == 0`: Sugere criação de Fonte de Descoberta.
   - `totalDiscoverySources > 0 && totalActiveDevices == 0 && totalStagedDevices == 0`: Sugere disparo da primeira varredura.
-  - `totalActiveDevices > 0 || totalStagedDevices > 0`: Card omitido, dando foco total às métricas.
+  - `totalActiveDevices > 0 || totalStagedDevices > 0`: Card omitido (precedência máxima: presença de dispositivos suprime o banner).
 
 ### 4. Global 401 Session Redirection
 - O `ApiClient` emite um sinal global de expiração de sessão (`onSessionExpired`) quando qualquer resposta HTTP for status `401 Unauthorized` ou possuir código de erro `"UNAUTHORIZED"`.
-- O listener global (conectado ao `Navigator`) executa imediatamente `navigator.navigateTo(Route.Login)`, limpando dados de sessão e prevenindo alertas parciais sobrepostos em dados obsoletos.
+- O listener global (conectado ao `Navigator`) executa imediatamente `navigator.navigateTo(Route.Login)`, limpando dados, tokens e estado de sessão, prevenindo alertas parciais sobrepostos em dados obsoletos.
 
 ## Consequences
 - **Positivas**: UX consistente, navegação suave e sem quebras visuais, maior produtividade técnica permitindo cópia de endereços e IDs, segurança reforçada com logout imediato em caso de token expirado.
