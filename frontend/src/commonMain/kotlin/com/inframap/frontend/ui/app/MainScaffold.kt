@@ -448,6 +448,7 @@ private fun DashboardRoute(
         onStartAutoSetup = viewModel::startAutoSetup,
         onDismissAutoSetup = viewModel::dismissAutoSetup,
         onNavigateToStaging = { navigator.navigateTo(Route.Staging) },
+        onNavigateToDevices = { navigator.navigateTo(Route.Devices) },
     )
 }
 

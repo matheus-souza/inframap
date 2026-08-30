@@ -801,4 +801,50 @@ class DashboardViewModelTest {
             assertNotNull(vm.state.value.errorMessage)
             vm.clear()
         }
+
+    @Test
+    fun progressiveOnboardingStatesReflectDatabaseMetrics() =
+        runTest {
+            val emptyDevices =
+                FakeDeviceRepository(
+                    getDevicesResult = ApiResult.Success(PaginatedList(emptyList(), 0L, 1, 1), ""),
+                )
+            val emptyStaging =
+                FakeStagingRepository(
+                    getStagingDevicesResult = ApiResult.Success(PaginatedList(emptyList(), 0L, 1, 50), ""),
+                )
+            val populatedSubnets =
+                FakeSubnetRepository(
+                    getSubnetsResult =
+                        ApiResult.Success(
+                            PaginatedList(
+                                items = listOf(FakeSubnetRepository.DEFAULT_SUBNET),
+                                total = 1L,
+                                page = 1,
+                                perPage = 50,
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val emptyDiscovery =
+                FakeDashboardRepository(
+                    getDiscoverySourcesResult = ApiResult.Success(emptyList(), requestId = ""),
+                )
+
+            // Stage 2: subnets > 0, discoverySources == 0, devices == 0
+            val vmStage2 =
+                makeVm(
+                    deviceRepo = emptyDevices,
+                    stagingRepo = emptyStaging,
+                    subnetRepo = populatedSubnets,
+                    dashRepo = emptyDiscovery,
+                    scope = this,
+                )
+            advanceUntilIdle()
+
+            assertEquals(1L, vmStage2.state.value.totalSubnets)
+            assertEquals(0L, vmStage2.state.value.totalDiscoverySources)
+            assertEquals(0L, vmStage2.state.value.totalActiveDevices)
+            vmStage2.clear()
+        }
 }
