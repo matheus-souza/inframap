@@ -51,6 +51,11 @@
     <string name="dashboard_welcome_subtitle">Para começar, cadastre uma subrede na seção Subredes e configure uma fonte de descoberta para escanear sua rede automaticamente.</string>
     <string name="dashboard_welcome_cta_subnet">Cadastrar Sub-rede</string>
     <string name="dashboard_welcome_cta_discovery">Configurar Descoberta</string>
+    <string name="dashboard_welcome_stage2_title">Sub-rede configurada!</string>
+    <string name="dashboard_welcome_stage2_subtitle">Agora configure uma fonte de descoberta para encontrar seus dispositivos automaticamente.</string>
+    <string name="dashboard_welcome_stage3_title">Fonte de descoberta pronta!</string>
+    <string name="dashboard_welcome_stage3_subtitle">Dispare uma varredura para descobrir e mapear os dispositivos da sua rede.</string>
+    <string name="dashboard_welcome_cta_trigger_scan">Ir para Descoberta</string>
 
     <!-- Login -->
     <string name="login_title">Login</string>
