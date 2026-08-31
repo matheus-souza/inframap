@@ -532,15 +532,13 @@ func (r *PgDiscoveryRepository) attachLastRun(ctx context.Context, resp *dto.Dis
 // ListRunsBySourceIDPaged retrieves collector execution records with pagination.
 // Returns an empty slice (never nil) if no records are found.
 func (r *PgDiscoveryRepository) ListRunsBySourceIDPaged(ctx context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunResponse, int64, error) {
-	if limit <= 0 {
-		limit = 20
-	} else if limit > 1000 {
-		limit = 1000
+	var safeLimit int32 = 20
+	if limit > 0 && limit <= 1000 {
+		safeLimit = int32(limit) //nolint:gosec // bounds checked in condition
 	}
-	if offset < 0 {
-		offset = 0
-	} else if offset > math.MaxInt32 {
-		offset = math.MaxInt32
+	var safeOffset int32
+	if offset > 0 && offset <= 1000000 {
+		safeOffset = int32(offset) //nolint:gosec // bounds checked in condition
 	}
 
 	total, err := r.queries.CountCollectorRunsBySource(ctx, sourceID)
@@ -550,8 +548,8 @@ func (r *PgDiscoveryRepository) ListRunsBySourceIDPaged(ctx context.Context, sou
 
 	rows, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
 		SourceID: sourceID,
-		Limit:    int32(limit),  //nolint:gosec // clamped to [1, 1000] above
-		Offset:   int32(offset), //nolint:gosec // clamped to [0, math.MaxInt32] above
+		Limit:    safeLimit,
+		Offset:   safeOffset,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list paged collector runs for source %s: %w", sourceID, err)
