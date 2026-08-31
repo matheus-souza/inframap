@@ -57,6 +57,10 @@ SELECT * FROM discovery_source_collectors
 WHERE source_id = $1
 ORDER BY created_at ASC, id ASC;
 
+-- name: GetDiscoverySourceCollectorBySourceAndType :one
+SELECT * FROM discovery_source_collectors
+WHERE source_id = $1 AND collector_type = $2;
+
 -- name: ListAllDiscoverySourceCollectors :many
 SELECT * FROM discovery_source_collectors
 ORDER BY created_at ASC, id ASC;

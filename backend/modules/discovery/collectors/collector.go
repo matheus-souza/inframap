@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // ProviderRef represents the unique external identity of an entity managed by a provider.
@@ -30,6 +32,7 @@ type DiscoveryTarget struct {
 	CIDR            string
 	SubnetID        string
 	CredentialSetID *string
+	SourceID        *uuid.UUID
 }
 
 // RawObservation represents a single un-reconciled fact gathered by a collector.

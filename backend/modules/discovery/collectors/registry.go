@@ -67,8 +67,8 @@ var ImplementedStatus = map[string]bool{
 	TypeReverseDNS:        true,
 	"reverse-dns":         true,
 	TypeMDNS:              true,
-	TypeProxmox:           false, // Not implemented in this wave
-	TypeDocker:            false, // Not implemented in this wave
+	TypeProxmox:           true,
+	TypeDocker:            true,
 	TypeUniFi:             false, // Not implemented in this wave
 }
 
