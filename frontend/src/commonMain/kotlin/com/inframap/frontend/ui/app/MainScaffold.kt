@@ -714,11 +714,11 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
     val actions =
         CreateDiscoverySourceActions(
             onNameChanged = viewModel::onNameChanged,
-            onSourceTypeChanged = viewModel::onSourceTypeChanged,
             onScheduleCronChanged = viewModel::onScheduleCronChanged,
             onConfigCidrChanged = viewModel::onConfigCidrChanged,
             onEnabledChanged = viewModel::onEnabledChanged,
             onSubnetSelected = viewModel::onSubnetSelected,
+            onCollectorsChanged = viewModel::onCollectorsChanged,
             onSubmitClicked = {
                 viewModel.createSource {
                     navigator.navigateTo(Route.DiscoverySources)

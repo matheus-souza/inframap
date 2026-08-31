@@ -1,6 +1,7 @@
 package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.CollectorConfigDto
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.model.toSummary
@@ -8,9 +9,10 @@ import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCa
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.discovery_error_create
+import com.inframap.frontend.generated.resources.discovery_validation_collector_required
 import com.inframap.frontend.generated.resources.validation_cidr_invalid
+import com.inframap.frontend.generated.resources.validation_cidr_required
 import com.inframap.frontend.generated.resources.validation_discovery_name_required
-import com.inframap.frontend.generated.resources.validation_discovery_type_required
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
@@ -47,8 +49,26 @@ class CreateDiscoverySourceViewModel(
         updateState { it.copy(name = name, validationErrors = it.validationErrors - "name") }
     }
 
-    fun onSourceTypeChanged(sourceType: String) {
-        updateState { it.copy(sourceType = sourceType, validationErrors = it.validationErrors - "type") }
+    fun toggleCollector(collectorType: String) {
+        val current = state.value.selectedCollectors
+        onCollectorsChanged(
+            if (collectorType in current) current - collectorType else current + collectorType,
+        )
+    }
+
+    fun onCollectorsChanged(collectors: Set<String>) {
+        updateState { current ->
+            val errors =
+                if (collectors.isNotEmpty()) {
+                    current.validationErrors - "collectors"
+                } else {
+                    current.validationErrors
+                }
+            current.copy(
+                selectedCollectors = collectors,
+                validationErrors = errors,
+            )
+        }
     }
 
     fun onScheduleCronChanged(cron: String) {
@@ -82,18 +102,20 @@ class CreateDiscoverySourceViewModel(
     fun validate(): Boolean {
         val errors = mutableMapOf<String, UiText>()
         val name = state.value.name.trim()
-        val sourceType = state.value.sourceType
         val cidr = state.value.configCidr.trim()
+        val selectedCollectors = state.value.selectedCollectors
 
         if (name.isEmpty()) {
             errors["name"] = UiText.Resource(Res.string.validation_discovery_name_required)
         }
 
-        if (sourceType.isEmpty()) {
-            errors["type"] = UiText.Resource(Res.string.validation_discovery_type_required)
+        if (selectedCollectors.isEmpty()) {
+            errors["collectors"] = UiText.Resource(Res.string.discovery_validation_collector_required)
         }
 
-        if (cidr.isNotEmpty() && !isValidCidr(cidr)) {
+        if (cidr.isEmpty()) {
+            errors["cidr"] = UiText.Resource(Res.string.validation_cidr_required)
+        } else if (!isValidCidr(cidr)) {
             errors["cidr"] = UiText.Resource(Res.string.validation_cidr_invalid)
         }
 
@@ -116,16 +138,18 @@ class CreateDiscoverySourceViewModel(
                 null
             }
 
+        val collectors = stateVal.selectedCollectors.map { CollectorConfigDto(type = it) }
+
         launchJob("submit") {
             when (
                 val result =
                     createSourceUseCase(
                         CreateDiscoverySourceRequest(
                             name = stateVal.name.trim(),
-                            type = stateVal.sourceType,
                             enabled = stateVal.enabled,
                             scheduleCron = stateVal.scheduleCron.trim().ifEmpty { null },
                             config = config,
+                            collectors = collectors,
                         ),
                     )
             ) {
