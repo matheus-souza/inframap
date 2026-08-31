@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/matheussouza/inframap/modules/discovery/collectors"
 )
 
 var (
@@ -139,17 +140,19 @@ type DiscoverySourceResponse struct {
 
 // NormalizedDeviceDTO represents a normalized device observation parsed from raw scanner payloads.
 type NormalizedDeviceDTO struct {
-	Hostname        string                 `json:"hostname"`
-	IPAddress       string                 `json:"ip_address,omitempty"`
-	MACAddress      string                 `json:"mac_address,omitempty"`
-	Manufacturer    string                 `json:"manufacturer,omitempty"`
-	Model           string                 `json:"model,omitempty"`
-	SerialNumber    string                 `json:"serial_number,omitempty"`
-	DeviceType      string                 `json:"device_type"`
-	ProviderUUID    string                 `json:"provider_uuid,omitempty"`
-	ConfidenceScore int                    `json:"confidence_score"`
-	ProtocolSource  string                 `json:"protocol_source,omitempty"`
-	RawPayload      map[string]interface{} `json:"raw_payload"`
+	Hostname          string                 `json:"hostname"`
+	IPAddress         string                 `json:"ip_address,omitempty"`
+	MACAddress        string                 `json:"mac_address,omitempty"`
+	Manufacturer      string                 `json:"manufacturer,omitempty"`
+	Model             string                 `json:"model,omitempty"`
+	SerialNumber      string                 `json:"serial_number,omitempty"`
+	DeviceType        string                 `json:"device_type"`
+	ProviderUUID      string                 `json:"provider_uuid,omitempty"`
+	ProviderRef       *collectors.ProviderRef `json:"provider_ref,omitempty"`
+	ParentProviderRef *collectors.ProviderRef `json:"parent_provider_ref,omitempty"`
+	ConfidenceScore   int                    `json:"confidence_score"`
+	ProtocolSource    string                 `json:"protocol_source,omitempty"`
+	RawPayload        map[string]interface{} `json:"raw_payload"`
 }
 
 // DiscoveryRecordResponse represents a discovery observation record.
