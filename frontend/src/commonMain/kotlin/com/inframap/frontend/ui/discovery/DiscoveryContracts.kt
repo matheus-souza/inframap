@@ -33,7 +33,7 @@ data class DiscoveryListActions(
 
 data class CreateDiscoverySourceUiState(
     val name: String = "",
-    val sourceType: String = "",
+    val selectedCollectors: Set<String> = setOf("icmp_sweep", "arp_sweep", "mdns", "reverse_dns"),
     val scheduleCron: String = "",
     val configCidr: String = "",
     val enabled: Boolean = true,
@@ -47,11 +47,11 @@ data class CreateDiscoverySourceUiState(
 
 data class CreateDiscoverySourceActions(
     val onNameChanged: (String) -> Unit,
-    val onSourceTypeChanged: (String) -> Unit,
     val onScheduleCronChanged: (String) -> Unit,
     val onConfigCidrChanged: (String) -> Unit,
     val onEnabledChanged: (Boolean) -> Unit,
     val onSubnetSelected: (SubnetSummary) -> Unit,
+    val onCollectorsChanged: (Set<String>) -> Unit = {},
     val onSubmitClicked: () -> Unit,
     val onCancelClicked: () -> Unit,
 )
