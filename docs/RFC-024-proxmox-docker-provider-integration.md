@@ -220,18 +220,18 @@ func observationDedupeKey(obs collectors.RawObservation) string {
   - `GET /api2/json/nodes/{node}/qemu/{vmid}/agent/network-get-interfaces`: Best-effort guest agent IP/MAC resolution.
 - **Payload Mapping**:
   - Node: `device_type: "server"`, `ProviderRef: proxmox:<scope>:node:<nodename>`, `ParentProviderRef: nil`.
-  - QEMU VM: `device_type: "vm"`, `ProviderRef: proxmox:<scope>:qemu:<vmid>`, `ParentProviderRef: proxmox:<scope>:node:<nodename>`.
+  - QEMU VM: `device_type: "vm"` (canonical contract per RFC-006), `ProviderRef: proxmox:<scope>:qemu:<vmid>`, `ParentProviderRef: proxmox:<scope>:node:<nodename>`.
   - LXC: `device_type: "container"`, `ProviderRef: proxmox:<scope>:lxc:<vmid>`, `ParentProviderRef: proxmox:<scope>:node:<nodename>`.
   - Metadata: CPU cores, RAM bytes, Disk bytes, `power_state: "running" | "stopped" | "paused"`.
 
 ### 6.2. Docker Engine Collector Specifications
 - **Transport**: Unix Socket (`/var/run/docker.sock`) or TCP (`tcp://host:2376` with TLS).
 - **Endpoints**:
-  - `GET /info`: Daemon host metadata and Engine ID.
+  - `GET /info`: Daemon host metadata, engine name, and daemon ID (`ID` field).
   - `GET /containers/json?all=true`: All running, exited, and paused containers.
   - `GET /networks`: Docker bridge, overlay, and macvlan networks.
 - **Payload Mapping**:
-  - Host: `device_type: "server"`, `ProviderRef: docker:<scope>:engine:<daemon_id>`.
+  - Host: `device_type: "server"`, `ProviderRef: docker:<scope>:engine:<daemon_id>`, `ParentProviderRef: nil`.
   - Container: `device_type: "container"`, `ProviderRef: docker:<scope>:container:<container_id>`, `ParentProviderRef: docker:<scope>:engine:<daemon_id>`.
   - Metadata: Port mappings (`host_port -> container_port`), attached networks, image repository & digest tag, `power_state: "running" | "exited" | "paused"`.
 
@@ -245,13 +245,13 @@ func observationDedupeKey(obs collectors.RawObservation) string {
   - Providers: `Proxmox VE`, `Docker Engine`, `UniFi`.
 - Selecting `Proxmox VE` reveals:
   - API URL (`https://proxmox.local:8006`).
-  - Auth Mode: `API Token` (`token_id` + `token_secret`) or `Credential Reference`.
+  - Auth Mode: `API Token` (`token_id` + `token_secret`) or `Credential Reference` (`credential_id`).
   - TLS Verify toggle.
-  - Action Button: **"Test Connection"** (dispatches `POST /api/v1/integrations/providers/proxmox/health` with body `{"api_url":"...", "token_id":"...", "token_secret":"...", "tls_verify":true}`).
+  - Action Button: **"Test Connection"** (dispatches `POST /api/v1/integrations/providers/proxmox/health` with body `{"api_url":"...", "token_id":"...", "token_secret":"...", "tls_verify":true, "credential_id":"..."}`).
 - Selecting `Docker Engine` reveals:
   - Socket Path / TCP URL (`unix:///var/run/docker.sock` or `tcp://192.168.1.50:2376`).
-  - TLS Cert/Key inputs (when TCP).
-  - Action Button: **"Test Connection"** (dispatches `POST /api/v1/integrations/providers/docker/health` with body `{"socket_path":"/var/run/docker.sock", "tcp_url":"...", "tls_verify":false}`).
+  - TLS Cert/Key inputs (`tls_ca_cert`, `tls_client_cert`, `tls_client_key`) or `Credential Reference` (`credential_id`).
+  - Action Button: **"Test Connection"** (dispatches `POST /api/v1/integrations/providers/docker/health` with body `{"socket_path":"/var/run/docker.sock", "tcp_url":"...", "tls_ca_cert":"...", "tls_client_cert":"...", "tls_client_key":"...", "tls_verify":false, "credential_id":"..."}`).
 
 
 ### 7.2. Topology Visualization
