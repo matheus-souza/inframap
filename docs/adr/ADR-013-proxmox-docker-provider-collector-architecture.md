@@ -26,14 +26,19 @@ Prior to this decision:
 
 ### 3. Workload Identity (`ProviderRef`) and Matcher Tier 0
 - Introduce `ProviderRef` (`provider:scope:kind:native_id`) as a first-class identity attribute on `RawObservation` and `NormalizedDevice`:
-  - Proxmox Node: `proxmox:<scope>:node:<name>`
-  - Proxmox VM/LXC: `proxmox:<scope>:vmid:<VMID>` (Node excluded to maintain immutable identity across VM migrations)
+  - Proxmox Node: `proxmox:<scope>:node:<nodename>`
+  - Proxmox VM: `proxmox:<scope>:qemu:<vmid>`
+  - Proxmox LXC: `proxmox:<scope>:lxc:<vmid>`
   - Docker Host: `docker:<scope>:engine:<daemon_id>`
-  - Docker Container: `docker:<scope>:<daemon_id>:container:<container_id>`
+  - Docker Container: `docker:<scope>:container:<container_id>`
+  - ParentProviderRef:
+    - VM/LXC Parent: `proxmox:<scope>:node:<nodename>`
+    - Container Parent: `docker:<scope>:engine:<daemon_id>`
 - Update `validator.go`: Observations are valid if they have IP, MAC, OR a valid `ProviderRef` (`ErrMissingIdentity`).
 - Matcher: Promote `ProviderRef` to **Tier 0** (highest precedence, above MAC), preventing container recreation churn.
 - Cycle deduplication: Keyed by `processedKeys` (`ProviderRef` → MAC → IP → Hostname).
 - Deterministic synthetic hostname fallback: `pve-node1/qemu/101` for unnamed workloads.
+
 
 ### 4. Explicit Hierarchy and Topology Re-anchoring (`ParentProviderRef`)
 - Add `ParentProviderRef` to `RawObservation` and `NormalizedDevice`.

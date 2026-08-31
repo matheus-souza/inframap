@@ -144,7 +144,20 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_devices_provider_ref
     ON devices((metadata->>'provider_ref')) 
     WHERE deleted_at IS NULL AND metadata ? 'provider_ref';
 
--- 4. Unique constraint on topology links to ensure idempotent containment edges
+-- 4. Clean up duplicate topology links prior to unique constraint creation
+DELETE FROM topology_links
+WHERE id IN (
+    SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (
+            PARTITION BY source_device_id, target_device_id, link_type 
+            ORDER BY created_at DESC, id ASC
+        ) as rnum
+        FROM topology_links
+    ) t
+    WHERE t.rnum > 1
+);
+
+-- 5. Unique constraint on topology links to ensure idempotent containment edges
 ALTER TABLE topology_links 
     DROP CONSTRAINT IF EXISTS uq_topology_links_source_target_type;
 
@@ -204,8 +217,8 @@ func observationDedupeKey(obs collectors.RawObservation) string {
   - `GET /api2/json/nodes/{node}/qemu/{vmid}/agent/network-get-interfaces`: Best-effort guest agent IP/MAC resolution.
 - **Payload Mapping**:
   - Node: `device_type: "server"`, `ProviderRef: proxmox:<scope>:node:<nodename>`, `ParentProviderRef: nil`.
-  - QEMU VM: `device_type: "vm"`, `ProviderRef: proxmox:<scope>:vmid:<vmid>`, `ParentProviderRef: proxmox:<scope>:node:<nodename>`.
-  - LXC: `device_type: "container"`, `ProviderRef: proxmox:<scope>:vmid:<vmid>`, `ParentProviderRef: proxmox:<scope>:node:<nodename>`.
+  - QEMU VM: `device_type: "vm"`, `ProviderRef: proxmox:<scope>:qemu:<vmid>`, `ParentProviderRef: proxmox:<scope>:node:<nodename>`.
+  - LXC: `device_type: "container"`, `ProviderRef: proxmox:<scope>:lxc:<vmid>`, `ParentProviderRef: proxmox:<scope>:node:<nodename>`.
   - Metadata: CPU cores, RAM bytes, Disk bytes, `power_state: "running" | "stopped" | "paused"`.
 
 ### 6.2. Docker Engine Collector Specifications
@@ -216,7 +229,7 @@ func observationDedupeKey(obs collectors.RawObservation) string {
   - `GET /networks`: Docker bridge, overlay, and macvlan networks.
 - **Payload Mapping**:
   - Host: `device_type: "server"`, `ProviderRef: docker:<scope>:engine:<daemon_id>`.
-  - Container: `device_type: "container"`, `ProviderRef: docker:<scope>:<daemon_id>:container:<container_id>`, `ParentProviderRef: docker:<scope>:engine:<daemon_id>`.
+  - Container: `device_type: "container"`, `ProviderRef: docker:<scope>:container:<container_id>`, `ParentProviderRef: docker:<scope>:engine:<daemon_id>`.
   - Metadata: Port mappings (`host_port -> container_port`), attached networks, image repository & digest tag, `power_state: "running" | "exited" | "paused"`.
 
 ---
@@ -231,11 +244,12 @@ func observationDedupeKey(obs collectors.RawObservation) string {
   - API URL (`https://proxmox.local:8006`).
   - Auth Mode: `API Token` (`token_id` + `token_secret`) or `Credential Reference`.
   - TLS Verify toggle.
-  - Action Button: **"Test Connection"** (dispatches `POST /api/v1/integrations/providers/proxmox/health`).
+  - Action Button: **"Test Connection"** (dispatches `POST /api/v1/integrations/providers/proxmox/health` with body `{"api_url":"...", "token_id":"...", "token_secret":"...", "tls_verify":true}`).
 - Selecting `Docker Engine` reveals:
   - Socket Path / TCP URL (`unix:///var/run/docker.sock` or `tcp://192.168.1.50:2376`).
   - TLS Cert/Key inputs (when TCP).
-  - Action Button: **"Test Connection"**.
+  - Action Button: **"Test Connection"** (dispatches `POST /api/v1/integrations/providers/docker/health` with body `{"socket_path":"/var/run/docker.sock", "tcp_url":"...", "tls_verify":false}`).
+
 
 ### 7.2. Topology Visualization
 - Renders parent-child nodes connected via `hosted_on` containment edges.
