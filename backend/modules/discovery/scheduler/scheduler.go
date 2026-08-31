@@ -13,7 +13,12 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-const defaultReconcileInterval = 5 * time.Minute
+const (
+	defaultReconcileInterval = 5 * time.Minute
+	defaultPurgeInterval     = 24 * time.Hour
+	defaultStartupPurgeDelay = 1 * time.Minute
+	defaultRetentionDays     = 7
+)
 
 type registeredEntry struct {
 	entryID  cron.EntryID
@@ -24,6 +29,11 @@ type registeredEntry struct {
 type SourceLister interface {
 	ListSources(ctx context.Context) ([]*dto.DiscoverySourceResponse, error)
 	TriggerRun(ctx context.Context, sourceID string) (*dto.DiscoverySourceResponse, error)
+}
+
+// RunPurger purges old collector runs based on retention policy.
+type RunPurger interface {
+	PurgeCollectorRuns(ctx context.Context, retentionDays int) (int64, error)
 }
 
 // StatusUpdater persists source status changes (boot cleanup, shutdown).
@@ -52,6 +62,9 @@ type Scheduler struct {
 	wg          sync.WaitGroup
 
 	reconcileInterval time.Duration
+	purgeInterval     time.Duration
+	startupPurgeDelay time.Duration
+	retentionDays     int
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -69,18 +82,48 @@ func New(uc SourceLister, updater StatusUpdater, bus eventbus.EventBus, logger *
 		inFlight:          make(map[uuid.UUID]bool),
 		cancelled:         make(map[uuid.UUID]bool),
 		reconcileInterval: defaultReconcileInterval,
+		purgeInterval:     defaultPurgeInterval,
+		startupPurgeDelay: defaultStartupPurgeDelay,
+		retentionDays:     0,
 	}
 }
 
 // SetReconcileInterval overrides the default 5-minute reconciliation interval. Must be called before Start.
 func (s *Scheduler) SetReconcileInterval(d time.Duration) {
-	s.reconcileInterval = d
+	if d > 0 {
+		s.reconcileInterval = d
+	}
+}
+
+// SetPurgeInterval overrides the default 24-hour purge interval. Must be called before Start.
+func (s *Scheduler) SetPurgeInterval(d time.Duration) {
+	if d > 0 {
+		s.purgeInterval = d
+	}
+}
+
+// SetStartupPurgeDelay overrides the default 1-minute delay before the first purge run. Must be called before Start.
+func (s *Scheduler) SetStartupPurgeDelay(d time.Duration) {
+	if d >= 0 {
+		s.startupPurgeDelay = d
+	}
+}
+
+// SetRetentionDays overrides the default retention days for collector runs.
+func (s *Scheduler) SetRetentionDays(days int) {
+	if days > 0 {
+		s.retentionDays = days
+	}
 }
 
 // Start loads sources, cleans up stale statuses, registers cron jobs, and starts the cron runner.
 func (s *Scheduler) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
 	s.cron = cron.New()
+
+	if _, ok := s.uc.(RunPurger); !ok {
+		s.logger.Warn("discovery usecase does not implement RunPurger; background retention purge is disabled")
+	}
 
 	sources, err := s.uc.ListSources(s.ctx)
 	if err != nil {
@@ -118,6 +161,8 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	s.cron.Start()
 	s.wg.Add(1)
 	go s.reconcileLoop()
+	s.wg.Add(1)
+	go s.purgeLoop()
 	return nil
 }
 
@@ -331,7 +376,11 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 
 func (s *Scheduler) reconcileLoop() {
 	defer s.wg.Done()
-	ticker := time.NewTicker(s.reconcileInterval)
+	interval := s.reconcileInterval
+	if interval <= 0 {
+		interval = 5 * time.Minute
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -390,3 +439,62 @@ func (s *Scheduler) getSourceLock(id uuid.UUID) *sync.Mutex {
 	}
 	return mu
 }
+
+func (s *Scheduler) purgeLoop() {
+	defer s.wg.Done()
+
+	// Initial delay before the first purge run
+	select {
+	case <-s.ctx.Done():
+		return
+	case <-time.After(s.startupPurgeDelay):
+		s.executePurge()
+	}
+
+	interval := s.purgeInterval
+	if interval <= 0 {
+		interval = 24 * time.Hour
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.executePurge()
+		}
+	}
+}
+
+func (s *Scheduler) executePurge() {
+	purger, ok := s.uc.(RunPurger)
+	if !ok {
+		return
+	}
+
+	s.logger.Debug("starting background retention purge for discovery collector runs",
+		slog.Int("retention_days", s.retentionDays),
+	)
+
+	deleted, err := purger.PurgeCollectorRuns(s.ctx, s.retentionDays)
+	if err != nil {
+		if s.ctx.Err() != nil {
+			return
+		}
+		s.logger.Error("background retention purge failed",
+			slog.Int("retention_days", s.retentionDays),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	if deleted > 0 {
+		s.logger.Info("background retention purge completed",
+			slog.Int64("purged_runs", deleted),
+			slog.Int("retention_days", s.retentionDays),
+		)
+	}
+}
+

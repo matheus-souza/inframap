@@ -76,3 +76,17 @@ SELECT * FROM discovery_collector_runs
 WHERE source_id = $1
 ORDER BY started_at DESC, id DESC
 LIMIT $2 OFFSET $3;
+
+-- name: CountCollectorRunsBySource :one
+SELECT COUNT(*) FROM discovery_collector_runs
+WHERE source_id = $1;
+
+-- name: PurgeOldCollectorRunsChunk :execrows
+DELETE FROM discovery_collector_runs
+WHERE id IN (
+    SELECT sub.id FROM discovery_collector_runs sub
+    WHERE sub.finished_at < $1
+    ORDER BY sub.finished_at ASC, sub.id ASC
+    LIMIT $2
+);
+

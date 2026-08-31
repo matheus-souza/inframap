@@ -13,8 +13,10 @@ func RegisterRoutes(mux *http.ServeMux, ctrl *controller.DiscoveryController) {
 	mux.HandleFunc("POST /api/v1/discovery/sources", ctrl.CreateSource)
 	mux.HandleFunc("GET /api/v1/discovery/sources/{id}", ctrl.GetSourceByID)
 	mux.HandleFunc("POST /api/v1/discovery/sources/{id}/run", ctrl.TriggerRun)
+	mux.HandleFunc("GET /api/v1/discovery/sources/{id}/runs", ctrl.ListRunsBySource)
 	mux.HandleFunc("DELETE /api/v1/discovery/sources/{id}", ctrl.DeleteSource)
 	mux.HandleFunc("POST /api/v1/discovery/scan", ctrl.TriggerScan)
 	mux.HandleFunc("GET /api/v1/discovery/devices/{id}/records", ctrl.ListRecordsByDevice)
 }
+
 

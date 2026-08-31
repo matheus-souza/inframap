@@ -26,6 +26,13 @@ type mockDiscRepo struct {
 	failGetSource          bool
 	failUpdateSourceStatus bool
 	failCreateCollectorRun bool
+	failPurge              bool
+	failListRunsPaged      bool
+	purgedCount            int64
+	lastCutoff             time.Time
+	lastBatchSize          int
+	lastLimit              int
+	lastOffset             int
 }
 
 func newMockDiscRepo() *mockDiscRepo {
@@ -159,6 +166,60 @@ func (m *mockDiscRepo) ListRunsBySourceID(_ context.Context, sourceID uuid.UUID,
 	}
 	return res, nil
 }
+
+
+
+func (m *mockDiscRepo) ListRunsBySourceIDPaged(_ context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunResponse, int64, error) {
+	m.lastLimit = limit
+	m.lastOffset = offset
+	if m.failListRunsPaged {
+		return nil, 0, errors.New("db error listing runs paged")
+	}
+	res := make([]*dto.CollectorRunResponse, 0)
+	var matched []*db.CreateCollectorRunParams
+	for _, r := range m.runs {
+		if r.SourceID == sourceID {
+			matched = append(matched, r)
+		}
+	}
+	total := int64(len(matched))
+	if offset < len(matched) {
+		matched = matched[offset:]
+	} else {
+		matched = nil
+	}
+	for _, r := range matched {
+		var errMsg string
+		if r.ErrorMessage.Valid {
+			errMsg = r.ErrorMessage.String
+		}
+		res = append(res, &dto.CollectorRunResponse{
+			ID:            r.ID,
+			SourceID:      r.SourceID,
+			CollectorType: r.CollectorType,
+			Status:        r.Status,
+			DevicesFound:  int(r.DevicesFound),
+			DurationMs:    int64(r.DurationMs),
+			ErrorMessage:  errMsg,
+			StartedAt:     r.StartedAt.Time,
+			FinishedAt:    r.FinishedAt.Time,
+		})
+		if limit > 0 && len(res) >= limit {
+			break
+		}
+	}
+	return res, total, nil
+}
+
+func (m *mockDiscRepo) PurgeOldCollectorRuns(_ context.Context, cutoff time.Time, batchSize int) (int64, error) {
+	m.lastCutoff = cutoff
+	m.lastBatchSize = batchSize
+	if m.failPurge {
+		return 0, errors.New("db purge failure")
+	}
+	return m.purgedCount, nil
+}
+
 
 type mockInvRepo struct {
 	devices []db.Device
@@ -947,5 +1008,170 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 			t.Errorf("expected ErrInvalidInput for invalid collector, got %v", err)
 		}
 	})
+
+	t.Run("PurgeCollectorRuns Default and Configurable Retention", func(t *testing.T) {
+		discRepo.purgedCount = 42
+		discRepo.failPurge = false
+
+		// 1. Default retention days (7)
+		t.Setenv(usecase.RunRetentionDaysEnvVar, "")
+		purged, err := uc.PurgeCollectorRuns(ctx, 0)
+		if err != nil {
+			t.Fatalf("expected nil error on purge, got %v", err)
+		}
+		if purged != 42 {
+			t.Errorf("expected 42 purged, got %d", purged)
+		}
+		expectedCutoff := time.Now().Add(-7 * 24 * time.Hour)
+		diff := discRepo.lastCutoff.Sub(expectedCutoff)
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > 5*time.Second {
+			t.Errorf("expected cutoff around %v, got %v", expectedCutoff, discRepo.lastCutoff)
+		}
+
+		// 2. Override via environment variable
+		t.Setenv(usecase.RunRetentionDaysEnvVar, "14")
+		purged, err = uc.PurgeCollectorRuns(ctx, 0)
+		if err != nil {
+			t.Fatalf("expected nil error on purge with env override, got %v", err)
+		}
+		if purged != 42 {
+			t.Errorf("expected 42 purged, got %d", purged)
+		}
+		expectedCutoff14 := time.Now().Add(-14 * 24 * time.Hour)
+		diff14 := discRepo.lastCutoff.Sub(expectedCutoff14)
+		if diff14 < 0 {
+			diff14 = -diff14
+		}
+		if diff14 > 5*time.Second {
+			t.Errorf("expected cutoff around %v, got %v", expectedCutoff14, discRepo.lastCutoff)
+		}
+
+		// 3. Explicit parameter overrides environment variable
+		purged, err = uc.PurgeCollectorRuns(ctx, 30)
+		if err != nil {
+			t.Fatalf("expected nil error on purge with explicit param, got %v", err)
+		}
+		if purged != 42 {
+			t.Errorf("expected 42 purged, got %d", purged)
+		}
+		expectedCutoff30 := time.Now().Add(-30 * 24 * time.Hour)
+		diff30 := discRepo.lastCutoff.Sub(expectedCutoff30)
+		if diff30 < 0 {
+			diff30 = -diff30
+		}
+		if diff30 > 5*time.Second {
+			t.Errorf("expected cutoff around %v, got %v", expectedCutoff30, discRepo.lastCutoff)
+		}
+
+		// 4. Repository failure
+		discRepo.failPurge = true
+		_, err = uc.PurgeCollectorRuns(ctx, 7)
+		if err == nil {
+			t.Fatal("expected error on repo purge failure, got nil")
+		}
+		discRepo.failPurge = false
+
+		// 5. Overflow clamp for massive retention days
+		purged, err = uc.PurgeCollectorRuns(ctx, 1_000_000)
+		if err != nil {
+			t.Fatalf("expected nil error on massive retention days purge, got %v", err)
+		}
+		if purged != 42 {
+			t.Errorf("expected 42 purged, got %d", purged)
+		}
+		expectedCutoffMax := time.Now().Add(-time.Duration(usecase.MaxRetentionDays) * 24 * time.Hour)
+		diffMax := discRepo.lastCutoff.Sub(expectedCutoffMax)
+		if diffMax < 0 {
+			diffMax = -diffMax
+		}
+		if diffMax > 5*time.Second {
+			t.Errorf("expected cutoff clamped to MaxRetentionDays around %v, got %v", expectedCutoffMax, discRepo.lastCutoff)
+		}
+	})
+
+	t.Run("ListRunsBySource Validations and Pagination", func(t *testing.T) {
+		// 1. Invalid UUID
+		_, _, err := uc.ListRunsBySource(ctx, "invalid-uuid", 20, 0)
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
+			t.Errorf("expected ErrInvalidUUID, got %v", err)
+		}
+
+		// 2. Source not found
+		_, _, err = uc.ListRunsBySource(ctx, uuid.New().String(), 20, 0)
+		if !errors.Is(err, repository.ErrSourceNotFound) {
+			t.Errorf("expected ErrSourceNotFound, got %v", err)
+		}
+
+		// 3. Existing source with runs
+		src, createErr := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "History Source",
+			Type: "icmp_sweep",
+		})
+		if createErr != nil {
+			t.Fatalf("failed to create source: %v", createErr)
+		}
+
+		for i := int32(0); i < 25; i++ {
+			_ = discRepo.CreateCollectorRun(ctx, &db.CreateCollectorRunParams{
+				ID:            uuid.New(),
+				SourceID:      src.ID,
+				CollectorType: "icmp_sweep",
+				Status:        "success",
+				DevicesFound:  i + 1,
+			})
+		}
+
+		// Query with default limit / offset
+		runs, total, err := uc.ListRunsBySource(ctx, src.ID.String(), 0, 0)
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if total != 25 {
+			t.Errorf("expected total 25, got %d", total)
+		}
+		if len(runs) != 20 {
+			t.Errorf("expected 20 runs (clamped default), got %d", len(runs))
+		}
+		if discRepo.lastLimit != 20 || discRepo.lastOffset != 0 {
+			t.Errorf("expected repo limit 20, offset 0; got %d, %d", discRepo.lastLimit, discRepo.lastOffset)
+		}
+
+		// Query with limit 5, offset 20
+		runsPaged, totalPaged, err := uc.ListRunsBySource(ctx, src.ID.String(), 5, 20)
+		if err != nil {
+			t.Fatalf("expected nil error on paged runs, got %v", err)
+		}
+		if totalPaged != 25 {
+			t.Errorf("expected total 25, got %d", totalPaged)
+		}
+		if len(runsPaged) != 5 {
+			t.Errorf("expected 5 runs on page 2, got %d", len(runsPaged))
+		}
+		if runsPaged[0].DevicesFound != 21 {
+			t.Errorf("expected DevicesFound 21 on page 2 first item, got %d", runsPaged[0].DevicesFound)
+		}
+		if discRepo.lastLimit != 5 || discRepo.lastOffset != 20 {
+			t.Errorf("expected repo limit 5, offset 20; got %d, %d", discRepo.lastLimit, discRepo.lastOffset)
+		}
+
+		// Query with limit > 100 clamped to 100
+		runsMax, totalMax, err := uc.ListRunsBySource(ctx, src.ID.String(), 200, 0)
+		if err != nil {
+			t.Fatalf("expected nil error on max limit query, got %v", err)
+		}
+		if totalMax != 25 {
+			t.Errorf("expected total 25, got %d", totalMax)
+		}
+		if len(runsMax) != 25 {
+			t.Errorf("expected 25 runs total, got %d", len(runsMax))
+		}
+		if discRepo.lastLimit != 100 || discRepo.lastOffset != 0 {
+			t.Errorf("expected repo limit 100, offset 0; got %d, %d", discRepo.lastLimit, discRepo.lastOffset)
+		}
+	})
 }
+
 

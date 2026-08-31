@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,6 +42,8 @@ type DiscoveryRepository interface {
 	ListRecordsByDevice(ctx context.Context, deviceID uuid.UUID) ([]*dto.DiscoveryRecordResponse, error)
 	CreateCollectorRun(ctx context.Context, run *db.CreateCollectorRunParams) error
 	ListRunsBySourceID(ctx context.Context, sourceID uuid.UUID, limit int) ([]*dto.CollectorRunResponse, error)
+	ListRunsBySourceIDPaged(ctx context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunResponse, int64, error)
+	PurgeOldCollectorRuns(ctx context.Context, cutoff time.Time, batchSize int) (int64, error)
 }
 
 // ConfigPayload represents decrypted discovery source configuration.
@@ -397,6 +400,24 @@ func (r *PgDiscoveryRepository) CreateCollectorRun(ctx context.Context, run *db.
 	return nil
 }
 
+func mapCollectorRunToResponse(row db.DiscoveryCollectorRun) *dto.CollectorRunResponse {
+	var errMsg string
+	if row.ErrorMessage.Valid {
+		errMsg = row.ErrorMessage.String
+	}
+	return &dto.CollectorRunResponse{
+		ID:            row.ID,
+		SourceID:      row.SourceID,
+		CollectorType: row.CollectorType,
+		Status:        row.Status,
+		DevicesFound:  int(row.DevicesFound),
+		DurationMs:    int64(row.DurationMs),
+		ErrorMessage:  errMsg,
+		StartedAt:     row.StartedAt.Time,
+		FinishedAt:    row.FinishedAt.Time,
+	}
+}
+
 // ListRunsBySourceID retrieves the latest collector execution records for a source.
 func (r *PgDiscoveryRepository) ListRunsBySourceID(ctx context.Context, sourceID uuid.UUID, limit int) ([]*dto.CollectorRunResponse, error) {
 	if limit <= 0 {
@@ -415,21 +436,7 @@ func (r *PgDiscoveryRepository) ListRunsBySourceID(ctx context.Context, sourceID
 
 	items := make([]*dto.CollectorRunResponse, len(rows))
 	for i, row := range rows {
-		var errMsg string
-		if row.ErrorMessage.Valid {
-			errMsg = row.ErrorMessage.String
-		}
-		items[i] = &dto.CollectorRunResponse{
-			ID:            row.ID,
-			SourceID:      row.SourceID,
-			CollectorType: row.CollectorType,
-			Status:        row.Status,
-			DevicesFound:  int(row.DevicesFound),
-			DurationMs:    int64(row.DurationMs),
-			ErrorMessage:  errMsg,
-			StartedAt:     row.StartedAt.Time,
-			FinishedAt:    row.FinishedAt.Time,
-		}
+		items[i] = mapCollectorRunToResponse(row)
 	}
 	return items, nil
 }
@@ -521,3 +528,71 @@ func (r *PgDiscoveryRepository) attachLastRun(ctx context.Context, resp *dto.Dis
 		resp.LastRun = buildLastRunSummary(runs)
 	}
 }
+
+// ListRunsBySourceIDPaged retrieves collector execution records with pagination.
+// Returns an empty slice (never nil) if no records are found.
+func (r *PgDiscoveryRepository) ListRunsBySourceIDPaged(ctx context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunResponse, int64, error) {
+	var safeLimit int32 = 20
+	if limit > 0 && limit <= 1000 {
+		safeLimit = int32(limit) //nolint:gosec // bounds checked in condition
+	}
+	var safeOffset int32
+	if offset > 0 && offset <= 1000000 {
+		safeOffset = int32(offset) //nolint:gosec // bounds checked in condition
+	}
+
+	total, err := r.queries.CountCollectorRunsBySource(ctx, sourceID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count collector runs for source %s: %w", sourceID, err)
+	}
+
+	rows, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
+		SourceID: sourceID,
+		Limit:    safeLimit,
+		Offset:   safeOffset,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list paged collector runs for source %s: %w", sourceID, err)
+	}
+
+	items := make([]*dto.CollectorRunResponse, len(rows))
+	for i, row := range rows {
+		items[i] = mapCollectorRunToResponse(row)
+	}
+	return items, total, nil
+}
+
+// PurgeOldCollectorRuns deletes discovery collector runs finished before cutoff in chunks of batchSize
+// until no rows remain, respecting context cancellation. Returns the total count of purged rows.
+func (r *PgDiscoveryRepository) PurgeOldCollectorRuns(ctx context.Context, cutoff time.Time, batchSize int) (int64, error) {
+	if batchSize <= 0 {
+		batchSize = 500
+	} else if batchSize > math.MaxInt32 {
+		batchSize = math.MaxInt32
+	}
+
+	cutoffTs := pgtype.Timestamptz{Time: cutoff, Valid: true}
+	var totalDeleted int64
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return totalDeleted, err
+		}
+
+		deleted, err := r.queries.PurgeOldCollectorRunsChunk(ctx, db.PurgeOldCollectorRunsChunkParams{
+			FinishedAt: cutoffTs,
+			Limit:      int32(batchSize), //nolint:gosec // clamped to [1, math.MaxInt32] above
+		})
+		if err != nil {
+			return totalDeleted, fmt.Errorf("failed to purge old collector runs chunk: %w", err)
+		}
+
+		totalDeleted += deleted
+		if deleted == 0 || deleted < int64(batchSize) {
+			break
+		}
+	}
+
+	return totalDeleted, nil
+}
+

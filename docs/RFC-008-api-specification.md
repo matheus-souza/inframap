@@ -171,7 +171,7 @@ All endpoints are prefixed with `/api/v1`.
 - `POST /api/v1/discovery/sources/:id/run` — Manually trigger scan for a source.
   - **Multi-collector execution**: All enabled collectors run in parallel. Per-collector results are stored in `discovery_collector_runs` table.
   - **Partial status**: Response `last_status` is `"partial"` when some collectors succeed and some fail; `"idle"` when all succeed; `"error"` when all fail; `"cancelled"` on context cancellation.
-- `GET  /api/v1/discovery/sources/:id/runs` — List collector run history for a source (default retention: 7 days).
+- `GET  /api/v1/discovery/sources/:id/runs` — List collector run history for a source (query params: `limit` default 20, `offset` default 0). Returns `{ "data": { "items": [CollectorRunResponse], "total": count } }` with retention default of 7 days (configurable via `INFRAMAP_DISCOVERY_RUN_RETENTION_DAYS`).
 
 #### Supported Collectors (Network phase)
 | Collector | Type string | Description |

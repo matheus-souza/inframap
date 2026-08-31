@@ -12,6 +12,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCollectorRunsBySource = `-- name: CountCollectorRunsBySource :one
+SELECT COUNT(*) FROM discovery_collector_runs
+WHERE source_id = $1
+`
+
+func (q *Queries) CountCollectorRunsBySource(ctx context.Context, sourceID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCollectorRunsBySource, sourceID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCollectorRun = `-- name: CreateCollectorRun :one
 INSERT INTO discovery_collector_runs (
     id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
@@ -401,6 +413,29 @@ func (q *Queries) ListDiscoverySources(ctx context.Context) ([]DiscoverySource, 
 		return nil, err
 	}
 	return items, nil
+}
+
+const purgeOldCollectorRunsChunk = `-- name: PurgeOldCollectorRunsChunk :execrows
+DELETE FROM discovery_collector_runs
+WHERE id IN (
+    SELECT sub.id FROM discovery_collector_runs sub
+    WHERE sub.finished_at < $1
+    ORDER BY sub.finished_at ASC, sub.id ASC
+    LIMIT $2
+)
+`
+
+type PurgeOldCollectorRunsChunkParams struct {
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+	Limit      int32              `json:"limit"`
+}
+
+func (q *Queries) PurgeOldCollectorRunsChunk(ctx context.Context, arg PurgeOldCollectorRunsChunkParams) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeOldCollectorRunsChunk, arg.FinishedAt, arg.Limit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateDiscoverySourceStatus = `-- name: UpdateDiscoverySourceStatus :one
