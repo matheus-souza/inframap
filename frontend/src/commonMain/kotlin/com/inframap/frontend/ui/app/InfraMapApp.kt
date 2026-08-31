@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.designsystem.motion.MotionTransitions
 import com.inframap.frontend.navigation.Navigator
@@ -59,6 +60,17 @@ fun InfraMapApp() {
     val currentRoute by navigator.currentRoute.collectAsState()
     val rootDestination = remember(currentRoute) { currentRoute.toRootDestination() }
     var isHealthy by remember { mutableStateOf<Boolean?>(null) }
+    val koinScope = currentKoinScope()
+    val apiClient: ApiClient? = remember { runCatching { koinScope.get<ApiClient>() }.getOrNull() }
+
+    DisposableEffect(apiClient, navigator) {
+        apiClient?.onSessionExpired = {
+            navigator.navigateTo(Route.Login)
+        }
+        onDispose {
+            apiClient?.onSessionExpired = null
+        }
+    }
 
     LaunchedEffect(currentRoute) {
         println("[InfraMap-Navigation] Route transitioned to: $currentRoute")

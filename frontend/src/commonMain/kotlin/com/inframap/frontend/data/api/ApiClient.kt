@@ -19,6 +19,8 @@ class ApiClient(
     @PublishedApi internal val baseUrl: String,
     httpClient: HttpClient? = null,
 ) {
+    var onSessionExpired: (() -> Unit)? = null
+
     @PublishedApi internal val client: HttpClient =
         httpClient ?: HttpClient {
             install(ContentNegotiation) {
@@ -89,6 +91,9 @@ class ApiClient(
                 val errCode = envelope.error.code
                 val errMsg = envelope.error.message
                 println("[InfraMap-API] [WARN] HTTP $status: $errCode - $errMsg")
+                if (status == 401 || errCode == "UNAUTHORIZED") {
+                    onSessionExpired?.invoke()
+                }
                 ApiResult.Error(
                     code = envelope.error.code,
                     message = envelope.error.message,
