@@ -448,6 +448,7 @@ private fun DashboardRoute(
         onStartAutoSetup = viewModel::startAutoSetup,
         onDismissAutoSetup = viewModel::dismissAutoSetup,
         onNavigateToStaging = { navigator.navigateTo(Route.Staging) },
+        onNavigateToDevices = { navigator.navigateTo(Route.Devices) },
     )
 }
 
@@ -713,11 +714,11 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
     val actions =
         CreateDiscoverySourceActions(
             onNameChanged = viewModel::onNameChanged,
-            onSourceTypeChanged = viewModel::onSourceTypeChanged,
             onScheduleCronChanged = viewModel::onScheduleCronChanged,
             onConfigCidrChanged = viewModel::onConfigCidrChanged,
             onEnabledChanged = viewModel::onEnabledChanged,
             onSubnetSelected = viewModel::onSubnetSelected,
+            onCollectorsChanged = viewModel::onCollectorsChanged,
             onSubmitClicked = {
                 viewModel.createSource {
                     navigator.navigateTo(Route.DiscoverySources)

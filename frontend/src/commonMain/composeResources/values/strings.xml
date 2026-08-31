@@ -51,6 +51,11 @@
     <string name="dashboard_welcome_subtitle">Para começar, cadastre uma subrede na seção Subredes e configure uma fonte de descoberta para escanear sua rede automaticamente.</string>
     <string name="dashboard_welcome_cta_subnet">Cadastrar Sub-rede</string>
     <string name="dashboard_welcome_cta_discovery">Configurar Descoberta</string>
+    <string name="dashboard_welcome_stage2_title">Sub-rede configurada!</string>
+    <string name="dashboard_welcome_stage2_subtitle">Agora configure uma fonte de descoberta para encontrar seus dispositivos automaticamente.</string>
+    <string name="dashboard_welcome_stage3_title">Fonte de descoberta pronta!</string>
+    <string name="dashboard_welcome_stage3_subtitle">Dispare uma varredura para descobrir e mapear os dispositivos da sua rede.</string>
+    <string name="dashboard_welcome_cta_trigger_scan">Ir para Descoberta</string>
 
     <!-- Login -->
     <string name="login_title">Login</string>
@@ -126,21 +131,42 @@
     <string name="discovery_action_delete">Excluir</string>
     <string name="discovery_source_enabled">Fonte habilitada</string>
     <string name="validation_discovery_name_required">Nome da fonte de descoberta é obrigatório.</string>
-    <string name="validation_discovery_type_required">Tipo da fonte é obrigatório.</string>
     <string name="discovery_type_icmp_sweep">ICMP Ping</string>
     <string name="discovery_type_arp_sweep">Varredura ARP</string>
     <string name="discovery_type_mdns">mDNS</string>
     <string name="discovery_type_proxmox">Proxmox</string>
     <string name="discovery_type_docker">Docker</string>
     <string name="discovery_type_unifi">UniFi</string>
+    <string name="collector_section_network">Varredura de Rede</string>
+    <string name="collector_section_providers">Provedores de Infraestrutura</string>
+    <string name="chip_coming_soon">Em breve</string>
+    <string name="discovery_validation_collector_required">Selecione pelo menos um coletor de descoberta.</string>
+    <string name="collector_multi_selection_hint">Selecione um ou mais coletores para executar nesta fonte de descoberta</string>
+    <string name="discovery_collectors_label">Coletores de Descoberta *</string>
     <string name="collector_name_icmp_sweep">ICMP Ping</string>
     <string name="collector_name_arp_sweep">Varredura ARP</string>
-    <string name="collector_name_mdns">mDNS</string>
+    <string name="collector_name_mdns">mDNS / Bonjour</string>
     <string name="collector_name_reverse_dns">DNS Reverso</string>
     <string name="collector_name_snmp">SNMP</string>
-    <string name="collector_name_proxmox">Proxmox</string>
+    <string name="collector_name_proxmox">Proxmox VE</string>
     <string name="collector_name_docker">Docker</string>
     <string name="collector_name_unifi">UniFi</string>
+    <string name="create_discovery_source_subtitle">Configure uma fonte para varredura automática de dispositivos na rede</string>
+    <string name="create_discovery_source_name_label">Nome da Fonte *</string>
+    <string name="create_discovery_source_cidr_label">CIDR Alvo (ex: 192.168.1.0/24) *</string>
+    <string name="create_discovery_source_schedule_label">Agendamento</string>
+    <string name="create_discovery_source_enabled_label">Fonte habilitada</string>
+    <string name="create_discovery_source_submit">Criar Fonte</string>
+    <string name="create_discovery_source_submitting">Criando...</string>
+    <string name="schedule_preset_manual">Manual</string>
+    <string name="schedule_preset_5min">5 min</string>
+    <string name="schedule_preset_15min">15 min</string>
+    <string name="schedule_preset_1hour">1 hora</string>
+    <string name="schedule_preset_6hours">6 horas</string>
+    <string name="schedule_preset_daily">Diário</string>
+    <string name="schedule_preset_custom">Personalizado</string>
+    <string name="schedule_custom_cron_label">Expressão Cron</string>
+    <string name="schedule_custom_cron_helper">Formato cron de 5 campos</string>
 
     <!-- Auth / Onboarding -->
     <string name="onboarding_title">Configuração Inicial</string>
