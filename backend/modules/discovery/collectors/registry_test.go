@@ -55,6 +55,8 @@ func TestIsImplemented(t *testing.T) {
 		"reverse_dns", "reversedns", "reverse-dns",
 		"snmp",
 		"mdns",
+		"proxmox",
+		"docker",
 	}
 
 	for _, name := range implemented {
@@ -64,7 +66,7 @@ func TestIsImplemented(t *testing.T) {
 	}
 
 	unimplemented := []string{
-		"proxmox", "docker", "unifi", "unknown_type",
+		"unifi", "unknown_type",
 	}
 
 	for _, name := range unimplemented {

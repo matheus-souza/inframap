@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matheussouza/inframap/internal/platform/crypto"
 	"github.com/matheussouza/inframap/internal/platform/db"
+	"github.com/matheussouza/inframap/internal/platform/sdk"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 )
 
@@ -44,6 +45,7 @@ type DiscoveryRepository interface {
 	ListRunsBySourceID(ctx context.Context, sourceID uuid.UUID, limit int) ([]*dto.CollectorRunResponse, error)
 	ListRunsBySourceIDPaged(ctx context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunResponse, int64, error)
 	PurgeOldCollectorRuns(ctx context.Context, cutoff time.Time, batchSize int) (int64, error)
+	ResolveCollectorConfig(ctx context.Context, sourceID uuid.UUID, collectorType string) (sdk.ProviderConfig, error)
 }
 
 // ConfigPayload represents decrypted discovery source configuration.
@@ -594,5 +596,48 @@ func (r *PgDiscoveryRepository) PurgeOldCollectorRuns(ctx context.Context, cutof
 	}
 
 	return totalDeleted, nil
+}
+
+// ResolveCollectorConfig retrieves and decrypts the provider configuration for a specific source collector.
+// Returns an empty sdk.ProviderConfig and nil error if no collector or configuration is found.
+func (r *PgDiscoveryRepository) ResolveCollectorConfig(ctx context.Context, sourceID uuid.UUID, collectorType string) (sdk.ProviderConfig, error) {
+	row, err := r.queries.GetDiscoverySourceCollectorBySourceAndType(ctx, db.GetDiscoverySourceCollectorBySourceAndTypeParams{
+		SourceID:      sourceID,
+		CollectorType: collectorType,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return sdk.ProviderConfig{}, nil
+		}
+		return nil, fmt.Errorf("failed to query discovery source collector config: %w", err)
+	}
+
+	if !row.ConfigEncrypted.Valid || row.ConfigEncrypted.String == "" {
+		return sdk.ProviderConfig{}, nil
+	}
+
+	if r.encryptor == nil {
+		return nil, fmt.Errorf("cannot decrypt collector config for %s: encryptor is not configured", collectorType)
+	}
+
+	decrypted, err := r.encryptor.Decrypt(row.ConfigEncrypted.String)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt collector config for %s: %w", collectorType, err)
+	}
+
+	if len(decrypted) == 0 {
+		return sdk.ProviderConfig{}, nil
+	}
+
+	var config sdk.ProviderConfig
+	if err := json.Unmarshal(decrypted, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse collector config for %s: %w", collectorType, err)
+	}
+
+	if config == nil {
+		config = sdk.ProviderConfig{}
+	}
+
+	return config, nil
 }
 

@@ -21,15 +21,18 @@ var (
 	ErrBroadcastMAC = errors.New("broadcast MAC address rejected")
 	// ErrInvalidHostname indicates a hostname violating RFC limits or control character restrictions.
 	ErrInvalidHostname = errors.New("invalid hostname string")
-	// ErrMissingAddress indicates an observation lacking both IP and MAC.
-	ErrMissingAddress = errors.New("observation must contain at least an IP or MAC address")
+	// ErrMissingIdentity indicates an observation lacking IP, MAC, and ProviderRef.
+	ErrMissingIdentity = errors.New("observation missing address or provider identity")
+	// ErrMissingAddress is an alias for backwards compatibility.
+	ErrMissingAddress = ErrMissingIdentity
 )
-
 
 // ValidateObservation checks an observation for structural sanity and security constraints.
 func ValidateObservation(obs collectors.RawObservation) error {
-	if obs.IPAddress == "" && obs.MACAddress == "" {
-		return ErrMissingAddress
+	hasAddress := obs.IPAddress != "" || obs.MACAddress != ""
+	hasProviderRef := obs.ProviderRef != nil && !obs.ProviderRef.IsZero()
+	if !hasAddress && !hasProviderRef {
+		return ErrMissingIdentity
 	}
 
 	if obs.IPAddress != "" {

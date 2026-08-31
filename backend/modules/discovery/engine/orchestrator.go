@@ -272,14 +272,16 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 		totalValid++
 
 		normDTO := &dto.NormalizedDeviceDTO{
-			IPAddress:       normalized.IPAddress,
-			MACAddress:      normalized.MACAddress,
-			Hostname:        normalized.Hostname,
-			Manufacturer:    normalized.Vendor,
-			DeviceType:      classifyDeviceType(normalized),
-			ConfidenceScore: normalized.ConfidenceScore,
-			ProtocolSource:  normalized.ProtocolSource,
-			RawPayload:      normalized.RawMetadata,
+			IPAddress:         normalized.IPAddress,
+			MACAddress:        normalized.MACAddress,
+			Hostname:          normalized.Hostname,
+			Manufacturer:      normalized.Vendor,
+			DeviceType:        classifyDeviceType(normalized),
+			ConfidenceScore:   normalized.ConfidenceScore,
+			ProtocolSource:    normalized.ProtocolSource,
+			RawPayload:        normalized.RawMetadata,
+			ProviderRef:       normalized.ProviderRef,
+			ParentProviderRef: normalized.ParentProviderRef,
 		}
 
 		matchRes := o.matcher.MatchDevice(normDTO, activeDevices)
@@ -356,11 +358,20 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 }
 
 func classifyDeviceType(obs collectors.RawObservation) string {
+	if obs.RawMetadata != nil {
+		if dt, ok := obs.RawMetadata["device_type"].(string); ok && dt != "" {
+			return dt
+		}
+	}
 	switch obs.ProtocolSource {
 	case "snmp":
 		return "network_device"
 	case "icmp", "arp", "mdns":
 		return "host"
+	case "docker":
+		return "container"
+	case "proxmox":
+		return "virtual_machine"
 	default:
 		return "unknown"
 	}

@@ -28,17 +28,37 @@ func NormalizeObservation(obs collectors.RawObservation) collectors.RawObservati
 	if observedAt.IsZero() {
 		observedAt = time.Now()
 	}
+	var providerRef *collectors.ProviderRef
+	if obs.ProviderRef != nil {
+		providerRef = &collectors.ProviderRef{
+			Provider: strings.TrimSpace(obs.ProviderRef.Provider),
+			Scope:    strings.TrimSpace(obs.ProviderRef.Scope),
+			Kind:     strings.TrimSpace(obs.ProviderRef.Kind),
+			NativeID: strings.TrimSpace(obs.ProviderRef.NativeID),
+		}
+	}
+	var parentProviderRef *collectors.ProviderRef
+	if obs.ParentProviderRef != nil {
+		parentProviderRef = &collectors.ProviderRef{
+			Provider: strings.TrimSpace(obs.ParentProviderRef.Provider),
+			Scope:    strings.TrimSpace(obs.ParentProviderRef.Scope),
+			Kind:     strings.TrimSpace(obs.ParentProviderRef.Kind),
+			NativeID: strings.TrimSpace(obs.ParentProviderRef.NativeID),
+		}
+	}
 
 	return collectors.RawObservation{
-		IPAddress:       ip,
-		MACAddress:      mac,
-		Hostname:        hostname,
-		Vendor:          vendor,
-		OS:              osStr,
-		LatencyMs:       obs.LatencyMs,
-		ProtocolSource:  source,
-		ConfidenceScore: obs.ConfidenceScore,
-		RawMetadata:     obs.RawMetadata,
-		ObservedAt:      observedAt,
+		IPAddress:         ip,
+		MACAddress:        mac,
+		Hostname:          hostname,
+		Vendor:            vendor,
+		OS:                osStr,
+		LatencyMs:         obs.LatencyMs,
+		ProtocolSource:    source,
+		ConfidenceScore:   obs.ConfidenceScore,
+		RawMetadata:       obs.RawMetadata,
+		ObservedAt:        observedAt,
+		ProviderRef:       providerRef,
+		ParentProviderRef: parentProviderRef,
 	}
 }
