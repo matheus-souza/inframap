@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
+	"github.com/matheussouza/inframap/internal/platform/sdk"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 	"github.com/matheussouza/inframap/modules/discovery/repository"
 	"github.com/matheussouza/inframap/modules/discovery/usecase"
@@ -218,6 +219,10 @@ func (m *mockDiscRepo) PurgeOldCollectorRuns(_ context.Context, cutoff time.Time
 		return 0, errors.New("db purge failure")
 	}
 	return m.purgedCount, nil
+}
+
+func (m *mockDiscRepo) ResolveCollectorConfig(_ context.Context, _ uuid.UUID, _ string) (sdk.ProviderConfig, error) {
+	return sdk.ProviderConfig{}, nil
 }
 
 

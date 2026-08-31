@@ -30,15 +30,17 @@ func NormalizeObservation(obs collectors.RawObservation) collectors.RawObservati
 	}
 
 	return collectors.RawObservation{
-		IPAddress:       ip,
-		MACAddress:      mac,
-		Hostname:        hostname,
-		Vendor:          vendor,
-		OS:              osStr,
-		LatencyMs:       obs.LatencyMs,
-		ProtocolSource:  source,
-		ConfidenceScore: obs.ConfidenceScore,
-		RawMetadata:     obs.RawMetadata,
-		ObservedAt:      observedAt,
+		IPAddress:         ip,
+		MACAddress:        mac,
+		Hostname:          hostname,
+		Vendor:            vendor,
+		OS:                osStr,
+		LatencyMs:         obs.LatencyMs,
+		ProtocolSource:    source,
+		ConfidenceScore:   obs.ConfidenceScore,
+		RawMetadata:       obs.RawMetadata,
+		ObservedAt:        observedAt,
+		ProviderRef:       strings.TrimSpace(obs.ProviderRef),
+		ParentProviderRef: strings.TrimSpace(obs.ParentProviderRef),
 	}
 }

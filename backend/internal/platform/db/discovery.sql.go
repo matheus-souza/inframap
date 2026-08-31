@@ -307,6 +307,30 @@ func (q *Queries) ListCollectorsBySourceID(ctx context.Context, sourceID uuid.UU
 	return items, nil
 }
 
+const getDiscoverySourceCollectorBySourceAndType = `-- name: GetDiscoverySourceCollectorBySourceAndType :one
+SELECT id, source_id, collector_type, config_encrypted, enabled, created_at FROM discovery_source_collectors
+WHERE source_id = $1 AND collector_type = $2
+`
+
+type GetDiscoverySourceCollectorBySourceAndTypeParams struct {
+	SourceID      uuid.UUID `json:"source_id"`
+	CollectorType string    `json:"collector_type"`
+}
+
+func (q *Queries) GetDiscoverySourceCollectorBySourceAndType(ctx context.Context, arg GetDiscoverySourceCollectorBySourceAndTypeParams) (DiscoverySourceCollector, error) {
+	row := q.db.QueryRow(ctx, getDiscoverySourceCollectorBySourceAndType, arg.SourceID, arg.CollectorType)
+	var i DiscoverySourceCollector
+	err := row.Scan(
+		&i.ID,
+		&i.SourceID,
+		&i.CollectorType,
+		&i.ConfigEncrypted,
+		&i.Enabled,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listDiscoveryRecordsByDevice = `-- name: ListDiscoveryRecordsByDevice :many
 SELECT id, device_id, discovery_source_id, matched_by, raw_payload, last_scanned_at FROM device_discovery_records
 WHERE device_id = $1

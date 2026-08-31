@@ -25,6 +25,8 @@ import (
 
 	"github.com/matheussouza/inframap/modules/discovery/engine"
 	"github.com/matheussouza/inframap/modules/discovery/repository"
+	dockerprovider "github.com/matheussouza/inframap/modules/integrations/providers/docker"
+	proxmoxprovider "github.com/matheussouza/inframap/modules/integrations/providers/proxmox"
 	inventoryRepo "github.com/matheussouza/inframap/modules/inventory/repository"
 )
 
@@ -106,6 +108,8 @@ func NewDefaultDiscoveryUseCase(
 	orch.RegisterCollector(collectors.NewReverseDNSCollector(dnsResolver))
 	orch.RegisterCollector(collectors.NewSNMPCollector(nil, nil))
 	orch.RegisterCollector(mdns.NewMDNSCollector(nil))
+	orch.RegisterCollector(collectors.NewProviderCollector(proxmoxprovider.NewProvider(), discRepo))
+	orch.RegisterCollector(collectors.NewProviderCollector(dockerprovider.NewProvider(), discRepo))
 
 	uc := &DefaultDiscoveryUseCase{
 		discRepo:     discRepo,
@@ -257,7 +261,8 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 	}
 
 	target := collectors.DiscoveryTarget{
-		CIDR: cidr,
+		CIDR:     cidr,
+		SourceID: &source.ID,
 	}
 
 	startTime := time.Now()

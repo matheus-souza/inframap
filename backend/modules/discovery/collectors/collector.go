@@ -4,27 +4,32 @@ package collectors
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // DiscoveryTarget defines the parameters for a collector run.
 type DiscoveryTarget struct {
-	CIDR             string
-	SubnetID         string
+	CIDR            string
+	SubnetID        string
 	CredentialSetID *string
+	SourceID        *uuid.UUID
 }
 
 // RawObservation represents a single un-reconciled fact gathered by a collector.
 type RawObservation struct {
-	IPAddress       string
-	MACAddress      string
-	Hostname        string
-	Vendor          string
-	OS              string
-	LatencyMs       int64
-	ProtocolSource  string
-	ConfidenceScore int
-	RawMetadata     map[string]interface{}
-	ObservedAt      time.Time
+	IPAddress         string
+	MACAddress        string
+	Hostname          string
+	Vendor            string
+	OS                string
+	LatencyMs         int64
+	ProtocolSource    string
+	ConfidenceScore   int
+	RawMetadata       map[string]interface{}
+	ObservedAt        time.Time
+	ProviderRef       string
+	ParentProviderRef string
 }
 
 // Collector defines the contract for plug-and-play discovery workers.

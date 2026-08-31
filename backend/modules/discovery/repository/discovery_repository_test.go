@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matheussouza/inframap/internal/platform/crypto"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
@@ -18,11 +19,12 @@ import (
 
 // mockDB implements db.DBTX and repository.TxBeginner for repository testing.
 type mockDB struct {
-	sources    map[uuid.UUID]db.DiscoverySource
-	collectors map[uuid.UUID][]db.DiscoverySourceCollector
-	failExec   bool
-	failTx     bool
-	execFunc   func(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
+	sources      map[uuid.UUID]db.DiscoverySource
+	collectors   map[uuid.UUID][]db.DiscoverySourceCollector
+	failExec     bool
+	failTx       bool
+	execFunc     func(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
+	queryRowFunc func(ctx context.Context, sql string, args ...interface{}) pgx.Row
 }
 
 func newMockDB() *mockDB {
@@ -47,17 +49,24 @@ func (m *mockDB) Query(_ context.Context, _ string, _ ...interface{}) (pgx.Rows,
 }
 
 type mockRow struct {
-	err error
+	err      error
+	scanFunc func(dest ...any) error
 }
 
-func (r *mockRow) Scan(_ ...any) error {
+func (r *mockRow) Scan(dest ...any) error {
+	if r.scanFunc != nil {
+		return r.scanFunc(dest...)
+	}
 	if r.err != nil {
 		return r.err
 	}
 	return errors.New("query row failed in mock")
 }
 
-func (m *mockDB) QueryRow(_ context.Context, _ string, _ ...interface{}) pgx.Row {
+func (m *mockDB) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+	if m.queryRowFunc != nil {
+		return m.queryRowFunc(ctx, sql, args...)
+	}
 	return &mockRow{err: errors.New("db query failure on mockDB")}
 }
 
@@ -298,6 +307,166 @@ func TestPgDiscoveryRepository_ListRunsBySourceIDPaged(t *testing.T) {
 		_, _, err := repo.ListRunsBySourceIDPaged(context.Background(), uuid.New(), 20, 0)
 		if err == nil {
 			t.Error("expected error when DB query fails on mockDB")
+		}
+	})
+}
+
+func TestPgDiscoveryRepository_ResolveCollectorConfig(t *testing.T) {
+	enc, err := crypto.NewAESGCMEncryptor("12345678901234567890123456789012")
+	if err != nil {
+		t.Fatalf("failed to create encryptor: %v", err)
+	}
+
+	sourceID := uuid.New()
+
+	t.Run("Returns empty config and nil error when collector not found", func(t *testing.T) {
+		mdb := newMockDB()
+		mdb.queryRowFunc = func(_ context.Context, _ string, _ ...interface{}) pgx.Row {
+			return &mockRow{err: pgx.ErrNoRows}
+		}
+		repo := repository.NewPgDiscoveryRepository(mdb, enc)
+
+		cfg, err := repo.ResolveCollectorConfig(context.Background(), sourceID, "proxmox")
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if len(cfg) != 0 {
+			t.Errorf("expected empty config, got %v", cfg)
+		}
+	})
+
+	t.Run("Returns empty config when ConfigEncrypted is invalid/empty", func(t *testing.T) {
+		mdb := newMockDB()
+		mdb.queryRowFunc = func(_ context.Context, _ string, _ ...interface{}) pgx.Row {
+			return &mockRow{
+				scanFunc: func(dest ...any) error {
+					*(dest[0].(*uuid.UUID)) = uuid.New()
+					*(dest[1].(*uuid.UUID)) = sourceID
+					*(dest[2].(*string)) = "proxmox"
+					*(dest[3].(*pgtype.Text)) = pgtype.Text{Valid: false}
+					*(dest[4].(*bool)) = true
+					*(dest[5].(*pgtype.Timestamptz)) = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+					return nil
+				},
+			}
+		}
+		repo := repository.NewPgDiscoveryRepository(mdb, enc)
+
+		cfg, err := repo.ResolveCollectorConfig(context.Background(), sourceID, "proxmox")
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if len(cfg) != 0 {
+			t.Errorf("expected empty config, got %v", cfg)
+		}
+	})
+
+	t.Run("Successfully decrypts and unmarshals collector config", func(t *testing.T) {
+		rawConfig := map[string]interface{}{
+			"api_url":  "https://192.168.1.100:8006",
+			"token_id": "root@pam!token",
+		}
+		rawBytes, _ := json.Marshal(rawConfig)
+		encryptedStr, encErr := enc.Encrypt(rawBytes)
+		if encErr != nil {
+			t.Fatalf("failed to encrypt config: %v", encErr)
+		}
+
+		mdb := newMockDB()
+		mdb.queryRowFunc = func(_ context.Context, _ string, _ ...interface{}) pgx.Row {
+			return &mockRow{
+				scanFunc: func(dest ...any) error {
+					*(dest[0].(*uuid.UUID)) = uuid.New()
+					*(dest[1].(*uuid.UUID)) = sourceID
+					*(dest[2].(*string)) = "proxmox"
+					*(dest[3].(*pgtype.Text)) = pgtype.Text{String: encryptedStr, Valid: true}
+					*(dest[4].(*bool)) = true
+					*(dest[5].(*pgtype.Timestamptz)) = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+					return nil
+				},
+			}
+		}
+		repo := repository.NewPgDiscoveryRepository(mdb, enc)
+
+		cfg, err := repo.ResolveCollectorConfig(context.Background(), sourceID, "proxmox")
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if cfg["api_url"] != "https://192.168.1.100:8006" {
+			t.Errorf("expected api_url to match, got %v", cfg["api_url"])
+		}
+		if cfg["token_id"] != "root@pam!token" {
+			t.Errorf("expected token_id to match, got %v", cfg["token_id"])
+		}
+	})
+
+	t.Run("Fails when encryptor is nil but config_encrypted is present", func(t *testing.T) {
+		mdb := newMockDB()
+		mdb.queryRowFunc = func(_ context.Context, _ string, _ ...interface{}) pgx.Row {
+			return &mockRow{
+				scanFunc: func(dest ...any) error {
+					*(dest[0].(*uuid.UUID)) = uuid.New()
+					*(dest[1].(*uuid.UUID)) = sourceID
+					*(dest[2].(*string)) = "proxmox"
+					*(dest[3].(*pgtype.Text)) = pgtype.Text{String: "encrypted-ciphertext", Valid: true}
+					*(dest[4].(*bool)) = true
+					*(dest[5].(*pgtype.Timestamptz)) = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+					return nil
+				},
+			}
+		}
+		repo := repository.NewPgDiscoveryRepository(mdb, nil)
+
+		_, err := repo.ResolveCollectorConfig(context.Background(), sourceID, "proxmox")
+		if err == nil {
+			t.Error("expected error when encryptor is missing for encrypted collector config")
+		}
+	})
+
+	t.Run("Fails when decryption fails", func(t *testing.T) {
+		mdb := newMockDB()
+		mdb.queryRowFunc = func(_ context.Context, _ string, _ ...interface{}) pgx.Row {
+			return &mockRow{
+				scanFunc: func(dest ...any) error {
+					*(dest[0].(*uuid.UUID)) = uuid.New()
+					*(dest[1].(*uuid.UUID)) = sourceID
+					*(dest[2].(*string)) = "proxmox"
+					*(dest[3].(*pgtype.Text)) = pgtype.Text{String: "invalid-base64-payload", Valid: true}
+					*(dest[4].(*bool)) = true
+					*(dest[5].(*pgtype.Timestamptz)) = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+					return nil
+				},
+			}
+		}
+		repo := repository.NewPgDiscoveryRepository(mdb, enc)
+
+		_, err := repo.ResolveCollectorConfig(context.Background(), sourceID, "proxmox")
+		if err == nil {
+			t.Error("expected error when decrypt fails")
+		}
+	})
+
+	t.Run("Fails when unmarshaling invalid JSON", func(t *testing.T) {
+		encryptedStr, _ := enc.Encrypt([]byte("not a json payload"))
+		mdb := newMockDB()
+		mdb.queryRowFunc = func(_ context.Context, _ string, _ ...interface{}) pgx.Row {
+			return &mockRow{
+				scanFunc: func(dest ...any) error {
+					*(dest[0].(*uuid.UUID)) = uuid.New()
+					*(dest[1].(*uuid.UUID)) = sourceID
+					*(dest[2].(*string)) = "proxmox"
+					*(dest[3].(*pgtype.Text)) = pgtype.Text{String: encryptedStr, Valid: true}
+					*(dest[4].(*bool)) = true
+					*(dest[5].(*pgtype.Timestamptz)) = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+					return nil
+				},
+			}
+		}
+		repo := repository.NewPgDiscoveryRepository(mdb, enc)
+
+		_, err := repo.ResolveCollectorConfig(context.Background(), sourceID, "proxmox")
+		if err == nil {
+			t.Error("expected error when JSON unmarshal fails")
 		}
 	})
 }

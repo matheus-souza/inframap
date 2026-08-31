@@ -28,7 +28,7 @@ var (
 
 // ValidateObservation checks an observation for structural sanity and security constraints.
 func ValidateObservation(obs collectors.RawObservation) error {
-	if obs.IPAddress == "" && obs.MACAddress == "" {
+	if obs.IPAddress == "" && obs.MACAddress == "" && obs.ProviderRef == "" {
 		return ErrMissingAddress
 	}
 
