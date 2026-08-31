@@ -90,15 +90,30 @@ func (p *ProviderCollector) Collect(ctx context.Context, target DiscoveryTarget)
 		if dev.Metadata != nil {
 			if proxmox, ok := dev.Metadata["proxmox"].(map[string]interface{}); ok {
 				if vmID, exists := proxmox["vm_id"]; exists && vmID != nil {
-					obs.ProviderRef = fmt.Sprintf("%v", vmID)
+					obs.ProviderRef = &ProviderRef{
+						Provider: "proxmox",
+						Scope:    "cluster",
+						Kind:     "qemu",
+						NativeID: fmt.Sprintf("%v", vmID),
+					}
 				}
 				if nodeHost, exists := proxmox["node_host"]; exists && nodeHost != nil {
-					obs.ParentProviderRef = fmt.Sprintf("%v", nodeHost)
+					obs.ParentProviderRef = &ProviderRef{
+						Provider: "proxmox",
+						Scope:    "cluster",
+						Kind:     "node",
+						NativeID: fmt.Sprintf("%v", nodeHost),
+					}
 				}
 			}
 			if docker, ok := dev.Metadata["docker"].(map[string]interface{}); ok {
 				if containerID, exists := docker["container_id"]; exists && containerID != nil {
-					obs.ProviderRef = fmt.Sprintf("%v", containerID)
+					obs.ProviderRef = &ProviderRef{
+						Provider: "docker",
+						Scope:    "engine",
+						Kind:     "container",
+						NativeID: fmt.Sprintf("%v", containerID),
+					}
 				}
 			}
 		}

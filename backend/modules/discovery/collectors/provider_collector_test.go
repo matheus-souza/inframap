@@ -206,11 +206,11 @@ func TestProviderCollector_Collect_Success(t *testing.T) {
 	if obs[1].Hostname != "vm-web" {
 		t.Errorf("obs[1].Hostname = %q, want %q", obs[1].Hostname, "vm-web")
 	}
-	if obs[1].ProviderRef != "101" {
-		t.Errorf("obs[1].ProviderRef = %q, want %q", obs[1].ProviderRef, "101")
+	if obs[1].ProviderRef == nil || obs[1].ProviderRef.Key() != "proxmox:cluster:qemu:101" {
+		t.Errorf("obs[1].ProviderRef = %+v, want %q", obs[1].ProviderRef, "proxmox:cluster:qemu:101")
 	}
-	if obs[1].ParentProviderRef != "pve-node1" {
-		t.Errorf("obs[1].ParentProviderRef = %q, want %q", obs[1].ParentProviderRef, "pve-node1")
+	if obs[1].ParentProviderRef == nil || obs[1].ParentProviderRef.Key() != "proxmox:cluster:node:pve-node1" {
+		t.Errorf("obs[1].ParentProviderRef = %+v, want %q", obs[1].ParentProviderRef, "proxmox:cluster:node:pve-node1")
 	}
 
 	// Verify provider received the resolved configuration
@@ -252,8 +252,8 @@ func TestProviderCollector_Collect_DockerProviderRef(t *testing.T) {
 	if len(obs) != 1 {
 		t.Fatalf("expected 1 observation, got %d", len(obs))
 	}
-	if obs[0].ProviderRef != "c1a2b3c4d5e6" {
-		t.Errorf("obs[0].ProviderRef = %q, want %q", obs[0].ProviderRef, "c1a2b3c4d5e6")
+	if obs[0].ProviderRef == nil || obs[0].ProviderRef.Key() != "docker:engine:container:c1a2b3c4d5e6" {
+		t.Errorf("obs[0].ProviderRef = %+v, want %q", obs[0].ProviderRef, "docker:engine:container:c1a2b3c4d5e6")
 	}
 	if obs[0].ProtocolSource != "docker" {
 		t.Errorf("obs[0].ProtocolSource = %q, want %q", obs[0].ProtocolSource, "docker")

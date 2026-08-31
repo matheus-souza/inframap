@@ -272,15 +272,16 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 		totalValid++
 
 		normDTO := &dto.NormalizedDeviceDTO{
-			IPAddress:       normalized.IPAddress,
-			MACAddress:      normalized.MACAddress,
-			Hostname:        normalized.Hostname,
-			Manufacturer:    normalized.Vendor,
-			DeviceType:      classifyDeviceType(normalized),
-			ConfidenceScore: normalized.ConfidenceScore,
-			ProtocolSource:  normalized.ProtocolSource,
-			RawPayload:      normalized.RawMetadata,
-			ProviderUUID:    normalized.ProviderRef,
+			IPAddress:         normalized.IPAddress,
+			MACAddress:        normalized.MACAddress,
+			Hostname:          normalized.Hostname,
+			Manufacturer:      normalized.Vendor,
+			DeviceType:        classifyDeviceType(normalized),
+			ConfidenceScore:   normalized.ConfidenceScore,
+			ProtocolSource:    normalized.ProtocolSource,
+			RawPayload:        normalized.RawMetadata,
+			ProviderRef:       normalized.ProviderRef,
+			ParentProviderRef: normalized.ParentProviderRef,
 		}
 
 		matchRes := o.matcher.MatchDevice(normDTO, activeDevices)

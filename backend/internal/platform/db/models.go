@@ -35,21 +35,23 @@ type Credential struct {
 }
 
 type Device struct {
-	ID           uuid.UUID          `json:"id"`
-	Hostname     string             `json:"hostname"`
-	IpAddress    *netip.Addr        `json:"ip_address"`
-	MacAddress   net.HardwareAddr   `json:"mac_address"`
-	Manufacturer pgtype.Text        `json:"manufacturer"`
-	Model        pgtype.Text        `json:"model"`
-	SerialNumber pgtype.Text        `json:"serial_number"`
-	DeviceType   string             `json:"device_type"`
-	Status       string             `json:"status"`
-	FirstSeenAt  pgtype.Timestamptz `json:"first_seen_at"`
-	LastSeenAt   pgtype.Timestamptz `json:"last_seen_at"`
-	Metadata     []byte             `json:"metadata"`
-	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	ID                uuid.UUID          `json:"id"`
+	Hostname          string             `json:"hostname"`
+	IpAddress         *netip.Addr        `json:"ip_address"`
+	MacAddress        net.HardwareAddr   `json:"mac_address"`
+	Manufacturer      pgtype.Text        `json:"manufacturer"`
+	Model             pgtype.Text        `json:"model"`
+	SerialNumber      pgtype.Text        `json:"serial_number"`
+	DeviceType        string             `json:"device_type"`
+	Status            string             `json:"status"`
+	FirstSeenAt       pgtype.Timestamptz `json:"first_seen_at"`
+	LastSeenAt        pgtype.Timestamptz `json:"last_seen_at"`
+	Metadata          []byte             `json:"metadata"`
+	DeletedAt         pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ParentProviderRef pgtype.Text        `json:"parent_provider_ref"`
+	ParentDeviceID    pgtype.UUID        `json:"parent_device_id"`
 }
 
 type DeviceDiscoveryRecord struct {
