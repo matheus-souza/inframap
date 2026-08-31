@@ -32,9 +32,10 @@ var ValidDiscoveryTypes = map[string]bool{
 
 // CollectorConfig represents configuration for an individual collector in a discovery plan.
 type CollectorConfig struct {
-	Type    string                 `json:"type"`
-	Config  map[string]interface{} `json:"config,omitempty"`
-	Enabled *bool                  `json:"enabled,omitempty"`
+	Type          string                 `json:"type"`
+	CollectorType string                 `json:"collector_type,omitempty"`
+	Config        map[string]interface{} `json:"config,omitempty"`
+	Enabled       *bool                  `json:"enabled,omitempty"`
 }
 
 // CollectorResponse represents an active collector attached to a discovery source.
@@ -67,6 +68,9 @@ func (r *CreateDiscoverySourceRequest) Normalize() {
 		r.Config = make(map[string]interface{})
 	}
 	for i := range r.Collectors {
+		if r.Collectors[i].Type == "" && r.Collectors[i].CollectorType != "" {
+			r.Collectors[i].Type = r.Collectors[i].CollectorType
+		}
 		r.Collectors[i].Type = strings.ToLower(strings.TrimSpace(r.Collectors[i].Type))
 		if r.Collectors[i].Config == nil {
 			r.Collectors[i].Config = make(map[string]interface{})
