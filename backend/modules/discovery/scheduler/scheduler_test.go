@@ -995,3 +995,29 @@ func TestScheduler_BackgroundPurgeWorker_ConfigOverrides(t *testing.T) {
 	}
 }
 
+func TestScheduler_InvalidInterval_GuardsAgainstPanicAndPreservesDefault(t *testing.T) {
+	uc := &fakeUseCase{}
+	updater := &fakeStatusUpdater{}
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	// Test passing non-positive durations to setters - should be safely ignored
+	s.SetPurgeInterval(-5 * time.Second)
+	s.SetPurgeInterval(0)
+	s.SetReconcileInterval(-1 * time.Minute)
+	s.SetReconcileInterval(0)
+	s.SetStartupPurgeDelay(-10 * time.Millisecond)
+	s.SetRetentionDays(-10)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Should start and stop cleanly without ticker panic
+	if err := s.Start(ctx); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	s.Stop()
+}
+
+

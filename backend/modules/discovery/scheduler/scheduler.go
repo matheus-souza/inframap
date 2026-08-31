@@ -90,17 +90,23 @@ func New(uc SourceLister, updater StatusUpdater, bus eventbus.EventBus, logger *
 
 // SetReconcileInterval overrides the default 5-minute reconciliation interval. Must be called before Start.
 func (s *Scheduler) SetReconcileInterval(d time.Duration) {
-	s.reconcileInterval = d
+	if d > 0 {
+		s.reconcileInterval = d
+	}
 }
 
 // SetPurgeInterval overrides the default 24-hour purge interval. Must be called before Start.
 func (s *Scheduler) SetPurgeInterval(d time.Duration) {
-	s.purgeInterval = d
+	if d > 0 {
+		s.purgeInterval = d
+	}
 }
 
 // SetStartupPurgeDelay overrides the default 1-minute delay before the first purge run. Must be called before Start.
 func (s *Scheduler) SetStartupPurgeDelay(d time.Duration) {
-	s.startupPurgeDelay = d
+	if d >= 0 {
+		s.startupPurgeDelay = d
+	}
 }
 
 // SetRetentionDays overrides the default retention days for collector runs.
@@ -370,7 +376,11 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 
 func (s *Scheduler) reconcileLoop() {
 	defer s.wg.Done()
-	ticker := time.NewTicker(s.reconcileInterval)
+	interval := s.reconcileInterval
+	if interval <= 0 {
+		interval = 5 * time.Minute
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -441,7 +451,11 @@ func (s *Scheduler) purgeLoop() {
 		s.executePurge()
 	}
 
-	ticker := time.NewTicker(s.purgeInterval)
+	interval := s.purgeInterval
+	if interval <= 0 {
+		interval = 24 * time.Hour
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
