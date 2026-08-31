@@ -80,7 +80,10 @@ sequenceDiagram
 ```go
 package collectors
 
-import "fmt"
+import (
+    "fmt"
+    "time"
+)
 
 // ProviderRef uniquely identifies a workload across hypervisors and container engines.
 type ProviderRef struct {

@@ -44,7 +44,7 @@ Prior to this decision:
 - Add `ParentProviderRef` to `RawObservation` and `NormalizedDevice`.
 - In `devices` table, add `parent_provider_ref TEXT` and `parent_device_id UUID REFERENCES devices(id) ON DELETE SET NULL`.
 - Reconcile parent-child relationships with two-pass batch resolution and late event resolution.
-- Enforce unique constraint `uq_topology_link UNIQUE (source_device_id, target_device_id, link_type)`.
+- Enforce unique constraint `uq_topology_links_source_target_type UNIQUE (source_device_id, target_device_id, link_type)`.
 - When a VM migrates between cluster nodes (`ParentProviderRef` changes), atomically update the device record and replace the topology link, publishing `topology.reparented`.
 
 ### 5. Workload Lifecycle and Scope Guard-Rails
