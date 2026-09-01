@@ -76,6 +76,16 @@ type NormalizedDevice struct {
 	OSName     string                 `json:"os_name,omitempty"`
 	OSVersion  string                 `json:"os_version,omitempty"`
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+
+	// ProviderRef is the canonical identity of the workload within the provider. Providers
+	// MUST populate it so the discovery engine can match entities that carry neither MAC
+	// nor IP address (stopped containers, offline VMs without a guest agent).
+	ProviderRef *ProviderRef `json:"provider_ref,omitempty"`
+
+	// ParentProviderRef is the identity of the host that contains this workload
+	// (the Proxmox node for a VM/LXC, the Docker engine for a container). It is nil for
+	// entities that sit at the top of the containment hierarchy.
+	ParentProviderRef *ProviderRef `json:"parent_provider_ref,omitempty"`
 }
 
 // Provider is the mandatory contract for all InfraMap integrations.

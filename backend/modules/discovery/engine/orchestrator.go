@@ -358,6 +358,11 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 }
 
 func classifyDeviceType(obs collectors.RawObservation) string {
+	// Providers report the canonical device type themselves; only fall back to inference
+	// for network sweeps, which observe packets rather than declared entities.
+	if obs.DeviceType != "" {
+		return obs.DeviceType
+	}
 	if obs.RawMetadata != nil {
 		if dt, ok := obs.RawMetadata["device_type"].(string); ok && dt != "" {
 			return dt
