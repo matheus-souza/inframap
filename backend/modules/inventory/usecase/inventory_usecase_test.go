@@ -19,6 +19,10 @@ import (
 )
 
 type mockInventoryRepository struct {
+	devicesByProviderRef map[string]db.Device
+	pendingChildren      map[string][]db.Device
+	parentAssignments    map[uuid.UUID]uuid.UUID
+
 	devicesByProviderScope map[string][]db.Device
 	absenceCalls           []uuid.UUID
 	absenceCounts          map[uuid.UUID]int16
@@ -977,4 +981,28 @@ func (m *mockInventoryRepository) MarkDeviceAbsent(_ context.Context, id uuid.UU
 		status = "archived"
 	}
 	return &db.Device{ID: id, Status: status, AbsenceCount: count}, nil
+}
+
+func (m *mockInventoryRepository) GetDeviceByProviderRef(_ context.Context, providerRef string) (*db.Device, error) {
+	device, ok := m.devicesByProviderRef[providerRef]
+	if !ok {
+		return nil, repository.ErrDeviceNotFound
+	}
+	return &device, nil
+}
+
+func (m *mockInventoryRepository) ListDevicesPendingParentResolution(_ context.Context, parentProviderRef string) ([]db.Device, error) {
+	return m.pendingChildren[parentProviderRef], nil
+}
+
+func (m *mockInventoryRepository) SetDeviceParent(_ context.Context, id, parentDeviceID uuid.UUID, parentProviderRef string) (*db.Device, error) {
+	if m.parentAssignments == nil {
+		m.parentAssignments = map[uuid.UUID]uuid.UUID{}
+	}
+	m.parentAssignments[id] = parentDeviceID
+	return &db.Device{
+		ID:                id,
+		ParentDeviceID:    pgtype.UUID{Bytes: parentDeviceID, Valid: true},
+		ParentProviderRef: pgtype.Text{String: parentProviderRef, Valid: parentProviderRef != ""},
+	}, nil
 }

@@ -13,7 +13,7 @@ var (
 	ErrInvalidDeviceID = errors.New("source_device_id and target_device_id are required and must be distinct valid UUIDs")
 
 	// ErrInvalidLinkType indicates that a link_type is unsupported.
-	ErrInvalidLinkType = errors.New("invalid link_type: must be one of layer2_physical, layer3_routed, virtual_hypervisor, container_veth, manual")
+	ErrInvalidLinkType = errors.New("invalid link_type: must be one of layer2_physical, layer3_routed, virtual_hypervisor, container_veth, hosted_on, manual")
 )
 
 // Supported link types
@@ -22,6 +22,11 @@ const (
 	LinkTypeLayer3Routed     = "layer3_routed"
 	LinkTypeVirtualHypervisor = "virtual_hypervisor"
 	LinkTypeContainerVeth    = "container_veth"
+	// LinkTypeHostedOn is the containment edge from a host to a workload it runs: a Proxmox
+	// node to its VMs and LXCs, a Docker engine to its containers. Unlike the inferred
+	// virtual_hypervisor and container_veth links it replaces, it is derived from the
+	// parentage the provider itself declares.
+	LinkTypeHostedOn = "hosted_on"
 	LinkTypeManual           = "manual"
 )
 
@@ -69,7 +74,7 @@ func (r *CreateTopologyLinkRequest) Validate() error {
 		return ErrInvalidDeviceID
 	}
 	switch r.LinkType {
-	case LinkTypeLayer2Physical, LinkTypeLayer3Routed, LinkTypeVirtualHypervisor, LinkTypeContainerVeth, LinkTypeManual:
+	case LinkTypeLayer2Physical, LinkTypeLayer3Routed, LinkTypeVirtualHypervisor, LinkTypeContainerVeth, LinkTypeHostedOn, LinkTypeManual:
 		return nil
 	default:
 		return ErrInvalidLinkType

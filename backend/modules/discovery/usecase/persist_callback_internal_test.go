@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/discovery/collectors"
@@ -16,6 +17,10 @@ import (
 )
 
 type stubInvRepo struct {
+	devicesByProviderRef map[string]db.Device
+	pendingChildren      map[string][]db.Device
+	parentAssignments    map[uuid.UUID]uuid.UUID
+
 	devicesByProviderScope map[string][]db.Device
 	absenceCalls           []uuid.UUID
 	absenceCounts          map[uuid.UUID]int16
@@ -351,4 +356,28 @@ func TestObservationProviderScope(t *testing.T) {
 	if providerScopeText(sweep).Valid {
 		t.Error("expected provider_scope to stay NULL for a sweep")
 	}
+}
+
+func (s *stubInvRepo) GetDeviceByProviderRef(_ context.Context, providerRef string) (*db.Device, error) {
+	device, ok := s.devicesByProviderRef[providerRef]
+	if !ok {
+		return nil, inventoryRepo.ErrDeviceNotFound
+	}
+	return &device, nil
+}
+
+func (s *stubInvRepo) ListDevicesPendingParentResolution(_ context.Context, parentProviderRef string) ([]db.Device, error) {
+	return s.pendingChildren[parentProviderRef], nil
+}
+
+func (s *stubInvRepo) SetDeviceParent(_ context.Context, id, parentDeviceID uuid.UUID, parentProviderRef string) (*db.Device, error) {
+	if s.parentAssignments == nil {
+		s.parentAssignments = map[uuid.UUID]uuid.UUID{}
+	}
+	s.parentAssignments[id] = parentDeviceID
+	return &db.Device{
+		ID:                id,
+		ParentDeviceID:    pgtype.UUID{Bytes: parentDeviceID, Valid: true},
+		ParentProviderRef: pgtype.Text{String: parentProviderRef, Valid: parentProviderRef != ""},
+	}, nil
 }

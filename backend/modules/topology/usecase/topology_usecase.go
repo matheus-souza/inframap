@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
+	"github.com/matheussouza/inframap/internal/platform/sdk"
 	"github.com/matheussouza/inframap/modules/inventory/repository"
 	"github.com/matheussouza/inframap/modules/topology/dto"
 	topoRepo "github.com/matheussouza/inframap/modules/topology/repository"
@@ -155,80 +157,136 @@ func (u *DefaultTopologyUseCase) HandleDeviceEvent(ctx context.Context, event ev
 		return nil
 	}
 
-	var meta map[string]interface{}
-	if err := json.Unmarshal(device.Metadata, &meta); err != nil {
-		return nil
+	return u.resolveContainment(ctx, device)
+}
+
+// resolveContainment anchors a workload to the host that runs it, in both directions.
+//
+// It replaces the previous inference, which paginated the whole inventory looking for a
+// device whose metadata happened to carry is_host — a scan whose outcome depended on
+// discovery ordering and which could not tell two hosts apart. Parentage is now taken from
+// what the provider itself declared in parent_provider_ref (ADR-013 section 4).
+//
+// Resolution runs in two directions because discovery order is not guaranteed: the device
+// may be a child looking for its host, or a host that has to adopt children discovered
+// before it.
+func (u *DefaultTopologyUseCase) resolveContainment(ctx context.Context, device *db.Device) error {
+	if device.ParentProviderRef.Valid && device.ParentProviderRef.String != "" {
+		u.anchorToParent(ctx, device)
 	}
 
-	// Infer Proxmox Virtual Links
-	if proxmox, ok := meta["proxmox"].(map[string]interface{}); ok {
-		if vmIDVal, exists := proxmox["vm_id"]; exists && vmIDVal != nil {
-			u.inferVirtualLink(ctx, device, fmt.Sprintf("%v", vmIDVal), dto.LinkTypeVirtualHypervisor, "proxmox")
-		}
-	}
-
-	// Infer Docker Virtual Links
-	if docker, ok := meta["docker"].(map[string]interface{}); ok {
-		if containerIDVal, exists := docker["container_id"]; exists && containerIDVal != nil {
-			u.inferVirtualLink(ctx, device, fmt.Sprintf("%v", containerIDVal), dto.LinkTypeContainerVeth, "docker")
-		}
+	if ref := deviceProviderRef(device); ref != "" {
+		u.adoptPendingChildren(ctx, device, ref)
 	}
 
 	return nil
 }
 
-func (u *DefaultTopologyUseCase) inferVirtualLink(ctx context.Context, childDevice *db.Device, providerUUID, linkType, provider string) {
-	// Paginate through active devices to find matching parent host
-	var page int32 = 1
-	var limit int32 = 1000
+// anchorToParent resolves a workload's declared parent to a device and links the two.
+func (u *DefaultTopologyUseCase) anchorToParent(ctx context.Context, child *db.Device) {
+	parentRef := child.ParentProviderRef.String
 
-	for {
-		devices, _, err := u.invRepo.ListDevices(ctx, "", "", page, limit, false)
-		if err != nil || len(devices) == 0 {
-			break
-		}
-
-		for i := range devices {
-			parent := &devices[i]
-			if parent.ID == childDevice.ID || len(parent.Metadata) == 0 {
-				continue
-			}
-
-			var parentMeta map[string]interface{}
-			if err := json.Unmarshal(parent.Metadata, &parentMeta); err != nil {
-				continue
-			}
-
-			// Parent device is a hypervisor/docker host
-			if parentProv, ok := parentMeta[provider].(map[string]interface{}); ok {
-				if isHost, ok := parentProv["is_host"].(bool); ok && isHost {
-					// Create virtual link from parent to child
-					req := &dto.CreateTopologyLinkRequest{
-						SourceDeviceID: parent.ID,
-						TargetDeviceID: childDevice.ID,
-						LinkType:       linkType,
-						DiscoveredBy:   provider,
-						Metadata: map[string]interface{}{
-							"auto_inferred": true,
-							"provider_uuid": providerUUID,
-						},
-					}
-					req.Normalize()
-					if _, err := u.repo.CreateLink(ctx, req); err != nil {
-						u.logger.Warn("failed to auto-infer virtual link", "parent", parent.ID, "child", childDevice.ID, "error", err)
-					} else {
-						u.publishTopologyUpdated(ctx, parent.ID, "inferred", linkType)
-					}
-					return
-				}
-			}
-		}
-
-		if len(devices) < int(limit) {
-			break
-		}
-		page++
+	parent, err := u.invRepo.GetDeviceByProviderRef(ctx, parentRef)
+	if err != nil || parent == nil {
+		// The host has not been discovered yet. The child stays pending and will be adopted
+		// when the host shows up, so this is expected rather than an error.
+		return
 	}
+
+	u.linkContainment(ctx, parent, child)
+}
+
+// adoptPendingChildren links the workloads that declared this device as their host but were
+// discovered before it existed in the inventory.
+func (u *DefaultTopologyUseCase) adoptPendingChildren(ctx context.Context, parent *db.Device, parentRef string) {
+	children, err := u.invRepo.ListDevicesPendingParentResolution(ctx, parentRef)
+	if err != nil {
+		u.logger.Warn("failed to list workloads pending parent resolution", "parent_ref", parentRef, "error", err)
+		return
+	}
+
+	for i := range children {
+		u.linkContainment(ctx, parent, &children[i])
+	}
+}
+
+// linkContainment records the parentage on the child and materializes the containment edge.
+//
+// When the parent changes — a VM migrating between cluster nodes — the device record and
+// the topology edge move together and topology.reparented is emitted, so consumers can tell
+// a migration apart from a fresh discovery.
+func (u *DefaultTopologyUseCase) linkContainment(ctx context.Context, parent, child *db.Device) {
+	if parent.ID == child.ID {
+		return
+	}
+
+	previousParent := child.ParentDeviceID
+	migrated := previousParent.Valid && uuid.UUID(previousParent.Bytes) != parent.ID
+
+	if err := u.repo.ReplaceContainmentLink(ctx, &topoRepo.ContainmentLinkRequest{
+		ParentDeviceID: parent.ID,
+		ChildDeviceID:  child.ID,
+		LinkType:       dto.LinkTypeHostedOn,
+		DiscoveredBy:   containmentDiscoveredBy(child),
+		Metadata: map[string]interface{}{
+			"parent_provider_ref": child.ParentProviderRef.String,
+			"provider_ref":        deviceProviderRef(child),
+		},
+	}); err != nil {
+		u.logger.Warn("failed to materialize containment link", "parent", parent.ID, "child", child.ID, "error", err)
+		return
+	}
+
+	if _, err := u.invRepo.SetDeviceParent(ctx, child.ID, parent.ID, child.ParentProviderRef.String); err != nil {
+		u.logger.Warn("failed to anchor workload to its host", "parent", parent.ID, "child", child.ID, "error", err)
+		return
+	}
+
+	if migrated {
+		u.publishReparented(ctx, child, uuid.UUID(previousParent.Bytes), parent.ID)
+	}
+	u.publishTopologyUpdated(ctx, parent.ID, "hosted_on", dto.LinkTypeHostedOn)
+}
+
+// publishReparented announces that a workload moved to a different host.
+func (u *DefaultTopologyUseCase) publishReparented(ctx context.Context, child *db.Device, previousParent, newParent uuid.UUID) {
+	if u.eventBus == nil {
+		return
+	}
+
+	event := eventbus.NewBaseEvent("topology.reparented", map[string]interface{}{
+		"device_id":        child.ID.String(),
+		"provider_ref":     deviceProviderRef(child),
+		"previous_host_id": previousParent.String(),
+		"new_host_id":      newParent.String(),
+		"timestamp":        time.Now().Format(time.RFC3339),
+	})
+	if err := u.eventBus.Publish(ctx, event); err != nil {
+		u.logger.Warn("failed to publish topology.reparented event", "error", err)
+	}
+}
+
+// containmentDiscoveredBy names the provider that declared the parentage, taken from the
+// first segment of the workload's canonical reference.
+func containmentDiscoveredBy(child *db.Device) string {
+	ref, err := sdk.ParseProviderRef(deviceProviderRef(child))
+	if err != nil {
+		return "provider"
+	}
+	return ref.Provider
+}
+
+// deviceProviderRef reads the canonical provider identity stored on a device.
+func deviceProviderRef(device *db.Device) string {
+	if len(device.Metadata) == 0 {
+		return ""
+	}
+	var metadata map[string]interface{}
+	if err := json.Unmarshal(device.Metadata, &metadata); err != nil {
+		return ""
+	}
+	ref, _ := metadata["provider_ref"].(string)
+	return strings.TrimSpace(ref)
 }
 
 func (u *DefaultTopologyUseCase) publishTopologyUpdated(ctx context.Context, linkID uuid.UUID, action, linkType string) {

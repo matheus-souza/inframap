@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	inventoryRepo "github.com/matheussouza/inframap/modules/inventory/repository"
@@ -22,8 +23,18 @@ import (
 type mockTopoRepo struct {
 	links map[uuid.UUID]*dto.TopologyLinkResponse
 
-	failCreate bool
-	failDelete bool
+	failCreate       bool
+	failDelete       bool
+	failContainment  bool
+	containmentCalls []topoRepo.ContainmentLinkRequest
+}
+
+func (m *mockTopoRepo) ReplaceContainmentLink(_ context.Context, req *topoRepo.ContainmentLinkRequest) error {
+	if m.failContainment {
+		return errors.New("containment failure")
+	}
+	m.containmentCalls = append(m.containmentCalls, *req)
+	return nil
 }
 
 func newMockTopoRepo() *mockTopoRepo {
@@ -104,6 +115,10 @@ func (m *mockTopoRepo) GetGraphData(_ context.Context) (*dto.TopologyGraphRespon
 }
 
 type mockInvRepo struct {
+	devicesByProviderRef map[string]db.Device
+	pendingChildren      map[string][]db.Device
+	parentAssignments    map[uuid.UUID]uuid.UUID
+
 	devicesByProviderScope map[string][]db.Device
 	absenceCalls           []uuid.UUID
 	absenceCounts          map[uuid.UUID]int16
@@ -286,91 +301,186 @@ func TestTopologyUseCase_Unit(t *testing.T) {
 		}
 	})
 
-	t.Run("HandleDeviceEvent Auto-Infers Proxmox & Docker Links", func(t *testing.T) {
-		parentPVEID := uuid.New()
-		childVMID := uuid.New()
+	t.Run("HandleDeviceEvent anchors a workload to its declared host", func(t *testing.T) {
+		nodeID := uuid.New()
+		vmID := uuid.New()
 
-		parentMeta, _ := json.Marshal(map[string]interface{}{
-			"proxmox": map[string]interface{}{"is_host": true},
-		})
-		childMeta, _ := json.Marshal(map[string]interface{}{
-			"proxmox": map[string]interface{}{"vm_id": 101},
-		})
+		nodeMeta, _ := json.Marshal(map[string]interface{}{"provider_ref": "proxmox:pve-cluster:node:pve-node1"})
+		vmMeta, _ := json.Marshal(map[string]interface{}{"provider_ref": "proxmox:pve-cluster:qemu:101"})
 
-		invRepo.devices = []db.Device{
-			{ID: parentPVEID, Hostname: "pve-host-01", Metadata: parentMeta},
-			{ID: childVMID, Hostname: "vm-101-ubuntu", Metadata: childMeta},
+		vm := db.Device{
+			ID:                vmID,
+			Hostname:          "vm-101-ubuntu",
+			Metadata:          vmMeta,
+			ParentProviderRef: pgtype.Text{String: "proxmox:pve-cluster:node:pve-node1", Valid: true},
 		}
+		invRepo.devices = []db.Device{{ID: nodeID, Hostname: "pve-node1", Metadata: nodeMeta}, vm}
+		invRepo.devicesByProviderRef = map[string]db.Device{
+			"proxmox:pve-cluster:node:pve-node1": {ID: nodeID, Hostname: "pve-node1", Metadata: nodeMeta},
+		}
+		repo.containmentCalls = nil
 
-		event := eventbus.NewBaseEvent("device.created", map[string]interface{}{"id": childVMID.String()})
-		err := uc.HandleDeviceEvent(ctx, event)
-		if err != nil {
+		event := eventbus.NewBaseEvent("device.created", map[string]interface{}{"id": vmID.String()})
+		if err := uc.HandleDeviceEvent(ctx, event); err != nil {
 			t.Fatalf("expected nil error on HandleDeviceEvent, got %v", err)
 		}
 
-		links, _ := uc.ListLinks(ctx, dto.LinkTypeVirtualHypervisor, "", "", 1, 100)
-		if len(links) == 0 {
-			t.Fatal("expected virtual_hypervisor link to be inferred")
+		if len(repo.containmentCalls) != 1 {
+			t.Fatalf("expected one containment link, got %d", len(repo.containmentCalls))
 		}
-		if links[0].SourceDeviceID != parentPVEID || links[0].TargetDeviceID != childVMID {
-			t.Errorf("expected link between %s and %s", parentPVEID, childVMID)
+		call := repo.containmentCalls[0]
+		if call.ParentDeviceID != nodeID || call.ChildDeviceID != vmID {
+			t.Errorf("expected a link from %s to %s, got %s to %s", nodeID, vmID, call.ParentDeviceID, call.ChildDeviceID)
+		}
+		if call.LinkType != dto.LinkTypeHostedOn {
+			t.Errorf("link type = %q, want %q", call.LinkType, dto.LinkTypeHostedOn)
+		}
+		if call.DiscoveredBy != "proxmox" {
+			t.Errorf("discovered_by = %q, want proxmox", call.DiscoveredBy)
+		}
+		if invRepo.parentAssignments[vmID] != nodeID {
+			t.Errorf("expected parent_device_id to be anchored to %s", nodeID)
 		}
 	})
 
-	t.Run("HandleDeviceEvent Docker Veth Auto-Inference", func(t *testing.T) {
-		parentDocID := uuid.New()
-		childContainerID := uuid.New()
+	t.Run("HandleDeviceEvent adopts children discovered before their host", func(t *testing.T) {
+		engineID := uuid.New()
+		containerID := uuid.New()
 
-		parentMeta, _ := json.Marshal(map[string]interface{}{
-			"docker": map[string]interface{}{"is_host": true},
-		})
-		childMeta, _ := json.Marshal(map[string]interface{}{
-			"docker": map[string]interface{}{"container_id": "c998877"},
-		})
+		engineMeta, _ := json.Marshal(map[string]interface{}{"provider_ref": "docker:lab:engine:daemon-1"})
+		containerMeta, _ := json.Marshal(map[string]interface{}{"provider_ref": "docker:lab:container:abc"})
 
-		invRepo.devices = []db.Device{
-			{ID: parentDocID, Hostname: "docker-host-01", Metadata: parentMeta},
-			{ID: childContainerID, Hostname: "nginx-container", Metadata: childMeta},
+		engineDev := db.Device{ID: engineID, Hostname: "docker-host", Metadata: engineMeta}
+		invRepo.devices = []db.Device{engineDev}
+		invRepo.devicesByProviderRef = map[string]db.Device{"docker:lab:engine:daemon-1": engineDev}
+		// Discovery order is not guaranteed, so the container was already waiting.
+		invRepo.pendingChildren = map[string][]db.Device{
+			"docker:lab:engine:daemon-1": {{
+				ID:                containerID,
+				Hostname:          "nginx",
+				Metadata:          containerMeta,
+				ParentProviderRef: pgtype.Text{String: "docker:lab:engine:daemon-1", Valid: true},
+			}},
 		}
+		repo.containmentCalls = nil
 
-		event := eventbus.NewBaseEvent("device.created", map[string]interface{}{"id": childContainerID.String()})
-		err := uc.HandleDeviceEvent(ctx, event)
-		if err != nil {
+		event := eventbus.NewBaseEvent("device.created", map[string]interface{}{"id": engineID.String()})
+		if err := uc.HandleDeviceEvent(ctx, event); err != nil {
 			t.Fatalf("expected nil error on HandleDeviceEvent, got %v", err)
 		}
 
-		links, _ := uc.ListLinks(ctx, dto.LinkTypeContainerVeth, "", "", 1, 100)
-		if len(links) == 0 {
-			t.Fatal("expected container_veth link to be inferred")
+		if len(repo.containmentCalls) != 1 {
+			t.Fatalf("expected the pending container to be adopted, got %d links", len(repo.containmentCalls))
+		}
+		if repo.containmentCalls[0].ChildDeviceID != containerID {
+			t.Errorf("expected the pending container %s to be linked", containerID)
+		}
+		invRepo.pendingChildren = nil
+	})
+
+	t.Run("HandleDeviceEvent emits topology.reparented when a workload migrates", func(t *testing.T) {
+		previousNodeID := uuid.New()
+		newNodeID := uuid.New()
+		vmID := uuid.New()
+
+		newNodeMeta, _ := json.Marshal(map[string]interface{}{"provider_ref": "proxmox:pve-cluster:node:pve-node2"})
+		vmMeta, _ := json.Marshal(map[string]interface{}{"provider_ref": "proxmox:pve-cluster:qemu:101"})
+
+		// The VM is already anchored to another node: this run reports it on a new one.
+		migratedVM := db.Device{
+			ID:                vmID,
+			Hostname:          "vm-101-ubuntu",
+			Metadata:          vmMeta,
+			ParentProviderRef: pgtype.Text{String: "proxmox:pve-cluster:node:pve-node2", Valid: true},
+			ParentDeviceID:    pgtype.UUID{Bytes: previousNodeID, Valid: true},
+		}
+		newNode := db.Device{ID: newNodeID, Hostname: "pve-node2", Metadata: newNodeMeta}
+		invRepo.devices = []db.Device{newNode, migratedVM}
+		invRepo.devicesByProviderRef = map[string]db.Device{"proxmox:pve-cluster:node:pve-node2": newNode}
+		repo.containmentCalls = nil
+
+		received := make(chan eventbus.DomainEvent, 4)
+		if err := bus.Subscribe("topology.reparented", func(_ context.Context, e eventbus.DomainEvent) error {
+			received <- e
+			return nil
+		}); err != nil {
+			t.Fatalf("failed to subscribe to topology.reparented: %v", err)
+		}
+
+		event := eventbus.NewBaseEvent("device.updated", map[string]interface{}{"id": vmID.String()})
+		if err := uc.HandleDeviceEvent(ctx, event); err != nil {
+			t.Fatalf("expected nil error on HandleDeviceEvent, got %v", err)
+		}
+
+		select {
+		case got := <-received:
+			payload, ok := got.Payload().(map[string]interface{})
+			if !ok {
+				t.Fatal("expected a map payload on topology.reparented")
+			}
+			if payload["previous_host_id"] != previousNodeID.String() {
+				t.Errorf("previous_host_id = %v, want %s", payload["previous_host_id"], previousNodeID)
+			}
+			if payload["new_host_id"] != newNodeID.String() {
+				t.Errorf("new_host_id = %v, want %s", payload["new_host_id"], newNodeID)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("expected topology.reparented to be published on migration")
 		}
 	})
 
-	t.Run("HandleDeviceEvent Infer Link CreateLink Failure Logs Warning", func(t *testing.T) {
-		parentID := uuid.New()
-		childID := uuid.New()
+	t.Run("HandleDeviceEvent logs and gives up when the link cannot be written", func(t *testing.T) {
+		nodeID := uuid.New()
+		vmID := uuid.New()
 
-		parentMeta, _ := json.Marshal(map[string]interface{}{
-			"proxmox": map[string]interface{}{"is_host": true},
-		})
-		childMeta, _ := json.Marshal(map[string]interface{}{
-			"proxmox": map[string]interface{}{"vm_id": 999},
-		})
+		nodeMeta, _ := json.Marshal(map[string]interface{}{"provider_ref": "proxmox:pve-cluster:node:pve-fail"})
+		vmMeta, _ := json.Marshal(map[string]interface{}{"provider_ref": "proxmox:pve-cluster:qemu:999"})
 
-		invRepo.devices = []db.Device{
-			{ID: parentID, Hostname: "pve-fail-host", Metadata: parentMeta},
-			{ID: childID, Hostname: "vm-fail-child", Metadata: childMeta},
-		}
+		node := db.Device{ID: nodeID, Hostname: "pve-fail-host", Metadata: nodeMeta}
+		invRepo.devices = []db.Device{node, {
+			ID:                vmID,
+			Hostname:          "vm-fail-child",
+			Metadata:          vmMeta,
+			ParentProviderRef: pgtype.Text{String: "proxmox:pve-cluster:node:pve-fail", Valid: true},
+		}}
+		invRepo.devicesByProviderRef = map[string]db.Device{"proxmox:pve-cluster:node:pve-fail": node}
+		delete(invRepo.parentAssignments, vmID)
 
-		repo.failCreate = true
-		event := eventbus.NewBaseEvent("device.created", map[string]interface{}{"id": childID.String()})
-		err := uc.HandleDeviceEvent(ctx, event)
-		if err != nil {
+		repo.failContainment = true
+		event := eventbus.NewBaseEvent("device.created", map[string]interface{}{"id": vmID.String()})
+		if err := uc.HandleDeviceEvent(ctx, event); err != nil {
 			t.Fatalf("expected nil error, got %v", err)
 		}
-		repo.failCreate = false
+		repo.failContainment = false
 
-		if !strings.Contains(buf.String(), "failed to auto-infer virtual link") {
-			t.Error("expected warning log for failed auto-infer link")
+		if !strings.Contains(buf.String(), "failed to materialize containment link") {
+			t.Error("expected a warning when the containment link cannot be written")
+		}
+		// The device must not be anchored to a host whose edge does not exist.
+		if _, anchored := invRepo.parentAssignments[vmID]; anchored {
+			t.Error("expected no parent to be recorded when the link write failed")
+		}
+	})
+
+	t.Run("HandleDeviceEvent leaves a workload pending until its host appears", func(t *testing.T) {
+		orphanID := uuid.New()
+		orphanMeta, _ := json.Marshal(map[string]interface{}{"provider_ref": "docker:lab:container:orphan"})
+
+		invRepo.devices = []db.Device{{
+			ID:                orphanID,
+			Hostname:          "orphan",
+			Metadata:          orphanMeta,
+			ParentProviderRef: pgtype.Text{String: "docker:lab:engine:not-yet-seen", Valid: true},
+		}}
+		invRepo.devicesByProviderRef = map[string]db.Device{}
+		repo.containmentCalls = nil
+
+		event := eventbus.NewBaseEvent("device.created", map[string]interface{}{"id": orphanID.String()})
+		if err := uc.HandleDeviceEvent(ctx, event); err != nil {
+			t.Fatalf("expected an undiscovered host to be tolerated, got %v", err)
+		}
+		if len(repo.containmentCalls) != 0 {
+			t.Errorf("expected no link before the host is discovered, got %d", len(repo.containmentCalls))
 		}
 	})
 
@@ -416,4 +526,28 @@ func (m *mockInvRepo) MarkDeviceAbsent(_ context.Context, id uuid.UUID, archiveT
 		status = "archived"
 	}
 	return &db.Device{ID: id, Status: status, AbsenceCount: count}, nil
+}
+
+func (m *mockInvRepo) GetDeviceByProviderRef(_ context.Context, providerRef string) (*db.Device, error) {
+	device, ok := m.devicesByProviderRef[providerRef]
+	if !ok {
+		return nil, inventoryRepo.ErrDeviceNotFound
+	}
+	return &device, nil
+}
+
+func (m *mockInvRepo) ListDevicesPendingParentResolution(_ context.Context, parentProviderRef string) ([]db.Device, error) {
+	return m.pendingChildren[parentProviderRef], nil
+}
+
+func (m *mockInvRepo) SetDeviceParent(_ context.Context, id, parentDeviceID uuid.UUID, parentProviderRef string) (*db.Device, error) {
+	if m.parentAssignments == nil {
+		m.parentAssignments = map[uuid.UUID]uuid.UUID{}
+	}
+	m.parentAssignments[id] = parentDeviceID
+	return &db.Device{
+		ID:                id,
+		ParentDeviceID:    pgtype.UUID{Bytes: parentDeviceID, Valid: true},
+		ParentProviderRef: pgtype.Text{String: parentProviderRef, Valid: parentProviderRef != ""},
+	}, nil
 }

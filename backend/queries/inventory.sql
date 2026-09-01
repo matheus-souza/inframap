@@ -1,8 +1,8 @@
 -- name: CreateDevice :one
 INSERT INTO devices (
-    id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, metadata, provider_scope
+    id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, metadata, provider_scope, parent_provider_ref
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 ) RETURNING *;
 
 -- name: GetDeviceByID :one
@@ -50,6 +50,31 @@ SELECT * FROM devices
 WHERE provider_scope = $1
   AND deleted_at IS NULL
   AND status <> 'archived';
+
+-- name: GetDeviceByProviderRef :one
+-- Resolves a workload by its canonical identity, backed by the partial unique index
+-- uq_devices_provider_ref.
+SELECT * FROM devices
+WHERE metadata->>'provider_ref' = sqlc.arg(provider_ref)::text AND deleted_at IS NULL;
+
+-- name: ListDevicesPendingParentResolution :many
+-- Children that declared a parent the engine has not resolved to a device yet, which
+-- happens whenever a workload is discovered before its host. Backed by
+-- idx_devices_parent_provider_ref_pending.
+SELECT * FROM devices
+WHERE parent_provider_ref = $1
+  AND parent_device_id IS NULL
+  AND deleted_at IS NULL;
+
+-- name: SetDeviceParent :one
+-- Anchors a workload to its host. Kept apart from UpdateDevice so field reconciliation can
+-- never clobber the containment hierarchy, and vice versa.
+UPDATE devices
+SET parent_device_id = $2,
+    parent_provider_ref = COALESCE(NULLIF(sqlc.arg(parent_provider_ref)::text, ''), parent_provider_ref),
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
 
 -- name: MarkDeviceAbsent :one
 -- Advances one device along the absence hysteresis: the first miss in an authoritative,

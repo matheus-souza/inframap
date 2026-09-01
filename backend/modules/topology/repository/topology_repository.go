@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/modules/topology/dto"
 )
@@ -28,16 +29,97 @@ type TopologyRepository interface {
 	ListLinks(ctx context.Context, linkType string, sourceDeviceID, targetDeviceID *uuid.UUID, page, limit int32) ([]*dto.TopologyLinkResponse, error)
 	DeleteLink(ctx context.Context, id uuid.UUID) error
 	GetGraphData(ctx context.Context) (*dto.TopologyGraphResponse, error)
+
+	ReplaceContainmentLink(ctx context.Context, req *ContainmentLinkRequest) error
+}
+
+// ContainmentLinkRequest describes the anchoring of a workload to the host that runs it.
+type ContainmentLinkRequest struct {
+	ParentDeviceID uuid.UUID
+	ChildDeviceID  uuid.UUID
+	LinkType       string
+	DiscoveredBy   string
+	Metadata       map[string]interface{}
 }
 
 // PgTopologyRepository implements TopologyRepository using sqlc-generated db.Queries.
 type PgTopologyRepository struct {
 	queries *db.Queries
+	// pool backs the operations that must be transactional. It is optional so existing
+	// callers that only hold a *db.Queries keep working; ReplaceContainmentLink requires it.
+	pool *pgxpool.Pool
 }
 
 // NewPgTopologyRepository constructs a new PgTopologyRepository.
 func NewPgTopologyRepository(queries *db.Queries) *PgTopologyRepository {
 	return &PgTopologyRepository{queries: queries}
+}
+
+// NewPgTopologyRepositoryWithPool constructs a repository that can run transactions, which
+// atomic containment re-anchoring needs.
+func NewPgTopologyRepositoryWithPool(pool *pgxpool.Pool) *PgTopologyRepository {
+	return &PgTopologyRepository{queries: db.New(pool), pool: pool}
+}
+
+// ErrTransactionsUnavailable indicates the repository was built without a connection pool
+// and therefore cannot run the operations that require a transaction.
+var ErrTransactionsUnavailable = errors.New("topology repository has no connection pool")
+
+// ReplaceContainmentLink re-anchors a workload to a host in a single transaction: any
+// containment edge pointing at it from a different host is removed and the new one is
+// inserted together, so the graph is never observed showing a workload on two hosts at
+// once — the state a VM migration between cluster nodes would otherwise pass through.
+func (r *PgTopologyRepository) ReplaceContainmentLink(ctx context.Context, req *ContainmentLinkRequest) error {
+	if r.pool == nil {
+		return ErrTransactionsUnavailable
+	}
+
+	metaBytes, err := json.Marshal(req.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal containment link metadata: %w", err)
+	}
+
+	confidence := pgtype.Numeric{}
+	// The provider declares this parentage rather than the engine inferring it, so it is
+	// asserted with full confidence.
+	if err := confidence.Scan("1.00"); err != nil {
+		return fmt.Errorf("failed to scan confidence score: %w", err)
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin containment transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	qtx := db.New(tx)
+
+	if _, err := qtx.DeleteContainmentLinksForChild(ctx, db.DeleteContainmentLinksForChildParams{
+		TargetDeviceID: req.ChildDeviceID,
+		LinkType:       req.LinkType,
+		SourceDeviceID: req.ParentDeviceID,
+	}); err != nil {
+		return fmt.Errorf("failed to drop stale containment links: %w", err)
+	}
+
+	if _, err := qtx.UpsertContainmentLink(ctx, db.UpsertContainmentLinkParams{
+		ID:              uuid.New(),
+		SourceDeviceID:  req.ParentDeviceID,
+		TargetDeviceID:  req.ChildDeviceID,
+		LinkType:        req.LinkType,
+		ConfidenceScore: confidence,
+		DiscoveredBy:    req.DiscoveredBy,
+		Metadata:        metaBytes,
+	}); err != nil {
+		return fmt.Errorf("failed to upsert containment link: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit containment transaction: %w", err)
+	}
+	return nil
 }
 
 // CreateLink inserts a new topology link in PostgreSQL.
