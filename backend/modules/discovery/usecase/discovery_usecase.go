@@ -494,7 +494,7 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 	var targetDeviceID uuid.UUID
 	var matchedBy string
 
-	rawBytes, _ := json.Marshal(norm.RawPayload)
+	rawBytes, _ := json.Marshal(buildDeviceMetadata(norm))
 
 	effectiveType := source.Type
 	if norm.ProtocolSource != "" {
@@ -787,3 +787,24 @@ func (u *DefaultDiscoveryUseCase) ListRunsBySource(ctx context.Context, sourceID
 }
 
 
+
+// buildDeviceMetadata merges the collector payload with the canonical provider identity.
+//
+// The identity has to live in devices.metadata because that is what the Matcher reads at
+// Tier 0 and what the partial unique index uq_devices_provider_ref is built on
+// (metadata->>'provider_ref'), which requires the canonical key as a plain string.
+func buildDeviceMetadata(norm *dto.NormalizedDeviceDTO) map[string]interface{} {
+	metadata := make(map[string]interface{}, len(norm.RawPayload)+2)
+	for k, v := range norm.RawPayload {
+		metadata[k] = v
+	}
+
+	if norm.ProviderRef != nil && !norm.ProviderRef.IsZero() {
+		metadata[engine.DeviceMetadataProviderRefKey] = norm.ProviderRef.Key()
+	}
+	if norm.ParentProviderRef != nil && !norm.ParentProviderRef.IsZero() {
+		metadata["parent_provider_ref"] = norm.ParentProviderRef.Key()
+	}
+
+	return metadata
+}

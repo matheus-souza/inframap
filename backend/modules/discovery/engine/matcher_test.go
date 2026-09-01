@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matheussouza/inframap/internal/platform/db"
+	"github.com/matheussouza/inframap/modules/discovery/collectors"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 	"github.com/matheussouza/inframap/modules/discovery/engine"
 )
@@ -159,6 +160,95 @@ func TestIdentityMatcher_MatchDevice(t *testing.T) {
 		res := matcher.MatchDevice(norm, activeDevices)
 		if res.DeviceID != nil {
 			t.Errorf("expected nil DeviceID for unknown device, got %v", res.DeviceID)
+		}
+	})
+}
+
+func TestIdentityMatcher_MatchDevice_Tier0ProviderRef(t *testing.T) {
+	matcher := engine.NewDefaultIdentityMatcher()
+
+	containerID := uuid.New()
+	otherID := uuid.New()
+
+	staleMAC, _ := net.ParseMAC("02:42:ac:11:00:02")
+	containerMeta, _ := json.Marshal(map[string]interface{}{
+		"provider_ref": "docker:lab:container:abc123",
+		"docker":       map[string]interface{}{"image": "redis:7-alpine"},
+	})
+	otherMeta, _ := json.Marshal(map[string]interface{}{
+		"provider_ref": "docker:lab:container:def456",
+	})
+
+	activeDevices := []db.Device{
+		{ID: containerID, Hostname: "redis", MacAddress: staleMAC, Metadata: containerMeta},
+		{ID: otherID, Hostname: "nginx", Metadata: otherMeta},
+	}
+
+	t.Run("matches a recreated container whose MAC has churned", func(t *testing.T) {
+		freshMAC, _ := net.ParseMAC("02:42:ac:11:00:99")
+		norm := &dto.NormalizedDeviceDTO{
+			Hostname:    "redis",
+			MACAddress:  freshMAC.String(),
+			ProviderRef: &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "abc123"},
+		}
+
+		res := matcher.MatchDevice(norm, activeDevices)
+		if res.DeviceID == nil || *res.DeviceID != containerID {
+			t.Fatalf("expected match on %s, got %v", containerID, res.DeviceID)
+		}
+		if res.MatchedBy != "provider_ref" {
+			t.Errorf("MatchedBy = %q, want %q", res.MatchedBy, "provider_ref")
+		}
+	})
+
+	t.Run("outranks a MAC address belonging to another device", func(t *testing.T) {
+		// The stale MAC still sits on the container device, but the observation declares a
+		// different workload: the provider is authoritative, so Tier 0 must win.
+		norm := &dto.NormalizedDeviceDTO{
+			Hostname:    "nginx",
+			MACAddress:  staleMAC.String(),
+			ProviderRef: &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "def456"},
+		}
+
+		res := matcher.MatchDevice(norm, activeDevices)
+		if res.DeviceID == nil || *res.DeviceID != otherID {
+			t.Fatalf("expected Tier 0 to outrank the MAC match, got %v", res.DeviceID)
+		}
+	})
+
+	t.Run("matches a workload that has neither MAC nor IP", func(t *testing.T) {
+		norm := &dto.NormalizedDeviceDTO{
+			Hostname:    "redis",
+			ProviderRef: &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "abc123"},
+		}
+
+		res := matcher.MatchDevice(norm, activeDevices)
+		if res.DeviceID == nil || *res.DeviceID != containerID {
+			t.Fatalf("expected a stopped container to still match, got %v", res.DeviceID)
+		}
+	})
+
+	t.Run("falls through when the reference is unknown", func(t *testing.T) {
+		norm := &dto.NormalizedDeviceDTO{
+			Hostname:    "brand-new",
+			ProviderRef: &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "unseen"},
+		}
+
+		if res := matcher.MatchDevice(norm, activeDevices); res.DeviceID != nil {
+			t.Errorf("expected no match, got %v matched by %q", res.DeviceID, res.MatchedBy)
+		}
+	})
+
+	t.Run("ignores a partial reference", func(t *testing.T) {
+		// Scope and kind alone carry no identity, so such an observation must not collapse
+		// onto an unrelated device.
+		norm := &dto.NormalizedDeviceDTO{
+			Hostname:    "redis",
+			ProviderRef: &collectors.ProviderRef{Scope: "lab", Kind: "container"},
+		}
+
+		if res := matcher.MatchDevice(norm, activeDevices); res.MatchedBy == "provider_ref" {
+			t.Errorf("expected a partial reference to be ignored, matched %v", res.DeviceID)
 		}
 	})
 }

@@ -45,3 +45,62 @@ func TestNormalizer_NormalizeObservation(t *testing.T) {
 		t.Errorf("expected non-zero ObservedAt")
 	}
 }
+
+func TestNormalizeObservation_SyntheticHostname(t *testing.T) {
+	tests := []struct {
+		name     string
+		obs      collectors.RawObservation
+		expected string
+	}{
+		{
+			name: "unnamed workload is named after its host, kind and native id",
+			obs: collectors.RawObservation{
+				ProviderRef:       &collectors.ProviderRef{Provider: "proxmox", Scope: "pve-cluster1", Kind: "qemu", NativeID: "101"},
+				ParentProviderRef: &collectors.ProviderRef{Provider: "proxmox", Scope: "pve-cluster1", Kind: "node", NativeID: "pve-node1"},
+			},
+			expected: "pve-node1/qemu/101",
+		},
+		{
+			name: "falls back to the scope when there is no parent",
+			obs: collectors.RawObservation{
+				ProviderRef: &collectors.ProviderRef{Provider: "docker", Scope: "lab-cluster", Kind: "engine", NativeID: "daemon-1"},
+			},
+			expected: "lab-cluster/engine/daemon-1",
+		},
+		{
+			name: "a declared hostname is never overwritten",
+			obs: collectors.RawObservation{
+				Hostname:    "Web-01",
+				ProviderRef: &collectors.ProviderRef{Provider: "proxmox", Scope: "pve", Kind: "qemu", NativeID: "101"},
+			},
+			expected: "web-01",
+		},
+		{
+			name:     "observations without a provider identity stay unnamed",
+			obs:      collectors.RawObservation{IPAddress: "192.168.1.10"},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := engine.NormalizeObservation(tt.obs).Hostname; got != tt.expected {
+				t.Errorf("Hostname = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNormalizeObservation_SyntheticHostnameIsDeterministic(t *testing.T) {
+	obs := collectors.RawObservation{
+		ProviderRef:       &collectors.ProviderRef{Provider: "proxmox", Scope: "pve", Kind: "lxc", NativeID: "201"},
+		ParentProviderRef: &collectors.ProviderRef{Provider: "proxmox", Scope: "pve", Kind: "node", NativeID: "pve-node2"},
+	}
+
+	first := engine.NormalizeObservation(obs).Hostname
+	for i := 0; i < 5; i++ {
+		if got := engine.NormalizeObservation(obs).Hostname; got != first {
+			t.Fatalf("synthetic hostname is not stable: %q then %q", first, got)
+		}
+	}
+}
