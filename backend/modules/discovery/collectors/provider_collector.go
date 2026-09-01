@@ -91,68 +91,8 @@ func (p *ProviderCollector) Collect(ctx context.Context, target DiscoveryTarget)
 		obs.ProviderRef = dev.ProviderRef
 		obs.ParentProviderRef = dev.ParentProviderRef
 
-		// Providers migrated to the typed sdk contract declare their identity directly.
-		// Older ones still only expose it through metadata, so infer it as a fallback.
-		if obs.ProviderRef == nil || obs.ParentProviderRef == nil {
-			inferredRef, inferredParent := inferRefsFromMetadata(dev.Metadata)
-			if obs.ProviderRef == nil {
-				obs.ProviderRef = inferredRef
-			}
-			if obs.ParentProviderRef == nil {
-				obs.ParentProviderRef = inferredParent
-			}
-		}
-
 		observations = append(observations, obs)
 	}
 
 	return observations, nil
-}
-
-// inferRefsFromMetadata derives provider identities from the legacy metadata namespaces
-// emitted by providers that predate the typed sdk.NormalizedDevice reference fields.
-func inferRefsFromMetadata(metadata map[string]interface{}) (ref, parent *ProviderRef) {
-	if metadata == nil {
-		return nil, nil
-	}
-
-	if proxmox, ok := metadata["proxmox"].(map[string]interface{}); ok {
-		if vmID, exists := proxmox["vm_id"]; exists && vmID != nil {
-			ref = &ProviderRef{
-				Provider: "proxmox",
-				Scope:    "cluster",
-				Kind:     "qemu",
-				NativeID: fmt.Sprintf("%v", vmID),
-			}
-		}
-		if nodeHost, exists := proxmox["node_host"]; exists && nodeHost != nil {
-			parent = &ProviderRef{
-				Provider: "proxmox",
-				Scope:    "cluster",
-				Kind:     "node",
-				NativeID: fmt.Sprintf("%v", nodeHost),
-			}
-		}
-	}
-
-	if docker, ok := metadata["docker"].(map[string]interface{}); ok {
-		if containerID, exists := docker["container_id"]; exists && containerID != nil {
-			ref = &ProviderRef{
-				Provider: "docker",
-				Scope:    "engine",
-				Kind:     "container",
-				NativeID: fmt.Sprintf("%v", containerID),
-			}
-		}
-		if daemonID, exists := docker["daemon_id"]; exists && daemonID != nil {
-			parent = &ProviderRef{
-				Provider: "docker",
-				Scope:    "engine",
-				Kind:     "engine",
-				NativeID: fmt.Sprintf("%v", daemonID),
-			}
-		}
-	}
-
-	return ref, parent
 }
