@@ -317,3 +317,80 @@ func TestProviderCollector_Collect_NilProvider(t *testing.T) {
 		t.Errorf("expected 0 observations with nil provider, got %d", len(obs))
 	}
 }
+
+func TestProviderCollector_Collect_PrefersTypedProviderRef(t *testing.T) {
+	sourceID := uuid.New()
+	provider := &mockProvider{
+		id:   "proxmox",
+		name: "Proxmox VE",
+		devices: []sdk.NormalizedDevice{
+			{
+				Hostname:          "web-01",
+				DeviceType:        "vm",
+				ProviderRef:       &sdk.ProviderRef{Provider: "proxmox", Scope: "pve-cluster1", Kind: "qemu", NativeID: "101"},
+				ParentProviderRef: &sdk.ProviderRef{Provider: "proxmox", Scope: "pve-cluster1", Kind: "node", NativeID: "pve-node1"},
+				// Legacy metadata disagrees on purpose: the typed fields must win.
+				Metadata: map[string]interface{}{
+					"proxmox": map[string]interface{}{"vm_id": 999, "node_host": "stale-node"},
+				},
+			},
+		},
+	}
+
+	collector := collectors.NewProviderCollector(provider, &mockConfigResolver{})
+	observations, err := collector.Collect(context.Background(), collectors.DiscoveryTarget{SourceID: &sourceID})
+	if err != nil {
+		t.Fatalf("Collect() unexpected error: %v", err)
+	}
+	if len(observations) != 1 {
+		t.Fatalf("expected 1 observation, got %d", len(observations))
+	}
+
+	obs := observations[0]
+	if obs.DeviceType != "vm" {
+		t.Errorf("DeviceType = %q, want %q", obs.DeviceType, "vm")
+	}
+	if obs.ProviderRef == nil || obs.ProviderRef.Key() != "proxmox:pve-cluster1:qemu:101" {
+		t.Errorf("ProviderRef = %+v, want proxmox:pve-cluster1:qemu:101", obs.ProviderRef)
+	}
+	if obs.ParentProviderRef == nil || obs.ParentProviderRef.Key() != "proxmox:pve-cluster1:node:pve-node1" {
+		t.Errorf("ParentProviderRef = %+v, want proxmox:pve-cluster1:node:pve-node1", obs.ParentProviderRef)
+	}
+}
+
+func TestProviderCollector_Collect_FallsBackToMetadataRefs(t *testing.T) {
+	sourceID := uuid.New()
+	provider := &mockProvider{
+		id:   "docker",
+		name: "Docker Engine",
+		devices: []sdk.NormalizedDevice{
+			{
+				Hostname:   "redis",
+				DeviceType: "container",
+				Metadata: map[string]interface{}{
+					"docker": map[string]interface{}{
+						"container_id": "abc123",
+						"daemon_id":    "daemon-xyz",
+					},
+				},
+			},
+		},
+	}
+
+	collector := collectors.NewProviderCollector(provider, &mockConfigResolver{})
+	observations, err := collector.Collect(context.Background(), collectors.DiscoveryTarget{SourceID: &sourceID})
+	if err != nil {
+		t.Fatalf("Collect() unexpected error: %v", err)
+	}
+	if len(observations) != 1 {
+		t.Fatalf("expected 1 observation, got %d", len(observations))
+	}
+
+	obs := observations[0]
+	if obs.ProviderRef == nil || obs.ProviderRef.NativeID != "abc123" {
+		t.Errorf("ProviderRef = %+v, want native id abc123", obs.ProviderRef)
+	}
+	if obs.ParentProviderRef == nil || obs.ParentProviderRef.NativeID != "daemon-xyz" {
+		t.Errorf("ParentProviderRef = %+v, want native id daemon-xyz", obs.ParentProviderRef)
+	}
+}

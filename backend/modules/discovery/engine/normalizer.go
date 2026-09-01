@@ -21,6 +21,7 @@ func NormalizeObservation(obs collectors.RawObservation) collectors.RawObservati
 
 	hostname := strings.ToLower(strings.TrimSpace(obs.Hostname))
 	vendor := strings.TrimSpace(obs.Vendor)
+	deviceType := strings.ToLower(strings.TrimSpace(obs.DeviceType))
 	osStr := strings.TrimSpace(obs.OS)
 	source := strings.ToLower(strings.TrimSpace(obs.ProtocolSource))
 
@@ -52,6 +53,7 @@ func NormalizeObservation(obs collectors.RawObservation) collectors.RawObservati
 		MACAddress:        mac,
 		Hostname:          hostname,
 		Vendor:            vendor,
+		DeviceType:        deviceType,
 		OS:                osStr,
 		LatencyMs:         obs.LatencyMs,
 		ProtocolSource:    source,

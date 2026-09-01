@@ -4,107 +4,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matheussouza/inframap/internal/platform/sdk"
 	"github.com/matheussouza/inframap/modules/discovery/collectors"
 )
 
-func TestProviderRef_IsZero(t *testing.T) {
-	tests := []struct {
-		name     string
-		ref      collectors.ProviderRef
-		expected bool
-	}{
-		{
-			name:     "empty struct is zero",
-			ref:      collectors.ProviderRef{},
-			expected: true,
-		},
-		{
-			name:     "only provider populated is not zero",
-			ref:      collectors.ProviderRef{Provider: "docker"},
-			expected: false,
-		},
-		{
-			name:     "only scope populated is not zero",
-			ref:      collectors.ProviderRef{Scope: "local"},
-			expected: false,
-		},
-		{
-			name:     "only kind populated is not zero",
-			ref:      collectors.ProviderRef{Kind: "container"},
-			expected: false,
-		},
-		{
-			name:     "only native_id populated is not zero",
-			ref:      collectors.ProviderRef{NativeID: "12345"},
-			expected: false,
-		},
-		{
-			name: "all fields populated is not zero",
-			ref: collectors.ProviderRef{
-				Provider: "proxmox",
-				Scope:    "node-01",
-				Kind:     "qemu",
-				NativeID: "100",
-			},
-			expected: false,
-		},
-	}
+// TestProviderRef_AliasesSDKType guards the alias that lets sdk.NormalizedDevice carry a
+// typed identity without the provider SDK and the discovery pipeline importing each other.
+// The identity semantics themselves are covered by the sdk package tests.
+func TestProviderRef_AliasesSDKType(t *testing.T) {
+	ref := collectors.ProviderRef{Provider: "proxmox", Scope: "pve-cluster", Kind: "qemu", NativeID: "101"}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.ref.IsZero()
-			if got != tt.expected {
-				t.Errorf("ProviderRef.IsZero() = %v, want %v", got, tt.expected)
-			}
-		})
+	var asSDK sdk.ProviderRef = ref
+	if asSDK.Key() != "proxmox:pve-cluster:qemu:101" {
+		t.Errorf("Key() = %q, want %q", asSDK.Key(), "proxmox:pve-cluster:qemu:101")
 	}
-}
-
-func TestProviderRef_Key(t *testing.T) {
-	tests := []struct {
-		name     string
-		ref      collectors.ProviderRef
-		expected string
-	}{
-		{
-			name: "proxmox vm key",
-			ref: collectors.ProviderRef{
-				Provider: "proxmox",
-				Scope:    "pve-cluster",
-				Kind:     "qemu",
-				NativeID: "101",
-			},
-			expected: "proxmox:pve-cluster:qemu:101",
-		},
-		{
-			name: "docker container key",
-			ref: collectors.ProviderRef{
-				Provider: "docker",
-				Scope:    "unix:///var/run/docker.sock",
-				Kind:     "container",
-				NativeID: "container-abc",
-			},
-			expected: "docker:unix:///var/run/docker.sock:container:container-abc",
-		},
-		{
-			name: "unifi client key",
-			ref: collectors.ProviderRef{
-				Provider: "unifi",
-				Scope:    "site-default",
-				Kind:     "client",
-				NativeID: "aa:bb:cc:dd:ee:ff",
-			},
-			expected: "unifi:site-default:client:aa:bb:cc:dd:ee:ff",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.ref.Key()
-			if got != tt.expected {
-				t.Errorf("ProviderRef.Key() = %q, want %q", got, tt.expected)
-			}
-		})
+	if ref.IsZero() {
+		t.Error("expected a fully populated reference not to be zero")
 	}
 }
 

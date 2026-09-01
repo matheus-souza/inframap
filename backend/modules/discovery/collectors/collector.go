@@ -3,29 +3,17 @@ package collectors
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/matheussouza/inframap/internal/platform/sdk"
 )
 
-// ProviderRef represents the unique external identity of an entity managed by a provider.
-type ProviderRef struct {
-	Provider string `json:"provider"`
-	Scope    string `json:"scope"`
-	Kind     string `json:"kind"`
-	NativeID string `json:"native_id"`
-}
-
-// IsZero returns true if all ProviderRef fields are empty.
-func (r ProviderRef) IsZero() bool {
-	return r.Provider == "" && r.Scope == "" && r.Kind == "" && r.NativeID == ""
-}
-
-// Key returns the canonical string representation of the provider identity.
-func (r ProviderRef) Key() string {
-	return fmt.Sprintf("%s:%s:%s:%s", r.Provider, r.Scope, r.Kind, r.NativeID)
-}
+// ProviderRef is the canonical workload identity emitted by providers. It is defined in the
+// sdk package so that sdk.NormalizedDevice can carry it as a typed field without the
+// discovery pipeline and the provider SDK importing each other in a cycle.
+type ProviderRef = sdk.ProviderRef
 
 // DiscoveryTarget defines the parameters for a collector run.
 type DiscoveryTarget struct {
@@ -41,6 +29,7 @@ type RawObservation struct {
 	MACAddress        string
 	Hostname          string
 	Vendor            string
+	DeviceType        string
 	OS                string
 	LatencyMs         int64
 	ProtocolSource    string
