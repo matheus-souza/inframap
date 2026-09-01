@@ -9,15 +9,21 @@ import (
 
 // DeviceResponse represents a network device in API responses.
 type DeviceResponse struct {
-	ID               string    `json:"id"`
-	Hostname         string    `json:"hostname"`
-	IPAddress        string    `json:"ip_address,omitempty"`
-	MACAddress       string    `json:"mac_address,omitempty"`
-	Manufacturer     string    `json:"manufacturer,omitempty"`
-	Model            string    `json:"model,omitempty"`
-	SerialNumber     string    `json:"serial_number,omitempty"`
-	DeviceType       string    `json:"device_type"`
-	Status           string    `json:"status"`
+	ID           string `json:"id"`
+	Hostname     string `json:"hostname"`
+	IPAddress    string `json:"ip_address,omitempty"`
+	MACAddress   string `json:"mac_address,omitempty"`
+	Manufacturer string `json:"manufacturer,omitempty"`
+	Model        string `json:"model,omitempty"`
+	SerialNumber string `json:"serial_number,omitempty"`
+	DeviceType   string `json:"device_type"`
+	Status       string `json:"status"`
+	// PowerState is the runtime state a provider reports for a workload (running, stopped,
+	// paused). It is distinct from Status, which is what InfraMap observed: a stopped
+	// container is still an active, healthy inventory entry. Empty for devices that no
+	// provider owns.
+	PowerState       string    `json:"power_state,omitempty"`
+	ParentDeviceID   string    `json:"parent_device_id,omitempty"`
 	FirstSeenAt      time.Time `json:"first_seen_at"`
 	LastSeenAt       time.Time `json:"last_seen_at"`
 	UserLockedFields []string  `json:"user_locked_fields,omitempty"`

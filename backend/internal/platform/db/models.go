@@ -52,6 +52,8 @@ type Device struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	ParentProviderRef pgtype.Text        `json:"parent_provider_ref"`
 	ParentDeviceID    pgtype.UUID        `json:"parent_device_id"`
+	ProviderScope     pgtype.Text        `json:"provider_scope"`
+	AbsenceCount      int16              `json:"absence_count"`
 }
 
 type DeviceDiscoveryRecord struct {

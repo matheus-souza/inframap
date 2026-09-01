@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +25,19 @@ type CollectorRunDetail struct {
 	DevicesFound  int
 	DurationMs    int64
 	ErrorMessage  string
+
+	// Scopes records what an authoritative provider reported, per scope. It is what lets
+	// the lifecycle engine tell "this workload is gone" apart from "this workload was
+	// never in this run's scope". Network sweeps leave it empty: they observe packets, not
+	// a closed set of entities, so absence from a sweep proves nothing.
+	Scopes []ProviderScopeObservation
+}
+
+// ProviderScopeObservation is the closed set of workloads an authoritative provider
+// reported for one of its scopes during a single run.
+type ProviderScopeObservation struct {
+	Scope        string
+	ObservedRefs []string
 }
 
 // ScanResult summarizes the outcome of a discovery engine pipeline execution.
@@ -256,6 +270,10 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 	totalDiscovered := 0
 	totalUpdated := 0
 
+	// Accumulate what each authoritative provider saw, per scope, so the lifecycle engine
+	// can reason about absence once the run is known to be complete.
+	observedByCollector := make(map[string]map[string]map[string]bool)
+
 	// Track the identities already handled in this scan cycle to avoid redundant updates.
 	// Keying on the IP alone collapsed every address-less workload onto the empty string,
 	// so a single stopped container silently swallowed all the others in the same run.
@@ -284,6 +302,18 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 			RawPayload:        normalized.RawMetadata,
 			ProviderRef:       normalized.ProviderRef,
 			ParentProviderRef: normalized.ParentProviderRef,
+		}
+
+		if ref := normalized.ProviderRef; ref != nil && !ref.IsZero() {
+			byScope, ok := observedByCollector[normalized.ProtocolSource]
+			if !ok {
+				byScope = make(map[string]map[string]bool)
+				observedByCollector[normalized.ProtocolSource] = byScope
+			}
+			if byScope[ref.Scope] == nil {
+				byScope[ref.Scope] = make(map[string]bool)
+			}
+			byScope[ref.Scope][ref.Key()] = true
 		}
 
 		dedupeKey := observationDedupeKey(normalized)
@@ -349,6 +379,8 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 		}
 	}
 
+	attachScopeObservations(collectorDetails, observedByCollector)
+
 	return &ScanResult{
 		Target:          target,
 		TotalCollected:  totalCollected,
@@ -358,6 +390,32 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 		Duration:        time.Since(start),
 		Collectors:      collectorDetails,
 	}, nil
+}
+
+// attachScopeObservations folds what each collector observed back onto its run detail,
+// with the references sorted so a run summary is reproducible.
+func attachScopeObservations(details []CollectorRunDetail, observed map[string]map[string]map[string]bool) {
+	for i := range details {
+		byScope, ok := observed[details[i].CollectorType]
+		if !ok {
+			continue
+		}
+
+		scopes := make([]string, 0, len(byScope))
+		for scope := range byScope {
+			scopes = append(scopes, scope)
+		}
+		sort.Strings(scopes)
+
+		for _, scope := range scopes {
+			refs := make([]string, 0, len(byScope[scope]))
+			for ref := range byScope[scope] {
+				refs = append(refs, ref)
+			}
+			sort.Strings(refs)
+			details[i].Scopes = append(details[i].Scopes, ProviderScopeObservation{Scope: scope, ObservedRefs: refs})
+		}
+	}
 }
 
 // observationDedupeKey returns the strongest identity an observation carries, so a single

@@ -16,6 +16,10 @@ import (
 )
 
 type stubInvRepo struct {
+	devicesByProviderScope map[string][]db.Device
+	absenceCalls           []uuid.UUID
+	absenceCounts          map[uuid.UUID]int16
+
 	capturedParams    []db.CreateStagingDeviceParams
 	staged            []db.DeviceStaging
 	failCreateStaging bool
@@ -267,4 +271,84 @@ func TestBuildDeviceMetadata(t *testing.T) {
 			t.Error("expected a reference without provider and native id to be dropped")
 		}
 	})
+}
+
+func (s *stubInvRepo) ListDevicesByProviderScope(_ context.Context, providerScope string) ([]db.Device, error) {
+	if s.devicesByProviderScope == nil {
+		return nil, nil
+	}
+	return s.devicesByProviderScope[providerScope], nil
+}
+
+func (s *stubInvRepo) MarkDeviceAbsent(_ context.Context, id uuid.UUID, archiveThreshold int32) (*db.Device, error) {
+	s.absenceCalls = append(s.absenceCalls, id)
+	if s.absenceCounts == nil {
+		s.absenceCounts = map[uuid.UUID]int16{}
+	}
+	s.absenceCounts[id]++
+	count := s.absenceCounts[id]
+
+	status := "offline"
+	if int32(count) >= archiveThreshold {
+		status = "archived"
+	}
+	return &db.Device{ID: id, Status: status, AbsenceCount: count}, nil
+}
+
+func TestBuildDeviceMetadata_HoistsPowerState(t *testing.T) {
+	t.Run("lifts the runtime state out of the provider namespace", func(t *testing.T) {
+		norm := &dto.NormalizedDeviceDTO{
+			RawPayload: map[string]interface{}{
+				"docker": map[string]interface{}{"power_state": "exited", "image": "redis"},
+			},
+			ProviderRef: &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "abc"},
+		}
+
+		if got := buildDeviceMetadata(norm)["power_state"]; got != "exited" {
+			t.Errorf("power_state = %v, want exited", got)
+		}
+	})
+
+	t.Run("leaves it absent when the provider reports none", func(t *testing.T) {
+		norm := &dto.NormalizedDeviceDTO{
+			RawPayload:  map[string]interface{}{"docker": map[string]interface{}{"image": "redis"}},
+			ProviderRef: &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "abc"},
+		}
+
+		if _, ok := buildDeviceMetadata(norm)["power_state"]; ok {
+			t.Error("expected no power_state key when the provider reports none")
+		}
+	})
+
+	t.Run("ignores network sweep payloads", func(t *testing.T) {
+		norm := &dto.NormalizedDeviceDTO{
+			RawPayload: map[string]interface{}{"arp": map[string]interface{}{"power_state": "running"}},
+		}
+
+		if _, ok := buildDeviceMetadata(norm)["power_state"]; ok {
+			t.Error("a sweep observation owns no runtime state")
+		}
+	})
+}
+
+func TestObservationProviderScope(t *testing.T) {
+	withRef := &dto.NormalizedDeviceDTO{
+		ProviderRef: &collectors.ProviderRef{Provider: "proxmox", Scope: "pve-cluster", Kind: "qemu", NativeID: "101"},
+	}
+	if got := observationProviderScope(withRef); got != "pve-cluster" {
+		t.Errorf("scope = %q, want pve-cluster", got)
+	}
+	if !providerScopeText(withRef).Valid {
+		t.Error("expected a provider-owned device to carry a scope")
+	}
+
+	// Network sweeps must leave provider_scope NULL: an empty string would put every swept
+	// device into a single shared scope that some provider run could then retire.
+	sweep := &dto.NormalizedDeviceDTO{IPAddress: "192.168.1.10"}
+	if got := observationProviderScope(sweep); got != "" {
+		t.Errorf("scope = %q, want empty for a sweep", got)
+	}
+	if providerScopeText(sweep).Valid {
+		t.Error("expected provider_scope to stay NULL for a sweep")
+	}
 }

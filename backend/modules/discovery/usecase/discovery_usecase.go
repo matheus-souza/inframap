@@ -126,7 +126,6 @@ func NewDefaultDiscoveryUseCase(
 	return uc
 }
 
-
 // CreateSource registers a new discovery source after normalization and validation.
 func (u *DefaultDiscoveryUseCase) CreateSource(ctx context.Context, req *dto.CreateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
 	req.Normalize()
@@ -332,8 +331,8 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 				SourceID:      source.ID,
 				CollectorType: dbColType,
 				Status:        runStatus,
-				DevicesFound:  int32(devicesFound),  //nolint:gosec // clamped to MaxInt32 above
-				DurationMs:    int32(durationMs),    //nolint:gosec // clamped to MaxInt32 above
+				DevicesFound:  int32(devicesFound), //nolint:gosec // clamped to MaxInt32 above
+				DurationMs:    int32(durationMs),   //nolint:gosec // clamped to MaxInt32 above
 				ErrorMessage:  errMsg,
 				StartedAt:     pgtype.Timestamptz{Time: startTime, Valid: true},
 				FinishedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
@@ -351,13 +350,18 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		}
 	}
 
-	// 5. Update discovery source last_status and last_run_at
+	// 5. Apply the workload lifecycle hysteresis for the authoritative scopes this run covered
+	if !isCancelled && scanErr == nil && scanResult != nil {
+		u.applyLifecycleHysteresis(persistCtx, scanResult)
+	}
+
+	// 6. Update discovery source last_status and last_run_at
 	res, updateErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, finalStatus)
 	if updateErr != nil {
 		return nil, fmt.Errorf("failed to update discovery source status to %s: %w", finalStatus, updateErr)
 	}
 
-	// 6. Emit discovery_source.run_finished on eventbus
+	// 7. Emit discovery_source.run_finished on eventbus
 	if u.eventBus != nil {
 		payload := map[string]interface{}{
 			"source_id":   source.ID.String(),
@@ -537,6 +541,9 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 				DeviceType:   reconciledDB.DeviceType,
 				Status:       reconciledDB.Status,
 				Metadata:     reconciledDB.Metadata,
+				// Empty for network sweeps, in which case the query keeps whatever scope the
+				// device already had: a sweep must never claim a workload out of its provider.
+				ProviderScope: observationProviderScope(norm),
 			}
 			_, updateErr := u.invRepo.UpdateDevice(ctx, updateParams)
 			if updateErr != nil {
@@ -557,11 +564,12 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 		matchedBy = "new_discovery"
 		if isTrustedProvider(effectiveType) {
 			createParams := db.CreateDeviceParams{
-				ID:         uuid.New(),
-				Hostname:   norm.Hostname,
-				DeviceType: norm.DeviceType,
-				Status:     "active",
-				Metadata:   rawBytes,
+				ID:            uuid.New(),
+				Hostname:      norm.Hostname,
+				DeviceType:    norm.DeviceType,
+				Status:        "active",
+				Metadata:      rawBytes,
+				ProviderScope: providerScopeText(norm),
 			}
 			if norm.IPAddress != "" {
 				if addr, err := netip.ParseAddr(norm.IPAddress); err == nil {
@@ -786,8 +794,6 @@ func (u *DefaultDiscoveryUseCase) ListRunsBySource(ctx context.Context, sourceID
 	return u.discRepo.ListRunsBySourceIDPaged(ctx, id, limit, offset)
 }
 
-
-
 // buildDeviceMetadata merges the collector payload with the canonical provider identity.
 //
 // The identity has to live in devices.metadata because that is what the Matcher reads at
@@ -806,5 +812,147 @@ func buildDeviceMetadata(norm *dto.NormalizedDeviceDTO) map[string]interface{} {
 		metadata["parent_provider_ref"] = norm.ParentProviderRef.Key()
 	}
 
+	if state := reportedPowerState(metadata, norm.ProviderRef); state != "" {
+		metadata[DeviceMetadataPowerStateKey] = state
+	}
+
 	return metadata
+}
+
+// DeviceMetadataPowerStateKey is the devices.metadata key holding the runtime state a
+// provider reports for a workload. It is deliberately separate from devices.status, which
+// records what InfraMap itself observed: a container can be a healthy, actively discovered
+// device (status "active") while being powered off (power_state "stopped").
+const DeviceMetadataPowerStateKey = "power_state"
+
+// reportedPowerState hoists the runtime state out of the provider's own metadata namespace
+// to a canonical top-level key, so readers do not need to know which provider produced it.
+func reportedPowerState(metadata map[string]interface{}, ref *collectors.ProviderRef) string {
+	if ref == nil || ref.IsZero() {
+		return ""
+	}
+	namespace, ok := metadata[ref.Provider].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	state, _ := namespace[DeviceMetadataPowerStateKey].(string)
+	return strings.TrimSpace(state)
+}
+
+// archiveAbsenceThreshold is the number of consecutive absences from complete, authoritative
+// runs after which a workload is archived. The first absence only takes it offline, which
+// leaves room for a single transient miss before the device leaves the active inventory.
+const archiveAbsenceThreshold int32 = 2
+
+// applyLifecycleHysteresis retires workloads that an authoritative provider stopped
+// reporting.
+//
+// Only collectors that completed successfully are considered. A partial or failed run
+// carries no information about absence — a cluster outage or an expired token makes every
+// workload look gone — so state is frozen instead, which is the scope guard-rail of
+// CONTEXT.md guideline #171.
+func (u *DefaultDiscoveryUseCase) applyLifecycleHysteresis(ctx context.Context, scan *engine.ScanResult) {
+	if u.invRepo == nil {
+		return
+	}
+
+	for _, collector := range scan.Collectors {
+		if collector.Status != "success" {
+			continue
+		}
+
+		for _, scope := range collector.Scopes {
+			observed := make(map[string]bool, len(scope.ObservedRefs))
+			for _, ref := range scope.ObservedRefs {
+				observed[ref] = true
+			}
+			// An authoritative run that reported nothing is indistinguishable from one that
+			// failed to enumerate, so it must not retire the whole scope.
+			if len(observed) == 0 {
+				continue
+			}
+
+			u.retireAbsentWorkloads(ctx, collector.CollectorType, scope.Scope, observed)
+		}
+	}
+}
+
+// retireAbsentWorkloads advances every device of a scope that the provider did not report.
+func (u *DefaultDiscoveryUseCase) retireAbsentWorkloads(ctx context.Context, collectorType, scope string, observed map[string]bool) {
+	devices, err := u.invRepo.ListDevicesByProviderScope(ctx, scope)
+	if err != nil {
+		if u.logger != nil {
+			u.logger.Warn("failed to list devices for lifecycle evaluation",
+				slog.String("collector_type", collectorType),
+				slog.String("provider_scope", scope),
+				slog.Any("error", err),
+			)
+		}
+		return
+	}
+
+	for i := range devices {
+		device := &devices[i]
+
+		ref := deviceProviderRef(device)
+		// Devices without a provider identity reached this scope some other way and are not
+		// this provider's to retire.
+		if ref == "" || observed[ref] {
+			continue
+		}
+
+		updated, absentErr := u.invRepo.MarkDeviceAbsent(ctx, device.ID, archiveAbsenceThreshold)
+		if absentErr != nil {
+			if u.logger != nil {
+				u.logger.Warn("failed to advance device absence",
+					slog.String("device_id", device.ID.String()),
+					slog.Any("error", absentErr),
+				)
+			}
+			continue
+		}
+
+		if u.eventBus != nil {
+			_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.lifecycle_changed", map[string]interface{}{
+				"device_id":      device.ID.String(),
+				"provider_ref":   ref,
+				"provider_scope": scope,
+				"status":         updated.Status,
+				"absence_count":  updated.AbsenceCount,
+			}))
+		}
+	}
+}
+
+// deviceProviderRef reads the canonical provider identity stored on a device, returning an
+// empty string for devices that carry none.
+func deviceProviderRef(device *db.Device) string {
+	if len(device.Metadata) == 0 {
+		return ""
+	}
+	var metadata map[string]interface{}
+	if err := json.Unmarshal(device.Metadata, &metadata); err != nil {
+		return ""
+	}
+	ref, _ := metadata[engine.DeviceMetadataProviderRefKey].(string)
+	return strings.TrimSpace(ref)
+}
+
+// observationProviderScope returns the authoritative scope an observation belongs to, or an
+// empty string when it came from a network sweep.
+func observationProviderScope(norm *dto.NormalizedDeviceDTO) string {
+	if norm.ProviderRef == nil || norm.ProviderRef.IsZero() {
+		return ""
+	}
+	return norm.ProviderRef.Scope
+}
+
+// providerScopeText adapts observationProviderScope to the nullable column, so devices
+// discovered by network sweeps keep provider_scope NULL rather than an empty string.
+func providerScopeText(norm *dto.NormalizedDeviceDTO) pgtype.Text {
+	scope := observationProviderScope(norm)
+	if scope == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: scope, Valid: true}
 }
