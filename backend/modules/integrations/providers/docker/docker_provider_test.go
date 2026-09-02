@@ -719,3 +719,30 @@ func TestDockerProvider_NeverFallsBackToTheLocalSocket(t *testing.T) {
 		})
 	}
 }
+
+func TestDockerProvider_DoesNotFollowRedirects(t *testing.T) {
+	// The TLS client certificate lives on the transport, so Go would present it to any
+	// redirect destination regardless of domain. Refusing to follow keeps the credential on
+	// the host the operator configured.
+	reached := false
+	attacker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer attacker.Close()
+
+	// The target is a constant: building it from the incoming request would be an open
+	// redirect, and this stub only needs to point somewhere else.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, attacker.URL, http.StatusTemporaryRedirect)
+	}))
+	defer ts.Close()
+
+	cfg := sdk.ProviderConfig{"tcp_url": ts.URL}
+	if err := docker.NewProvider().HealthCheck(context.Background(), cfg); err == nil {
+		t.Error("expected a redirected health check to fail rather than follow the redirect")
+	}
+	if reached {
+		t.Error("the transport followed the redirect and contacted the redirect target")
+	}
+}

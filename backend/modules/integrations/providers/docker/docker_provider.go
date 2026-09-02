@@ -448,7 +448,7 @@ func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, *url.UR
 			return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
 		},
 	}
-	client := &http.Client{Transport: tr, Timeout: 30 * time.Second}
+	client := &http.Client{Transport: tr, Timeout: 30 * time.Second, CheckRedirect: refuseRedirects}
 	baseURL, _ := url.Parse("http://localhost")
 	return client, baseURL, nil
 }
@@ -526,7 +526,7 @@ func (p *Provider) buildTCPClient(rawURL string, config sdk.ProviderConfig) (*ht
 	tr := &http.Transport{
 		TLSClientConfig: tlsConfig,
 	}
-	client := &http.Client{Transport: tr, Timeout: 30 * time.Second}
+	client := &http.Client{Transport: tr, Timeout: 30 * time.Second, CheckRedirect: refuseRedirects}
 
 	return client, cleanURL, nil
 }
@@ -605,4 +605,17 @@ func validatedHost(rawHost string) (string, error) {
 		return net.JoinHostPort(hostname, port), nil
 	}
 	return hostname, nil
+}
+
+// refuseRedirects stops the http.Client from following redirects.
+//
+// Go's default policy follows up to ten of them and only strips credentials when the
+// destination is neither the same domain nor a subdomain of it. That is too permissive for
+// a provider transport: the Proxmox API token would travel to any subdomain of the
+// configured host, and the Docker client certificate lives on the transport, so it is
+// presented to every redirect destination regardless of domain. A management API has no
+// legitimate reason to redirect, so the response is surfaced as-is and the caller treats
+// the non-200 status as a failure (CONTEXT.md guideline #189).
+func refuseRedirects(_ *http.Request, _ []*http.Request) error {
+	return http.ErrUseLastResponse
 }
