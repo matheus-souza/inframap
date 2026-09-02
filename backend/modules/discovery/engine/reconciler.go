@@ -142,6 +142,24 @@ func (r *DefaultFieldReconciler) Reconcile(existing *db.Device, incoming *dto.No
 		}
 	}
 
+	// The canonical identity has to be persisted on updates too, not only on creation.
+	// A device first seen by a network sweep and later matched by MAC to a provider
+	// observation would otherwise never carry a provider_ref, so Tier 0 could never match
+	// it again — and the moment the workload lost its address, a stopped container for
+	// instance, it would be recreated as a duplicate.
+	if ref := incoming.ProviderRef; ref != nil && !ref.IsZero() {
+		if key := ref.Key(); key != "" && meta[DeviceMetadataProviderRefKey] != key {
+			meta[DeviceMetadataProviderRefKey] = key
+			changed = true
+		}
+	}
+	if parent := incoming.ParentProviderRef; parent != nil && !parent.IsZero() {
+		if key := parent.Key(); key != "" && meta["parent_provider_ref"] != key {
+			meta["parent_provider_ref"] = key
+			changed = true
+		}
+	}
+
 	if changed {
 		metaBytes, _ := json.Marshal(meta)
 		updated.Metadata = metaBytes

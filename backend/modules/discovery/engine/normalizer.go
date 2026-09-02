@@ -21,9 +21,6 @@ func NormalizeObservation(obs collectors.RawObservation) collectors.RawObservati
 	}
 
 	hostname := strings.ToLower(strings.TrimSpace(obs.Hostname))
-	if hostname == "" {
-		hostname = syntheticHostname(obs.ProviderRef, obs.ParentProviderRef)
-	}
 	vendor := strings.TrimSpace(obs.Vendor)
 	deviceType := strings.ToLower(strings.TrimSpace(obs.DeviceType))
 	osStr := strings.TrimSpace(obs.OS)
@@ -50,6 +47,12 @@ func NormalizeObservation(obs collectors.RawObservation) collectors.RawObservati
 			Kind:     strings.TrimSpace(obs.ParentProviderRef.Kind),
 			NativeID: strings.TrimSpace(obs.ParentProviderRef.NativeID),
 		}
+	}
+
+	// Derived from the normalized references, not the raw ones: a scope carrying stray
+	// whitespace would otherwise leak into the hostname while the reference itself is clean.
+	if hostname == "" {
+		hostname = syntheticHostname(providerRef, parentProviderRef)
 	}
 
 	return collectors.RawObservation{

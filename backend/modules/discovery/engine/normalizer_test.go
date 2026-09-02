@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -102,5 +103,22 @@ func TestNormalizeObservation_SyntheticHostnameIsDeterministic(t *testing.T) {
 		if got := engine.NormalizeObservation(obs).Hostname; got != first {
 			t.Fatalf("synthetic hostname is not stable: %q then %q", first, got)
 		}
+	}
+}
+
+func TestNormalizeObservation_SyntheticHostnameUsesNormalizedRefs(t *testing.T) {
+	// The hostname is derived after the references are trimmed, so stray whitespace in a
+	// scope cannot leak into the hostname while the reference itself comes back clean.
+	obs := collectors.RawObservation{
+		ProviderRef:       &collectors.ProviderRef{Provider: " proxmox ", Scope: " pve cluster ", Kind: " qemu ", NativeID: " 101 "},
+		ParentProviderRef: &collectors.ProviderRef{Provider: "proxmox", Scope: "pve", Kind: "node", NativeID: " pve-node1 "},
+	}
+
+	got := engine.NormalizeObservation(obs).Hostname
+	if strings.TrimSpace(got) != got {
+		t.Errorf("hostname %q has leading or trailing whitespace", got)
+	}
+	if got != "pve-node1/qemu/101" {
+		t.Errorf("hostname = %q, want %q", got, "pve-node1/qemu/101")
 	}
 }
