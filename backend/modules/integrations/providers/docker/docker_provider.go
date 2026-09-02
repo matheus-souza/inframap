@@ -416,8 +416,19 @@ func (p *Provider) buildClient(config sdk.ProviderConfig) (*http.Client, *url.UR
 	socketPath := config.GetStringOrDefault("socket_path", "")
 
 	// 1. If explicit TCP / HTTP / HTTPS endpoint configured
-	if tcpURL != "" && (strings.HasPrefix(tcpURL, "http://") || strings.HasPrefix(tcpURL, "https://") || strings.HasPrefix(tcpURL, "tcp://")) {
-		return p.buildTCPClient(tcpURL, config)
+	if tcpURL != "" {
+		if strings.HasPrefix(tcpURL, "http://") || strings.HasPrefix(tcpURL, "https://") || strings.HasPrefix(tcpURL, "tcp://") {
+			return p.buildTCPClient(tcpURL, config)
+		}
+		// An endpoint the operator configured explicitly must never fall back to the local
+		// socket. On any host that runs Docker, a typo such as "htp://" would otherwise
+		// succeed silently against the machine's own daemon and ingest its containers as if
+		// they belonged to the remote host.
+		if !strings.HasPrefix(tcpURL, "unix://") && !strings.HasPrefix(tcpURL, "/") {
+			return nil, nil, fmt.Errorf(
+				"invalid api_url format: must start with http://, https://, tcp://, unix:// or an absolute socket path",
+			)
+		}
 	}
 
 	// 2. Unix socket transport

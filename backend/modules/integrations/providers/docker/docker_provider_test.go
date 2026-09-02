@@ -694,3 +694,28 @@ func TestDockerProvider_TCPSchemeFollowsTLSMaterial(t *testing.T) {
 		t.Errorf("expected a plain tcp endpoint to be reached over http, got %v", err)
 	}
 }
+
+func TestDockerProvider_NeverFallsBackToTheLocalSocket(t *testing.T) {
+	// This must fail on a machine that runs Docker as well as one that does not: a
+	// configured endpoint with an unsupported scheme is an operator error, and silently
+	// answering it from the host's own daemon would ingest the wrong host's containers
+	// while looking perfectly healthy.
+	provider := docker.NewProvider()
+
+	for _, endpoint := range []string{
+		"ftp://127.0.0.1:2376",
+		"htp://127.0.0.1:2376",
+		"127.0.0.1:2376",
+		"not-a-url",
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			err := provider.HealthCheck(context.Background(), sdk.ProviderConfig{"tcp_url": endpoint})
+			if err == nil {
+				t.Errorf("expected %q to be rejected instead of falling back to the local socket", endpoint)
+			}
+			if err != nil && !strings.Contains(err.Error(), "invalid api_url format") {
+				t.Errorf("expected an endpoint validation error, got %v", err)
+			}
+		})
+	}
+}

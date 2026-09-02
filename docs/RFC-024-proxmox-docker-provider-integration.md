@@ -238,6 +238,8 @@ be the reason a connection skips certificate validation. See CONTEXT.md guidelin
 
 ### 6.2. Docker Engine Collector Specifications
 - **Transport**: Unix Socket (`/var/run/docker.sock`) or TCP (`tcp://host:2376` with TLS).
+  An explicitly configured endpoint that matches neither form is rejected; it never falls
+  back to the local socket (CONTEXT.md guideline #184).
 - **Endpoints**:
   - `GET /info`: Daemon host metadata, engine name, and daemon ID (`ID` field).
   - `GET /containers/json?all=true`: All running, exited, and paused containers.
