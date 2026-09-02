@@ -98,7 +98,7 @@ func (p *Provider) ConfigSchema() sdk.ConfigSchema {
 				Label:       "Verify SSL Certificate",
 				Type:        "boolean",
 				Required:    false,
-				Default:     false,
+				Default:     true,
 				Description: "Whether to verify target TLS certificate",
 			},
 		},
@@ -469,7 +469,10 @@ func (p *Provider) buildTCPClient(rawURL string, config sdk.ProviderConfig) (*ht
 		Host:   parsedURL.Host,
 	}
 
-	verifySSL := false
+	// Certificate validation stays on unless the operator explicitly turns it off, so a
+	// missing or malformed flag can never be the reason a TCP daemon is trusted blindly
+	// (CONTEXT.md guideline #174).
+	verifySSL := true
 	if v, ok := config["verify_ssl"].(bool); ok {
 		verifySSL = v
 	}

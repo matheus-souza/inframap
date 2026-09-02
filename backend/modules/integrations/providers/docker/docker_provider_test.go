@@ -618,3 +618,35 @@ func generateTestCertificates(t *testing.T) (caCertPEM, caKeyPEM, certPEM, keyPE
 
 	return caCertPEM, caKeyPEM, certPEM, keyPEM
 }
+
+func TestDockerProvider_TLSVerificationIsOnByDefault(t *testing.T) {
+	// The schema default and the runtime default must agree on "verify", so an absent or
+	// mistyped verify_ssl can never be the reason a TCP daemon is trusted blindly
+	// (CONTEXT.md guideline #174).
+	provider := docker.NewProvider()
+
+	var field *sdk.ConfigField
+	fields := provider.ConfigSchema().Fields
+	for i := range fields {
+		if fields[i].Key == "verify_ssl" {
+			field = &fields[i]
+			break
+		}
+	}
+	if field == nil {
+		t.Fatal("expected a verify_ssl field in the config schema")
+	}
+	if field.Default != true {
+		t.Errorf("verify_ssl default = %v, want true", field.Default)
+	}
+
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	cfg := sdk.ProviderConfig{"tcp_url": ts.URL}
+	if err := provider.HealthCheck(context.Background(), cfg); err == nil {
+		t.Error("expected the self-signed certificate to be rejected when verify_ssl is unset")
+	}
+}
