@@ -447,26 +447,38 @@ func (p *Provider) buildTCPClient(rawURL string, config sdk.ProviderConfig) (*ht
 	tlsKey := config.GetStringOrDefault("tls_key", "")
 	tlsCA := config.GetStringOrDefault("tls_ca", "")
 
-	targetURL := rawURL
-	if strings.HasPrefix(targetURL, "tcp://") {
-		if tlsCert != "" || tlsKey != "" || tlsCA != "" {
-			targetURL = "https://" + strings.TrimPrefix(targetURL, "tcp://")
-		} else {
-			targetURL = "http://" + strings.TrimPrefix(targetURL, "tcp://")
-		}
-	}
-
-	parsedURL, err := url.Parse(targetURL)
-	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+	// Parse first and adjust the scheme on the parsed value. Rewriting the scheme by string
+	// concatenation would put the operator-supplied value back into an unstructured string
+	// after validation, which both defeats static taint analysis and risks producing a URL
+	// that parses differently the second time around.
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil || parsedURL.Host == "" {
 		return nil, nil, fmt.Errorf("invalid api_url format: must start with http://, https://, or tcp://")
 	}
-	if strings.ContainsAny(parsedURL.Host, "\r\n\t ") {
-		return nil, nil, fmt.Errorf("invalid host format")
+
+	scheme := parsedURL.Scheme
+	if scheme == "tcp" {
+		// A Docker daemon reached over TCP speaks TLS only when the operator supplied
+		// certificate material for it.
+		scheme = "http"
+		if tlsCert != "" || tlsKey != "" || tlsCA != "" {
+			scheme = "https"
+		}
+	}
+	if scheme != "http" && scheme != "https" {
+		return nil, nil, fmt.Errorf("invalid api_url format: must start with http://, https://, or tcp://")
 	}
 
+	host, err := validatedHost(parsedURL.Host)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Rebuilt from validated parts only: nothing of the raw input reaches the request URL
+	// except the host and scheme that passed the checks above.
 	cleanURL := &url.URL{
-		Scheme: parsedURL.Scheme,
-		Host:   parsedURL.Host,
+		Scheme: scheme,
+		Host:   host,
 	}
 
 	// Certificate validation stays on unless the operator explicitly turns it off, so a
@@ -556,4 +568,30 @@ func mapPowerState(state string) string {
 	default:
 		return strings.ToLower(strings.TrimSpace(state))
 	}
+}
+
+// validatedHost returns the host of a provider endpoint after rejecting the shapes that
+// make a URL unsafe to hand to an HTTP client: empty hosts, embedded credentials, and
+// whitespace or control characters that could split a request line.
+func validatedHost(rawHost string) (string, error) {
+	if rawHost == "" {
+		return "", fmt.Errorf("invalid host format")
+	}
+	if strings.ContainsAny(rawHost, "\r\n\t @/\\") {
+		return "", fmt.Errorf("invalid host format")
+	}
+
+	hostname := rawHost
+	port := ""
+	if h, p, splitErr := net.SplitHostPort(rawHost); splitErr == nil {
+		hostname, port = h, p
+	}
+	if hostname == "" {
+		return "", fmt.Errorf("invalid host format")
+	}
+
+	if port != "" {
+		return net.JoinHostPort(hostname, port), nil
+	}
+	return hostname, nil
 }

@@ -213,6 +213,11 @@ func observationDedupeKey(obs collectors.RawObservation) string {
 
 ### 6.0. Transport Security
 
+Provider endpoints come from operator configuration and are rebuilt from validated parts
+before any request: the URL is parsed once, the scheme is adjusted on the parsed value
+rather than by string concatenation, and the host is rejected if it is empty or carries
+embedded credentials, path separators or control characters. See CONTEXT.md guideline #183.
+
 Both providers verify TLS certificates unless the operator explicitly opts out
 (`tls_verify` for Proxmox, `verify_ssl` for Docker). The runtime default and the schema
 default are both `true` and must stay in agreement, so a missing or mistyped key can never

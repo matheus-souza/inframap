@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -648,5 +649,48 @@ func TestDockerProvider_TLSVerificationIsOnByDefault(t *testing.T) {
 	cfg := sdk.ProviderConfig{"tcp_url": ts.URL}
 	if err := provider.HealthCheck(context.Background(), cfg); err == nil {
 		t.Error("expected the self-signed certificate to be rejected when verify_ssl is unset")
+	}
+}
+
+func TestDockerProvider_RejectsMalformedEndpoints(t *testing.T) {
+	// The daemon endpoint comes from operator configuration and is fed straight into an
+	// HTTP client, so the shapes that let a host smuggle credentials, a path, or a request
+	// line split must be rejected before any request is built.
+	provider := docker.NewProvider()
+
+	rejected := []struct {
+		name   string
+		tcpURL string
+	}{
+		{name: "embedded credentials", tcpURL: "tcp://user:pass@127.0.0.1:2376"},
+		{name: "carriage return in host", tcpURL: "tcp://127.0.0.1\r\n:2376"},
+		{name: "space in host", tcpURL: "tcp://127.0.0.1 evil:2376"},
+		{name: "unsupported scheme", tcpURL: "ftp://127.0.0.1:2376"},
+		{name: "empty host", tcpURL: "tcp://"},
+	}
+
+	for _, tt := range rejected {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := sdk.ProviderConfig{"tcp_url": tt.tcpURL}
+			if err := provider.HealthCheck(context.Background(), cfg); err == nil {
+				t.Errorf("expected %q to be rejected", tt.tcpURL)
+			}
+		})
+	}
+}
+
+func TestDockerProvider_TCPSchemeFollowsTLSMaterial(t *testing.T) {
+	// A tcp:// endpoint speaks TLS only when the operator supplied certificate material,
+	// and the scheme is derived on the parsed URL rather than by string concatenation.
+	provider := docker.NewProvider()
+
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer plain.Close()
+
+	tcpURL := "tcp://" + strings.TrimPrefix(plain.URL, "http://")
+	if err := provider.HealthCheck(context.Background(), sdk.ProviderConfig{"tcp_url": tcpURL}); err != nil {
+		t.Errorf("expected a plain tcp endpoint to be reached over http, got %v", err)
 	}
 }
