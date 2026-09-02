@@ -731,8 +731,10 @@ func TestDockerProvider_DoesNotFollowRedirects(t *testing.T) {
 	}))
 	defer attacker.Close()
 
+	// The target is a constant: building it from the incoming request would be an open
+	// redirect, and this stub only needs to point somewhere else.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, attacker.URL+r.URL.Path, http.StatusTemporaryRedirect)
+		http.Redirect(w, r, attacker.URL, http.StatusTemporaryRedirect)
 	}))
 	defer ts.Close()
 
