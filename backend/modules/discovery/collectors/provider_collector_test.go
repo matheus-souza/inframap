@@ -112,12 +112,13 @@ func TestProviderCollector_Collect_Success(t *testing.T) {
 		name: "Proxmox VE",
 		devices: []sdk.NormalizedDevice{
 			{
-				Hostname:   "pve-node1",
-				IPAddress:  "192.168.1.100",
-				MACAddress: "bc:24:11:22:33:44",
-				DeviceType: "server",
-				Vendor:     "Proxmox",
-				OSName:     "Linux",
+				Hostname:    "pve-node1",
+				IPAddress:   "192.168.1.100",
+				MACAddress:  "bc:24:11:22:33:44",
+				DeviceType:  "server",
+				Vendor:      "Proxmox",
+				OSName:      "Linux",
+				ProviderRef: &sdk.ProviderRef{Provider: "proxmox", Scope: "cluster", Kind: "node", NativeID: "pve-node1"},
 				Metadata: map[string]interface{}{
 					"proxmox": map[string]interface{}{
 						"is_host": true,
@@ -126,17 +127,19 @@ func TestProviderCollector_Collect_Success(t *testing.T) {
 				},
 			},
 			{
-				Hostname:   "vm-web",
-				IPAddress:  "192.168.1.105",
-				MACAddress: "bc:24:11:22:33:55",
-				DeviceType: "virtual_machine",
-				Vendor:     "QEMU",
-				OSName:     "Debian",
+				Hostname:          "vm-web",
+				IPAddress:         "192.168.1.105",
+				MACAddress:        "bc:24:11:22:33:55",
+				DeviceType:        "vm",
+				Vendor:            "QEMU",
+				OSName:            "Debian",
+				ProviderRef:       &sdk.ProviderRef{Provider: "proxmox", Scope: "cluster", Kind: "qemu", NativeID: "101"},
+				ParentProviderRef: &sdk.ProviderRef{Provider: "proxmox", Scope: "cluster", Kind: "node", NativeID: "pve-node1"},
 				Metadata: map[string]interface{}{
 					"proxmox": map[string]interface{}{
-						"vm_id":     101,
-						"node_host": "pve-node1",
-						"status":    "running",
+						"vmid":   101,
+						"node":   "pve-node1",
+						"status": "running",
 					},
 				},
 			},
@@ -226,10 +229,11 @@ func TestProviderCollector_Collect_DockerProviderRef(t *testing.T) {
 		name: "Docker Engine",
 		devices: []sdk.NormalizedDevice{
 			{
-				Hostname:   "redis-cache",
-				IPAddress:  "172.17.0.2",
-				DeviceType: "container",
-				Vendor:     "Docker",
+				Hostname:    "redis-cache",
+				IPAddress:   "172.17.0.2",
+				DeviceType:  "container",
+				Vendor:      "Docker",
+				ProviderRef: &sdk.ProviderRef{Provider: "docker", Scope: "engine", Kind: "container", NativeID: "c1a2b3c4d5e6"},
 				Metadata: map[string]interface{}{
 					"docker": map[string]interface{}{
 						"container_id": "c1a2b3c4d5e6",
@@ -358,7 +362,7 @@ func TestProviderCollector_Collect_PrefersTypedProviderRef(t *testing.T) {
 	}
 }
 
-func TestProviderCollector_Collect_FallsBackToMetadataRefs(t *testing.T) {
+func TestProviderCollector_Collect_IgnoresMetadataOnlyIdentity(t *testing.T) {
 	sourceID := uuid.New()
 	provider := &mockProvider{
 		id:   "docker",
@@ -367,11 +371,10 @@ func TestProviderCollector_Collect_FallsBackToMetadataRefs(t *testing.T) {
 			{
 				Hostname:   "redis",
 				DeviceType: "container",
+				// No typed reference: identity is not inferred from metadata any more,
+				// so the observation reaches the engine without a ProviderRef.
 				Metadata: map[string]interface{}{
-					"docker": map[string]interface{}{
-						"container_id": "abc123",
-						"daemon_id":    "daemon-xyz",
-					},
+					"docker": map[string]interface{}{"container_id": "abc123"},
 				},
 			},
 		},
@@ -385,12 +388,7 @@ func TestProviderCollector_Collect_FallsBackToMetadataRefs(t *testing.T) {
 	if len(observations) != 1 {
 		t.Fatalf("expected 1 observation, got %d", len(observations))
 	}
-
-	obs := observations[0]
-	if obs.ProviderRef == nil || obs.ProviderRef.NativeID != "abc123" {
-		t.Errorf("ProviderRef = %+v, want native id abc123", obs.ProviderRef)
-	}
-	if obs.ParentProviderRef == nil || obs.ParentProviderRef.NativeID != "daemon-xyz" {
-		t.Errorf("ParentProviderRef = %+v, want native id daemon-xyz", obs.ParentProviderRef)
+	if observations[0].ProviderRef != nil {
+		t.Errorf("expected no ProviderRef, got %+v", observations[0].ProviderRef)
 	}
 }
