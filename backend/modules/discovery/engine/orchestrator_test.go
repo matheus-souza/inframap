@@ -459,3 +459,70 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		}
 	})
 }
+
+func TestOrchestrator_RunScan_DeduplicatesByProviderRef(t *testing.T) {
+	t.Run("counts every address-less workload in a cycle", func(t *testing.T) {
+		// Keying the cycle on the IP alone collapsed all of these onto the empty string, so
+		// only the first stopped container was ever discovered and the rest vanished.
+		col := &fakeCollector{
+			id:   "docker",
+			name: "Docker Engine",
+			observations: []collectors.RawObservation{
+				{
+					Hostname:        "redis",
+					ProtocolSource:  "docker",
+					ConfidenceScore: 85,
+					ProviderRef:     &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "aaa"},
+				},
+				{
+					Hostname:        "nginx",
+					ProtocolSource:  "docker",
+					ConfidenceScore: 85,
+					ProviderRef:     &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "bbb"},
+				},
+				{
+					Hostname:        "postgres",
+					ProtocolSource:  "docker",
+					ConfidenceScore: 85,
+					ProviderRef:     &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "ccc"},
+				},
+			},
+		}
+
+		orch := engine.NewDefaultOrchestrator(nil)
+		orch.RegisterCollector(col)
+
+		res, err := orch.RunScan(context.Background(), collectors.DiscoveryTarget{}, nil, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res.TotalDiscovered != 3 {
+			t.Errorf("TotalDiscovered = %d, want 3", res.TotalDiscovered)
+		}
+	})
+
+	t.Run("collapses the same workload reported twice", func(t *testing.T) {
+		ref := &collectors.ProviderRef{Provider: "proxmox", Scope: "pve", Kind: "qemu", NativeID: "101"}
+		col := &fakeCollector{
+			id:   "proxmox",
+			name: "Proxmox VE",
+			observations: []collectors.RawObservation{
+				{Hostname: "web-01", IPAddress: "192.168.1.50", ProtocolSource: "proxmox", ConfidenceScore: 85, ProviderRef: ref},
+				// Same workload, different address: without Tier 0 keying this would be
+				// counted as a second discovery.
+				{Hostname: "web-01", IPAddress: "192.168.1.51", ProtocolSource: "proxmox", ConfidenceScore: 85, ProviderRef: ref},
+			},
+		}
+
+		orch := engine.NewDefaultOrchestrator(nil)
+		orch.RegisterCollector(col)
+
+		res, err := orch.RunScan(context.Background(), collectors.DiscoveryTarget{}, nil, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res.TotalDiscovered != 1 {
+			t.Errorf("TotalDiscovered = %d, want 1", res.TotalDiscovered)
+		}
+	})
+}

@@ -256,8 +256,10 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 	totalDiscovered := 0
 	totalUpdated := 0
 
-	// Track processed IPs in this scan cycle to avoid redundant updates
-	processedIPs := make(map[string]bool)
+	// Track the identities already handled in this scan cycle to avoid redundant updates.
+	// Keying on the IP alone collapsed every address-less workload onto the empty string,
+	// so a single stopped container silently swallowed all the others in the same run.
+	processedKeys := make(map[string]bool)
 
 	for _, raw := range allObservations {
 		if err := ctx.Err(); err != nil {
@@ -284,6 +286,7 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 			ParentProviderRef: normalized.ParentProviderRef,
 		}
 
+		dedupeKey := observationDedupeKey(normalized)
 		matchRes := o.matcher.MatchDevice(normDTO, activeDevices)
 
 		if matchRes.DeviceID != nil {
@@ -297,9 +300,9 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 
 			if existingDev != nil {
 				_, changed := o.reconciler.Reconcile(existingDev, normDTO, normalized.ProtocolSource)
-				if changed && !processedIPs[normalized.IPAddress] {
+				if changed && !processedKeys[dedupeKey] {
 					totalUpdated++
-					processedIPs[normalized.IPAddress] = true
+					processedKeys[dedupeKey] = true
 
 					if o.bus != nil {
 						if pubErr := o.bus.Publish(ctx, eventbus.NewBaseEvent("device.updated", map[string]interface{}{
@@ -320,9 +323,9 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 				}
 			}
 		} else {
-			if !processedIPs[normalized.IPAddress] {
+			if !processedKeys[dedupeKey] {
 				totalDiscovered++
-				processedIPs[normalized.IPAddress] = true
+				processedKeys[dedupeKey] = true
 
 				if o.bus != nil {
 					if pubErr := o.bus.Publish(ctx, eventbus.NewBaseEvent("device.discovered", map[string]interface{}{
@@ -355,6 +358,22 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 		Duration:        time.Since(start),
 		Collectors:      collectorDetails,
 	}, nil
+}
+
+// observationDedupeKey returns the strongest identity an observation carries, so a single
+// scan cycle handles each real entity once even when several collectors report it.
+// Precedence follows the matcher: ProviderRef, then MAC, then IP, then hostname.
+func observationDedupeKey(obs collectors.RawObservation) string {
+	if obs.ProviderRef != nil && !obs.ProviderRef.IsZero() {
+		return obs.ProviderRef.Key()
+	}
+	if obs.MACAddress != "" {
+		return "mac:" + obs.MACAddress
+	}
+	if obs.IPAddress != "" {
+		return "ip:" + obs.IPAddress
+	}
+	return "host:" + obs.Hostname
 }
 
 func classifyDeviceType(obs collectors.RawObservation) string {

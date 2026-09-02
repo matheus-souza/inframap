@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
+	"github.com/matheussouza/inframap/modules/discovery/collectors"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 	inventoryRepo "github.com/matheussouza/inframap/modules/inventory/repository"
 )
@@ -199,6 +200,71 @@ func TestPersistDiscoveredDevice(t *testing.T) {
 		}
 		if p.IpAddress == nil || p.IpAddress.String() != "10.0.0.2" {
 			t.Errorf("ip_address = %v, want 10.0.0.2", p.IpAddress)
+		}
+	})
+}
+
+func TestBuildDeviceMetadata(t *testing.T) {
+	t.Run("stores the canonical identity alongside the collector payload", func(t *testing.T) {
+		norm := &dto.NormalizedDeviceDTO{
+			RawPayload: map[string]interface{}{
+				"docker": map[string]interface{}{"image": "redis:7-alpine"},
+			},
+			ProviderRef:       &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "abc123"},
+			ParentProviderRef: &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "engine", NativeID: "daemon-1"},
+		}
+
+		metadata := buildDeviceMetadata(norm)
+
+		// The Matcher reads Tier 0 from this key and the partial unique index
+		// uq_devices_provider_ref is built on metadata->>'provider_ref', so it must be the
+		// canonical key as a plain string.
+		if got := metadata["provider_ref"]; got != "docker:lab:container:abc123" {
+			t.Errorf("provider_ref = %v, want docker:lab:container:abc123", got)
+		}
+		if got := metadata["parent_provider_ref"]; got != "docker:lab:engine:daemon-1" {
+			t.Errorf("parent_provider_ref = %v, want docker:lab:engine:daemon-1", got)
+		}
+		if _, ok := metadata["docker"]; !ok {
+			t.Error("expected the collector payload to be preserved")
+		}
+	})
+
+	t.Run("leaves network sweep payloads untouched", func(t *testing.T) {
+		norm := &dto.NormalizedDeviceDTO{RawPayload: map[string]interface{}{"arp": "seen"}}
+
+		metadata := buildDeviceMetadata(norm)
+
+		if _, ok := metadata["provider_ref"]; ok {
+			t.Error("expected no provider_ref for an observation without provider identity")
+		}
+		if metadata["arp"] != "seen" {
+			t.Errorf("arp = %v, want seen", metadata["arp"])
+		}
+	})
+
+	t.Run("does not mutate the original payload", func(t *testing.T) {
+		payload := map[string]interface{}{"docker": "x"}
+		norm := &dto.NormalizedDeviceDTO{
+			RawPayload:  payload,
+			ProviderRef: &collectors.ProviderRef{Provider: "docker", Scope: "lab", Kind: "container", NativeID: "abc"},
+		}
+
+		buildDeviceMetadata(norm)
+
+		if _, ok := payload["provider_ref"]; ok {
+			t.Error("buildDeviceMetadata must not write back into the collector payload")
+		}
+	})
+
+	t.Run("ignores a partial reference", func(t *testing.T) {
+		norm := &dto.NormalizedDeviceDTO{
+			RawPayload:  map[string]interface{}{},
+			ProviderRef: &collectors.ProviderRef{Scope: "lab", Kind: "container"},
+		}
+
+		if _, ok := buildDeviceMetadata(norm)["provider_ref"]; ok {
+			t.Error("expected a reference without provider and native id to be dropped")
 		}
 	})
 }

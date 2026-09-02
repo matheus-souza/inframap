@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -48,6 +49,12 @@ func NormalizeObservation(obs collectors.RawObservation) collectors.RawObservati
 		}
 	}
 
+	// Derived from the normalized references, not the raw ones: a scope carrying stray
+	// whitespace would otherwise leak into the hostname while the reference itself is clean.
+	if hostname == "" {
+		hostname = syntheticHostname(providerRef, parentProviderRef)
+	}
+
 	return collectors.RawObservation{
 		IPAddress:         ip,
 		MACAddress:        mac,
@@ -63,4 +70,23 @@ func NormalizeObservation(obs collectors.RawObservation) collectors.RawObservati
 		ProviderRef:       providerRef,
 		ParentProviderRef: parentProviderRef,
 	}
+}
+
+// syntheticHostname derives a stable, human-readable name for a workload the provider left
+// unnamed, so it does not surface in the inventory as a blank row. It is deterministic:
+// the same workload yields the same name on every run, e.g. "pve-node1/qemu/101".
+func syntheticHostname(ref, parent *collectors.ProviderRef) string {
+	if ref == nil || ref.IsZero() {
+		return ""
+	}
+
+	prefix := ref.Scope
+	if parent != nil && !parent.IsZero() {
+		prefix = parent.NativeID
+	}
+	if prefix == "" {
+		prefix = ref.Provider
+	}
+
+	return strings.ToLower(fmt.Sprintf("%s/%s/%s", prefix, ref.Kind, ref.NativeID))
 }

@@ -24,7 +24,12 @@ type IdentityMatcher interface {
 	MatchDevice(normalized *dto.NormalizedDeviceDTO, activeDevices []db.Device) MatchResult
 }
 
-// DefaultIdentityMatcher implements 5-tier identity precedence resolution per RFC-007.
+// DeviceMetadataProviderRefKey is the devices.metadata key holding the canonical
+// ProviderRef of a workload. The partial unique index uq_devices_provider_ref is built on
+// metadata->>'provider_ref', so the value stored there must be the canonical key string.
+const DeviceMetadataProviderRefKey = "provider_ref"
+
+// DefaultIdentityMatcher implements 6-tier identity precedence resolution per RFC-024 section 5.1.
 type DefaultIdentityMatcher struct{}
 
 // NewDefaultIdentityMatcher creates a new DefaultIdentityMatcher instance.
@@ -33,11 +38,12 @@ func NewDefaultIdentityMatcher() *DefaultIdentityMatcher {
 }
 
 // MatchDevice evaluates identity precedence in strict order:
-// Priority 1: Primary MAC Address
-// Priority 2: Provider UUID (Proxmox VM ID / Docker Container ID)
-// Priority 3: Hardware Serial Number
-// Priority 4: Hostname + IP Address
-// Priority 5: No Match (returns nil DeviceID)
+// Tier 0: ProviderRef (authoritative workload identity)
+// Tier 1: Primary MAC Address
+// Tier 2: Provider UUID (legacy Proxmox VM ID / Docker Container ID)
+// Tier 3: Hardware Serial Number
+// Tier 4: Hostname + IP Address
+// Tier 5: No Match (returns nil DeviceID)
 func (m *DefaultIdentityMatcher) MatchDevice(norm *dto.NormalizedDeviceDTO, activeDevices []db.Device) MatchResult {
 	if norm == nil {
 		return MatchResult{DeviceID: nil, MatchedBy: ""}
@@ -48,6 +54,20 @@ func (m *DefaultIdentityMatcher) MatchDevice(norm *dto.NormalizedDeviceDTO, acti
 	normHost := strings.ToLower(strings.TrimSpace(norm.Hostname))
 	normIP := strings.TrimSpace(norm.IPAddress)
 	normProviderUUID := strings.TrimSpace(norm.ProviderUUID)
+
+	// Tier 0: ProviderRef match. It outranks the MAC address because a hypervisor or
+	// container engine is authoritative about the workloads it owns: a recreated container
+	// keeps its identity here while its MAC and IP churn, and a workload that has neither
+	// (a stopped container, a VM without a guest agent) can be matched at all.
+	if norm.ProviderRef != nil && !norm.ProviderRef.IsZero() {
+		refKey := norm.ProviderRef.Key()
+		for i := range activeDevices {
+			dev := &activeDevices[i]
+			if deviceProviderRefKey(dev) == refKey {
+				return MatchResult{DeviceID: &dev.ID, MatchedBy: "provider_ref"}
+			}
+		}
+	}
 
 	// Tier 1: MAC Address match
 	if normMAC != "" {
@@ -108,6 +128,20 @@ func (m *DefaultIdentityMatcher) MatchDevice(norm *dto.NormalizedDeviceDTO, acti
 
 	// Tier 5: No Match
 	return MatchResult{DeviceID: nil, MatchedBy: ""}
+}
+
+// deviceProviderRefKey reads the canonical ProviderRef stored on a device, returning an
+// empty string for devices discovered by network sweeps, which carry no provider identity.
+func deviceProviderRefKey(dev *db.Device) string {
+	if len(dev.Metadata) == 0 {
+		return ""
+	}
+	var meta map[string]interface{}
+	if err := json.Unmarshal(dev.Metadata, &meta); err != nil {
+		return ""
+	}
+	key, _ := meta[DeviceMetadataProviderRefKey].(string)
+	return strings.TrimSpace(key)
 }
 
 func extractProviderUUID(metadata map[string]interface{}) (string, bool) {

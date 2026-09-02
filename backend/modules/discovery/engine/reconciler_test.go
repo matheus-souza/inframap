@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/db"
+	"github.com/matheussouza/inframap/modules/discovery/collectors"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 	"github.com/matheussouza/inframap/modules/discovery/engine"
 )
@@ -29,11 +30,11 @@ func TestFieldReconciler_Reconcile(t *testing.T) {
 	t.Run("Higher confidence score updates device fields", func(t *testing.T) {
 		meta, _ := json.Marshal(map[string]interface{}{
 			"field_confidence_scores": map[string]interface{}{
-				"hostname":     20,
-				"ip_address":   20,
-				"mac_address":  20,
-				"manufacturer": 20,
-				"model":        20,
+				"hostname":      20,
+				"ip_address":    20,
+				"mac_address":   20,
+				"manufacturer":  20,
+				"model":         20,
 				"serial_number": 20,
 			},
 		})
@@ -172,6 +173,59 @@ func TestFieldReconciler_Reconcile(t *testing.T) {
 		_, changed := reconciler.Reconcile(existing, norm, "proxmox")
 		if changed {
 			t.Error("expected changed = false when payload and fields are identical")
+		}
+	})
+}
+
+func TestReconcile_PersistsProviderIdentityOnUpdate(t *testing.T) {
+	reconciler := engine.NewDefaultFieldReconciler()
+
+	t.Run("adopts the identity of a device first seen by a network sweep", func(t *testing.T) {
+		// The device was discovered by ICMP and carries no provider identity. A Proxmox
+		// observation then matches it by MAC. Without persisting the reference here, Tier 0
+		// could never match it again, and the workload would be recreated as a duplicate the
+		// moment it lost its address.
+		existingMeta, _ := json.Marshal(map[string]interface{}{"icmp": map[string]interface{}{"seen": true}})
+		existing := &db.Device{ID: uuid.New(), Hostname: "vm-101", DeviceType: "host", Metadata: existingMeta}
+
+		incoming := &dto.NormalizedDeviceDTO{
+			Hostname:          "vm-101",
+			ConfidenceScore:   85,
+			ProviderRef:       &collectors.ProviderRef{Provider: "proxmox", Scope: "pve", Kind: "qemu", NativeID: "101"},
+			ParentProviderRef: &collectors.ProviderRef{Provider: "proxmox", Scope: "pve", Kind: "node", NativeID: "pve-node1"},
+		}
+
+		updated, changed := reconciler.Reconcile(existing, incoming, "proxmox")
+		if !changed {
+			t.Fatal("expected the device to be marked changed so the identity is persisted")
+		}
+
+		var meta map[string]interface{}
+		if err := json.Unmarshal(updated.Metadata, &meta); err != nil {
+			t.Fatalf("failed to decode reconciled metadata: %v", err)
+		}
+		if meta["provider_ref"] != "proxmox:pve:qemu:101" {
+			t.Errorf("provider_ref = %v, want proxmox:pve:qemu:101", meta["provider_ref"])
+		}
+		if meta["parent_provider_ref"] != "proxmox:pve:node:pve-node1" {
+			t.Errorf("parent_provider_ref = %v, want proxmox:pve:node:pve-node1", meta["parent_provider_ref"])
+		}
+		if _, kept := meta["icmp"]; !kept {
+			t.Error("expected the existing sweep metadata to be preserved")
+		}
+	})
+
+	t.Run("leaves sweep-only devices without an identity", func(t *testing.T) {
+		existing := &db.Device{ID: uuid.New(), Hostname: "printer", DeviceType: "host"}
+		incoming := &dto.NormalizedDeviceDTO{Hostname: "printer", ConfidenceScore: 20}
+
+		updated, _ := reconciler.Reconcile(existing, incoming, "icmp")
+		if len(updated.Metadata) > 0 {
+			var meta map[string]interface{}
+			_ = json.Unmarshal(updated.Metadata, &meta)
+			if _, present := meta["provider_ref"]; present {
+				t.Error("an observation without provider identity must not invent one")
+			}
 		}
 	})
 }
