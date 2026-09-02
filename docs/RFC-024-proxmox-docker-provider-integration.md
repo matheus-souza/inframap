@@ -211,6 +211,13 @@ func observationDedupeKey(obs collectors.RawObservation) string {
 
 ## 6. Proxmox VE & Docker Engine Provider Implementation
 
+### 6.0. Transport Security
+
+Both providers verify TLS certificates unless the operator explicitly opts out
+(`tls_verify` for Proxmox, `verify_ssl` for Docker). The runtime default and the schema
+default are both `true` and must stay in agreement, so a missing or mistyped key can never
+be the reason a connection skips certificate validation. See CONTEXT.md guideline #174.
+
 ### 6.1. Proxmox VE Collector Specifications
 - **Endpoints**:
   - `GET /api2/json/version`: Cluster connectivity check.

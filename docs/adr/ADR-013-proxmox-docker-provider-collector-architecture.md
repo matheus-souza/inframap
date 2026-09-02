@@ -55,6 +55,11 @@ Prior to this decision:
   - Network sweeps: Retain RFC-016 slow hysteresis (24h → offline, 30d → archived).
 - Topology queries filter by `deleted_at IS NULL` on both endpoints.
 
+### 5.1. Transport Security Defaults
+- Provider transports verify TLS certificates by default. The runtime default and the
+  `ConfigSchema` field default both assert verification; disabling it is an explicit
+  operator choice, never the consequence of an absent or malformed config key.
+
 ### 6. Collection Scope v1
 - **Proxmox VE**: Cluster Nodes + QEMU VMs + LXC Containers + Allocated Capacity (vCPU, RAM, Disk) + `power_state` + IP addresses (via QEMU guest agent best-effort without failing run).
 - **Docker**: Engine Host + Containers in all states (`all=true`) + Port Mappings + Attached Networks + Image metadata (`repo:tag` and digest).
