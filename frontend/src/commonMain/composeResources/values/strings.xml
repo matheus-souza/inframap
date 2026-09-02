@@ -405,6 +405,22 @@
 
     <!-- Design System Chips -->
     <string name="chip_integration_coming_soon">Em breve</string>
+
+    <!-- T07: formulario multi-provedor e teste de conexao -->
+    <string name="provider_section_config">Configuração do provedor</string>
+    <string name="provider_field_proxmox_api_url">URL da API</string>
+    <string name="provider_field_proxmox_token_id">ID do token</string>
+    <string name="provider_field_proxmox_token_secret">Segredo do token</string>
+    <string name="provider_field_docker_socket_path">Caminho do socket</string>
+    <string name="provider_field_docker_tcp_url">URL TCP</string>
+    <string name="provider_field_docker_tls_ca">Certificado da CA (TLS)</string>
+    <string name="provider_field_docker_tls_cert">Certificado do cliente (TLS)</string>
+    <string name="provider_field_docker_tls_key">Chave do cliente (TLS)</string>
+    <string name="provider_test_connection">Testar conexão</string>
+    <string name="provider_test_connection_testing">Testando…</string>
+    <string name="provider_test_connection_ok">Conexão estabelecida</string>
+    <string name="provider_test_connection_failed">Não foi possível conectar</string>
+    <string name="provider_validation_field_required">Preencha os campos obrigatórios do provedor.</string>
+    <string name="provider_validation_docker_endpoint_required">Informe o caminho do socket ou a URL TCP do Docker.</string>
+    <string name="provider_docker_endpoint_hint">Preencha o socket para um daemon local, ou a URL TCP para um remoto.</string>
 </resources>
-
-

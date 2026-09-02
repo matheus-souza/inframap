@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -110,8 +111,10 @@ class CreateDiscoverySourceScreenTest {
         }
 
     @Test
-    fun disabledProviderChipsCannotBeToggled() =
+    fun implementedProviderChipsAreSelectableAndUnifiIsNot() =
         runComposeUiTest {
+            // Proxmox and Docker have real provider implementations behind them now; UniFi
+            // has none, so its chip stays disabled.
             var selectedCollectors by mutableStateOf(setOf("icmp_sweep", "arp_sweep"))
             setContent {
                 InfraMapTheme {
@@ -122,15 +125,55 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("Proxmox VE").performScrollTo().assertIsNotEnabled()
-            onNodeWithText("Docker").performScrollTo().assertIsNotEnabled()
             onNodeWithText("UniFi").performScrollTo().assertIsNotEnabled()
-
-            onNodeWithText("Proxmox VE").performClick()
+            onNodeWithText("UniFi").performClick()
             assertEquals(setOf("icmp_sweep", "arp_sweep"), selectedCollectors)
 
-            onNodeWithText("Docker").performClick()
-            assertEquals(setOf("icmp_sweep", "arp_sweep"), selectedCollectors)
+            onNodeWithText("Proxmox VE").performScrollTo().performClick()
+            assertEquals(setOf("icmp_sweep", "arp_sweep", "proxmox"), selectedCollectors)
+
+            onNodeWithText("Docker").performScrollTo().performClick()
+            assertEquals(setOf("icmp_sweep", "arp_sweep", "proxmox", "docker"), selectedCollectors)
+        }
+
+    @Test
+    fun providerConfigurationAppearsOnlyForSelectedProviders() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("docker"),
+                                connectionTests = mapOf("docker" to ConnectionTest.Healthy),
+                            ),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("provider_field_docker_socket_path").performScrollTo().assertIsDisplayed()
+            onNodeWithTag("test_connection_docker").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Conexão estabelecida").performScrollTo().assertIsDisplayed()
+        }
+
+    @Test
+    fun testConnectionButtonIsDisabledWhileTheCheckRuns() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("proxmox"),
+                                connectionTests = mapOf("proxmox" to ConnectionTest.Testing),
+                            ),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("test_connection_proxmox").performScrollTo().assertIsNotEnabled()
         }
 
     @Test

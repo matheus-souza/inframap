@@ -6,10 +6,14 @@ import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.model.toSummary
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.integrations.TestProviderHealthUseCase
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.discovery_error_create
 import com.inframap.frontend.generated.resources.discovery_validation_collector_required
+import com.inframap.frontend.generated.resources.provider_test_connection_failed
+import com.inframap.frontend.generated.resources.provider_validation_docker_endpoint_required
+import com.inframap.frontend.generated.resources.provider_validation_field_required
 import com.inframap.frontend.generated.resources.validation_cidr_invalid
 import com.inframap.frontend.generated.resources.validation_cidr_required
 import com.inframap.frontend.generated.resources.validation_discovery_name_required
@@ -20,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 class CreateDiscoverySourceViewModel(
     private val createSourceUseCase: CreateDiscoverySourceUseCase,
     private val listSubnetsUseCase: ListSubnetsUseCase,
+    private val testProviderHealthUseCase: TestProviderHealthUseCase,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<CreateDiscoverySourceUiState>(CreateDiscoverySourceUiState(), scope) {
     init {
@@ -113,11 +118,19 @@ class CreateDiscoverySourceViewModel(
             errors["collectors"] = UiText.Resource(Res.string.discovery_validation_collector_required)
         }
 
-        if (cidr.isEmpty()) {
-            errors["cidr"] = UiText.Resource(Res.string.validation_cidr_required)
-        } else if (!isValidCidr(cidr)) {
+        // A CIDR describes a network sweep. A plan made only of providers has no range to
+        // scan, so demanding one would block a legitimate Docker- or Proxmox-only plan.
+        if (state.value.requiresCidr) {
+            if (cidr.isEmpty()) {
+                errors["cidr"] = UiText.Resource(Res.string.validation_cidr_required)
+            } else if (!isValidCidr(cidr)) {
+                errors["cidr"] = UiText.Resource(Res.string.validation_cidr_invalid)
+            }
+        } else if (cidr.isNotEmpty() && !isValidCidr(cidr)) {
             errors["cidr"] = UiText.Resource(Res.string.validation_cidr_invalid)
         }
+
+        errors += providerValidationErrors(state.value)
 
         updateState { it.copy(validationErrors = errors) }
         return errors.isEmpty()
@@ -138,7 +151,7 @@ class CreateDiscoverySourceViewModel(
                 null
             }
 
-        val collectors = stateVal.selectedCollectors.map { CollectorConfigDto(type = it) }
+        val collectors = buildCollectors(stateVal)
 
         launchJob("submit") {
             when (
@@ -183,10 +196,85 @@ class CreateDiscoverySourceViewModel(
         }
     }
 
+    fun onProviderFieldChanged(
+        providerId: String,
+        key: String,
+        value: String,
+    ) {
+        updateState { current ->
+            val updated = current.providerConfigs[providerId].orEmpty() + (key to value)
+            current.copy(
+                providerConfigs = current.providerConfigs + (providerId to updated),
+                // Editing the configuration invalidates whatever the last check concluded.
+                connectionTests = current.connectionTests - providerId,
+                validationErrors = current.validationErrors - ProviderForms.labelKey(providerId),
+            )
+        }
+    }
+
+    fun testConnection(providerId: String) {
+        val config = state.value.providerConfigs[providerId].orEmpty()
+        updateState { it.copy(connectionTests = it.connectionTests + (providerId to ConnectionTest.Testing)) }
+
+        launchJob("test_connection_$providerId") {
+            val outcome =
+                when (val result = testProviderHealthUseCase(providerId, config)) {
+                    is ApiResult.Success ->
+                        if (result.data.isHealthy) {
+                            ConnectionTest.Healthy
+                        } else {
+                            ConnectionTest.Failed(UiText.Resource(Res.string.provider_test_connection_failed))
+                        }
+                    is ApiResult.Error ->
+                        ConnectionTest.Failed(
+                            mapError(result, UiText.Resource(Res.string.provider_test_connection_failed)),
+                        )
+                    is ApiResult.NetworkError ->
+                        ConnectionTest.Failed(
+                            mapError(result, UiText.Resource(Res.string.provider_test_connection_failed)),
+                        )
+                }
+            updateState { it.copy(connectionTests = it.connectionTests + (providerId to outcome)) }
+        }
+    }
+
     private fun isValidCidr(cidr: String): Boolean {
         val regex = Regex("""^([0-9]{1,3}\.){3}[0-9]{1,3}\/([0-9]|[12][0-9]|3[0-2])$""")
         if (!regex.matches(cidr)) return false
         val ipPart = cidr.substringBefore("/")
         return ipPart.split(".").all { it.toIntOrNull() in 0..255 }
     }
+}
+
+/**
+ * Builds the per-collector payload. Providers carry their own endpoint and credentials,
+ * while network sweeps take theirs from the plan-level config.
+ */
+private fun buildCollectors(state: CreateDiscoverySourceUiState): List<CollectorConfigDto> =
+    state.selectedCollectors.map { type ->
+        CollectorConfigDto(
+            type = type,
+            config = state.providerConfigs[type]?.filterValues { it.isNotBlank() }?.ifEmpty { null },
+        )
+    }
+
+/**
+ * Validates the configuration of every selected provider.
+ *
+ * A connectivity check is deliberately not required to submit: the daemon may be temporarily
+ * unreachable while the plan is still worth saving.
+ */
+private fun providerValidationErrors(state: CreateDiscoverySourceUiState): Map<String, UiText> {
+    val errors = mutableMapOf<String, UiText>()
+    state.selectedProviders.forEach { providerId ->
+        val config = state.providerConfigs[providerId].orEmpty()
+        if (ProviderForms.missingFields(providerId, config).isNotEmpty()) {
+            errors[ProviderForms.labelKey(providerId)] =
+                UiText.Resource(Res.string.provider_validation_field_required)
+        } else if (ProviderForms.isEndpointMissing(providerId, config)) {
+            errors[ProviderForms.labelKey(providerId)] =
+                UiText.Resource(Res.string.provider_validation_docker_endpoint_required)
+        }
+    }
+    return errors
 }

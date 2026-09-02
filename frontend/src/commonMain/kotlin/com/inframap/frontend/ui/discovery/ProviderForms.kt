@@ -1,0 +1,138 @@
+package com.inframap.frontend.ui.discovery
+
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.provider_field_docker_socket_path
+import com.inframap.frontend.generated.resources.provider_field_docker_tcp_url
+import com.inframap.frontend.generated.resources.provider_field_docker_tls_ca
+import com.inframap.frontend.generated.resources.provider_field_docker_tls_cert
+import com.inframap.frontend.generated.resources.provider_field_docker_tls_key
+import com.inframap.frontend.generated.resources.provider_field_proxmox_api_url
+import com.inframap.frontend.generated.resources.provider_field_proxmox_token_id
+import com.inframap.frontend.generated.resources.provider_field_proxmox_token_secret
+import org.jetbrains.compose.resources.StringResource
+
+/**
+ * A single input of a provider configuration form.
+ *
+ * [secret] drives password masking, and it is what keeps a Proxmox token or a TLS private
+ * key from being rendered in plain text on screen.
+ */
+data class ProviderField(
+    val key: String,
+    val label: StringResource,
+    val placeholder: String,
+    val required: Boolean = false,
+    val secret: Boolean = false,
+)
+
+data class ProviderForm(
+    val id: String,
+    val fields: List<ProviderField>,
+)
+
+/**
+ * Field definitions for the providers that can be configured inside a discovery plan.
+ *
+ * The keys mirror the `ConfigSchema` each backend provider declares, because the values are
+ * sent verbatim both to the health-check endpoint and to the collector config on the plan.
+ */
+object ProviderForms {
+    const val PROXMOX = "proxmox"
+    const val DOCKER = "docker"
+
+    private val proxmox =
+        ProviderForm(
+            id = PROXMOX,
+            fields =
+                listOf(
+                    ProviderField(
+                        key = "api_url",
+                        label = Res.string.provider_field_proxmox_api_url,
+                        placeholder = "https://proxmox.local:8006",
+                        required = true,
+                    ),
+                    ProviderField(
+                        key = "token_id",
+                        label = Res.string.provider_field_proxmox_token_id,
+                        placeholder = "root@pam!inframap",
+                        required = true,
+                    ),
+                    ProviderField(
+                        key = "token_secret",
+                        label = Res.string.provider_field_proxmox_token_secret,
+                        placeholder = "",
+                        required = true,
+                        secret = true,
+                    ),
+                ),
+        )
+
+    private val docker =
+        ProviderForm(
+            id = DOCKER,
+            fields =
+                listOf(
+                    ProviderField(
+                        key = "socket_path",
+                        label = Res.string.provider_field_docker_socket_path,
+                        placeholder = "unix:///var/run/docker.sock",
+                    ),
+                    ProviderField(
+                        key = "tcp_url",
+                        label = Res.string.provider_field_docker_tcp_url,
+                        placeholder = "tcp://192.168.1.50:2376",
+                    ),
+                    ProviderField(
+                        key = "tls_ca",
+                        label = Res.string.provider_field_docker_tls_ca,
+                        placeholder = "",
+                        secret = true,
+                    ),
+                    ProviderField(
+                        key = "tls_cert",
+                        label = Res.string.provider_field_docker_tls_cert,
+                        placeholder = "",
+                        secret = true,
+                    ),
+                    ProviderField(
+                        key = "tls_key",
+                        label = Res.string.provider_field_docker_tls_key,
+                        placeholder = "",
+                        secret = true,
+                    ),
+                ),
+        )
+
+    private val byId = listOf(proxmox, docker).associateBy { it.id }
+
+    /** Provider ids in the order their chips are offered. */
+    val ids: List<String> = listOf(PROXMOX, DOCKER)
+
+    fun formFor(providerId: String): ProviderForm? = byId[providerId]
+
+    /**
+     * Reports which required fields of a selected provider are still blank.
+     *
+     * Docker is the exception: it accepts either a socket path or a TCP URL, so neither is
+     * individually required but at least one has to be present — leaving both empty would
+     * silently fall back to the local daemon socket on the server side.
+     */
+    fun missingFields(
+        providerId: String,
+        config: Map<String, String>,
+    ): List<ProviderField> {
+        val form = formFor(providerId) ?: return emptyList()
+        return form.fields.filter { it.required && config[it.key].isNullOrBlank() }
+    }
+
+    /** Key under which a provider's validation error is stored in the form error map. */
+    fun labelKey(providerId: String): String = "provider:$providerId"
+
+    fun isEndpointMissing(
+        providerId: String,
+        config: Map<String, String>,
+    ): Boolean =
+        providerId == DOCKER &&
+            config["socket_path"].isNullOrBlank() &&
+            config["tcp_url"].isNullOrBlank()
+}

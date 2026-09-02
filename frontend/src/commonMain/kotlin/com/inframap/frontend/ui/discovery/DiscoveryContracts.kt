@@ -31,6 +31,17 @@ data class DiscoveryListActions(
     val onRetryClicked: () -> Unit,
 )
 
+/** Outcome of a "Test Connection" action, per provider. */
+sealed interface ConnectionTest {
+    data object Testing : ConnectionTest
+
+    data object Healthy : ConnectionTest
+
+    data class Failed(
+        val message: UiText,
+    ) : ConnectionTest
+}
+
 data class CreateDiscoverySourceUiState(
     val name: String = "",
     val selectedCollectors: Set<String> = setOf("icmp_sweep", "arp_sweep", "mdns", "reverse_dns"),
@@ -43,7 +54,21 @@ data class CreateDiscoverySourceUiState(
     val isSuccess: Boolean = false,
     val subnets: List<SubnetSummary> = emptyList(),
     val isLoadingSubnets: Boolean = false,
-)
+    /** Endpoint and credentials typed for each provider, keyed by provider id. */
+    val providerConfigs: Map<String, Map<String, String>> = emptyMap(),
+    /** Result of the last connectivity check per provider, keyed by provider id. */
+    val connectionTests: Map<String, ConnectionTest> = emptyMap(),
+) {
+    /** Providers the user selected, in the order they are offered. */
+    val selectedProviders: List<String> get() = ProviderForms.ids.filter { it in selectedCollectors }
+
+    /**
+     * A CIDR only describes a network sweep. A plan made purely of providers has no range to
+     * scan, so requiring one would block a legitimate Docker- or Proxmox-only plan.
+     */
+    val requiresCidr: Boolean get() =
+        selectedCollectors.isEmpty() || selectedCollectors.any { it !in ProviderForms.ids }
+}
 
 data class CreateDiscoverySourceActions(
     val onNameChanged: (String) -> Unit,
@@ -52,6 +77,8 @@ data class CreateDiscoverySourceActions(
     val onEnabledChanged: (Boolean) -> Unit,
     val onSubnetSelected: (SubnetSummary) -> Unit,
     val onCollectorsChanged: (Set<String>) -> Unit = {},
+    val onProviderFieldChanged: (providerId: String, key: String, value: String) -> Unit = { _, _, _ -> },
+    val onTestConnectionClicked: (providerId: String) -> Unit = {},
     val onSubmitClicked: () -> Unit,
     val onCancelClicked: () -> Unit,
 )

@@ -7,8 +7,10 @@ import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.integrations.TestProviderHealthUseCase
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.fakes.FakeDiscoveryRepository
+import com.inframap.frontend.fakes.FakeIntegrationsRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -52,10 +54,12 @@ class CreateDiscoverySourceViewModelTest {
                         requestId = "",
                     ),
             ),
+        integrationsRepo: FakeIntegrationsRepository = FakeIntegrationsRepository(),
         scope: CoroutineScope? = null,
     ) = CreateDiscoverySourceViewModel(
         createSourceUseCase = CreateDiscoverySourceUseCase(discoveryRepo),
         listSubnetsUseCase = ListSubnetsUseCase(subnetRepo),
+        testProviderHealthUseCase = TestProviderHealthUseCase(integrationsRepo),
         scope = scope,
     )
 
@@ -365,6 +369,8 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.onNameChanged("Custom Cron Scanner")
             vm.onCollectorsChanged(setOf("docker"))
+            // Docker is a configurable provider now, so the plan needs an endpoint to submit.
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
             vm.onConfigCidrChanged("192.168.1.0/24")
             vm.onScheduleCronChanged("30 3 * * 1-5")
 
@@ -476,5 +482,181 @@ class CreateDiscoverySourceViewModelTest {
                     .containsKey("name"),
             )
             vm.clear()
+        }
+
+    @Test
+    fun cidrIsNotRequiredForAProviderOnlyPlan() =
+        runTest {
+            // A plan made purely of providers has no range to sweep. Demanding a CIDR would
+            // make a legitimate Docker-only plan impossible to save.
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Docker homelab")
+            vm.onCollectorsChanged(setOf("docker"))
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+
+            assertTrue(vm.validate())
+            assertNull(vm.state.value.validationErrors["cidr"])
+        }
+
+    @Test
+    fun cidrIsStillRequiredWhenASweepIsSelected() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Mixed plan")
+            vm.onCollectorsChanged(setOf("icmp_sweep", "docker"))
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+
+            assertFalse(vm.validate())
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("cidr"),
+            )
+        }
+
+    @Test
+    fun aProviderMissingRequiredFieldsBlocksSubmission() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Proxmox cluster")
+            vm.onCollectorsChanged(setOf("proxmox"))
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve.local:8006")
+
+            assertFalse(vm.validate())
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("provider:proxmox"),
+            )
+        }
+
+    @Test
+    fun dockerWithNeitherSocketNorTcpBlocksSubmission() =
+        runTest {
+            // Leaving both blank would let the server fall back to its own daemon socket.
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Docker plan")
+            vm.onCollectorsChanged(setOf("docker"))
+
+            assertFalse(vm.validate())
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("provider:docker"),
+            )
+        }
+
+    @Test
+    fun providerConfigTravelsOnItsOwnCollector() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(createSourceResult = ApiResult.Success(createdSource, requestId = ""))
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Docker homelab")
+            vm.onCollectorsChanged(setOf("docker"))
+            vm.onProviderFieldChanged("docker", "tcp_url", "tcp://192.168.1.50:2376")
+            vm.onProviderFieldChanged("docker", "tls_ca", "   ")
+            vm.createSource()
+            advanceUntilIdle()
+
+            val sent = discoveryRepo.lastCreateSourceRequest!!
+            val docker = sent.collectors.single { it.type == "docker" }
+            assertEquals(mapOf("tcp_url" to "tcp://192.168.1.50:2376"), docker.config)
+        }
+
+    @Test
+    fun testConnectionReportsHealthy() =
+        runTest {
+            val integrations = FakeIntegrationsRepository()
+            val vm = makeVm(integrationsRepo = integrations, scope = this)
+            advanceUntilIdle()
+
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+            vm.testConnection("docker")
+            advanceUntilIdle()
+
+            assertEquals(ConnectionTest.Healthy, vm.state.value.connectionTests["docker"])
+            assertEquals(
+                "docker" to mapOf("socket_path" to "unix:///var/run/docker.sock"),
+                integrations.calls.single(),
+            )
+        }
+
+    @Test
+    fun anUnreachableProviderIsReportedAsFailedNotHealthy() =
+        runTest {
+            // The endpoint answers 200 for both outcomes and reports the verdict in the body,
+            // so a transport success must not be mistaken for a healthy provider.
+            val integrations =
+                FakeIntegrationsRepository(
+                    healthResult =
+                        ApiResult.Success(
+                            com.inframap.frontend.domain.model.ProviderHealth(
+                                providerId = "docker",
+                                isHealthy = false,
+                                message = "Health check failed",
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val vm = makeVm(integrationsRepo = integrations, scope = this)
+            advanceUntilIdle()
+
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+            vm.testConnection("docker")
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value.connectionTests["docker"] is ConnectionTest.Failed)
+        }
+
+    @Test
+    fun testingWithAnEmptyFormNeverReachesTheBackend() =
+        runTest {
+            val integrations = FakeIntegrationsRepository()
+            val vm = makeVm(integrationsRepo = integrations, scope = this)
+            advanceUntilIdle()
+
+            vm.testConnection("docker")
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value.connectionTests["docker"] is ConnectionTest.Failed)
+            assertTrue(integrations.calls.isEmpty())
+        }
+
+    @Test
+    fun editingTheConfigurationDiscardsAStaleResult() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+            vm.testConnection("docker")
+            advanceUntilIdle()
+            assertEquals(ConnectionTest.Healthy, vm.state.value.connectionTests["docker"])
+
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///other.sock")
+
+            assertNull(
+                vm.state.value.connectionTests["docker"],
+                "a result from the previous endpoint must not stay on screen",
+            )
+        }
+
+    @Test
+    fun selectedProvidersFollowChipOrder() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onCollectorsChanged(setOf("docker", "icmp_sweep", "proxmox"))
+
+            assertEquals(listOf("proxmox", "docker"), vm.state.value.selectedProviders)
         }
 }
