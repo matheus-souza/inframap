@@ -20,7 +20,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.ChipCustomOption
 import com.inframap.frontend.designsystem.ChipOption
@@ -56,6 +59,11 @@ import com.inframap.frontend.generated.resources.create_discovery_source_submitt
 import com.inframap.frontend.generated.resources.create_discovery_source_subtitle
 import com.inframap.frontend.generated.resources.create_discovery_source_title
 import com.inframap.frontend.generated.resources.discovery_collectors_label
+import com.inframap.frontend.generated.resources.provider_docker_endpoint_hint
+import com.inframap.frontend.generated.resources.provider_section_config
+import com.inframap.frontend.generated.resources.provider_test_connection
+import com.inframap.frontend.generated.resources.provider_test_connection_ok
+import com.inframap.frontend.generated.resources.provider_test_connection_testing
 import com.inframap.frontend.generated.resources.schedule_custom_cron_helper
 import com.inframap.frontend.generated.resources.schedule_custom_cron_label
 import com.inframap.frontend.generated.resources.schedule_preset_15min
@@ -127,6 +135,18 @@ private fun CreateDiscoverySourceFormFields(
             error = state.validationErrors["collectors"]?.asString(),
         )
 
+        state.selectedProviders.forEach { providerId ->
+            Spacer(modifier = Modifier.height(16.dp))
+            ProviderConfigSection(
+                providerId = providerId,
+                config = state.providerConfigs[providerId].orEmpty(),
+                connectionTest = state.connectionTests[providerId],
+                error = state.validationErrors[ProviderForms.labelKey(providerId)]?.asString(),
+                onFieldChanged = { key, value -> actions.onProviderFieldChanged(providerId, key, value) },
+                onTestClicked = { actions.onTestConnectionClicked(providerId) },
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         SubnetSuggestionChips(
@@ -162,6 +182,99 @@ private fun CreateDiscoverySourceFormFields(
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
+
+/**
+ * Endpoint and credentials for one selected provider, with an inline connectivity check.
+ *
+ * The check is a convenience, not a gate: a daemon can be temporarily unreachable while the
+ * plan is still worth saving, so a failed test never blocks submission.
+ */
+@Composable
+private fun ProviderConfigSection(
+    providerId: String,
+    config: Map<String, String>,
+    connectionTest: ConnectionTest?,
+    error: String?,
+    onFieldChanged: (String, String) -> Unit,
+    onTestClicked: () -> Unit,
+) {
+    val form = ProviderForms.formFor(providerId) ?: return
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(Res.string.provider_section_config),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+
+        form.fields.forEach { field ->
+            InfraMapTextField(
+                value = config[field.key].orEmpty(),
+                onValueChange = { onFieldChanged(field.key, it) },
+                label = stringResource(field.label),
+                visualTransformation =
+                    if (field.secret) {
+                        PasswordVisualTransformation()
+                    } else {
+                        VisualTransformation.None
+                    },
+                modifier = Modifier.fillMaxWidth().testTag("provider_field_${providerId}_${field.key}"),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        if (providerId == ProviderForms.DOCKER) {
+            Text(
+                text = stringResource(Res.string.provider_docker_endpoint_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+
+        InfraMapOutlinedButton(
+            text = stringResource(Res.string.provider_test_connection),
+            onClick = onTestClicked,
+            enabled = connectionTest !is ConnectionTest.Testing,
+            modifier = Modifier.testTag("test_connection_$providerId"),
+        )
+
+        ConnectionTestFeedback(connectionTest)
+
+        if (error != null) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConnectionTestFeedback(connectionTest: ConnectionTest?) {
+    if (connectionTest == null) return
+
+    val (text, color) =
+        when (connectionTest) {
+            is ConnectionTest.Testing ->
+                stringResource(Res.string.provider_test_connection_testing) to
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            is ConnectionTest.Healthy ->
+                stringResource(Res.string.provider_test_connection_ok) to
+                    MaterialTheme.colorScheme.primary
+            is ConnectionTest.Failed ->
+                connectionTest.message.asString() to MaterialTheme.colorScheme.error
+        }
+
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = color,
+        modifier = Modifier.padding(top = 8.dp).testTag("connection_test_feedback"),
+    )
 }
 
 @Composable
@@ -242,17 +355,11 @@ private fun rememberProvidersSection(): ChipSection<String> {
                         value = "proxmox",
                         label = proxmoxLabel,
                         icon = InfraMapIcons.Cloud,
-                        enabled = false,
-                        disabledHint = comingSoonHint,
-                        description = comingSoonHint,
                     ),
                     ChipOption(
                         value = "docker",
                         label = dockerLabel,
                         icon = InfraMapIcons.ViewInAr,
-                        enabled = false,
-                        disabledHint = comingSoonHint,
-                        description = comingSoonHint,
                     ),
                     ChipOption(
                         value = "unifi",

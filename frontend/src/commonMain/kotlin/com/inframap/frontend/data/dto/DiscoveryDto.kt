@@ -58,6 +58,11 @@ data class DiscoveryListResponse(
 @Serializable
 data class CollectorConfigDto(
     val type: String,
+    /**
+     * Per-collector settings. Network sweeps take theirs from the plan-level config, while
+     * provider collectors carry their own endpoint and credentials here.
+     */
+    val config: Map<String, String>? = null,
 )
 
 @Serializable
