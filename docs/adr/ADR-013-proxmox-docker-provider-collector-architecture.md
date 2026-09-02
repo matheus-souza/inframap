@@ -60,6 +60,18 @@ Prior to this decision:
   `ConfigSchema` field default both assert verification; disabling it is an explicit
   operator choice, never the consequence of an absent or malformed config key.
 
+### 5.2. Accepted Finding: Operator-Supplied Endpoints (CodeQL `go/request-forgery`)
+- CodeQL alerts 11 and 12 on `docker_provider.go` are dismissed as "won't fix". A provider
+  endpoint is authenticated administrative configuration, and accepting a configurable
+  address is the provider's purpose, so the flagged data flow is the intended design.
+- The accepted risk is bounded by the transport rules above: single parse with the scheme
+  adjusted on the parsed value, host validation rejecting empty values, embedded
+  credentials, path separators and control characters, reconstruction of the URL from
+  validated parts only, rejection of unsupported schemes instead of a local fallback, and
+  TLS verification on by default.
+- Dismissal is per alert rather than a query exclusion, so new occurrences elsewhere in the
+  codebase are still reported. See CONTEXT.md guideline #186.
+
 ### 6. Collection Scope v1
 - **Proxmox VE**: Cluster Nodes + QEMU VMs + LXC Containers + Allocated Capacity (vCPU, RAM, Disk) + `power_state` + IP addresses (via QEMU guest agent best-effort without failing run).
 - **Docker**: Engine Host + Containers in all states (`all=true`) + Port Mappings + Attached Networks + Image metadata (`repo:tag` and digest).
