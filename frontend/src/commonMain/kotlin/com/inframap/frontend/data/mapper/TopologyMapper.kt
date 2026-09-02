@@ -13,6 +13,8 @@ fun TopologyNodeDto.toDomain(): TopologyNode =
         label = displayLabel,
         deviceType = deviceType,
         status = status,
+        powerState = powerState?.takeIf { it.isNotBlank() },
+        parentDeviceId = parentDeviceId?.takeIf { it.isNotBlank() },
     )
 
 fun TopologyEdgeDto.toDomain(): TopologyEdge =

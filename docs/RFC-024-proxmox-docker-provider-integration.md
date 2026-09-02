@@ -271,7 +271,13 @@ be the reason a connection skips certificate validation. See CONTEXT.md guidelin
 ### 7.2. Topology Visualization
 - Renders parent-child nodes connected via `hosted_on` containment edges.
 - Proxmox Nodes act as cluster anchors; VMs and LXCs nest visually or connect hierarchically.
-- Visual badge displays `power_state` (green for running, amber for paused, grey for stopped/exited).
+- Visual badge displays `power_state` (green for running, amber for paused, grey for stopped/exited),
+  shown alongside `status` rather than merged into it: a stopped container is still an
+  actively discovered device. An unrecognized value renders no badge at all.
+- `hosted_on` edges are drawn dashed and in their own colour, because containment says a
+  workload lives inside a host rather than that packets flow between them.
+- The graph node payload carries `power_state` and `parent_device_id` as first-class fields,
+  so the UI does not have to know the layout of the device metadata blob.
 
 ---
 

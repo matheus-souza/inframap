@@ -10,6 +10,10 @@ data class Device(
     val serialNumber: String? = null,
     val deviceType: String,
     val status: String,
+    /** Runtime state a provider reports; null when no provider owns the device. */
+    val powerState: String? = null,
+    /** The host that runs this workload, when it is contained by one. */
+    val parentDeviceId: String? = null,
     val metadata: Map<String, String>? = null,
     val createdAt: String? = null,
     val updatedAt: String? = null,

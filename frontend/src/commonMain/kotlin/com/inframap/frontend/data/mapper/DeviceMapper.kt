@@ -17,6 +17,8 @@ object DeviceMapper {
             serialNumber = dto.serialNumber,
             deviceType = dto.deviceType,
             status = dto.status,
+            powerState = dto.powerState?.takeIf { it.isNotBlank() },
+            parentDeviceId = dto.parentDeviceId?.takeIf { it.isNotBlank() },
             metadata = dto.metadata,
             createdAt = dto.createdAt,
             updatedAt = dto.updatedAt,
