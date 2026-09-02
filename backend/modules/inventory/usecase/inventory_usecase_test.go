@@ -19,6 +19,10 @@ import (
 )
 
 type mockInventoryRepository struct {
+	devicesByProviderScope map[string][]db.Device
+	absenceCalls           []uuid.UUID
+	absenceCounts          map[uuid.UUID]int16
+
 	devices  map[uuid.UUID]*db.Device
 	staging  map[uuid.UUID]*db.DeviceStaging
 	subnets  map[uuid.UUID]*db.Subnet
@@ -951,4 +955,26 @@ func TestMapDeviceToResponse_WithOptionalFields(t *testing.T) {
 	if res.Model != "EdgeRouter" {
 		t.Errorf("expected model EdgeRouter, got %s", res.Model)
 	}
+}
+
+func (m *mockInventoryRepository) ListDevicesByProviderScope(_ context.Context, providerScope string) ([]db.Device, error) {
+	if m.devicesByProviderScope == nil {
+		return nil, nil
+	}
+	return m.devicesByProviderScope[providerScope], nil
+}
+
+func (m *mockInventoryRepository) MarkDeviceAbsent(_ context.Context, id uuid.UUID, archiveThreshold int32) (*db.Device, error) {
+	m.absenceCalls = append(m.absenceCalls, id)
+	if m.absenceCounts == nil {
+		m.absenceCounts = map[uuid.UUID]int16{}
+	}
+	m.absenceCounts[id]++
+	count := m.absenceCounts[id]
+
+	status := "offline"
+	if int32(count) >= archiveThreshold {
+		status = "archived"
+	}
+	return &db.Device{ID: id, Status: status, AbsenceCount: count}, nil
 }

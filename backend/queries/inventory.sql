@@ -1,8 +1,8 @@
 -- name: CreateDevice :one
 INSERT INTO devices (
-    id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, metadata
+    id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, metadata, provider_scope
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) RETURNING *;
 
 -- name: GetDeviceByID :one
@@ -24,6 +24,8 @@ WHERE (deleted_at IS NULL OR $1::boolean = true)
   AND ($3::text = '' OR device_type = $3);
 
 -- name: UpdateDevice :one
+-- Observing a device is what proves it is still there, so every update refreshes
+-- last_seen_at and clears the absence streak that drives the lifecycle hysteresis.
 UPDATE devices
 SET hostname = $2,
     ip_address = $3,
@@ -34,6 +36,28 @@ SET hostname = $2,
     device_type = $8,
     status = $9,
     metadata = $10,
+    provider_scope = COALESCE(NULLIF(sqlc.arg(provider_scope)::text, ''), provider_scope),
+    last_seen_at = NOW(),
+    absence_count = 0,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: ListDevicesByProviderScope :many
+-- Every workload an authoritative provider owns in one scope. Archived devices are left
+-- out: they have already reached the end of the lifecycle and must not be counted again.
+SELECT * FROM devices
+WHERE provider_scope = $1
+  AND deleted_at IS NULL
+  AND status <> 'archived';
+
+-- name: MarkDeviceAbsent :one
+-- Advances one device along the absence hysteresis: the first miss in an authoritative,
+-- complete run takes it offline, the second archives it. last_seen_at is deliberately left
+-- untouched so it keeps pointing at the last time the device was actually observed.
+UPDATE devices
+SET absence_count = absence_count + 1,
+    status = CASE WHEN absence_count + 1 >= sqlc.arg(archive_threshold)::int THEN 'archived' ELSE 'offline' END,
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;

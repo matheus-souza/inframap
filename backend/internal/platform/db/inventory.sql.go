@@ -47,23 +47,24 @@ func (q *Queries) CountStagingDevices(ctx context.Context, status string) (int64
 
 const createDevice = `-- name: CreateDevice :one
 INSERT INTO devices (
-    id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, metadata
+    id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, metadata, provider_scope
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
-) RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+) RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
 `
 
 type CreateDeviceParams struct {
-	ID           uuid.UUID        `json:"id"`
-	Hostname     string           `json:"hostname"`
-	IpAddress    *netip.Addr      `json:"ip_address"`
-	MacAddress   net.HardwareAddr `json:"mac_address"`
-	Manufacturer pgtype.Text      `json:"manufacturer"`
-	Model        pgtype.Text      `json:"model"`
-	SerialNumber pgtype.Text      `json:"serial_number"`
-	DeviceType   string           `json:"device_type"`
-	Status       string           `json:"status"`
-	Metadata     []byte           `json:"metadata"`
+	ID            uuid.UUID        `json:"id"`
+	Hostname      string           `json:"hostname"`
+	IpAddress     *netip.Addr      `json:"ip_address"`
+	MacAddress    net.HardwareAddr `json:"mac_address"`
+	Manufacturer  pgtype.Text      `json:"manufacturer"`
+	Model         pgtype.Text      `json:"model"`
+	SerialNumber  pgtype.Text      `json:"serial_number"`
+	DeviceType    string           `json:"device_type"`
+	Status        string           `json:"status"`
+	Metadata      []byte           `json:"metadata"`
+	ProviderScope pgtype.Text      `json:"provider_scope"`
 }
 
 func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Device, error) {
@@ -78,6 +79,7 @@ func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Dev
 		arg.DeviceType,
 		arg.Status,
 		arg.Metadata,
+		arg.ProviderScope,
 	)
 	var i Device
 	err := row.Scan(
@@ -98,6 +100,8 @@ func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Dev
 		&i.UpdatedAt,
 		&i.ParentProviderRef,
 		&i.ParentDeviceID,
+		&i.ProviderScope,
+		&i.AbsenceCount,
 	)
 	return i, err
 }
@@ -198,7 +202,7 @@ func (q *Queries) CreateSubnet(ctx context.Context, arg CreateSubnetParams) (Sub
 }
 
 const getDeviceByID = `-- name: GetDeviceByID :one
-SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id FROM devices
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count FROM devices
 WHERE id = $1 AND (deleted_at IS NULL OR $2::boolean = true)
 `
 
@@ -228,6 +232,8 @@ func (q *Queries) GetDeviceByID(ctx context.Context, arg GetDeviceByIDParams) (D
 		&i.UpdatedAt,
 		&i.ParentProviderRef,
 		&i.ParentDeviceID,
+		&i.ProviderScope,
+		&i.AbsenceCount,
 	)
 	return i, err
 }
@@ -278,7 +284,7 @@ func (q *Queries) GetSubnetByID(ctx context.Context, id uuid.UUID) (Subnet, erro
 }
 
 const listDevices = `-- name: ListDevices :many
-SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id FROM devices
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count FROM devices
 WHERE (deleted_at IS NULL OR $1::boolean = true)
   AND ($2::text = '' OR hostname ILIKE '%' || $2 || '%' || $2 || '%')
   AND ($3::text = '' OR device_type = $3)
@@ -327,6 +333,57 @@ func (q *Queries) ListDevices(ctx context.Context, arg ListDevicesParams) ([]Dev
 			&i.UpdatedAt,
 			&i.ParentProviderRef,
 			&i.ParentDeviceID,
+			&i.ProviderScope,
+			&i.AbsenceCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDevicesByProviderScope = `-- name: ListDevicesByProviderScope :many
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count FROM devices
+WHERE provider_scope = $1
+  AND deleted_at IS NULL
+  AND status <> 'archived'
+`
+
+// Every workload an authoritative provider owns in one scope. Archived devices are left
+// out: they have already reached the end of the lifecycle and must not be counted again.
+func (q *Queries) ListDevicesByProviderScope(ctx context.Context, providerScope pgtype.Text) ([]Device, error) {
+	rows, err := q.db.Query(ctx, listDevicesByProviderScope, providerScope)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Device{}
+	for rows.Next() {
+		var i Device
+		if err := rows.Scan(
+			&i.ID,
+			&i.Hostname,
+			&i.IpAddress,
+			&i.MacAddress,
+			&i.Manufacturer,
+			&i.Model,
+			&i.SerialNumber,
+			&i.DeviceType,
+			&i.Status,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.Metadata,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentProviderRef,
+			&i.ParentDeviceID,
+			&i.ProviderScope,
+			&i.AbsenceCount,
 		); err != nil {
 			return nil, err
 		}
@@ -418,6 +475,50 @@ func (q *Queries) ListSubnets(ctx context.Context) ([]Subnet, error) {
 	return items, nil
 }
 
+const markDeviceAbsent = `-- name: MarkDeviceAbsent :one
+UPDATE devices
+SET absence_count = absence_count + 1,
+    status = CASE WHEN absence_count + 1 >= $2::int THEN 'archived' ELSE 'offline' END,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
+`
+
+type MarkDeviceAbsentParams struct {
+	ID               uuid.UUID `json:"id"`
+	ArchiveThreshold int32     `json:"archive_threshold"`
+}
+
+// Advances one device along the absence hysteresis: the first miss in an authoritative,
+// complete run takes it offline, the second archives it. last_seen_at is deliberately left
+// untouched so it keeps pointing at the last time the device was actually observed.
+func (q *Queries) MarkDeviceAbsent(ctx context.Context, arg MarkDeviceAbsentParams) (Device, error) {
+	row := q.db.QueryRow(ctx, markDeviceAbsent, arg.ID, arg.ArchiveThreshold)
+	var i Device
+	err := row.Scan(
+		&i.ID,
+		&i.Hostname,
+		&i.IpAddress,
+		&i.MacAddress,
+		&i.Manufacturer,
+		&i.Model,
+		&i.SerialNumber,
+		&i.DeviceType,
+		&i.Status,
+		&i.FirstSeenAt,
+		&i.LastSeenAt,
+		&i.Metadata,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentProviderRef,
+		&i.ParentDeviceID,
+		&i.ProviderScope,
+		&i.AbsenceCount,
+	)
+	return i, err
+}
+
 const softDeleteDevice = `-- name: SoftDeleteDevice :exec
 UPDATE devices
 SET deleted_at = NOW(),
@@ -442,24 +543,30 @@ SET hostname = $2,
     device_type = $8,
     status = $9,
     metadata = $10,
+    provider_scope = COALESCE(NULLIF($11::text, ''), provider_scope),
+    last_seen_at = NOW(),
+    absence_count = 0,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id
+RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
 `
 
 type UpdateDeviceParams struct {
-	ID           uuid.UUID        `json:"id"`
-	Hostname     string           `json:"hostname"`
-	IpAddress    *netip.Addr      `json:"ip_address"`
-	MacAddress   net.HardwareAddr `json:"mac_address"`
-	Manufacturer pgtype.Text      `json:"manufacturer"`
-	Model        pgtype.Text      `json:"model"`
-	SerialNumber pgtype.Text      `json:"serial_number"`
-	DeviceType   string           `json:"device_type"`
-	Status       string           `json:"status"`
-	Metadata     []byte           `json:"metadata"`
+	ID            uuid.UUID        `json:"id"`
+	Hostname      string           `json:"hostname"`
+	IpAddress     *netip.Addr      `json:"ip_address"`
+	MacAddress    net.HardwareAddr `json:"mac_address"`
+	Manufacturer  pgtype.Text      `json:"manufacturer"`
+	Model         pgtype.Text      `json:"model"`
+	SerialNumber  pgtype.Text      `json:"serial_number"`
+	DeviceType    string           `json:"device_type"`
+	Status        string           `json:"status"`
+	Metadata      []byte           `json:"metadata"`
+	ProviderScope string           `json:"provider_scope"`
 }
 
+// Observing a device is what proves it is still there, so every update refreshes
+// last_seen_at and clears the absence streak that drives the lifecycle hysteresis.
 func (q *Queries) UpdateDevice(ctx context.Context, arg UpdateDeviceParams) (Device, error) {
 	row := q.db.QueryRow(ctx, updateDevice,
 		arg.ID,
@@ -472,6 +579,7 @@ func (q *Queries) UpdateDevice(ctx context.Context, arg UpdateDeviceParams) (Dev
 		arg.DeviceType,
 		arg.Status,
 		arg.Metadata,
+		arg.ProviderScope,
 	)
 	var i Device
 	err := row.Scan(
@@ -492,6 +600,8 @@ func (q *Queries) UpdateDevice(ctx context.Context, arg UpdateDeviceParams) (Dev
 		&i.UpdatedAt,
 		&i.ParentProviderRef,
 		&i.ParentDeviceID,
+		&i.ProviderScope,
+		&i.AbsenceCount,
 	)
 	return i, err
 }

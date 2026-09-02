@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matheussouza/inframap/internal/platform/db"
 )
@@ -31,6 +32,9 @@ type InventoryRepository interface {
 	ListDevices(ctx context.Context, searchQuery, deviceType string, limit, offset int32, includeDeleted bool) ([]db.Device, int64, error)
 	UpdateDevice(ctx context.Context, params db.UpdateDeviceParams) (*db.Device, error)
 	SoftDeleteDevice(ctx context.Context, id uuid.UUID) error
+
+	ListDevicesByProviderScope(ctx context.Context, providerScope string) ([]db.Device, error)
+	MarkDeviceAbsent(ctx context.Context, id uuid.UUID, archiveThreshold int32) (*db.Device, error)
 
 	CreateStagingDevice(ctx context.Context, params db.CreateStagingDeviceParams) (*db.DeviceStaging, error)
 	GetStagingDeviceByID(ctx context.Context, id uuid.UUID) (*db.DeviceStaging, error)
@@ -117,6 +121,28 @@ func (r *PgInventoryRepository) UpdateDevice(ctx context.Context, params db.Upda
 func (r *PgInventoryRepository) SoftDeleteDevice(ctx context.Context, id uuid.UUID) error {
 	queries := db.New(r.pool)
 	return queries.SoftDeleteDevice(ctx, id)
+}
+
+// ListDevicesByProviderScope returns every non-archived device an authoritative provider
+// owns in a scope, which is the candidate set the lifecycle hysteresis evaluates.
+func (r *PgInventoryRepository) ListDevicesByProviderScope(ctx context.Context, providerScope string) ([]db.Device, error) {
+	queries := db.New(r.pool)
+	devices, err := queries.ListDevicesByProviderScope(ctx, pgtype.Text{String: providerScope, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list devices by provider scope: %w", err)
+	}
+	return devices, nil
+}
+
+// MarkDeviceAbsent advances a device along the absence hysteresis, archiving it once the
+// consecutive absence streak reaches archiveThreshold.
+func (r *PgInventoryRepository) MarkDeviceAbsent(ctx context.Context, id uuid.UUID, archiveThreshold int32) (*db.Device, error) {
+	queries := db.New(r.pool)
+	device, err := queries.MarkDeviceAbsent(ctx, db.MarkDeviceAbsentParams{ID: id, ArchiveThreshold: archiveThreshold})
+	if err != nil {
+		return nil, fmt.Errorf("failed to mark device absent: %w", err)
+	}
+	return &device, nil
 }
 
 // CreateStagingDevice inserts a new unverified device into device_staging.
@@ -215,6 +241,30 @@ func ExtractUserLockedFields(metadata []byte) []string {
 		}
 	}
 	return fields
+}
+
+// ExtractPowerState reads the runtime state a provider reported for a workload from
+// metadata JSONB. It is empty for devices no provider owns, such as those found by network
+// sweeps.
+func ExtractPowerState(metadata []byte) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	var metaMap map[string]any
+	if err := json.Unmarshal(metadata, &metaMap); err != nil {
+		return ""
+	}
+	state, _ := metaMap["power_state"].(string)
+	return state
+}
+
+// MapUUIDToString converts a nullable UUID column to its string form, returning an empty
+// string when the column is NULL.
+func MapUUIDToString(id pgtype.UUID) string {
+	if !id.Valid {
+		return ""
+	}
+	return uuid.UUID(id.Bytes).String()
 }
 
 // FormatMetadataWithLockedFields attaches user_locked_fields array into metadata JSONB bytes.

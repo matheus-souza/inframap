@@ -231,6 +231,10 @@ func (m *mockDiscRepo) ResolveCollectorConfig(_ context.Context, _ uuid.UUID, co
 }
 
 type mockInvRepo struct {
+	devicesByProviderScope map[string][]db.Device
+	absenceCalls           []uuid.UUID
+	absenceCounts          map[uuid.UUID]int16
+
 	devices []db.Device
 	staged  []db.DeviceStaging
 
@@ -1181,4 +1185,26 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 			t.Errorf("expected repo limit 100, offset 0; got %d, %d", discRepo.lastLimit, discRepo.lastOffset)
 		}
 	})
+}
+
+func (m *mockInvRepo) ListDevicesByProviderScope(_ context.Context, providerScope string) ([]db.Device, error) {
+	if m.devicesByProviderScope == nil {
+		return nil, nil
+	}
+	return m.devicesByProviderScope[providerScope], nil
+}
+
+func (m *mockInvRepo) MarkDeviceAbsent(_ context.Context, id uuid.UUID, archiveThreshold int32) (*db.Device, error) {
+	m.absenceCalls = append(m.absenceCalls, id)
+	if m.absenceCounts == nil {
+		m.absenceCounts = map[uuid.UUID]int16{}
+	}
+	m.absenceCounts[id]++
+	count := m.absenceCounts[id]
+
+	status := "offline"
+	if int32(count) >= archiveThreshold {
+		status = "archived"
+	}
+	return &db.Device{ID: id, Status: status, AbsenceCount: count}, nil
 }

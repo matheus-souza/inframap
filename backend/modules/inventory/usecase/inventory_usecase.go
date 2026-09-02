@@ -477,6 +477,8 @@ func (uc *DefaultInventoryUseCase) mapDeviceToResponse(device *db.Device) *dto.D
 		SerialNumber:     device.SerialNumber.String,
 		DeviceType:       device.DeviceType,
 		Status:           device.Status,
+		PowerState:       repository.ExtractPowerState(device.Metadata),
+		ParentDeviceID:   repository.MapUUIDToString(device.ParentDeviceID),
 		FirstSeenAt:      device.FirstSeenAt.Time,
 		LastSeenAt:       device.LastSeenAt.Time,
 		UserLockedFields: lockedFields,
