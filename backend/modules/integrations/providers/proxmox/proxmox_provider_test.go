@@ -747,3 +747,31 @@ func TestProxmoxProvider_TLSVerificationIsOnByDefault(t *testing.T) {
 		t.Error("expected the self-signed certificate to be rejected when tls_verify is unset")
 	}
 }
+
+func TestProxmoxProvider_DoesNotFollowRedirects(t *testing.T) {
+	// Go's default redirect policy forwards the Authorization header to any subdomain of
+	// the configured host. A management API has no reason to redirect, so the transport
+	// refuses to follow one and the API token never leaves the host it was configured for.
+	var attackerReceivedAuth string
+	attacker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attackerReceivedAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":{"version":"8.0"}}`))
+	}))
+	defer attacker.Close()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, attacker.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer ts.Close()
+
+	cfg := sdk.ProviderConfig{"api_url": ts.URL, "token_id": "root@pam!t", "token_secret": "s", "tls_verify": false}
+	if err := provider().HealthCheck(context.Background(), cfg); err == nil {
+		t.Error("expected a redirected health check to fail rather than follow the redirect")
+	}
+	if attackerReceivedAuth != "" {
+		t.Errorf("credentials leaked to the redirect target: %q", attackerReceivedAuth)
+	}
+}
+
+func provider() *proxmox.Provider { return proxmox.NewProvider() }
