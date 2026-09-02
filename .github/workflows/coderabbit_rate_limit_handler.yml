@@ -25,18 +25,22 @@ jobs:
         run: |
           echo "Detecting CodeRabbit rate limit comment on PR #${PR_NUMBER}..."
 
+          # CodeRabbit words this several ways -- "Next review available in: 30 minutes" and
+          # "Next included review available in 48 minutes." are both observed -- so the
+          # pattern tolerates an inserted word and an optional colon. Getting this wrong is
+          # not harmless: falling back to a wait shorter than the real window retries inside
+          # it, gets rate limited again, and loops. The fallback is therefore generous.
           WAIT_MINUTES=$(python3 -c "
           import re, os
           comment = os.environ.get('COMMENT_BODY', '')
-          match = re.search(r'Next review available in:\s*(\d+)\s*minutes?', comment, re.IGNORECASE)
+          pattern = r'next\s+(?:\w+\s+)?review\s+available\s+in:?\s*(\d+)\s*(minute|hour)'
+          match = re.search(pattern, comment, re.IGNORECASE)
           if match:
-              print(int(match.group(1)) + 2)
+              value = int(match.group(1))
+              minutes = value * 60 if match.group(2).lower() == 'hour' else value
+              print(minutes + 2)
           else:
-              match_hours = re.search(r'Next review available in:\s*(\d+)\s*hours?', comment, re.IGNORECASE)
-              if match_hours:
-                  print(int(match_hours.group(1)) * 60 + 2)
-              else:
-                  print(40)
+              print(60)
           ")
 
           echo "Wait time parsed: ${WAIT_MINUTES} minutes."
