@@ -168,8 +168,6 @@ func (m *mockDiscRepo) ListRunsBySourceID(_ context.Context, sourceID uuid.UUID,
 	return res, nil
 }
 
-
-
 func (m *mockDiscRepo) ListRunsBySourceIDPaged(_ context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunResponse, int64, error) {
 	m.lastLimit = limit
 	m.lastOffset = offset
@@ -221,10 +219,16 @@ func (m *mockDiscRepo) PurgeOldCollectorRuns(_ context.Context, cutoff time.Time
 	return m.purgedCount, nil
 }
 
-func (m *mockDiscRepo) ResolveCollectorConfig(_ context.Context, _ uuid.UUID, _ string) (sdk.ProviderConfig, error) {
+func (m *mockDiscRepo) ResolveCollectorConfig(_ context.Context, _ uuid.UUID, collectorType string) (sdk.ProviderConfig, error) {
+	if collectorType == "docker" {
+		// Point the Docker collector at a closed port. Left unconfigured it falls back to
+		// the local daemon socket, so these tests would otherwise pass or fail depending on
+		// whether the machine running them happens to have Docker installed — which is the
+		// difference between a developer laptop and a CI runner (guideline #185).
+		return sdk.ProviderConfig{"tcp_url": "tcp://127.0.0.1:1"}, nil
+	}
 	return sdk.ProviderConfig{}, nil
 }
-
 
 type mockInvRepo struct {
 	devices []db.Device
@@ -1178,5 +1182,3 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 }
-
-
