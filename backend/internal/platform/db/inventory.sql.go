@@ -47,24 +47,25 @@ func (q *Queries) CountStagingDevices(ctx context.Context, status string) (int64
 
 const createDevice = `-- name: CreateDevice :one
 INSERT INTO devices (
-    id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, metadata, provider_scope
+    id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, metadata, provider_scope, parent_provider_ref
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 ) RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
 `
 
 type CreateDeviceParams struct {
-	ID            uuid.UUID        `json:"id"`
-	Hostname      string           `json:"hostname"`
-	IpAddress     *netip.Addr      `json:"ip_address"`
-	MacAddress    net.HardwareAddr `json:"mac_address"`
-	Manufacturer  pgtype.Text      `json:"manufacturer"`
-	Model         pgtype.Text      `json:"model"`
-	SerialNumber  pgtype.Text      `json:"serial_number"`
-	DeviceType    string           `json:"device_type"`
-	Status        string           `json:"status"`
-	Metadata      []byte           `json:"metadata"`
-	ProviderScope pgtype.Text      `json:"provider_scope"`
+	ID                uuid.UUID        `json:"id"`
+	Hostname          string           `json:"hostname"`
+	IpAddress         *netip.Addr      `json:"ip_address"`
+	MacAddress        net.HardwareAddr `json:"mac_address"`
+	Manufacturer      pgtype.Text      `json:"manufacturer"`
+	Model             pgtype.Text      `json:"model"`
+	SerialNumber      pgtype.Text      `json:"serial_number"`
+	DeviceType        string           `json:"device_type"`
+	Status            string           `json:"status"`
+	Metadata          []byte           `json:"metadata"`
+	ProviderScope     pgtype.Text      `json:"provider_scope"`
+	ParentProviderRef pgtype.Text      `json:"parent_provider_ref"`
 }
 
 func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Device, error) {
@@ -80,6 +81,7 @@ func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Dev
 		arg.Status,
 		arg.Metadata,
 		arg.ProviderScope,
+		arg.ParentProviderRef,
 	)
 	var i Device
 	err := row.Scan(
@@ -213,6 +215,40 @@ type GetDeviceByIDParams struct {
 
 func (q *Queries) GetDeviceByID(ctx context.Context, arg GetDeviceByIDParams) (Device, error) {
 	row := q.db.QueryRow(ctx, getDeviceByID, arg.ID, arg.Column2)
+	var i Device
+	err := row.Scan(
+		&i.ID,
+		&i.Hostname,
+		&i.IpAddress,
+		&i.MacAddress,
+		&i.Manufacturer,
+		&i.Model,
+		&i.SerialNumber,
+		&i.DeviceType,
+		&i.Status,
+		&i.FirstSeenAt,
+		&i.LastSeenAt,
+		&i.Metadata,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentProviderRef,
+		&i.ParentDeviceID,
+		&i.ProviderScope,
+		&i.AbsenceCount,
+	)
+	return i, err
+}
+
+const getDeviceByProviderRef = `-- name: GetDeviceByProviderRef :one
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count FROM devices
+WHERE metadata->>'provider_ref' = $1::text AND deleted_at IS NULL
+`
+
+// Resolves a workload by its canonical identity, backed by the partial unique index
+// uq_devices_provider_ref.
+func (q *Queries) GetDeviceByProviderRef(ctx context.Context, providerRef string) (Device, error) {
+	row := q.db.QueryRow(ctx, getDeviceByProviderRef, providerRef)
 	var i Device
 	err := row.Scan(
 		&i.ID,
@@ -395,6 +431,56 @@ func (q *Queries) ListDevicesByProviderScope(ctx context.Context, providerScope 
 	return items, nil
 }
 
+const listDevicesPendingParentResolution = `-- name: ListDevicesPendingParentResolution :many
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count FROM devices
+WHERE parent_provider_ref = $1
+  AND parent_device_id IS NULL
+  AND deleted_at IS NULL
+`
+
+// Children that declared a parent the engine has not resolved to a device yet, which
+// happens whenever a workload is discovered before its host. Backed by
+// idx_devices_parent_provider_ref_pending.
+func (q *Queries) ListDevicesPendingParentResolution(ctx context.Context, parentProviderRef pgtype.Text) ([]Device, error) {
+	rows, err := q.db.Query(ctx, listDevicesPendingParentResolution, parentProviderRef)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Device{}
+	for rows.Next() {
+		var i Device
+		if err := rows.Scan(
+			&i.ID,
+			&i.Hostname,
+			&i.IpAddress,
+			&i.MacAddress,
+			&i.Manufacturer,
+			&i.Model,
+			&i.SerialNumber,
+			&i.DeviceType,
+			&i.Status,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.Metadata,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentProviderRef,
+			&i.ParentDeviceID,
+			&i.ProviderScope,
+			&i.AbsenceCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStagingDevices = `-- name: ListStagingDevices :many
 SELECT id, hostname, ip_address, mac_address, manufacturer, model, device_type, discovery_source_id, raw_payload, status, created_at, updated_at FROM device_staging
 WHERE status = $1
@@ -494,6 +580,50 @@ type MarkDeviceAbsentParams struct {
 // untouched so it keeps pointing at the last time the device was actually observed.
 func (q *Queries) MarkDeviceAbsent(ctx context.Context, arg MarkDeviceAbsentParams) (Device, error) {
 	row := q.db.QueryRow(ctx, markDeviceAbsent, arg.ID, arg.ArchiveThreshold)
+	var i Device
+	err := row.Scan(
+		&i.ID,
+		&i.Hostname,
+		&i.IpAddress,
+		&i.MacAddress,
+		&i.Manufacturer,
+		&i.Model,
+		&i.SerialNumber,
+		&i.DeviceType,
+		&i.Status,
+		&i.FirstSeenAt,
+		&i.LastSeenAt,
+		&i.Metadata,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentProviderRef,
+		&i.ParentDeviceID,
+		&i.ProviderScope,
+		&i.AbsenceCount,
+	)
+	return i, err
+}
+
+const setDeviceParent = `-- name: SetDeviceParent :one
+UPDATE devices
+SET parent_device_id = $2,
+    parent_provider_ref = COALESCE(NULLIF($3::text, ''), parent_provider_ref),
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
+`
+
+type SetDeviceParentParams struct {
+	ID                uuid.UUID   `json:"id"`
+	ParentDeviceID    pgtype.UUID `json:"parent_device_id"`
+	ParentProviderRef string      `json:"parent_provider_ref"`
+}
+
+// Anchors a workload to its host. Kept apart from UpdateDevice so field reconciliation can
+// never clobber the containment hierarchy, and vice versa.
+func (q *Queries) SetDeviceParent(ctx context.Context, arg SetDeviceParentParams) (Device, error) {
+	row := q.db.QueryRow(ctx, setDeviceParent, arg.ID, arg.ParentDeviceID, arg.ParentProviderRef)
 	var i Device
 	err := row.Scan(
 		&i.ID,

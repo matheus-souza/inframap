@@ -74,6 +74,30 @@ func (q *Queries) CreateTopologyLink(ctx context.Context, arg CreateTopologyLink
 	return i, err
 }
 
+const deleteContainmentLinksForChild = `-- name: DeleteContainmentLinksForChild :execrows
+DELETE FROM topology_links
+WHERE target_device_id = $1
+  AND link_type = $2
+  AND source_device_id <> $3
+`
+
+type DeleteContainmentLinksForChildParams struct {
+	TargetDeviceID uuid.UUID `json:"target_device_id"`
+	LinkType       string    `json:"link_type"`
+	SourceDeviceID uuid.UUID `json:"source_device_id"`
+}
+
+// Removes the containment edges anchoring a workload to a host. Used when a workload
+// migrates: the old edge must disappear in the same transaction that creates the new one,
+// or the graph would briefly show the workload living on two hosts at once.
+func (q *Queries) DeleteContainmentLinksForChild(ctx context.Context, arg DeleteContainmentLinksForChildParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteContainmentLinksForChild, arg.TargetDeviceID, arg.LinkType, arg.SourceDeviceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteTopologyLink = `-- name: DeleteTopologyLink :execrows
 DELETE FROM topology_links
 WHERE id = $1
@@ -121,7 +145,7 @@ SELECT
     status,
     metadata
 FROM devices
-WHERE status != 'deleted'
+WHERE deleted_at IS NULL AND status != 'deleted'
 ORDER BY id
 LIMIT $2 OFFSET $1
 `
@@ -181,8 +205,8 @@ SELECT
     discovered_by,
     metadata
 FROM topology_links
-WHERE source_device_id IN (SELECT id FROM devices WHERE status != 'deleted')
-  AND target_device_id IN (SELECT id FROM devices WHERE status != 'deleted')
+WHERE source_device_id IN (SELECT id FROM devices WHERE deleted_at IS NULL AND status != 'deleted')
+  AND target_device_id IN (SELECT id FROM devices WHERE deleted_at IS NULL AND status != 'deleted')
 ORDER BY id
 LIMIT $2 OFFSET $1
 `
@@ -288,4 +312,57 @@ func (q *Queries) ListTopologyLinks(ctx context.Context, arg ListTopologyLinksPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertContainmentLink = `-- name: UpsertContainmentLink :one
+INSERT INTO topology_links (
+    id, source_device_id, target_device_id, link_type, confidence_score, discovered_by, metadata
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+)
+ON CONFLICT (source_device_id, target_device_id, link_type)
+DO UPDATE SET metadata = EXCLUDED.metadata,
+              confidence_score = EXCLUDED.confidence_score,
+              discovered_by = EXCLUDED.discovered_by,
+              updated_at = CURRENT_TIMESTAMP
+RETURNING id, source_device_id, target_device_id, source_interface_id, target_interface_id, link_type, confidence_score, discovered_by, metadata, created_at, updated_at
+`
+
+type UpsertContainmentLinkParams struct {
+	ID              uuid.UUID      `json:"id"`
+	SourceDeviceID  uuid.UUID      `json:"source_device_id"`
+	TargetDeviceID  uuid.UUID      `json:"target_device_id"`
+	LinkType        string         `json:"link_type"`
+	ConfidenceScore pgtype.Numeric `json:"confidence_score"`
+	DiscoveredBy    string         `json:"discovered_by"`
+	Metadata        []byte         `json:"metadata"`
+}
+
+// Idempotent containment edge. Repeated discovery runs re-report the same parentage, and
+// uq_topology_links_source_target_type turns the retry into a no-op update.
+func (q *Queries) UpsertContainmentLink(ctx context.Context, arg UpsertContainmentLinkParams) (TopologyLink, error) {
+	row := q.db.QueryRow(ctx, upsertContainmentLink,
+		arg.ID,
+		arg.SourceDeviceID,
+		arg.TargetDeviceID,
+		arg.LinkType,
+		arg.ConfidenceScore,
+		arg.DiscoveredBy,
+		arg.Metadata,
+	)
+	var i TopologyLink
+	err := row.Scan(
+		&i.ID,
+		&i.SourceDeviceID,
+		&i.TargetDeviceID,
+		&i.SourceInterfaceID,
+		&i.TargetInterfaceID,
+		&i.LinkType,
+		&i.ConfidenceScore,
+		&i.DiscoveredBy,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

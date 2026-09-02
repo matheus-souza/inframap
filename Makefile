@@ -8,7 +8,12 @@ MISE := $(shell command -v mise 2> /dev/null)
 GO := $(if $(MISE),mise exec -- go,go)
 GOOSE := $(if $(MISE),mise exec -- goose,goose)
 SQLC := $(if $(MISE),mise exec -- sqlc,sqlc)
-LINT := $(GO) run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+# Must match the version in .github/workflows/ci.yml, which installs the linter with
+# install-mode: goinstall -- i.e. built from source with the runner's Go. Building from
+# source is also why this is `go run` rather than the mise-managed binary: the published
+# golangci-lint v1 releases are built with go1.24 and refuse to lint a go1.25 module.
+GOLANGCI_LINT_VERSION := v1.64.5
+LINT := $(GO) run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 DATABASE_URL ?= postgres://inframap:inframap_dev_pass@localhost:5432/inframap?sslmode=disable
 
 help: ## Display available commands

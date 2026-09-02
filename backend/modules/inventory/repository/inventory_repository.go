@@ -36,6 +36,10 @@ type InventoryRepository interface {
 	ListDevicesByProviderScope(ctx context.Context, providerScope string) ([]db.Device, error)
 	MarkDeviceAbsent(ctx context.Context, id uuid.UUID, archiveThreshold int32) (*db.Device, error)
 
+	GetDeviceByProviderRef(ctx context.Context, providerRef string) (*db.Device, error)
+	ListDevicesPendingParentResolution(ctx context.Context, parentProviderRef string) ([]db.Device, error)
+	SetDeviceParent(ctx context.Context, id uuid.UUID, parentDeviceID uuid.UUID, parentProviderRef string) (*db.Device, error)
+
 	CreateStagingDevice(ctx context.Context, params db.CreateStagingDeviceParams) (*db.DeviceStaging, error)
 	GetStagingDeviceByID(ctx context.Context, id uuid.UUID) (*db.DeviceStaging, error)
 	ListStagingDevices(ctx context.Context, status string, limit, offset int32) ([]db.DeviceStaging, int64, error)
@@ -141,6 +145,46 @@ func (r *PgInventoryRepository) MarkDeviceAbsent(ctx context.Context, id uuid.UU
 	device, err := queries.MarkDeviceAbsent(ctx, db.MarkDeviceAbsentParams{ID: id, ArchiveThreshold: archiveThreshold})
 	if err != nil {
 		return nil, fmt.Errorf("failed to mark device absent: %w", err)
+	}
+	return &device, nil
+}
+
+// GetDeviceByProviderRef resolves a workload by its canonical provider identity. It returns
+// ErrDeviceNotFound when no device carries that reference, which is the normal case for a
+// child discovered before its host.
+func (r *PgInventoryRepository) GetDeviceByProviderRef(ctx context.Context, providerRef string) (*db.Device, error) {
+	queries := db.New(r.pool)
+	device, err := queries.GetDeviceByProviderRef(ctx, providerRef)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrDeviceNotFound
+		}
+		return nil, fmt.Errorf("failed to get device by provider ref: %w", err)
+	}
+	return &device, nil
+}
+
+// ListDevicesPendingParentResolution returns the workloads that declared this parent but
+// have not been anchored to it yet, which is how a host adopts children discovered before it.
+func (r *PgInventoryRepository) ListDevicesPendingParentResolution(ctx context.Context, parentProviderRef string) ([]db.Device, error) {
+	queries := db.New(r.pool)
+	devices, err := queries.ListDevicesPendingParentResolution(ctx, pgtype.Text{String: parentProviderRef, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list devices pending parent resolution: %w", err)
+	}
+	return devices, nil
+}
+
+// SetDeviceParent anchors a workload to the host that runs it.
+func (r *PgInventoryRepository) SetDeviceParent(ctx context.Context, id, parentDeviceID uuid.UUID, parentProviderRef string) (*db.Device, error) {
+	queries := db.New(r.pool)
+	device, err := queries.SetDeviceParent(ctx, db.SetDeviceParentParams{
+		ID:                id,
+		ParentDeviceID:    pgtype.UUID{Bytes: parentDeviceID, Valid: true},
+		ParentProviderRef: parentProviderRef,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to set device parent: %w", err)
 	}
 	return &device, nil
 }

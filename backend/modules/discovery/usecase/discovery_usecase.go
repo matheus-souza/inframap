@@ -570,6 +570,10 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 				Status:        "active",
 				Metadata:      rawBytes,
 				ProviderScope: providerScopeText(norm),
+				// Written to its own column, not just metadata: the partial index
+				// idx_devices_parent_provider_ref_pending is what lets a host adopt the
+				// children that were discovered before it.
+				ParentProviderRef: parentProviderRefText(norm),
 			}
 			if norm.IPAddress != "" {
 				if addr, err := netip.ParseAddr(norm.IPAddress); err == nil {
@@ -955,4 +959,13 @@ func providerScopeText(norm *dto.NormalizedDeviceDTO) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: scope, Valid: true}
+}
+
+// parentProviderRefText adapts the declared parentage to the nullable column, leaving it
+// NULL for entities at the top of the hierarchy and for network sweep observations.
+func parentProviderRefText(norm *dto.NormalizedDeviceDTO) pgtype.Text {
+	if norm.ParentProviderRef == nil || norm.ParentProviderRef.IsZero() {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: norm.ParentProviderRef.Key(), Valid: true}
 }

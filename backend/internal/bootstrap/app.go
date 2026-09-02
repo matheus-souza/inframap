@@ -213,7 +213,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 
 	// 9. Initialize Topology Module
 	queries := db.New(pool)
-	topoRepo := toporepo.NewPgTopologyRepository(queries)
+	topoRepo := toporepo.NewPgTopologyRepositoryWithPool(pool)
 	topoUseCase := topouc.NewDefaultTopologyUseCase(topoRepo, invRepo, bus, log)
 	topoCtrl := topoctrl.NewTopologyController(topoUseCase)
 
