@@ -76,6 +76,14 @@ import com.inframap.frontend.generated.resources.schedule_preset_6hours
 import com.inframap.frontend.generated.resources.schedule_preset_custom
 import com.inframap.frontend.generated.resources.schedule_preset_daily
 import com.inframap.frontend.generated.resources.schedule_preset_manual
+import com.inframap.frontend.generated.resources.tooltip_collector_arp
+import com.inframap.frontend.generated.resources.tooltip_collector_icmp
+import com.inframap.frontend.generated.resources.tooltip_collector_mdns
+import com.inframap.frontend.generated.resources.tooltip_collector_reverse_dns
+import com.inframap.frontend.generated.resources.tooltip_collector_snmp
+import com.inframap.frontend.generated.resources.tooltip_provider_docker
+import com.inframap.frontend.generated.resources.tooltip_provider_proxmox
+import com.inframap.frontend.generated.resources.tooltip_provider_unifi
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -385,17 +393,34 @@ private fun rememberNetworkSection(): ChipSection<String> {
     val mdnsLabel = stringResource(Res.string.collector_name_mdns)
     val reverseDnsLabel = stringResource(Res.string.collector_name_reverse_dns)
     val snmpLabel = stringResource(Res.string.collector_name_snmp)
+    val icmpTooltip = stringResource(Res.string.tooltip_collector_icmp)
+    val arpTooltip = stringResource(Res.string.tooltip_collector_arp)
+    val mdnsTooltip = stringResource(Res.string.tooltip_collector_mdns)
+    val reverseDnsTooltip = stringResource(Res.string.tooltip_collector_reverse_dns)
+    val snmpTooltip = stringResource(Res.string.tooltip_collector_snmp)
 
-    return remember(title, icmpLabel, arpLabel, mdnsLabel, reverseDnsLabel, snmpLabel) {
+    return remember(
+        title,
+        icmpLabel,
+        arpLabel,
+        mdnsLabel,
+        reverseDnsLabel,
+        snmpLabel,
+        icmpTooltip,
+        arpTooltip,
+        mdnsTooltip,
+        reverseDnsTooltip,
+        snmpTooltip,
+    ) {
         ChipSection(
             title = title,
             options =
                 listOf(
-                    ChipOption("icmp_sweep", icmpLabel, InfraMapIcons.NetworkPing),
-                    ChipOption("arp_sweep", arpLabel, InfraMapIcons.Lan),
-                    ChipOption("mdns", mdnsLabel, InfraMapIcons.Dns),
-                    ChipOption("reverse_dns", reverseDnsLabel, InfraMapIcons.Dns),
-                    ChipOption("snmp", snmpLabel, InfraMapIcons.NetworkCheck),
+                    ChipOption("icmp_sweep", icmpLabel, InfraMapIcons.NetworkPing, tooltip = icmpTooltip),
+                    ChipOption("arp_sweep", arpLabel, InfraMapIcons.Lan, tooltip = arpTooltip),
+                    ChipOption("mdns", mdnsLabel, InfraMapIcons.Dns, tooltip = mdnsTooltip),
+                    ChipOption("reverse_dns", reverseDnsLabel, InfraMapIcons.Dns, tooltip = reverseDnsTooltip),
+                    ChipOption("snmp", snmpLabel, InfraMapIcons.NetworkCheck, tooltip = snmpTooltip),
                 ),
         )
     }
@@ -408,8 +433,20 @@ private fun rememberProvidersSection(): ChipSection<String> {
     val proxmoxLabel = stringResource(Res.string.collector_name_proxmox)
     val dockerLabel = stringResource(Res.string.collector_name_docker)
     val unifiLabel = stringResource(Res.string.collector_name_unifi)
+    val proxmoxTooltip = stringResource(Res.string.tooltip_provider_proxmox)
+    val dockerTooltip = stringResource(Res.string.tooltip_provider_docker)
+    val unifiTooltip = stringResource(Res.string.tooltip_provider_unifi)
 
-    return remember(title, comingSoonHint, proxmoxLabel, dockerLabel, unifiLabel) {
+    return remember(
+        title,
+        comingSoonHint,
+        proxmoxLabel,
+        dockerLabel,
+        unifiLabel,
+        proxmoxTooltip,
+        dockerTooltip,
+        unifiTooltip,
+    ) {
         ChipSection(
             title = title,
             options =
@@ -418,11 +455,13 @@ private fun rememberProvidersSection(): ChipSection<String> {
                         value = "proxmox",
                         label = proxmoxLabel,
                         icon = InfraMapIcons.Cloud,
+                        tooltip = proxmoxTooltip,
                     ),
                     ChipOption(
                         value = "docker",
                         label = dockerLabel,
                         icon = InfraMapIcons.ViewInAr,
+                        tooltip = dockerTooltip,
                     ),
                     ChipOption(
                         value = "unifi",
@@ -431,6 +470,7 @@ private fun rememberProvidersSection(): ChipSection<String> {
                         enabled = false,
                         disabledHint = comingSoonHint,
                         description = comingSoonHint,
+                        tooltip = unifiTooltip,
                     ),
                 ),
         )

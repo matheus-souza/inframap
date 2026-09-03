@@ -608,6 +608,16 @@ class ChipTest {
         assertEquals(null, option.description)
         assertTrue(option.enabled)
         assertEquals(null, option.disabledHint)
+        assertEquals(null, option.tooltip)
+    }
+
+    @Test
+    fun chipOptionDataClassWithTooltip() {
+        val tooltip = "This is a helpful tooltip"
+        val option = ChipOption(value = "test", label = "Test", tooltip = tooltip)
+        assertEquals("test", option.value)
+        assertEquals("Test", option.label)
+        assertEquals(tooltip, option.tooltip)
     }
 
     @Test

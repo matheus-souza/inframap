@@ -435,4 +435,14 @@
     <string name="device_detail_power_state">Estado de energia</string>
     <string name="subnet_chips_title">Sub-redes cadastradas</string>
     <string name="subnet_chips_empty">Nenhuma sub-rede cadastrada para sugestão.</string>
+
+    <!-- Collector and Provider Tooltips -->
+    <string name="tooltip_collector_icmp">Envia pings para cada endereço da faixa e registra quem responde. Rápido, mas hosts com firewall podem não aparecer.</string>
+    <string name="tooltip_collector_arp">Consulta a tabela ARP para descobrir dispositivos pelo endereço físico. Só enxerga a rede local.</string>
+    <string name="tooltip_collector_mdns">Escuta anúncios de serviços na rede local. Encontra o que se identifica sozinho, como impressoras, TVs e NAS.</string>
+    <string name="tooltip_collector_reverse_dns">Consulta o DNS para traduzir cada IP encontrado em um nome de host.</string>
+    <string name="tooltip_collector_snmp">Consulta switches, roteadores e servidores que expõem SNMP para obter nome, modelo e interfaces.</string>
+    <string name="tooltip_provider_proxmox">Conecta na API do Proxmox e importa nós do cluster, VMs QEMU e containers LXC, com CPU, memória e estado de energia.</string>
+    <string name="tooltip_provider_docker">Conecta no daemon Docker e importa o host e todos os containers, inclusive os parados, com portas e redes.</string>
+    <string name="tooltip_provider_unifi">Integração ainda não disponível.</string>
 </resources>
