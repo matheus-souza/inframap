@@ -16,7 +16,21 @@ jobs:
     if: github.base_ref == 'develop' && github.event.pull_request.draft == false
 
     steps:
+      # Prefer a PAT so the merge is attributed to a real account. GitHub suppresses
+      # workflow runs for events triggered by GITHUB_TOKEN, so arming auto-merge with it
+      # produces a merge by github-actions[bot] whose `pull_request: closed` event starts
+      # nothing — which is why release.yml never ran for auto-merged PRs. Without the
+      # secret this still works, but the release has to be started with workflow_dispatch.
       - name: Enable auto-merge (squash)
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AUTOMERGE_PAT || github.token }}
         run: gh pr merge ${{ github.event.pull_request.number }} --auto --squash --repo ${{ github.repository }}
+
+      - name: Warn when the release pipeline will not be triggered
+        if: env.AUTOMERGE_PAT == ''
+        env:
+          AUTOMERGE_PAT: ${{ secrets.AUTOMERGE_PAT }}
+        run: |
+          echo "::warning::AUTOMERGE_PAT is not configured, so this merge will be attributed to" \
+               "github-actions[bot] and will not trigger release.yml. Start the release manually" \
+               "with: gh workflow run release.yml --ref develop"
