@@ -209,18 +209,27 @@ private fun ProviderConfigSection(
         )
 
         form.fields.forEach { field ->
-            InfraMapTextField(
-                value = config[field.key].orEmpty(),
-                onValueChange = { onFieldChanged(field.key, it) },
-                label = stringResource(field.label),
-                visualTransformation =
-                    if (field.secret) {
-                        PasswordVisualTransformation()
-                    } else {
-                        VisualTransformation.None
-                    },
-                modifier = Modifier.fillMaxWidth().testTag("provider_field_${providerId}_${field.key}"),
-            )
+            if (field.boolean) {
+                InfraMapCheckboxRow(
+                    checked = (config[field.key] ?: field.default).toBoolean(),
+                    onCheckedChange = { onFieldChanged(field.key, it.toString()) },
+                    label = stringResource(field.label),
+                    modifier = Modifier.fillMaxWidth().testTag("provider_field_${providerId}_${field.key}"),
+                )
+            } else {
+                InfraMapTextField(
+                    value = config[field.key].orEmpty(),
+                    onValueChange = { onFieldChanged(field.key, it) },
+                    label = stringResource(field.label),
+                    visualTransformation =
+                        if (field.secret) {
+                            PasswordVisualTransformation()
+                        } else {
+                            VisualTransformation.None
+                        },
+                    modifier = Modifier.fillMaxWidth().testTag("provider_field_${providerId}_${field.key}"),
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
         }
 

@@ -77,4 +77,34 @@ class ForceDirectedLayoutTest {
 
         assertTrue(dist > 10f, "Nodes should be separated by repulsion force")
     }
+
+    @Test
+    fun containmentPullsAWorkloadCloserToItsHostThanANetworkLink() {
+        // A workload does not merely connect to its host, it lives inside it, so the cluster
+        // around a hypervisor has to be visibly tighter than a plain network link would make it.
+        fun distanceFor(linkType: String): Float {
+            val nodes =
+                listOf(
+                    TopologyNode(id = "host", label = "pve-node1", deviceType = "server", status = "active"),
+                    TopologyNode(id = "workload", label = "vm-101", deviceType = "vm", status = "active"),
+                    TopologyNode(id = "other", label = "printer", deviceType = "host", status = "active"),
+                )
+            val graph =
+                TopologyGraph(
+                    nodes = nodes,
+                    edges = listOf(TopologyEdge(id = "e1", source = "host", target = "workload", linkType = linkType)),
+                )
+            val positions = ForceDirectedLayout.calculatePositions(graph)
+            val host = positions.getValue("host")
+            val workload = positions.getValue("workload")
+            val dx = host.x - workload.x
+            val dy = host.y - workload.y
+            return sqrt(dx * dx + dy * dy)
+        }
+
+        assertTrue(
+            distanceFor("hosted_on") < distanceFor("layer2_physical"),
+            "a hosted_on edge must settle closer than a network link",
+        )
+    }
 }

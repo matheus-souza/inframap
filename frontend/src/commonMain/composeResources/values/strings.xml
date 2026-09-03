@@ -411,6 +411,7 @@
     <string name="provider_field_proxmox_api_url">URL da API</string>
     <string name="provider_field_proxmox_token_id">ID do token</string>
     <string name="provider_field_proxmox_token_secret">Segredo do token</string>
+    <string name="provider_field_proxmox_tls_verify">Verificar certificado TLS</string>
     <string name="provider_field_docker_socket_path">Caminho do socket</string>
     <string name="provider_field_docker_tcp_url">URL TCP</string>
     <string name="provider_field_docker_tls_ca">Certificado da CA (TLS)</string>

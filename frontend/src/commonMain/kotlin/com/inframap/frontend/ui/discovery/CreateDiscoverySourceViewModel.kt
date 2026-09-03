@@ -63,6 +63,13 @@ class CreateDiscoverySourceViewModel(
 
     fun onCollectorsChanged(collectors: Set<String>) {
         updateState { current ->
+            // Seed a newly selected provider with its defaults, so a field the operator never
+            // touches still reaches the backend with its intended value.
+            val seeded =
+                collectors
+                    .filter { it !in current.selectedCollectors }
+                    .mapNotNull { id -> ProviderForms.defaults(id).takeIf { it.isNotEmpty() }?.let { id to it } }
+                    .toMap()
             val errors =
                 if (collectors.isNotEmpty()) {
                     current.validationErrors - "collectors"
@@ -71,6 +78,7 @@ class CreateDiscoverySourceViewModel(
                 }
             current.copy(
                 selectedCollectors = collectors,
+                providerConfigs = seeded + current.providerConfigs,
                 validationErrors = errors,
             )
         }

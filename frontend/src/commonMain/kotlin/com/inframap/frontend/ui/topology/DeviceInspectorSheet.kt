@@ -3,6 +3,7 @@ package com.inframap.frontend.ui.topology
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -81,6 +83,9 @@ fun DeviceInspectorSheet(
     onTriggerScan: (String) -> Unit,
     onEditMetadata: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** The host that runs this workload, already resolved so the sheet can name it. */
+    parent: TopologyNode? = null,
+    onParentSelected: (String) -> Unit = {},
 ) {
     Surface(
         modifier =
@@ -183,10 +188,40 @@ fun DeviceInspectorSheet(
                     }
 
                     node.parentDeviceId?.let { parentId ->
-                        DetailRow(
-                            label = stringResource(Res.string.topology_hosted_on),
-                            value = parentId,
-                        )
+                        // Named and clickable: a bare UUID tells a reader nothing and leads
+                        // nowhere. When the host is not in the current graph the id is all
+                        // there is, so it is shown but not offered as a destination.
+                        Row(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .then(
+                                        if (parent != null) {
+                                            Modifier.clickable { onParentSelected(parentId) }
+                                        } else {
+                                            Modifier
+                                        },
+                                    ).padding(vertical = 4.dp)
+                                    .testTag("hosted_on_row"),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(Res.string.topology_hosted_on),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = InfraMapTextSecondary,
+                            )
+                            Text(
+                                text = parent?.label ?: parentId,
+                                style = MaterialTheme.typography.bodySmall,
+                                color =
+                                    if (parent != null) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                            )
+                        }
                     }
                 }
 
