@@ -103,7 +103,10 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.64.5
-          install-mode: goinstall
+          # install-mode defaults to `binary`, which fetches one prebuilt release asset.
+          # `goinstall` compiled the linter from source on every run, pulling roughly 150
+          # modules through the Go proxy -- 150 chances for a transient network failure to
+          # fail the gate on code that is fine.
           working-directory: ./backend
           skip-cache: true
 
