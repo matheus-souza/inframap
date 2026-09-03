@@ -1,0 +1,116 @@
+# ⚠️ THIS WORKFLOW DOES NOT RUN YET.
+#
+# It triggers on `schedule`, and GitHub resolves scheduled workflows from the DEFAULT
+# BRANCH only — `main` here. This file lives on `develop`, so it stays inert until someone
+# syncs `.github/workflows/` to `main` (the same reason coderabbit_rate_limit_handler.yml
+# has never executed once). See CONTEXT.md guidelines #181 and #194.
+#
+# Until then it can still be exercised on demand:
+#   gh workflow run release-watchdog.yml --ref develop
+
+name: Release Watchdog
+
+on:
+  schedule:
+    # Every six hours, at an off-minute so the fleet does not converge on :00.
+    - cron: '37 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Verify develop has a matching release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: develop
+
+      - name: Compare develop against the latest release
+        id: compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # The most recent tag reachable from develop, whether or not a release was
+          # published for it. A tag with no release is itself a symptom: the release job
+          # creates the tag before building, so a tag without a release means it died.
+          LAST_TAG="$(git describe --tags --abbrev=0 --match 'v*' develop 2>/dev/null || echo '')"
+          if [ -z "$LAST_TAG" ]; then
+            echo "no tag found on develop; nothing to compare"
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Only the commit types .releaserc.json treats as releasable count. A develop full
+          # of docs and chore commits legitimately has no new release.
+          RELEASABLE="$(git log --format='%s' "$LAST_TAG"..develop \
+            | grep -cE '^(feat|fix|perf)(\(.+\))?!?:' || true)"
+
+          HAS_RELEASE=true
+          gh release view "$LAST_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || HAS_RELEASE=false
+
+          echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
+          echo "releasable=$RELEASABLE" >> "$GITHUB_OUTPUT"
+          echo "has_release=$HAS_RELEASE" >> "$GITHUB_OUTPUT"
+
+          if [ "$RELEASABLE" -gt 0 ] || [ "$HAS_RELEASE" = "false" ]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "last tag: $LAST_TAG | releasable commits since: $RELEASABLE | release published: $HAS_RELEASE"
+
+      - name: Report a missing release
+        if: steps.compare.outputs.stale == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LAST_TAG: ${{ steps.compare.outputs.last_tag }}
+          RELEASABLE: ${{ steps.compare.outputs.releasable }}
+          HAS_RELEASE: ${{ steps.compare.outputs.has_release }}
+        run: |
+          set -euo pipefail
+          TITLE="Release pipeline: develop has unreleased changes"
+
+          BODY=$(cat <<-EOB
+          The watchdog found \`develop\` ahead of its last release.
+
+          - Last tag reachable from develop: \`${LAST_TAG}\`
+          - Release published for that tag: \`${HAS_RELEASE}\`
+          - Releasable commits (feat/fix/perf) since it: \`${RELEASABLE}\`
+
+          A tag without a release means the release job created the tag and then died —
+          check the Trivy scan first, it fails the job on any CRITICAL.
+
+          No release at all usually means the merge was performed with \`GITHUB_TOKEN\`:
+          GitHub suppresses workflow runs for events it originates, so an auto-merged PR
+          triggers nothing. Confirm with \`gh pr view <n> --json mergedBy\` — an
+          \`app/github-actions\` merge is one whose downstream automation did not run.
+          See CONTEXT.md guideline #194.
+
+          To release now:
+          \`\`\`
+          gh workflow run release.yml --ref develop
+          \`\`\`
+          EOB
+          )
+
+          # Reuse the open issue instead of filing a new one on every scheduled run.
+          EXISTING="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "$TITLE in:title" --json number --jq '.[0].number // empty')"
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+            echo "::warning::Updated existing issue #$EXISTING"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
+            echo "::warning::Opened an issue: develop has unreleased changes"
+          fi
