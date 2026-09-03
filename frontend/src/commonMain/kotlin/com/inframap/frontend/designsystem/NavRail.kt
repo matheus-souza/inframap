@@ -3,6 +3,7 @@
 package com.inframap.frontend.designsystem
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -62,6 +63,10 @@ data class NavRailItem(
     val route: String,
 )
 
+private val ExpandedRailWidth = 220.dp
+private val SlimRailWidth = 56.dp
+private const val RAIL_ANIMATION_MILLIS = 250
+
 @Composable
 fun InfraMapNavRail(
     items: List<NavRailItem>,
@@ -71,10 +76,10 @@ fun InfraMapNavRail(
     onToggleExpanded: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val targetWidth = if (isExpanded) 220.dp else 56.dp
+    val targetWidth = if (isExpanded) ExpandedRailWidth else SlimRailWidth
     val railWidth by animateDpAsState(
         targetValue = targetWidth,
-        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = RAIL_ANIMATION_MILLIS, easing = FastOutSlowInEasing),
         label = "NavRailWidthAnimation",
     )
     val scrollState = rememberScrollState()
@@ -90,18 +95,30 @@ fun InfraMapNavRail(
             NavRailToggleButton(isExpanded = isExpanded, onToggle = onToggleExpanded)
             items.forEach { item ->
                 val isSelected = item.route == selectedRoute
-                if (isExpanded) {
-                    ExpandedNavRailItem(
-                        item = item,
-                        isSelected = isSelected,
-                        onClick = { onItemSelected(item.route) },
-                    )
-                } else {
-                    SlimNavRailItem(
-                        item = item,
-                        isSelected = isSelected,
-                        onClick = { onItemSelected(item.route) },
-                    )
+                // Crossfaded rather than swapped outright. The width animation was already
+                // symmetric, but replacing the item the instant isExpanded flipped was not:
+                // collapsing made every label vanish at once and only then shrank the rail,
+                // which reads as abrupt, while expanding let the growing rail reveal labels
+                // that were already in place. Fading the two variants across the same
+                // duration makes both directions look alike.
+                Crossfade(
+                    targetState = isExpanded,
+                    animationSpec = tween(durationMillis = RAIL_ANIMATION_MILLIS, easing = FastOutSlowInEasing),
+                    label = "NavRailItemCrossfade",
+                ) { expanded ->
+                    if (expanded) {
+                        ExpandedNavRailItem(
+                            item = item,
+                            isSelected = isSelected,
+                            onClick = { onItemSelected(item.route) },
+                        )
+                    } else {
+                        SlimNavRailItem(
+                            item = item,
+                            isSelected = isSelected,
+                            onClick = { onItemSelected(item.route) },
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
             }
