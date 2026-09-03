@@ -5,8 +5,8 @@ on:
   # branches already covers every merge that GitHub reports at all, so a `pull_request:
   # closed` trigger here is not a safety net -- it is a second run on the same commit.
   # Both fired for the merge of #184 and semantic-release ran twice on 9dcdb27, publishing
-  # v1.0.0-rc.76 and leaving v1.0.0-rc.77 as a duplicate tag. `concurrency` serialises the
-  # runs but does not deduplicate them.
+  # v1.0.0-rc.76 and v1.0.0-rc.77 as two complete releases of the same commit.
+  # `concurrency` serialises the runs but does not deduplicate them.
   #
   # It also does not fix what it was added for. Merges performed with GITHUB_TOKEN start no
   # workflows at all (see CONTEXT.md #194), so `pull_request: closed` is suppressed for a
