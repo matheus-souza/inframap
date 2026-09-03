@@ -5,6 +5,7 @@ import com.inframap.frontend.domain.usecase.auth.GetSetupStatusUseCase
 import com.inframap.frontend.domain.usecase.auth.LoginUseCase
 import com.inframap.frontend.domain.usecase.auth.OnboardUseCase
 import com.inframap.frontend.domain.usecase.command.SearchIndexUseCase
+import com.inframap.frontend.domain.usecase.credentials.ListCredentialsUseCase
 import com.inframap.frontend.domain.usecase.dashboard.GetDeviceSummaryUseCase
 import com.inframap.frontend.domain.usecase.dashboard.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.dashboard.GetHealthUseCase
@@ -63,6 +64,7 @@ val domainModule =
         factory { GetDiscoverySources(get()) }
         factory { CreateDiscoverySourceUseCase(get()) }
         factory { TestProviderHealthUseCase(get()) }
+        factory { ListCredentialsUseCase(get()) }
         factory { TriggerDiscoveryRunUseCase(get()) }
         factory { DeleteDiscoverySourceUseCase(get()) }
     }

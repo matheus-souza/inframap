@@ -2,6 +2,7 @@ package com.inframap.frontend.di
 
 import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.repository.AuthRepositoryImpl
+import com.inframap.frontend.data.repository.CredentialsRepositoryImpl
 import com.inframap.frontend.data.repository.DashboardRepositoryImpl
 import com.inframap.frontend.data.repository.DeviceRepositoryImpl
 import com.inframap.frontend.data.repository.DiscoveryRepositoryImpl
@@ -11,6 +12,7 @@ import com.inframap.frontend.data.repository.StagingRepositoryImpl
 import com.inframap.frontend.data.repository.SubnetRepositoryImpl
 import com.inframap.frontend.data.repository.TopologyRepositoryImpl
 import com.inframap.frontend.domain.repository.AuthRepository
+import com.inframap.frontend.domain.repository.CredentialsRepository
 import com.inframap.frontend.domain.repository.DashboardRepository
 import com.inframap.frontend.domain.repository.DeviceRepository
 import com.inframap.frontend.domain.repository.DiscoveryRepository
@@ -33,4 +35,5 @@ fun dataModule(baseUrl: String) =
         single<TopologyRepository> { TopologyRepositoryImpl(get()) }
         single<DiscoveryRepository> { DiscoveryRepositoryImpl(get()) }
         single<IntegrationsRepository> { IntegrationsRepositoryImpl(get()) }
+        single<CredentialsRepository> { CredentialsRepositoryImpl(get()) }
     }

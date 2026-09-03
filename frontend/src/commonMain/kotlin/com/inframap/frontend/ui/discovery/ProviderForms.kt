@@ -139,9 +139,30 @@ object ProviderForms {
         providerId: String,
         config: Map<String, String>,
     ): List<ProviderField> {
-        val form = formFor(providerId) ?: return emptyList()
+        val form = formFor(providerId)
+        // A stored credential supplies the required values, so the inline fields stop being
+        // mandatory — otherwise picking one would still demand retyping the secret it holds.
+        if (form == null || usesStoredCredential(config)) {
+            return emptyList()
+        }
         return form.fields.filter { it.required && !it.boolean && config[it.key].isNullOrBlank() }
     }
+
+    /**
+     * Config key holding a reference to a stored credential. The backend resolves it at
+     * execution time and merges the secrets into the provider config, with values written
+     * directly on the collector taking precedence.
+     */
+    const val CREDENTIAL_KEY = "credential_id"
+
+    /**
+     * Whether a provider's own required fields still have to be filled in.
+     *
+     * Referencing a stored credential supplies them, so the inline fields stop being
+     * mandatory — otherwise picking a credential would still demand retyping the secret it
+     * exists to hold.
+     */
+    fun usesStoredCredential(config: Map<String, String>): Boolean = !config[CREDENTIAL_KEY].isNullOrBlank()
 
     /**
      * The values a provider form starts with, so a field the operator never touches still
@@ -162,6 +183,7 @@ object ProviderForms {
         config: Map<String, String>,
     ): Boolean =
         providerId == DOCKER &&
+            !usesStoredCredential(config) &&
             config["socket_path"].isNullOrBlank() &&
             config["tcp_url"].isNullOrBlank()
 }

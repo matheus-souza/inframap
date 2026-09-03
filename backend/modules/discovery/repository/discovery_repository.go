@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,6 +59,18 @@ type PgDiscoveryRepository struct {
 	database  db.DBTX
 	queries   *db.Queries
 	encryptor crypto.Encryptor
+
+	// credentials resolves a collector config that points at a stored credential instead of
+	// carrying its secrets inline. Optional: when absent, a config referencing a credential
+	// fails loudly rather than silently authenticating with nothing.
+	credentials CredentialResolver
+}
+
+// CredentialResolver looks up a stored credential and returns its decrypted payload.
+// Declared here rather than imported so the discovery module does not depend on the
+// credentials module's concrete repository.
+type CredentialResolver interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*db.Credential, string, error)
 }
 
 // NewPgDiscoveryRepository constructs a PgDiscoveryRepository instance.
@@ -67,6 +80,13 @@ func NewPgDiscoveryRepository(database db.DBTX, encryptor crypto.Encryptor) *PgD
 		queries:   db.New(database),
 		encryptor: encryptor,
 	}
+}
+
+// WithCredentialResolver enables resolving collector configs that reference a stored
+// credential by id (ADR-013 section 2).
+func (r *PgDiscoveryRepository) WithCredentialResolver(resolver CredentialResolver) *PgDiscoveryRepository {
+	r.credentials = resolver
+	return r
 }
 
 // CreateSource inserts a new discovery source and its associated collectors into PostgreSQL in a single transaction.
@@ -638,6 +658,62 @@ func (r *PgDiscoveryRepository) ResolveCollectorConfig(ctx context.Context, sour
 		config = sdk.ProviderConfig{}
 	}
 
-	return config, nil
+	return r.resolveCredentialReference(ctx, config, collectorType)
 }
 
+// CredentialConfigKey is the collector config key that points at a stored credential
+// instead of carrying the provider secrets inline.
+const CredentialConfigKey = "credential_id"
+
+// resolveCredentialReference merges a referenced credential's secrets into the config.
+//
+// Values written directly on the collector win over the credential's, so an operator can
+// point at a shared credential and still override, say, the api_url for one plan. A
+// reference that cannot be resolved is an error rather than a silent fallback: continuing
+// would attempt the connection with no credentials at all and report it as an
+// authentication failure, sending the operator to look in the wrong place.
+func (r *PgDiscoveryRepository) resolveCredentialReference(
+	ctx context.Context,
+	config sdk.ProviderConfig,
+	collectorType string,
+) (sdk.ProviderConfig, error) {
+	rawID, present := config[CredentialConfigKey]
+	if !present {
+		return config, nil
+	}
+
+	idStr := strings.TrimSpace(fmt.Sprintf("%v", rawID))
+	if idStr == "" {
+		delete(config, CredentialConfigKey)
+		return config, nil
+	}
+
+	if r.credentials == nil {
+		return nil, fmt.Errorf("collector %s references a credential but no credential resolver is configured", collectorType)
+	}
+
+	credentialID, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("collector %s has a malformed credential reference %q: %w", collectorType, idStr, err)
+	}
+
+	_, secret, err := r.credentials.GetByID(ctx, credentialID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve credential %s for collector %s: %w", credentialID, collectorType, err)
+	}
+
+	var secrets map[string]interface{}
+	if err := json.Unmarshal([]byte(secret), &secrets); err != nil {
+		return nil, fmt.Errorf("credential %s does not hold a JSON object of provider settings: %w", credentialID, err)
+	}
+
+	for key, value := range secrets {
+		if _, overridden := config[key]; !overridden {
+			config[key] = value
+		}
+	}
+	// The reference itself is not a provider setting and must not reach the provider.
+	delete(config, CredentialConfigKey)
+
+	return config, nil
+}

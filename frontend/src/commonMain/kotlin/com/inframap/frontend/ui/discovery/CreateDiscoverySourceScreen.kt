@@ -37,6 +37,7 @@ import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapTextField
 import com.inframap.frontend.designsystem.SubnetSuggestionChips
+import com.inframap.frontend.domain.model.CredentialSummary
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.chip_coming_soon
 import com.inframap.frontend.generated.resources.collector_name_arp_sweep
@@ -59,6 +60,8 @@ import com.inframap.frontend.generated.resources.create_discovery_source_submitt
 import com.inframap.frontend.generated.resources.create_discovery_source_subtitle
 import com.inframap.frontend.generated.resources.create_discovery_source_title
 import com.inframap.frontend.generated.resources.discovery_collectors_label
+import com.inframap.frontend.generated.resources.provider_credential_label
+import com.inframap.frontend.generated.resources.provider_credential_none
 import com.inframap.frontend.generated.resources.provider_docker_endpoint_hint
 import com.inframap.frontend.generated.resources.provider_section_config
 import com.inframap.frontend.generated.resources.provider_test_connection
@@ -142,6 +145,7 @@ private fun CreateDiscoverySourceFormFields(
                 config = state.providerConfigs[providerId].orEmpty(),
                 connectionTest = state.connectionTests[providerId],
                 error = state.validationErrors[ProviderForms.labelKey(providerId)]?.asString(),
+                credentials = state.credentials,
                 onFieldChanged = { key, value -> actions.onProviderFieldChanged(providerId, key, value) },
                 onTestClicked = { actions.onTestConnectionClicked(providerId) },
             )
@@ -196,10 +200,13 @@ private fun ProviderConfigSection(
     config: Map<String, String>,
     connectionTest: ConnectionTest?,
     error: String?,
+    credentials: List<CredentialSummary>,
     onFieldChanged: (String, String) -> Unit,
     onTestClicked: () -> Unit,
 ) {
     val form = ProviderForms.formFor(providerId) ?: return
+    val selectedCredential = config[ProviderForms.CREDENTIAL_KEY].orEmpty()
+    val usesCredential = selectedCredential.isNotBlank()
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -208,32 +215,26 @@ private fun ProviderConfigSection(
             modifier = Modifier.padding(bottom = 8.dp),
         )
 
-        form.fields.forEach { field ->
-            if (field.boolean) {
-                InfraMapCheckboxRow(
-                    checked = (config[field.key] ?: field.default).toBoolean(),
-                    onCheckedChange = { onFieldChanged(field.key, it.toString()) },
-                    label = stringResource(field.label),
-                    modifier = Modifier.fillMaxWidth().testTag("provider_field_${providerId}_${field.key}"),
-                )
-            } else {
-                InfraMapTextField(
-                    value = config[field.key].orEmpty(),
-                    onValueChange = { onFieldChanged(field.key, it) },
-                    label = stringResource(field.label),
-                    visualTransformation =
-                        if (field.secret) {
-                            PasswordVisualTransformation()
-                        } else {
-                            VisualTransformation.None
-                        },
-                    modifier = Modifier.fillMaxWidth().testTag("provider_field_${providerId}_${field.key}"),
-                )
-            }
+        CredentialPicker(
+            providerId = providerId,
+            credentials = credentials,
+            selectedCredential = selectedCredential,
+            onSelected = { onFieldChanged(ProviderForms.CREDENTIAL_KEY, it) },
+        )
+
+        // The stored credential supplies the endpoint and secrets, so showing the inline
+        // fields alongside it would invite filling in both and wondering which one applies.
+        form.fields.filter { !usesCredential || it.boolean }.forEach { field ->
+            ProviderFieldInput(
+                providerId = providerId,
+                field = field,
+                value = config[field.key],
+                onValueChange = { onFieldChanged(field.key, it) },
+            )
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        if (providerId == ProviderForms.DOCKER) {
+        if (providerId == ProviderForms.DOCKER && !usesCredential) {
             Text(
                 text = stringResource(Res.string.provider_docker_endpoint_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -260,6 +261,58 @@ private fun ProviderConfigSection(
             )
         }
     }
+}
+
+/** Renders one provider setting, masked when it holds a secret. */
+@Composable
+private fun ProviderFieldInput(
+    providerId: String,
+    field: ProviderField,
+    value: String?,
+    onValueChange: (String) -> Unit,
+) {
+    val tag = "provider_field_${providerId}_${field.key}"
+    if (field.boolean) {
+        InfraMapCheckboxRow(
+            checked = (value ?: field.default).toBoolean(),
+            onCheckedChange = { onValueChange(it.toString()) },
+            label = stringResource(field.label),
+            modifier = Modifier.fillMaxWidth().testTag(tag),
+        )
+        return
+    }
+
+    InfraMapTextField(
+        value = value.orEmpty(),
+        onValueChange = onValueChange,
+        label = stringResource(field.label),
+        visualTransformation =
+            if (field.secret) PasswordVisualTransformation() else VisualTransformation.None,
+        modifier = Modifier.fillMaxWidth().testTag(tag),
+    )
+}
+
+/** Lets the operator point a provider at a stored credential instead of typing its secrets. */
+@Composable
+private fun CredentialPicker(
+    providerId: String,
+    credentials: List<CredentialSummary>,
+    selectedCredential: String,
+    onSelected: (String) -> Unit,
+) {
+    if (credentials.isEmpty()) return
+
+    val noneLabel = stringResource(Res.string.provider_credential_none)
+    InfraMapChoiceChipGroup(
+        options =
+            listOf(ChipOption(value = "", label = noneLabel)) +
+                credentials.map { ChipOption(value = it.id, label = it.name) },
+        selected = selectedCredential,
+        onSelected = onSelected,
+        label = stringResource(Res.string.provider_credential_label),
+        modifier = Modifier.fillMaxWidth().testTag("provider_credential_$providerId"),
+    )
+    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable

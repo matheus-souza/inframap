@@ -5,6 +5,7 @@ import com.inframap.frontend.data.dto.CollectorConfigDto
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.model.toSummary
+import com.inframap.frontend.domain.usecase.credentials.ListCredentialsUseCase
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.integrations.TestProviderHealthUseCase
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
@@ -25,10 +26,26 @@ class CreateDiscoverySourceViewModel(
     private val createSourceUseCase: CreateDiscoverySourceUseCase,
     private val listSubnetsUseCase: ListSubnetsUseCase,
     private val testProviderHealthUseCase: TestProviderHealthUseCase,
+    private val listCredentialsUseCase: ListCredentialsUseCase,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<CreateDiscoverySourceUiState>(CreateDiscoverySourceUiState(), scope) {
     init {
         loadSubnets()
+        loadCredentials()
+    }
+
+    /**
+     * Loads the stored credentials a provider can point at instead of carrying its secrets
+     * inline. A failure is silent: the form still works with inline credentials, so an
+     * unavailable list should not block creating a plan.
+     */
+    private fun loadCredentials() {
+        launchJob("load_credentials") {
+            when (val result = listCredentialsUseCase()) {
+                is ApiResult.Success -> updateState { it.copy(credentials = result.data) }
+                else -> Unit
+            }
+        }
     }
 
     fun loadSubnets() {

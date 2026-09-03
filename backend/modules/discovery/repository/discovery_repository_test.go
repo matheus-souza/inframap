@@ -78,8 +78,8 @@ func (m *mockDB) Begin(_ context.Context) (pgx.Tx, error) {
 }
 
 type mockTx struct {
-	db        *mockDB
-	committed bool
+	db         *mockDB
+	committed  bool
 	rolledBack bool
 }
 
@@ -470,4 +470,3 @@ func TestPgDiscoveryRepository_ResolveCollectorConfig(t *testing.T) {
 		}
 	})
 }
-
