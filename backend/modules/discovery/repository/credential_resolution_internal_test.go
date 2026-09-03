@@ -103,6 +103,11 @@ func TestResolveCredentialReference(t *testing.T) {
 			"credential is not a settings object": {
 				credentials: &stubCredentialResolver{secret: "not-json"},
 			},
+			// A literal "null" unmarshals into a nil map without error, so it would otherwise
+			// merge nothing and let the run proceed with no credentials at all.
+			"credential payload is null": {
+				credentials: &stubCredentialResolver{secret: "null"},
+			},
 		}
 
 		for name, repo := range cases {

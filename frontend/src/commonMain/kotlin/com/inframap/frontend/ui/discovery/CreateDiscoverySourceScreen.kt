@@ -222,9 +222,10 @@ private fun ProviderConfigSection(
             onSelected = { onFieldChanged(ProviderForms.CREDENTIAL_KEY, it) },
         )
 
-        // The stored credential supplies the endpoint and secrets, so showing the inline
-        // fields alongside it would invite filling in both and wondering which one applies.
-        form.fields.filter { !usesCredential || it.boolean }.forEach { field ->
+        // A credential holds authentication, not the endpoint, so only the secret inputs are
+        // hidden. The address still has to be given here, or Proxmox would be left without an
+        // api_url and Docker would quietly fall back to the machine's own daemon socket.
+        form.fields.filter { !(usesCredential && it.secret) }.forEach { field ->
             ProviderFieldInput(
                 providerId = providerId,
                 field = field,
@@ -234,7 +235,7 @@ private fun ProviderConfigSection(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        if (providerId == ProviderForms.DOCKER && !usesCredential) {
+        if (providerId == ProviderForms.DOCKER) {
             Text(
                 text = stringResource(Res.string.provider_docker_endpoint_hint),
                 style = MaterialTheme.typography.bodySmall,

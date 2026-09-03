@@ -688,6 +688,9 @@ class CreateDiscoverySourceViewModelTest {
             vm.onNameChanged("Proxmox via credencial")
             vm.onCollectorsChanged(setOf("proxmox"))
             vm.onProviderFieldChanged("proxmox", "credential_id", "cred-1")
+            // The endpoint is still required: a credential says who, never where.
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve.local:8006")
+            vm.onProviderFieldChanged("proxmox", "token_id", "root@pam!inframap")
 
             assertTrue(vm.validate())
             assertNull(vm.state.value.validationErrors["provider:proxmox"])
@@ -702,6 +705,7 @@ class CreateDiscoverySourceViewModelTest {
             vm.onNameChanged("Docker via credencial")
             vm.onCollectorsChanged(setOf("docker"))
             vm.onProviderFieldChanged("docker", "credential_id", "cred-1")
+            vm.onProviderFieldChanged("docker", "tcp_url", "tcp://192.168.1.50:2376")
 
             assertTrue(vm.validate())
         }
@@ -716,6 +720,8 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.onNameChanged("Proxmox via credencial")
             vm.onCollectorsChanged(setOf("proxmox"))
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve.local:8006")
+            vm.onProviderFieldChanged("proxmox", "token_id", "root@pam!inframap")
             vm.onProviderFieldChanged("proxmox", "credential_id", "cred-1")
             vm.createSource()
             advanceUntilIdle()
@@ -744,5 +750,30 @@ class CreateDiscoverySourceViewModelTest {
                     .isEmpty(),
             )
             assertTrue(vm.validate())
+        }
+
+    @Test
+    fun pickingACredentialDropsSecretsTypedBeforeIt() =
+        runTest {
+            // The backend gives collector values precedence over the credential's, so a stale
+            // token left in the config would win and the run would use the old authentication.
+            val discoveryRepo =
+                FakeDiscoveryRepository(createSourceResult = ApiResult.Success(createdSource, requestId = ""))
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Proxmox")
+            vm.onCollectorsChanged(setOf("proxmox"))
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve.local:8006")
+            vm.onProviderFieldChanged("proxmox", "token_id", "root@pam!typed")
+            vm.onProviderFieldChanged("proxmox", "token_secret", "typed-secret")
+
+            vm.onProviderFieldChanged("proxmox", "credential_id", "cred-1")
+
+            val config =
+                vm.state.value.providerConfigs["proxmox"]
+                    .orEmpty()
+            assertNull(config["token_secret"], "the typed secret must not survive picking a credential")
+            assertEquals("https://pve.local:8006", config["api_url"], "the endpoint is not a secret and must remain")
         }
 }

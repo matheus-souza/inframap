@@ -214,7 +214,8 @@ func observationDedupeKey(obs collectors.RawObservation) string {
 ### 6.0. Transport Security
 
 A collector config may reference a stored credential by id instead of carrying the provider
-secrets inline. `ResolveCollectorConfig` looks it up at execution time and merges its
+**secrets** inline; the endpoint is always configured on the collector, because a credential
+authenticates and does not address (CONTEXT.md guideline #192). `ResolveCollectorConfig` looks it up at execution time and merges its
 settings, with values written directly on the collector taking precedence, so one credential
 can back several plans while a single plan still overrides an individual field. The
 reference itself never reaches the provider. An unresolvable reference fails the run rather

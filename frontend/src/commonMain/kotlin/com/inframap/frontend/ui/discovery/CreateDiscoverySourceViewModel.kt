@@ -227,7 +227,13 @@ class CreateDiscoverySourceViewModel(
         value: String,
     ) {
         updateState { current ->
-            val updated = current.providerConfigs[providerId].orEmpty() + (key to value)
+            var updated = current.providerConfigs[providerId].orEmpty() + (key to value)
+            // Picking a credential must drop whatever secrets were typed before it. The
+            // backend gives collector values precedence over the credential's, so a stale
+            // token left behind would win and the run would authenticate with the old one.
+            if (key == ProviderForms.CREDENTIAL_KEY && value.isNotBlank()) {
+                updated = updated - ProviderForms.secretKeys(providerId).toSet()
+            }
             current.copy(
                 providerConfigs = current.providerConfigs + (providerId to updated),
                 // Editing the configuration invalidates whatever the last check concluded.

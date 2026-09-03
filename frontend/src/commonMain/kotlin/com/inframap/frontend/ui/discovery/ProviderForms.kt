@@ -139,13 +139,15 @@ object ProviderForms {
         providerId: String,
         config: Map<String, String>,
     ): List<ProviderField> {
-        val form = formFor(providerId)
-        // A stored credential supplies the required values, so the inline fields stop being
-        // mandatory — otherwise picking one would still demand retyping the secret it holds.
-        if (form == null || usesStoredCredential(config)) {
-            return emptyList()
+        val form = formFor(providerId) ?: return emptyList()
+        val credentialSupplied = usesStoredCredential(config)
+        return form.fields.filter { field ->
+            // Only the secrets are waived by a credential; an endpoint is still required.
+            field.required &&
+                !field.boolean &&
+                !(credentialSupplied && field.secret) &&
+                config[field.key].isNullOrBlank()
         }
-        return form.fields.filter { it.required && !it.boolean && config[it.key].isNullOrBlank() }
     }
 
     /**
@@ -156,13 +158,22 @@ object ProviderForms {
     const val CREDENTIAL_KEY = "credential_id"
 
     /**
-     * Whether a provider's own required fields still have to be filled in.
+     * Whether the provider settings come from a stored credential.
      *
-     * Referencing a stored credential supplies them, so the inline fields stop being
-     * mandatory — otherwise picking a credential would still demand retyping the secret it
-     * exists to hold.
+     * A credential holds authentication, not the endpoint: it says who to connect as, never
+     * where. So it waives only the secret fields — the address still has to be given, or
+     * Proxmox would be left without an api_url and Docker would quietly fall back to the
+     * machine's own daemon socket.
      */
     fun usesStoredCredential(config: Map<String, String>): Boolean = !config[CREDENTIAL_KEY].isNullOrBlank()
+
+    /** Keys a stored credential is expected to supply, and which the form therefore hides. */
+    fun secretKeys(providerId: String): List<String> =
+        formFor(providerId)
+            ?.fields
+            ?.filter { it.secret }
+            ?.map { it.key }
+            .orEmpty()
 
     /**
      * The values a provider form starts with, so a field the operator never touches still
@@ -183,7 +194,6 @@ object ProviderForms {
         config: Map<String, String>,
     ): Boolean =
         providerId == DOCKER &&
-            !usesStoredCredential(config) &&
             config["socket_path"].isNullOrBlank() &&
             config["tcp_url"].isNullOrBlank()
 }

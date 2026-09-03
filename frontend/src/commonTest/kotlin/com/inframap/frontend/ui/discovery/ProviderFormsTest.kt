@@ -105,4 +105,33 @@ class ProviderFormsTest {
     fun dockerHasNoDefaultsToSeed() {
         assertTrue(ProviderForms.defaults(ProviderForms.DOCKER).isEmpty())
     }
+
+    @Test
+    fun aCredentialWaivesTheSecretsButNotTheEndpoint() {
+        // A credential says who to connect as, never where. Waiving the address would leave
+        // Proxmox without an api_url and Docker falling back to the local daemon socket.
+        val config = mapOf(ProviderForms.CREDENTIAL_KEY to "cred-1")
+
+        val missing = ProviderForms.missingFields(ProviderForms.PROXMOX, config).map { it.key }
+        assertEquals(listOf("api_url", "token_id"), missing)
+    }
+
+    @Test
+    fun aCredentialDoesNotSatisfyTheDockerEndpointRule() {
+        assertTrue(
+            ProviderForms.isEndpointMissing(ProviderForms.DOCKER, mapOf(ProviderForms.CREDENTIAL_KEY to "cred-1")),
+        )
+        assertFalse(
+            ProviderForms.isEndpointMissing(
+                ProviderForms.DOCKER,
+                mapOf(ProviderForms.CREDENTIAL_KEY to "cred-1", "tcp_url" to "tcp://host:2376"),
+            ),
+        )
+    }
+
+    @Test
+    fun secretKeysAreTheOnesACredentialSupplies() {
+        assertEquals(listOf("token_secret"), ProviderForms.secretKeys(ProviderForms.PROXMOX))
+        assertEquals(listOf("tls_ca", "tls_cert", "tls_key"), ProviderForms.secretKeys(ProviderForms.DOCKER))
+    }
 }

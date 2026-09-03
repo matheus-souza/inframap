@@ -706,6 +706,12 @@ func (r *PgDiscoveryRepository) resolveCredentialReference(
 	if err := json.Unmarshal([]byte(secret), &secrets); err != nil {
 		return nil, fmt.Errorf("credential %s does not hold a JSON object of provider settings: %w", credentialID, err)
 	}
+	// A literal "null" payload unmarshals into a nil map without error, which would merge
+	// nothing and let the run proceed with no credentials at all — the silent failure this
+	// resolution exists to prevent.
+	if secrets == nil {
+		return nil, fmt.Errorf("credential %s holds no provider settings", credentialID)
+	}
 
 	for key, value := range secrets {
 		if _, overridden := config[key]; !overridden {
