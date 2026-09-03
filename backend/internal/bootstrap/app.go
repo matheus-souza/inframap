@@ -18,9 +18,9 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/internal/platform/httputil"
+	"github.com/matheussouza/inframap/internal/platform/logger"
 	"github.com/matheussouza/inframap/internal/platform/netinfo"
 	"github.com/matheussouza/inframap/internal/platform/spa"
-	"github.com/matheussouza/inframap/internal/platform/logger"
 	"github.com/matheussouza/inframap/modules/audit"
 	"github.com/matheussouza/inframap/modules/configuration"
 	configctrl "github.com/matheussouza/inframap/modules/configuration/controller"
@@ -133,7 +133,6 @@ func NewConfigFromEnv() Config {
 	}
 }
 
-
 // New initializes and wires all application components.
 func New(ctx context.Context, cfg Config) (*App, error) {
 	log := logger.New()
@@ -231,6 +230,11 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		return nil, fmt.Errorf("failed to initialize credentials usecase: %w", err)
 	}
 	credCtrl := credentialsctrl.NewCredentialsController(credUseCase)
+
+	// Discovery can now resolve collector configs that reference a stored credential
+	// instead of carrying the provider secrets inline (ADR-013 section 2). Wired here
+	// because the credentials repository is only available at this point.
+	discRepo.WithCredentialResolver(credRepo)
 
 	// 11. Setup Router & Register Endpoints
 	mux := http.NewServeMux()

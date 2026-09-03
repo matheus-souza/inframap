@@ -408,9 +408,12 @@
 
     <!-- T07: formulario multi-provedor e teste de conexao -->
     <string name="provider_section_config">Configuração do provedor</string>
+    <string name="provider_credential_label">Usar credencial armazenada</string>
+    <string name="provider_credential_none">Informar credenciais neste plano</string>
     <string name="provider_field_proxmox_api_url">URL da API</string>
     <string name="provider_field_proxmox_token_id">ID do token</string>
     <string name="provider_field_proxmox_token_secret">Segredo do token</string>
+    <string name="provider_field_proxmox_tls_verify">Verificar certificado TLS</string>
     <string name="provider_field_docker_socket_path">Caminho do socket</string>
     <string name="provider_field_docker_tcp_url">URL TCP</string>
     <string name="provider_field_docker_tls_ca">Certificado da CA (TLS)</string>

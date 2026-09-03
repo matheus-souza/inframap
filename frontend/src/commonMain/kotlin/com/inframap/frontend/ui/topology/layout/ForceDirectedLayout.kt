@@ -20,6 +20,15 @@ data class LayoutConfig(
 object ForceDirectedLayout {
     private const val MIN_DISTANCE = 1f
 
+    /**
+     * Extra pull applied to a containment edge.
+     *
+     * A workload does not merely connect to its host, it lives inside it, so VMs and
+     * containers should settle into a visible cluster around the node that runs them rather
+     * than drifting to wherever a generic network link would put them.
+     */
+    private const val CONTAINMENT_ATTRACTION = 2.5f
+
     fun calculatePositions(
         graph: TopologyGraph,
         config: LayoutConfig = LayoutConfig(),
@@ -131,7 +140,8 @@ object ForceDirectedLayout {
                     dist = sqrt(2f)
                 }
 
-                val force = (dist * dist) / k
+                val pull = if (isContainmentEdge(edge.linkType)) CONTAINMENT_ATTRACTION else 1f
+                val force = (dist * dist) / k * pull
                 val dispX = (deltaX / dist) * force
                 val dispY = (deltaY / dist) * force
 
@@ -163,3 +173,11 @@ object ForceDirectedLayout {
         }
     }
 }
+
+/**
+ * Whether an edge expresses containment rather than a network path.
+ *
+ * Kept here rather than imported from the canvas so the layout has no dependency on
+ * rendering; both read the same link type the backend emits.
+ */
+private fun isContainmentEdge(linkType: String): Boolean = linkType.lowercase() == "hosted_on"

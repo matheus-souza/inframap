@@ -5,6 +5,7 @@ import com.inframap.frontend.data.dto.CollectorConfigDto
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.model.toSummary
+import com.inframap.frontend.domain.usecase.credentials.ListCredentialsUseCase
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.integrations.TestProviderHealthUseCase
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
@@ -25,10 +26,26 @@ class CreateDiscoverySourceViewModel(
     private val createSourceUseCase: CreateDiscoverySourceUseCase,
     private val listSubnetsUseCase: ListSubnetsUseCase,
     private val testProviderHealthUseCase: TestProviderHealthUseCase,
+    private val listCredentialsUseCase: ListCredentialsUseCase,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<CreateDiscoverySourceUiState>(CreateDiscoverySourceUiState(), scope) {
     init {
         loadSubnets()
+        loadCredentials()
+    }
+
+    /**
+     * Loads the stored credentials a provider can point at instead of carrying its secrets
+     * inline. A failure is silent: the form still works with inline credentials, so an
+     * unavailable list should not block creating a plan.
+     */
+    private fun loadCredentials() {
+        launchJob("load_credentials") {
+            when (val result = listCredentialsUseCase()) {
+                is ApiResult.Success -> updateState { it.copy(credentials = result.data) }
+                else -> Unit
+            }
+        }
     }
 
     fun loadSubnets() {
@@ -63,6 +80,13 @@ class CreateDiscoverySourceViewModel(
 
     fun onCollectorsChanged(collectors: Set<String>) {
         updateState { current ->
+            // Seed a newly selected provider with its defaults, so a field the operator never
+            // touches still reaches the backend with its intended value.
+            val seeded =
+                collectors
+                    .filter { it !in current.selectedCollectors }
+                    .mapNotNull { id -> ProviderForms.defaults(id).takeIf { it.isNotEmpty() }?.let { id to it } }
+                    .toMap()
             val errors =
                 if (collectors.isNotEmpty()) {
                     current.validationErrors - "collectors"
@@ -71,6 +95,7 @@ class CreateDiscoverySourceViewModel(
                 }
             current.copy(
                 selectedCollectors = collectors,
+                providerConfigs = seeded + current.providerConfigs,
                 validationErrors = errors,
             )
         }
@@ -202,7 +227,13 @@ class CreateDiscoverySourceViewModel(
         value: String,
     ) {
         updateState { current ->
-            val updated = current.providerConfigs[providerId].orEmpty() + (key to value)
+            var updated = current.providerConfigs[providerId].orEmpty() + (key to value)
+            // Picking a credential must drop whatever secrets were typed before it. The
+            // backend gives collector values precedence over the credential's, so a stale
+            // token left behind would win and the run would authenticate with the old one.
+            if (key == ProviderForms.CREDENTIAL_KEY && value.isNotBlank()) {
+                updated = updated - ProviderForms.secretKeys(providerId).toSet()
+            }
             current.copy(
                 providerConfigs = current.providerConfigs + (providerId to updated),
                 // Editing the configuration invalidates whatever the last check concluded.

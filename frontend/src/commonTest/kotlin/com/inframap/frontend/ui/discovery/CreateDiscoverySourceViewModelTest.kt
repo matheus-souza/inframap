@@ -6,9 +6,11 @@ import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.domain.model.SubnetSummary
+import com.inframap.frontend.domain.usecase.credentials.ListCredentialsUseCase
 import com.inframap.frontend.domain.usecase.discovery.CreateDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.integrations.TestProviderHealthUseCase
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
+import com.inframap.frontend.fakes.FakeCredentialsRepository
 import com.inframap.frontend.fakes.FakeDiscoveryRepository
 import com.inframap.frontend.fakes.FakeIntegrationsRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
@@ -55,11 +57,13 @@ class CreateDiscoverySourceViewModelTest {
                     ),
             ),
         integrationsRepo: FakeIntegrationsRepository = FakeIntegrationsRepository(),
+        credentialsRepo: FakeCredentialsRepository = FakeCredentialsRepository(),
         scope: CoroutineScope? = null,
     ) = CreateDiscoverySourceViewModel(
         createSourceUseCase = CreateDiscoverySourceUseCase(discoveryRepo),
         listSubnetsUseCase = ListSubnetsUseCase(subnetRepo),
         testProviderHealthUseCase = TestProviderHealthUseCase(integrationsRepo),
+        listCredentialsUseCase = ListCredentialsUseCase(credentialsRepo),
         scope = scope,
     )
 
@@ -658,5 +662,118 @@ class CreateDiscoverySourceViewModelTest {
             vm.onCollectorsChanged(setOf("docker", "icmp_sweep", "proxmox"))
 
             assertEquals(listOf("proxmox", "docker"), vm.state.value.selectedProviders)
+        }
+
+    @Test
+    fun storedCredentialsAreOfferedOnceLoaded() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf("cred-1"),
+                vm.state.value.credentials
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun referencingACredentialWaivesTheInlineRequiredFields() =
+        runTest {
+            // The credential holds the secrets, so demanding them again would defeat the
+            // point of storing one.
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Proxmox via credencial")
+            vm.onCollectorsChanged(setOf("proxmox"))
+            vm.onProviderFieldChanged("proxmox", "credential_id", "cred-1")
+            // The endpoint is still required: a credential says who, never where.
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve.local:8006")
+            vm.onProviderFieldChanged("proxmox", "token_id", "root@pam!inframap")
+
+            assertTrue(vm.validate())
+            assertNull(vm.state.value.validationErrors["provider:proxmox"])
+        }
+
+    @Test
+    fun aCredentialAlsoSatisfiesTheDockerEndpointRule() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Docker via credencial")
+            vm.onCollectorsChanged(setOf("docker"))
+            vm.onProviderFieldChanged("docker", "credential_id", "cred-1")
+            vm.onProviderFieldChanged("docker", "tcp_url", "tcp://192.168.1.50:2376")
+
+            assertTrue(vm.validate())
+        }
+
+    @Test
+    fun theCredentialReferenceTravelsOnTheCollectorConfig() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(createSourceResult = ApiResult.Success(createdSource, requestId = ""))
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Proxmox via credencial")
+            vm.onCollectorsChanged(setOf("proxmox"))
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve.local:8006")
+            vm.onProviderFieldChanged("proxmox", "token_id", "root@pam!inframap")
+            vm.onProviderFieldChanged("proxmox", "credential_id", "cred-1")
+            vm.createSource()
+            advanceUntilIdle()
+
+            val proxmox = discoveryRepo.lastCreateSourceRequest!!.collectors.single { it.type == "proxmox" }
+            assertEquals("cred-1", proxmox.config?.get("credential_id"))
+        }
+
+    @Test
+    fun aFailedCredentialListStillAllowsInlineConfiguration() =
+        runTest {
+            // The list is a convenience; losing it must not block creating a plan.
+            val credentialsRepo =
+                FakeCredentialsRepository(
+                    listResult = ApiResult.Error(code = "INTERNAL", message = "boom", requestId = "", httpStatus = 500),
+                )
+            val vm = makeVm(credentialsRepo = credentialsRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Docker inline")
+            vm.onCollectorsChanged(setOf("docker"))
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+
+            assertTrue(
+                vm.state.value.credentials
+                    .isEmpty(),
+            )
+            assertTrue(vm.validate())
+        }
+
+    @Test
+    fun pickingACredentialDropsSecretsTypedBeforeIt() =
+        runTest {
+            // The backend gives collector values precedence over the credential's, so a stale
+            // token left in the config would win and the run would use the old authentication.
+            val discoveryRepo =
+                FakeDiscoveryRepository(createSourceResult = ApiResult.Success(createdSource, requestId = ""))
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Proxmox")
+            vm.onCollectorsChanged(setOf("proxmox"))
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve.local:8006")
+            vm.onProviderFieldChanged("proxmox", "token_id", "root@pam!typed")
+            vm.onProviderFieldChanged("proxmox", "token_secret", "typed-secret")
+
+            vm.onProviderFieldChanged("proxmox", "credential_id", "cred-1")
+
+            val config =
+                vm.state.value.providerConfigs["proxmox"]
+                    .orEmpty()
+            assertNull(config["token_secret"], "the typed secret must not survive picking a credential")
+            assertEquals("https://pve.local:8006", config["api_url"], "the endpoint is not a secret and must remain")
         }
 }

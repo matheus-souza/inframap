@@ -180,6 +180,11 @@ fun TopologyScreen(
                             onDismiss = actions.onDismissNodeDetails,
                             onTriggerScan = actions.onTriggerScan,
                             onEditMetadata = actions.onEditMetadata,
+                            parent =
+                                node.parentDeviceId?.let { parentId ->
+                                    state.graph?.nodes?.firstOrNull { it.id == parentId }
+                                },
+                            onParentSelected = actions.onNodeSelected,
                         )
                     }
                 }

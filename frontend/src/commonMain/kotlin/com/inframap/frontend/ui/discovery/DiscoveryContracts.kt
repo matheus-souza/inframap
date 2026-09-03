@@ -2,6 +2,7 @@
 
 package com.inframap.frontend.ui.discovery
 
+import com.inframap.frontend.domain.model.CredentialSummary
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.ui.base.Paginated
@@ -58,6 +59,8 @@ data class CreateDiscoverySourceUiState(
     val providerConfigs: Map<String, Map<String, String>> = emptyMap(),
     /** Result of the last connectivity check per provider, keyed by provider id. */
     val connectionTests: Map<String, ConnectionTest> = emptyMap(),
+    /** Stored credentials a provider can reference instead of carrying its secrets inline. */
+    val credentials: List<CredentialSummary> = emptyList(),
 ) {
     /** Providers the user selected, in the order they are offered. */
     val selectedProviders: List<String> get() = ProviderForms.ids.filter { it in selectedCollectors }

@@ -7,6 +7,7 @@ import com.inframap.frontend.generated.resources.provider_field_docker_tls_ca
 import com.inframap.frontend.generated.resources.provider_field_docker_tls_cert
 import com.inframap.frontend.generated.resources.provider_field_docker_tls_key
 import com.inframap.frontend.generated.resources.provider_field_proxmox_api_url
+import com.inframap.frontend.generated.resources.provider_field_proxmox_tls_verify
 import com.inframap.frontend.generated.resources.provider_field_proxmox_token_id
 import com.inframap.frontend.generated.resources.provider_field_proxmox_token_secret
 import org.jetbrains.compose.resources.StringResource
@@ -23,6 +24,13 @@ data class ProviderField(
     val placeholder: String,
     val required: Boolean = false,
     val secret: Boolean = false,
+    /**
+     * Rendered as a checkbox instead of a text input. The value travels as the string "true"
+     * or "false", because the collector config is a string map end to end.
+     */
+    val boolean: Boolean = false,
+    /** Value used when the operator never touches the field. */
+    val default: String = "",
 )
 
 data class ProviderForm(
@@ -63,6 +71,16 @@ object ProviderForms {
                         placeholder = "",
                         required = true,
                         secret = true,
+                    ),
+                    // Homelab Proxmox installs commonly use a self-signed certificate, so the
+                    // operator needs a way to turn verification off. It defaults to on, which
+                    // matches the backend default (CONTEXT.md guideline #174).
+                    ProviderField(
+                        key = "tls_verify",
+                        label = Res.string.provider_field_proxmox_tls_verify,
+                        placeholder = "",
+                        boolean = true,
+                        default = "true",
                     ),
                 ),
         )
@@ -122,8 +140,51 @@ object ProviderForms {
         config: Map<String, String>,
     ): List<ProviderField> {
         val form = formFor(providerId) ?: return emptyList()
-        return form.fields.filter { it.required && config[it.key].isNullOrBlank() }
+        val credentialSupplied = usesStoredCredential(config)
+        return form.fields.filter { field ->
+            // Only the secrets are waived by a credential; an endpoint is still required.
+            field.required &&
+                !field.boolean &&
+                !(credentialSupplied && field.secret) &&
+                config[field.key].isNullOrBlank()
+        }
     }
+
+    /**
+     * Config key holding a reference to a stored credential. The backend resolves it at
+     * execution time and merges the secrets into the provider config, with values written
+     * directly on the collector taking precedence.
+     */
+    const val CREDENTIAL_KEY = "credential_id"
+
+    /**
+     * Whether the provider settings come from a stored credential.
+     *
+     * A credential holds authentication, not the endpoint: it says who to connect as, never
+     * where. So it waives only the secret fields — the address still has to be given, or
+     * Proxmox would be left without an api_url and Docker would quietly fall back to the
+     * machine's own daemon socket.
+     */
+    fun usesStoredCredential(config: Map<String, String>): Boolean = !config[CREDENTIAL_KEY].isNullOrBlank()
+
+    /** Keys a stored credential is expected to supply, and which the form therefore hides. */
+    fun secretKeys(providerId: String): List<String> =
+        formFor(providerId)
+            ?.fields
+            ?.filter { it.secret }
+            ?.map { it.key }
+            .orEmpty()
+
+    /**
+     * The values a provider form starts with, so a field the operator never touches still
+     * reaches the backend with its intended default rather than absent.
+     */
+    fun defaults(providerId: String): Map<String, String> =
+        formFor(providerId)
+            ?.fields
+            ?.filter { it.default.isNotEmpty() }
+            ?.associate { it.key to it.default }
+            .orEmpty()
 
     /** Key under which a provider's validation error is stored in the form error map. */
     fun labelKey(providerId: String): String = "provider:$providerId"
