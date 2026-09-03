@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.app_name
 import com.inframap.frontend.generated.resources.topbar_restart_tour
@@ -170,7 +171,7 @@ private fun RestartTourButton(onRestartTourClicked: () -> Unit) {
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-        modifier = Modifier.semantics { contentDescription = buttonCd },
+        modifier = Modifier.m3ClickableCursor().semantics { contentDescription = buttonCd },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -210,6 +211,7 @@ private fun SearchTriggerButton(onSearchClicked: () -> Unit) {
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
             modifier =
                 Modifier
+                    .m3ClickableCursor()
                     .hoverable(interactionSource)
                     .semantics { contentDescription = searchButtonCd },
         ) {

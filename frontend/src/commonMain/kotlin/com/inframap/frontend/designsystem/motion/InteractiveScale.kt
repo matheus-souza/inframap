@@ -10,6 +10,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 
 const val DEFAULT_PRESS_SCALE: Float = 0.96f
 const val DEFAULT_HOVER_SCALE: Float = 1.015f
@@ -47,3 +49,30 @@ fun Modifier.m3InteractiveScale(
             scaleY = animatedScale
         }
     }
+
+/**
+ * The interaction affordances every clickable surface should carry: the press and hover
+ * scale, plus a hand cursor.
+ *
+ * The cursor half exists because the app wraps its content in a `SelectionContainer`, so
+ * text keeps the I-beam it needs to be selectable — and a button labelled with text
+ * inherited that I-beam, reading as "select me" rather than "click me". Declaring the hand
+ * on the clickable itself wins over the text underneath without giving up selection.
+ *
+ * Prefer this over calling [m3InteractiveScale] directly: a component that only scales is a
+ * component whose cursor someone forgot.
+ */
+fun Modifier.m3Clickable(
+    interactionSource: MutableInteractionSource,
+    pressScale: Float = DEFAULT_PRESS_SCALE,
+    hoverScale: Float = DEFAULT_HOVER_SCALE,
+): Modifier =
+    this
+        .m3InteractiveScale(interactionSource, pressScale = pressScale, hoverScale = hoverScale)
+        .pointerHoverIcon(PointerIcon.Hand)
+
+/**
+ * The hand cursor on its own, for clickables that deliberately opt out of the scale — a
+ * whole table row, for instance, where scaling the row would shift the rows around it.
+ */
+fun Modifier.m3ClickableCursor(): Modifier = this.pointerHoverIcon(PointerIcon.Hand)

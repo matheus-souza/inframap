@@ -31,7 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.inframap.frontend.designsystem.motion.m3InteractiveScale
+import com.inframap.frontend.designsystem.motion.m3Clickable
 import com.inframap.frontend.domain.model.SubnetSummary
 
 private val ChipCornerRadius = 8.dp
@@ -177,7 +177,7 @@ private fun SubnetSuggestionChip(
     Surface(
         modifier =
             modifier
-                .m3InteractiveScale(interactionSource)
+                .m3Clickable(interactionSource)
                 .semantics {
                     role = Role.Button
                     selected = isSelected

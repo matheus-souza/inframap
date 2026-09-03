@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.table_pagination_next
 import com.inframap.frontend.generated.resources.table_pagination_page
@@ -68,7 +69,8 @@ fun <T> InfraMapTable(
                     .fillMaxWidth()
                     .then(
                         if (onRowClick != null) {
-                            Modifier.clickable { onRowClick(item) }
+                            // Cursor only: scaling a row would nudge the rows around it.
+                            Modifier.m3ClickableCursor().clickable { onRowClick(item) }
                         } else {
                             Modifier
                         },

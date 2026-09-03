@@ -16,7 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.inframap.frontend.designsystem.motion.m3InteractiveScale
+import com.inframap.frontend.designsystem.motion.m3Clickable
 
 @Composable
 fun InfraMapButton(
@@ -28,7 +28,7 @@ fun InfraMapButton(
     val interactionSource = remember { MutableInteractionSource() }
     Button(
         onClick = onClick,
-        modifier = modifier.m3InteractiveScale(interactionSource),
+        modifier = modifier.m3Clickable(interactionSource),
         enabled = enabled,
         interactionSource = interactionSource,
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
@@ -53,7 +53,7 @@ fun InfraMapOutlinedButton(
     val interactionSource = remember { MutableInteractionSource() }
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.m3InteractiveScale(interactionSource),
+        modifier = modifier.m3Clickable(interactionSource),
         enabled = enabled,
         interactionSource = interactionSource,
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),

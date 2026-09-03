@@ -13,7 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.inframap.frontend.designsystem.motion.m3InteractiveScale
+import com.inframap.frontend.designsystem.motion.m3Clickable
 
 private val DefaultCardPadding = 16.dp
 private val CardElevationValue = 1.dp
@@ -36,7 +36,7 @@ fun InfraMapCard(
         val interactionSource = remember { MutableInteractionSource() }
         Card(
             onClick = onClick,
-            modifier = modifier.m3InteractiveScale(interactionSource),
+            modifier = modifier.m3Clickable(interactionSource),
             colors = colors,
             elevation = elevation,
             interactionSource = interactionSource,
@@ -74,7 +74,7 @@ fun InfraMapElevatedCard(
         val interactionSource = remember { MutableInteractionSource() }
         ElevatedCard(
             onClick = onClick,
-            modifier = modifier.m3InteractiveScale(interactionSource),
+            modifier = modifier.m3Clickable(interactionSource),
             colors = colors,
             elevation = elevation,
             interactionSource = interactionSource,
@@ -116,7 +116,7 @@ fun InfraMapOutlinedCard(
         val interactionSource = remember { MutableInteractionSource() }
         OutlinedCard(
             onClick = onClick,
-            modifier = modifier.m3InteractiveScale(interactionSource),
+            modifier = modifier.m3Clickable(interactionSource),
             colors = colors,
             border = border,
             interactionSource = interactionSource,
