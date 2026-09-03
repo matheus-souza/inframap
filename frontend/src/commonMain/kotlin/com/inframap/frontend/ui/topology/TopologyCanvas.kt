@@ -48,6 +48,7 @@ private val VirtualEdgeColor = Color(0xFFBD93F9)
 private val ContainerEdgeColor = Color(0xFF50FA7B)
 private val RoutedEdgeColor = Color(0xFFFFB86C)
 private val ManualEdgeColor = Color(0xFF6272A4)
+private val ContainmentEdgeColor = Color(0xFFFF79C6)
 
 // Subnet Box Style
 private val SubnetFillColor = Color(0x128B5CF6)
@@ -311,12 +312,20 @@ private fun DrawScope.drawTopologyEdges(
         val sourcePos = positions[edge.source]
         val targetPos = positions[edge.target]
         if (sourcePos != null && targetPos != null) {
-            val edgeColor = getEdgeColor(edge.linkType)
+            val containment = isContainmentLink(edge.linkType)
             drawLine(
-                color = edgeColor,
+                color = getEdgeColor(edge.linkType),
                 start = sourcePos,
                 end = targetPos,
                 strokeWidth = 2f / zoomScale,
+                pathEffect =
+                    if (containment) {
+                        PathEffect.dashPathEffect(
+                            floatArrayOf(10f / zoomScale, 6f / zoomScale),
+                        )
+                    } else {
+                        null
+                    },
             )
         }
     }
@@ -527,14 +536,29 @@ private fun getStatusGlowColor(status: String): Color =
         else -> StatusOffline
     }
 
-private fun getEdgeColor(linkType: String): Color =
+/**
+ * Maps a link type to its edge colour.
+ *
+ * The values are the ones the backend actually emits. They used to be matched against short
+ * names ("physical", "virtual") that no link type ever equals, so every edge fell through to
+ * the manual colour and the whole legend was inert.
+ */
+internal fun getEdgeColor(linkType: String): Color =
     when (linkType.lowercase()) {
-        "physical" -> PhysicalEdgeColor
-        "virtual" -> VirtualEdgeColor
-        "container" -> ContainerEdgeColor
-        "routed" -> RoutedEdgeColor
+        "hosted_on" -> ContainmentEdgeColor
+        "layer2_physical" -> PhysicalEdgeColor
+        "virtual_hypervisor" -> VirtualEdgeColor
+        "container_veth" -> ContainerEdgeColor
+        "layer3_routed" -> RoutedEdgeColor
         else -> ManualEdgeColor
     }
+
+/**
+ * Containment is a different kind of relationship from a network link: it says a workload
+ * lives inside a host rather than that packets flow between them, so it is drawn dashed to
+ * keep the two readable at a glance.
+ */
+internal fun isContainmentLink(linkType: String): Boolean = linkType.lowercase() == "hosted_on"
 
 private fun findClickedNodeId(
     clickPoint: Offset,

@@ -14,6 +14,8 @@ data class DeviceDto(
     @SerialName("serial_number") val serialNumber: String? = null,
     @SerialName("device_type") val deviceType: String,
     val status: String,
+    @SerialName("power_state") val powerState: String? = null,
+    @SerialName("parent_device_id") val parentDeviceId: String? = null,
     val metadata: Map<String, String>? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,

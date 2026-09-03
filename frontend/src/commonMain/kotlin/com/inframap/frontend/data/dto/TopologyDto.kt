@@ -22,6 +22,8 @@ data class TopologyNodeDto(
     @SerialName("mac_address") val macAddress: String? = null,
     @SerialName("device_type") val deviceType: String = "unknown",
     val status: String = "active",
+    @SerialName("power_state") val powerState: String? = null,
+    @SerialName("parent_device_id") val parentDeviceId: String? = null,
 ) {
     val displayLabel: String
         get() =

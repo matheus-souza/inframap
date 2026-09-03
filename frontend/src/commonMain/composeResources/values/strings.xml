@@ -423,4 +423,11 @@
     <string name="provider_validation_field_required">Preencha os campos obrigatórios do provedor.</string>
     <string name="provider_validation_docker_endpoint_required">Informe o caminho do socket ou a URL TCP do Docker.</string>
     <string name="provider_docker_endpoint_hint">Preencha o socket para um daemon local, ou a URL TCP para um remoto.</string>
+    <!-- T08: estado de energia e conteinerizacao no grafo -->
+    <string name="power_state_running">Em execução</string>
+    <string name="power_state_stopped">Parado</string>
+    <string name="power_state_paused">Pausado</string>
+    <string name="topology_hosted_on">Hospedado em</string>
+    <string name="topology_inspector_power_state">Estado de energia</string>
+    <string name="device_detail_power_state">Estado de energia</string>
 </resources>

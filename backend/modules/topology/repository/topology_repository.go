@@ -265,14 +265,26 @@ func (r *PgTopologyRepository) GetGraphData(ctx context.Context) (*dto.TopologyG
 				}
 			}
 
+			// power_state is hoisted to a canonical top-level metadata key by the discovery
+			// pipeline, so the graph does not need to know which provider produced it.
+			powerState, _ := nodeMeta["power_state"].(string)
+
+			var parentID *uuid.UUID
+			if d.ParentDeviceID.Valid {
+				parsed := uuid.UUID(d.ParentDeviceID.Bytes)
+				parentID = &parsed
+			}
+
 			nodes = append(nodes, dto.DeviceNode{
-				ID:         d.ID,
-				Hostname:   d.Hostname,
-				IPAddress:  ipStr,
-				MACAddress: macStr,
-				DeviceType: d.DeviceType,
-				Status:     d.Status,
-				Metadata:   nodeMeta,
+				ID:             d.ID,
+				Hostname:       d.Hostname,
+				IPAddress:      ipStr,
+				MACAddress:     macStr,
+				DeviceType:     d.DeviceType,
+				Status:         d.Status,
+				Metadata:       nodeMeta,
+				PowerState:     powerState,
+				ParentDeviceID: parentID,
 			})
 		}
 

@@ -38,14 +38,17 @@ import com.inframap.frontend.designsystem.DeviceStatus
 import com.inframap.frontend.designsystem.InfraMapBorder
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapIcons
+import com.inframap.frontend.designsystem.InfraMapPowerStateBadge
 import com.inframap.frontend.designsystem.InfraMapPurple
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapSurfaceBg
 import com.inframap.frontend.designsystem.InfraMapTextPrimary
 import com.inframap.frontend.designsystem.InfraMapTextSecondary
+import com.inframap.frontend.designsystem.PowerState
 import com.inframap.frontend.designsystem.StatusOnline
 import com.inframap.frontend.domain.model.TopologyNode
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.topology_hosted_on
 import com.inframap.frontend.generated.resources.topology_inspector_close_sheet
 import com.inframap.frontend.generated.resources.topology_inspector_device_type
 import com.inframap.frontend.generated.resources.topology_inspector_discovery_provenance
@@ -61,6 +64,7 @@ import com.inframap.frontend.generated.resources.topology_inspector_ip_address
 import com.inframap.frontend.generated.resources.topology_inspector_mac_address
 import com.inframap.frontend.generated.resources.topology_inspector_network_identity
 import com.inframap.frontend.generated.resources.topology_inspector_node_id
+import com.inframap.frontend.generated.resources.topology_inspector_power_state
 import com.inframap.frontend.generated.resources.topology_inspector_specs_status
 import com.inframap.frontend.generated.resources.topology_inspector_status
 import com.inframap.frontend.generated.resources.topology_inspector_subnet_id
@@ -156,6 +160,33 @@ fun DeviceInspectorSheet(
                             color = InfraMapTextSecondary,
                         )
                         InfraMapStatusBadge(status = mapToDeviceStatus(node.status))
+                    }
+
+                    // Shown alongside the status rather than merged into it: a stopped
+                    // container is still an actively discovered device.
+                    PowerState.fromRaw(node.powerState)?.let { powerState ->
+                        Row(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(Res.string.topology_inspector_power_state),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = InfraMapTextSecondary,
+                            )
+                            InfraMapPowerStateBadge(powerState = powerState)
+                        }
+                    }
+
+                    node.parentDeviceId?.let { parentId ->
+                        DetailRow(
+                            label = stringResource(Res.string.topology_hosted_on),
+                            value = parentId,
+                        )
                     }
                 }
 

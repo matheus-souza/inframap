@@ -28,7 +28,9 @@ import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapConfirmDialog
 import com.inframap.frontend.designsystem.InfraMapDetailSkeleton
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
+import com.inframap.frontend.designsystem.InfraMapPowerStateBadge
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
+import com.inframap.frontend.designsystem.PowerState
 import com.inframap.frontend.domain.model.Device
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.common_cancel
@@ -48,6 +50,7 @@ import com.inframap.frontend.generated.resources.device_detail_main_info
 import com.inframap.frontend.generated.resources.device_detail_manufacturer
 import com.inframap.frontend.generated.resources.device_detail_metadata
 import com.inframap.frontend.generated.resources.device_detail_model
+import com.inframap.frontend.generated.resources.device_detail_power_state
 import com.inframap.frontend.generated.resources.device_detail_serial
 import com.inframap.frontend.generated.resources.device_detail_status
 import com.inframap.frontend.generated.resources.device_detail_type
@@ -232,6 +235,23 @@ private fun DeviceMainInfoCard(device: Device) {
                         else -> DeviceStatus.OFFLINE
                     }
                 InfraMapStatusBadge(status = statusBadge)
+            }
+
+            // A provider-owned workload also has a runtime state, which is independent of
+            // whether InfraMap is still discovering it.
+            PowerState.fromRaw(device.powerState)?.let { powerState ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(Res.string.device_detail_power_state),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    )
+                    InfraMapPowerStateBadge(powerState = powerState)
+                }
             }
         }
     }

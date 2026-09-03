@@ -143,7 +143,8 @@ SELECT
     mac_address,
     device_type,
     status,
-    metadata
+    metadata,
+    parent_device_id
 FROM devices
 WHERE deleted_at IS NULL AND status != 'deleted'
 ORDER BY id
@@ -156,13 +157,14 @@ type ListActiveDevicesForGraphParams struct {
 }
 
 type ListActiveDevicesForGraphRow struct {
-	ID         uuid.UUID        `json:"id"`
-	Hostname   string           `json:"hostname"`
-	IpAddress  *netip.Addr      `json:"ip_address"`
-	MacAddress net.HardwareAddr `json:"mac_address"`
-	DeviceType string           `json:"device_type"`
-	Status     string           `json:"status"`
-	Metadata   []byte           `json:"metadata"`
+	ID             uuid.UUID        `json:"id"`
+	Hostname       string           `json:"hostname"`
+	IpAddress      *netip.Addr      `json:"ip_address"`
+	MacAddress     net.HardwareAddr `json:"mac_address"`
+	DeviceType     string           `json:"device_type"`
+	Status         string           `json:"status"`
+	Metadata       []byte           `json:"metadata"`
+	ParentDeviceID pgtype.UUID      `json:"parent_device_id"`
 }
 
 func (q *Queries) ListActiveDevicesForGraph(ctx context.Context, arg ListActiveDevicesForGraphParams) ([]ListActiveDevicesForGraphRow, error) {
@@ -182,6 +184,7 @@ func (q *Queries) ListActiveDevicesForGraph(ctx context.Context, arg ListActiveD
 			&i.DeviceType,
 			&i.Status,
 			&i.Metadata,
+			&i.ParentDeviceID,
 		); err != nil {
 			return nil, err
 		}

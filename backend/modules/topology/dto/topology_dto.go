@@ -106,6 +106,15 @@ type DeviceNode struct {
 	Status     string                 `json:"status"`
 	SubnetID   *uuid.UUID             `json:"subnet_id,omitempty"`
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+
+	// PowerState is the runtime state a provider reports for a workload (running, stopped,
+	// paused). It is distinct from Status, which is what InfraMap observed: a stopped
+	// container is still an actively discovered node. Empty for devices no provider owns.
+	PowerState string `json:"power_state,omitempty"`
+
+	// ParentDeviceID is the host that runs this workload, so a consumer can show where a
+	// node lives without walking the edge list.
+	ParentDeviceID *uuid.UUID `json:"parent_device_id,omitempty"`
 }
 
 // LinkEdge represents a directed or undirected edge in the topology graph.

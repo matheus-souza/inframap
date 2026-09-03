@@ -12,6 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.power_state_paused
+import com.inframap.frontend.generated.resources.power_state_running
+import com.inframap.frontend.generated.resources.power_state_stopped
 import com.inframap.frontend.generated.resources.status_active
 import com.inframap.frontend.generated.resources.status_cancelled
 import com.inframap.frontend.generated.resources.status_error
@@ -26,6 +29,34 @@ enum class DeviceStatus {
     ACTIVE,
     OFFLINE,
     STAGED,
+}
+
+/**
+ * Runtime state a provider reports for a workload.
+ *
+ * Deliberately separate from [DeviceStatus]: a stopped container is still an actively
+ * discovered device, so the two are shown side by side rather than collapsed into one.
+ */
+enum class PowerState {
+    RUNNING,
+    STOPPED,
+    PAUSED,
+    ;
+
+    companion object {
+        /**
+         * Maps a provider's reported state onto the badge, returning null for anything
+         * unrecognized so an unexpected value renders nothing instead of a wrong badge.
+         * Docker reports "exited" where Proxmox reports "stopped".
+         */
+        fun fromRaw(raw: String?): PowerState? =
+            when (raw?.trim()?.lowercase()) {
+                "running" -> RUNNING
+                "stopped", "exited" -> STOPPED
+                "paused" -> PAUSED
+                else -> null
+            }
+    }
 }
 
 enum class SourceStatus {
@@ -46,6 +77,20 @@ fun InfraMapStatusBadge(
             DeviceStatus.ACTIVE -> InfraMapGreen to stringResource(Res.string.status_active)
             DeviceStatus.OFFLINE -> InfraMapRed to stringResource(Res.string.status_offline)
             DeviceStatus.STAGED -> InfraMapOrange to stringResource(Res.string.status_staged)
+        }
+    StatusBadgeContent(backgroundColor = backgroundColor, label = label, modifier = modifier)
+}
+
+@Composable
+fun InfraMapPowerStateBadge(
+    powerState: PowerState,
+    modifier: Modifier = Modifier,
+) {
+    val (backgroundColor, label) =
+        when (powerState) {
+            PowerState.RUNNING -> InfraMapGreen to stringResource(Res.string.power_state_running)
+            PowerState.STOPPED -> InfraMapComment to stringResource(Res.string.power_state_stopped)
+            PowerState.PAUSED -> InfraMapYellow to stringResource(Res.string.power_state_paused)
         }
     StatusBadgeContent(backgroundColor = backgroundColor, label = label, modifier = modifier)
 }

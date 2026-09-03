@@ -41,7 +41,8 @@ SELECT
     mac_address,
     device_type,
     status,
-    metadata
+    metadata,
+    parent_device_id
 FROM devices
 WHERE deleted_at IS NULL AND status != 'deleted'
 ORDER BY id
