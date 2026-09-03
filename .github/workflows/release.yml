@@ -1,14 +1,20 @@
 name: Release Pipeline
 
 on:
+  # A merge into develop or main must produce EXACTLY ONE release run. `push` on those
+  # branches already covers every merge that GitHub reports at all, so a `pull_request:
+  # closed` trigger here is not a safety net -- it is a second run on the same commit.
+  # Both fired for the merge of #184 and semantic-release ran twice on 9dcdb27, publishing
+  # v1.0.0-rc.76 and leaving v1.0.0-rc.77 as a duplicate tag. `concurrency` serialises the
+  # runs but does not deduplicate them.
+  #
+  # It also does not fix what it was added for. Merges performed with GITHUB_TOKEN start no
+  # workflows at all (see CONTEXT.md #194), so `pull_request: closed` is suppressed for a
+  # bot merge exactly as `push` is. Only a PAT-authenticated merge, or workflow_dispatch,
+  # reaches this pipeline in that case.
   push:
     tags:
       - 'v*.*.*'
-    branches:
-      - develop
-      - main
-  pull_request:
-    types: [closed]
     branches:
       - develop
       - main
@@ -28,8 +34,6 @@ jobs:
     name: Build, Scan & Publish Release Artifacts
     runs-on: ubuntu-latest
     if: >-
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.merged == true) ||
       (github.event_name == 'push' &&
        (github.ref_type == 'tag' ||
         github.ref_name == 'develop' || github.ref_name == 'main')) ||
