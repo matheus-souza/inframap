@@ -33,6 +33,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.motion.m3Clickable
 import com.inframap.frontend.domain.model.SubnetSummary
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.subnet_chips_empty
+import com.inframap.frontend.generated.resources.subnet_chips_title
+import org.jetbrains.compose.resources.stringResource
 
 private val ChipCornerRadius = 8.dp
 private val SkeletonChipWidth = 140.dp
@@ -46,8 +50,16 @@ fun SubnetSuggestionChips(
     onSubnetSelected: (SubnetSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    InfraMapCard(modifier = modifier) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+    // Deliberately not InfraMapCard: it paints surfaceContainer, which sits a hair away from
+    // the screen background and read as a black box with a black border. A suggestion block
+    // has to be findable at a glance, so it gets a lighter surface and a visible outline.
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             SubnetSuggestionHeader()
             Spacer(modifier = Modifier.height(12.dp))
             SubnetSuggestionContent(
@@ -59,9 +71,6 @@ fun SubnetSuggestionChips(
         }
     }
 }
-
-internal const val SUBNET_CHIPS_TITLE = "Sub-redes cadastradas"
-internal const val SUBNET_CHIPS_EMPTY_MESSAGE = "Nenhuma sub-rede cadastrada para sugestão."
 
 @Composable
 private fun SubnetSuggestionHeader() {
@@ -76,7 +85,7 @@ private fun SubnetSuggestionHeader() {
             tint = MaterialTheme.colorScheme.primary,
         )
         Text(
-            text = SUBNET_CHIPS_TITLE,
+            text = stringResource(Res.string.subnet_chips_title),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -96,7 +105,7 @@ private fun SubnetSuggestionContent(
         isLoading -> SubnetSuggestionSkeleton()
         subnets.isEmpty() -> {
             Text(
-                text = SUBNET_CHIPS_EMPTY_MESSAGE,
+                text = stringResource(Res.string.subnet_chips_empty),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
