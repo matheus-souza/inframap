@@ -148,4 +148,29 @@ class SubnetSuggestionChipsTest {
         assertEquals("172.16.0.0/24", summary.cidr)
         assertTrue(summary.discoveryEnabled)
     }
+
+    @Test
+    fun titleFoldsTheChipsAway() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    SubnetSuggestionChips(
+                        subnets = sampleSubnets,
+                        onSubnetSelected = {},
+                    )
+                }
+            }
+
+            // Same fold as the detected-interface block on the subnet screen: both offer a
+            // value to fill the field below, so both are the same component.
+            onNodeWithText("Production LAN").assertIsDisplayed()
+
+            onNodeWithText("Sub-redes cadastradas").performClick()
+            waitForIdle()
+            onNodeWithText("Production LAN").assertDoesNotExist()
+
+            onNodeWithText("Sub-redes cadastradas").performClick()
+            waitForIdle()
+            onNodeWithText("Production LAN").assertIsDisplayed()
+        }
 }

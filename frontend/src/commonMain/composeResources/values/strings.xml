@@ -139,7 +139,6 @@
     <string name="discovery_type_unifi">UniFi</string>
     <string name="collector_section_network">Varredura de Rede</string>
     <string name="collector_section_providers">Provedores de Infraestrutura</string>
-    <string name="chip_coming_soon">Em breve</string>
     <string name="discovery_validation_collector_required">Selecione pelo menos um coletor de descoberta.</string>
     <string name="collector_multi_selection_hint">Selecione um ou mais coletores para executar nesta fonte de descoberta</string>
     <string name="discovery_collectors_label">Coletores de Descoberta *</string>
@@ -444,5 +443,4 @@
     <string name="tooltip_collector_snmp">Consulta switches, roteadores e servidores que expõem SNMP para obter nome, modelo e interfaces.</string>
     <string name="tooltip_provider_proxmox">Conecta na API do Proxmox e importa nós do cluster, VMs QEMU e containers LXC, com CPU, memória e estado de energia.</string>
     <string name="tooltip_provider_docker">Conecta no daemon Docker e importa o host e todos os containers, inclusive os parados, com portas e redes.</string>
-    <string name="tooltip_provider_unifi">Integração ainda não disponível.</string>
 </resources>

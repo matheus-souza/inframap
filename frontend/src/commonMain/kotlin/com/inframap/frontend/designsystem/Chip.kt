@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -39,6 +40,7 @@ import com.inframap.frontend.designsystem.motion.m3Clickable
 import kotlin.jvm.JvmName
 
 private val ChipIconSize = 18.dp
+private val TooltipCornerRadius = 8.dp
 private val ChipSpacing = 8.dp
 private val CustomInputTopPadding = 12.dp
 private val HelperTextTopPadding = 4.dp
@@ -384,15 +386,46 @@ private fun InfraMapChoiceChipItem(
     }
 
     if (tooltip != null) {
-        TooltipBox(
-            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-            tooltip = { PlainTooltip { Text(tooltip) } },
-            state = rememberTooltipState(),
-            content = chipContent,
-        )
+        ChipTooltip(text = tooltip, anchor = chipContent)
     } else {
         chipContent()
     }
+}
+
+/**
+ * The explanation that hangs off a chip on hover.
+ *
+ * Three Material defaults had to be overridden, each visible on screen. `PlainTooltip`'s
+ * default colours are `inverseSurface`/`inverseOnSurface`, which in a dark theme is a light
+ * box belonging to no other surface in the app. `caretSize` gives it the pointer that ties
+ * it to the chip it describes. And `rememberTooltipState` defaults to `isPersistent = false`,
+ * which hides the tooltip after roughly a second and a half even while the pointer is still
+ * resting on the chip — the reader was being timed out mid-sentence.
+ *
+ * Persistent removes only that timeout. `TooltipBox` still dismisses on the pointer's Exit
+ * event, and the fade out is its own `animateTooltip`.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChipTooltip(
+    text: String,
+    anchor: @Composable () -> Unit,
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = {
+            PlainTooltip(
+                caretSize = TooltipDefaults.caretSize,
+                shape = RoundedCornerShape(TooltipCornerRadius),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ) {
+                Text(text = text, style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        state = rememberTooltipState(isPersistent = true),
+        content = anchor,
+    )
 }
 
 @Composable

@@ -4,18 +4,14 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,45 +46,19 @@ fun SubnetSuggestionChips(
     onSubnetSelected: (SubnetSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Deliberately not InfraMapCard: it paints surfaceContainer, which sits a hair away from
-    // the screen background and read as a black box with a black border. A suggestion block
-    // has to be findable at a glance, so it gets a lighter surface and a visible outline.
-    Surface(
+    // The card, the outline and the fold all come from CollapsibleSection: this block and the
+    // detected-interface block on the subnet screen answer the same need, so they have to be
+    // the same shape.
+    CollapsibleSection(
+        title = stringResource(Res.string.subnet_chips_title),
+        icon = InfraMapIcons.Lan,
         modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        shape = RoundedCornerShape(12.dp),
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            SubnetSuggestionHeader()
-            Spacer(modifier = Modifier.height(12.dp))
-            SubnetSuggestionContent(
-                subnets = subnets,
-                selectedCidr = selectedCidr,
-                isLoading = isLoading,
-                onSubnetSelected = onSubnetSelected,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SubnetSuggestionHeader() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(
-            imageVector = InfraMapIcons.Lan,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = stringResource(Res.string.subnet_chips_title),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
+        SubnetSuggestionContent(
+            subnets = subnets,
+            selectedCidr = selectedCidr,
+            isLoading = isLoading,
+            onSubnetSelected = onSubnetSelected,
         )
     }
 }
