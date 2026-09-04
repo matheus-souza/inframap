@@ -37,3 +37,9 @@ frontend/e2e/test-results/
 *.swp
 *.swo
 
+# Debug artifacts
+*.patch
+*.diff
+*.log
+diff.txt
+log.txt

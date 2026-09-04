@@ -1,1 +1,0 @@
-3ffe785 fix(ui): dynamic compose viewport, loading skeleton resolution, command palette overlay and vertical scroll
