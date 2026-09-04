@@ -103,6 +103,17 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.64.5
+          # `goinstall` is REQUIRED here, not a leftover. The prebuilt v1.64.5 binary is
+          # built with Go 1.24, and golangci-lint refuses to run when its own build version
+          # is older than the targeted one: "the Go language version (go1.24) used to build
+          # golangci-lint is lower than the targeted Go version (1.25.13)" (exit code 3).
+          # There is no v1.x release built with Go 1.25 -- v1.64.x closed that line -- so
+          # compiling from source with the runner's toolchain is the only way to lint a
+          # go 1.25 module on v1. The cost is real: `go install` pulls the linter and its
+          # whole dependency tree, around 150 modules, on every run, and a single failed
+          # download fails the gate on code that is fine. Re-run the job when that happens.
+          # Removing this needs the golangci-lint v2 migration first (v2 ships binaries
+          # built with a current toolchain, and its config format changed).
           install-mode: goinstall
           working-directory: ./backend
           skip-cache: true
