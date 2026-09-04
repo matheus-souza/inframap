@@ -139,7 +139,6 @@
     <string name="discovery_type_unifi">UniFi</string>
     <string name="collector_section_network">Network Sweep</string>
     <string name="collector_section_providers">Infrastructure Providers</string>
-    <string name="chip_coming_soon">Coming soon</string>
     <string name="discovery_validation_collector_required">Select at least one discovery collector.</string>
     <string name="collector_multi_selection_hint">Select one or more collectors to run for this discovery source</string>
     <string name="discovery_collectors_label">Discovery Collectors *</string>

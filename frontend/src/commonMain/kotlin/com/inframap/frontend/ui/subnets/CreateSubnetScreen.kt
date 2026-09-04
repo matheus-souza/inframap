@@ -1,10 +1,6 @@
 package com.inframap.frontend.ui.subnets
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,17 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Sensors
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.CollapsibleSection
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapCheckboxRow
@@ -159,55 +151,25 @@ private fun InterfaceSuggestionsPanel(
     onToggle: () -> Unit,
     onInterfaceSelected: (NetworkInterface) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    // Same shape as the subnet suggestion block on the discovery screen. The two sat one
+    // screen apart offering the same thing — pick a value to fill the field — and looked
+    // like they came from different products.
+    CollapsibleSection(
+        title = stringResource(Res.string.create_subnet_suggestions_toggle),
+        icon = Icons.Filled.Sensors,
+        expanded = isExpanded,
+        onToggle = onToggle,
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(
-                imageVector = Icons.Filled.Sensors,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = stringResource(Res.string.create_subnet_suggestions_toggle),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(
-                imageVector =
-                    if (isExpanded) {
-                        Icons.Filled.KeyboardArrowUp
-                    } else {
-                        Icons.Filled.KeyboardArrowDown
-                    },
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = expandVertically(),
-            exit = shrinkVertically(),
-        ) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
-            ) {
-                interfaces.forEach { iface ->
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    InterfaceSuggestionRow(
-                        iface = iface,
-                        onSelected = { onInterfaceSelected(iface) },
-                    )
-                }
+            interfaces.forEach { iface ->
+                InterfaceSuggestionRow(
+                    iface = iface,
+                    onSelected = { onInterfaceSelected(iface) },
+                )
             }
         }
     }

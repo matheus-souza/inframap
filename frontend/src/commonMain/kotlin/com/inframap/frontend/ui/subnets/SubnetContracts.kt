@@ -36,7 +36,7 @@ data class CreateSubnetUiState(
     val errorMessage: UiText? = null,
     val isSuccess: Boolean = false,
     val detectedInterfaces: List<NetworkInterface> = emptyList(),
-    val showInterfaceSuggestions: Boolean = false,
+    val showInterfaceSuggestions: Boolean = true,
 )
 
 data class CreateSubnetActions(

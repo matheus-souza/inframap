@@ -200,11 +200,13 @@ class CreateSubnetViewModelTest {
         runTest {
             val vm = makeVm(scope = this)
 
-            assertFalse(vm.state.value.showInterfaceSuggestions)
-            vm.toggleSuggestions()
+            // The panel starts open: a suggestion block that opens closed is a button nobody
+            // presses, and the values it offers are the reason the screen has the section.
             assertTrue(vm.state.value.showInterfaceSuggestions)
             vm.toggleSuggestions()
             assertFalse(vm.state.value.showInterfaceSuggestions)
+            vm.toggleSuggestions()
+            assertTrue(vm.state.value.showInterfaceSuggestions)
             vm.clear()
         }
 

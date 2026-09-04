@@ -3,11 +3,13 @@ package com.inframap.frontend.designsystem
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -17,6 +19,10 @@ import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalTestApi::class)
 class ChipTest {
+    private companion object {
+        const val TOOLTIP_SETTLE_MILLIS = 200L
+    }
+
     private val standardOptions =
         listOf(
             ChipOption(
@@ -628,4 +634,37 @@ class ChipTest {
         assertEquals(options, section.options)
         assertTrue(section.enabled)
     }
+
+    @Test
+    fun tooltipAppearsOnlyWhilePointerIsOverTheChip() =
+        runComposeUiTest {
+            // Scope of this test: the tooltip is absent until the pointer arrives and shows
+            // up once it does. It deliberately does NOT assert the persistence fix
+            // (isPersistent = true): the auto-dismiss timeout is not driven by the test
+            // clock, so an advanceTimeBy assertion passes identically with and without the
+            // fix — verified by reverting it. That behaviour needs a running build.
+            mainClock.autoAdvance = false
+            setContent {
+                InfraMapTheme {
+                    InfraMapChoiceChipGroup(
+                        options =
+                            listOf(
+                                ChipOption(
+                                    value = "icmp",
+                                    label = "ICMP Ping",
+                                    tooltip = "Envia pings para cada endereço da faixa.",
+                                ),
+                            ),
+                        selected = "icmp",
+                        onSelected = {},
+                    )
+                }
+            }
+
+            onNodeWithText("Envia pings para cada endereço da faixa.").assertDoesNotExist()
+
+            onNodeWithText("ICMP Ping").performMouseInput { moveTo(Offset(4f, 4f)) }
+            mainClock.advanceTimeBy(TOOLTIP_SETTLE_MILLIS)
+            onNodeWithText("Envia pings para cada endereço da faixa.").assertIsDisplayed()
+        }
 }

@@ -85,7 +85,10 @@ class CreateDiscoverySourceScreenTest {
             onNodeWithText("SNMP").performScrollTo().assertIsDisplayed()
             onNodeWithText("Proxmox VE").performScrollTo().assertIsDisplayed()
             onNodeWithText("Docker").performScrollTo().assertIsDisplayed()
-            onNodeWithText("UniFi").performScrollTo().assertIsDisplayed()
+
+            // UniFi has no provider implementation, so it is not offered at all. A card the
+            // product cannot honour is worse than a missing one.
+            onNodeWithText("UniFi").assertDoesNotExist()
         }
 
     @Test
@@ -111,10 +114,10 @@ class CreateDiscoverySourceScreenTest {
         }
 
     @Test
-    fun implementedProviderChipsAreSelectableAndUnifiIsNot() =
+    fun onlyImplementedProvidersAreOffered() =
         runComposeUiTest {
-            // Proxmox and Docker have real provider implementations behind them now; UniFi
-            // has none, so its chip stays disabled.
+            // Proxmox and Docker have real provider implementations behind them. UniFi has
+            // none and is therefore absent, rather than present and disabled.
             var selectedCollectors by mutableStateOf(setOf("icmp_sweep", "arp_sweep"))
             setContent {
                 InfraMapTheme {
@@ -125,9 +128,7 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("UniFi").performScrollTo().assertIsNotEnabled()
-            onNodeWithText("UniFi").performClick()
-            assertEquals(setOf("icmp_sweep", "arp_sweep"), selectedCollectors)
+            onNodeWithText("UniFi").assertDoesNotExist()
 
             onNodeWithText("Proxmox VE").performScrollTo().performClick()
             assertEquals(setOf("icmp_sweep", "arp_sweep", "proxmox"), selectedCollectors)
@@ -337,6 +338,6 @@ class CreateDiscoverySourceScreenTest {
             // Verify all provider chips exist and are displayed
             onNodeWithText("Proxmox VE").performScrollTo().assertIsDisplayed()
             onNodeWithText("Docker").performScrollTo().assertIsDisplayed()
-            onNodeWithText("UniFi").performScrollTo().assertIsDisplayed()
+            onNodeWithText("UniFi").assertDoesNotExist()
         }
 }

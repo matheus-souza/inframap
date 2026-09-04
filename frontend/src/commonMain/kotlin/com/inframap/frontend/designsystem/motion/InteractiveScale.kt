@@ -56,8 +56,13 @@ fun Modifier.m3InteractiveScale(
  *
  * The cursor half exists because the app wraps its content in a `SelectionContainer`, so
  * text keeps the I-beam it needs to be selectable — and a button labelled with text
- * inherited that I-beam, reading as "select me" rather than "click me". Declaring the hand
- * on the clickable itself wins over the text underneath without giving up selection.
+ * inherited that I-beam, reading as "select me" rather than "click me".
+ *
+ * [overrideDescendants] is what makes that work, and it is not optional. `pointerHoverIcon`
+ * defaults to letting the innermost declaration win, so the `Text` inside the button beats
+ * the hand declared on the button itself: the border showed a hand and the label showed a
+ * caret, which is exactly the bug this modifier was introduced to fix and did not. The flag
+ * governs the cursor icon only — text inside remains selectable.
  *
  * Prefer this over calling [m3InteractiveScale] directly: a component that only scales is a
  * component whose cursor someone forgot.
@@ -69,10 +74,14 @@ fun Modifier.m3Clickable(
 ): Modifier =
     this
         .m3InteractiveScale(interactionSource, pressScale = pressScale, hoverScale = hoverScale)
-        .pointerHoverIcon(PointerIcon.Hand)
+        .pointerHoverIcon(PointerIcon.Hand, overrideDescendants = true)
 
 /**
  * The hand cursor on its own, for clickables that deliberately opt out of the scale — a
  * whole table row, for instance, where scaling the row would shift the rows around it.
+ *
+ * Carries the same [overrideDescendants] reasoning as [m3Clickable]: on a clickable row the
+ * hand has to win over every cell's text, or the affordance only exists in the gaps between
+ * the columns.
  */
-fun Modifier.m3ClickableCursor(): Modifier = this.pointerHoverIcon(PointerIcon.Hand)
+fun Modifier.m3ClickableCursor(): Modifier = this.pointerHoverIcon(PointerIcon.Hand, overrideDescendants = true)

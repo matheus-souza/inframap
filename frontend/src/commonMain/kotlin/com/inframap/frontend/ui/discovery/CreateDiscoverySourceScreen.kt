@@ -39,7 +39,6 @@ import com.inframap.frontend.designsystem.InfraMapTextField
 import com.inframap.frontend.designsystem.SubnetSuggestionChips
 import com.inframap.frontend.domain.model.CredentialSummary
 import com.inframap.frontend.generated.resources.Res
-import com.inframap.frontend.generated.resources.chip_coming_soon
 import com.inframap.frontend.generated.resources.collector_name_arp_sweep
 import com.inframap.frontend.generated.resources.collector_name_docker
 import com.inframap.frontend.generated.resources.collector_name_icmp_sweep
@@ -47,7 +46,6 @@ import com.inframap.frontend.generated.resources.collector_name_mdns
 import com.inframap.frontend.generated.resources.collector_name_proxmox
 import com.inframap.frontend.generated.resources.collector_name_reverse_dns
 import com.inframap.frontend.generated.resources.collector_name_snmp
-import com.inframap.frontend.generated.resources.collector_name_unifi
 import com.inframap.frontend.generated.resources.collector_section_network
 import com.inframap.frontend.generated.resources.collector_section_providers
 import com.inframap.frontend.generated.resources.common_cancel
@@ -83,7 +81,6 @@ import com.inframap.frontend.generated.resources.tooltip_collector_reverse_dns
 import com.inframap.frontend.generated.resources.tooltip_collector_snmp
 import com.inframap.frontend.generated.resources.tooltip_provider_docker
 import com.inframap.frontend.generated.resources.tooltip_provider_proxmox
-import com.inframap.frontend.generated.resources.tooltip_provider_unifi
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -428,24 +425,21 @@ private fun rememberNetworkSection(): ChipSection<String> {
 
 @Composable
 private fun rememberProvidersSection(): ChipSection<String> {
+    // Only providers with an implementation behind them. A selectable card for something
+    // that cannot be selected is an offer the product cannot honour, and the "coming soon"
+    // label did not make it one.
     val title = stringResource(Res.string.collector_section_providers)
-    val comingSoonHint = stringResource(Res.string.chip_coming_soon)
     val proxmoxLabel = stringResource(Res.string.collector_name_proxmox)
     val dockerLabel = stringResource(Res.string.collector_name_docker)
-    val unifiLabel = stringResource(Res.string.collector_name_unifi)
     val proxmoxTooltip = stringResource(Res.string.tooltip_provider_proxmox)
     val dockerTooltip = stringResource(Res.string.tooltip_provider_docker)
-    val unifiTooltip = stringResource(Res.string.tooltip_provider_unifi)
 
     return remember(
         title,
-        comingSoonHint,
         proxmoxLabel,
         dockerLabel,
-        unifiLabel,
         proxmoxTooltip,
         dockerTooltip,
-        unifiTooltip,
     ) {
         ChipSection(
             title = title,
@@ -462,15 +456,6 @@ private fun rememberProvidersSection(): ChipSection<String> {
                         label = dockerLabel,
                         icon = InfraMapIcons.ViewInAr,
                         tooltip = dockerTooltip,
-                    ),
-                    ChipOption(
-                        value = "unifi",
-                        label = unifiLabel,
-                        icon = InfraMapIcons.Wifi,
-                        enabled = false,
-                        disabledHint = comingSoonHint,
-                        description = comingSoonHint,
-                        tooltip = unifiTooltip,
                     ),
                 ),
         )
