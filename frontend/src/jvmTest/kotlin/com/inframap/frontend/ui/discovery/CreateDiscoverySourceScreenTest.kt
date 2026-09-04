@@ -313,4 +313,30 @@ class CreateDiscoverySourceScreenTest {
 
             onNodeWithText("Creating...").performScrollTo().assertIsDisplayed()
         }
+
+    @Test
+    fun collectorChipsHaveTooltips() =
+        runComposeUiTest {
+            var selectedCollectors by mutableStateOf(setOf<String>())
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state = CreateDiscoverySourceUiState(selectedCollectors = selectedCollectors),
+                        actions = defaultActions(onCollectorsChanged = { selectedCollectors = it }),
+                    )
+                }
+            }
+
+            // Verify all collector chips exist and are displayed
+            onNodeWithText("ICMP Ping").performScrollTo().assertIsDisplayed()
+            onNodeWithText("ARP Sweep").performScrollTo().assertIsDisplayed()
+            onNodeWithText("mDNS / Bonjour").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Reverse DNS").performScrollTo().assertIsDisplayed()
+            onNodeWithText("SNMP").performScrollTo().assertIsDisplayed()
+
+            // Verify all provider chips exist and are displayed
+            onNodeWithText("Proxmox VE").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Docker").performScrollTo().assertIsDisplayed()
+            onNodeWithText("UniFi").performScrollTo().assertIsDisplayed()
+        }
 }

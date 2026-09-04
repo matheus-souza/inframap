@@ -14,14 +14,19 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -48,6 +53,7 @@ data class ChipOption<T>(
     val description: String? = null,
     val enabled: Boolean = true,
     val disabledHint: String? = null,
+    val tooltip: String? = null,
 )
 
 data class ChipSection<T>(
@@ -163,6 +169,7 @@ private fun <T> ChoiceSectionFlowRow(
                 isSelected = option.value == selected,
                 enabled = isOptionEnabled,
                 disabledHint = option.disabledHint,
+                tooltip = option.tooltip,
                 onClick = { onSelected(option.value) },
             )
         }
@@ -289,6 +296,7 @@ fun <T> InfraMapFilterChipGroup(
                         isSelected = isSelected,
                         enabled = isOptionEnabled,
                         disabledHint = option.disabledHint,
+                        tooltip = option.tooltip,
                         onClick = {
                             val newSelection =
                                 if (isSelected) {
@@ -323,6 +331,7 @@ fun <T> InfraMapFilterChipGroup(
 )
 
 @Suppress("LongParameterList")
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun InfraMapChoiceChipItem(
     label: String,
@@ -332,44 +341,58 @@ private fun InfraMapChoiceChipItem(
     enabled: Boolean,
     onClick: () -> Unit,
     disabledHint: String? = null,
+    tooltip: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = DISABLED_ALPHA)
-    FilterChip(
-        selected = isSelected,
-        onClick = onClick,
-        label = {
-            ChipItemContent(
-                label = label,
-                description = description,
-                enabled = enabled,
-                isSelected = isSelected,
-                disabledContentColor = disabledContentColor,
-            )
-        },
-        modifier =
-            Modifier
-                .m3Clickable(interactionSource)
-                .semantics {
-                    if (disabledHint != null) {
-                        stateDescription = disabledHint
+    val chipContent: @Composable () -> Unit = {
+        FilterChip(
+            selected = isSelected,
+            onClick = onClick,
+            label = {
+                ChipItemContent(
+                    label = label,
+                    description = description,
+                    enabled = enabled,
+                    isSelected = isSelected,
+                    disabledContentColor = disabledContentColor,
+                )
+            },
+            modifier =
+                Modifier
+                    .m3Clickable(interactionSource)
+                    .semantics {
+                        if (disabledHint != null) {
+                            stateDescription = disabledHint
+                        }
+                    },
+            enabled = enabled,
+            leadingIcon =
+                icon?.let { imageVector ->
+                    {
+                        Icon(
+                            imageVector = imageVector,
+                            contentDescription = null,
+                            modifier = Modifier.size(ChipIconSize),
+                        )
                     }
                 },
-        enabled = enabled,
-        leadingIcon =
-            icon?.let { imageVector ->
-                {
-                    Icon(
-                        imageVector = imageVector,
-                        contentDescription = null,
-                        modifier = Modifier.size(ChipIconSize),
-                    )
-                }
-            },
-        interactionSource = interactionSource,
-        colors = chipItemColors(disabledContentColor),
-        border = chipItemBorder(enabled = enabled, isSelected = isSelected),
-    )
+            interactionSource = interactionSource,
+            colors = chipItemColors(disabledContentColor),
+            border = chipItemBorder(enabled = enabled, isSelected = isSelected),
+        )
+    }
+
+    if (tooltip != null) {
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+            tooltip = { PlainTooltip { Text(tooltip) } },
+            state = rememberTooltipState(),
+            content = chipContent,
+        )
+    } else {
+        chipContent()
+    }
 }
 
 @Composable
