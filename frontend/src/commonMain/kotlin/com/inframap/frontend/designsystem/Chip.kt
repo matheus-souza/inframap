@@ -404,6 +404,16 @@ private fun InfraMapChoiceChipItem(
  *
  * Persistent removes only that timeout. `TooltipBox` still dismisses on the pointer's Exit
  * event, and the fade out is its own `animateTooltip`.
+ *
+ * `focusable = false` is the fourth override and the one that is not cosmetic. `TooltipBox`
+ * defaults it to `true`, which renders the tooltip in a Popup that takes focus and
+ * intercepts pointer input. Combined with the persistence above — which is what stops the
+ * popup from timing itself out — clicking a chip left that popup standing and the whole
+ * screen stopped accepting clicks. A tooltip explains; it must never take focus.
+ *
+ * The JVM test harness does not reproduce that freeze: `performClick` on the anchor dismisses
+ * the tooltip there, so the blocking state never forms and any assertion written around it
+ * passes with or without this argument. It is verified by clicking chips in a running build.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -417,13 +427,14 @@ private fun ChipTooltip(
             PlainTooltip(
                 caretSize = TooltipDefaults.caretSize,
                 shape = RoundedCornerShape(TooltipCornerRadius),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface,
             ) {
                 Text(text = text, style = MaterialTheme.typography.bodySmall)
             }
         },
         state = rememberTooltipState(isPersistent = true),
+        focusable = false,
         content = anchor,
     )
 }

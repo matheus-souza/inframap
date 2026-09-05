@@ -53,9 +53,11 @@ private const val CHEVRON_EXPANDED_ROTATION = 180f
  * bare primary-coloured header — so the same offer looked like two unrelated features. This
  * is the single pattern both now use.
  *
- * The container is deliberately not [InfraMapCard]: that paints `surfaceContainer`, which
- * sits a hair away from the screen background and reads as a black box with a black border.
- * A block whose whole job is to be noticed gets a lighter surface and a visible outline.
+ * The container is deliberately not [InfraMapCard]. It paints `surfaceContainerLow`, one step
+ * *below* the form card that holds it, so the block reads as a well the suggestions sit in
+ * and the cards inside it can step up to `surfaceContainerHigh`. The first attempt did the
+ * opposite — a `surfaceContainerHighest` parent with darker children — which inverts what
+ * Material's elevation communicates and was the reason the block looked wrong.
  *
  * The chevron rotates rather than swapping icons. Swapping is instant, and an instant swap
  * in the middle of a 250ms container animation is what made the nav rail feel like it
@@ -95,7 +97,7 @@ fun CollapsibleSection(
 ) {
     Surface(
         modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         shape = RoundedCornerShape(SectionCornerRadius),
     ) {
