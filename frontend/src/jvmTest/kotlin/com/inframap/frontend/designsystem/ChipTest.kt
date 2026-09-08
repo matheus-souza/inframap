@@ -1,5 +1,6 @@
 package com.inframap.frontend.designsystem
 
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -666,5 +667,56 @@ class ChipTest {
             onNodeWithText("ICMP Ping").performMouseInput { moveTo(Offset(4f, 4f)) }
             mainClock.advanceTimeBy(TOOLTIP_SETTLE_MILLIS)
             onNodeWithText("Envia pings para cada endereço da faixa.").assertIsDisplayed()
+        }
+
+    @Test
+    fun chipWithTooltipInsideSelectionContainerDoesNotCrashOnClick() =
+        runComposeUiTest {
+            // Reproduces the exact hierarchy that exists in production:
+            // SelectionContainer > ... > InfraMapFilterChipGroup with tooltip chips.
+            // Without DisableSelection in ChipTooltip, clicking a chip while its
+            // tooltip is visible throws:
+            //   IllegalArgumentException: layouts are not part of the same hierarchy
+            var selection by mutableStateOf(setOf<String>())
+            mainClock.autoAdvance = false
+            setContent {
+                InfraMapTheme {
+                    SelectionContainer {
+                        InfraMapFilterChipGroup(
+                            options =
+                                listOf(
+                                    ChipOption(
+                                        value = "icmp",
+                                        label = "ICMP Ping",
+                                        tooltip = "Envia pings para cada endereço da faixa.",
+                                    ),
+                                    ChipOption(
+                                        value = "arp",
+                                        label = "ARP Sweep",
+                                        tooltip = "Descobre dispositivos via tabela ARP.",
+                                    ),
+                                ),
+                            selected = selection,
+                            onSelectionChanged = { selection = it },
+                        )
+                    }
+                }
+            }
+
+            // 1. Hover to trigger tooltip popup
+            onNodeWithText("ICMP Ping").performMouseInput { moveTo(Offset(4f, 4f)) }
+            mainClock.advanceTimeBy(TOOLTIP_SETTLE_MILLIS)
+            onNodeWithText("Envia pings para cada endereço da faixa.").assertIsDisplayed()
+
+            // 2. Click the chip while tooltip is visible — this is the crash scenario
+            onNodeWithText("ICMP Ping").performClick()
+            mainClock.advanceTimeBy(TOOLTIP_SETTLE_MILLIS)
+
+            // 3. Verify the chip was toggled successfully (no crash)
+            assertTrue(selection.contains("icmp"))
+
+            // 4. Click another tooltipped chip to verify the screen is not frozen
+            onNodeWithText("ARP Sweep").performClick()
+            assertTrue(selection.contains("arp"))
         }
 }

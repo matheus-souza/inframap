@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -412,8 +413,12 @@ private fun InfraMapChoiceChipItem(
  * screen stopped accepting clicks. A tooltip explains; it must never take focus.
  *
  * The JVM test harness does not reproduce that freeze: `performClick` on the anchor dismisses
- * the tooltip there, so the blocking state never forms and any assertion written around it
- * passes with or without this argument. It is verified by clicking chips in a running build.
+ *
+ * `DisableSelection` is the fifth override. When the root container uses `SelectionContainer`,
+ * the `Text` inside the popup inherits `LocalSelectionRegistrar`. Clicking a chip while the
+ * tooltip is visible causes `SelectionManager` to evaluate cross-hierarchy coordinates,
+ * throwing `IllegalArgumentException: layouts are not part of the same hierarchy` (CMP-9161).
+ * Disabling selection on the tooltip popup prevents registration with the outer window.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -424,13 +429,15 @@ private fun ChipTooltip(
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
         tooltip = {
-            PlainTooltip(
-                caretSize = TooltipDefaults.caretSize,
-                shape = RoundedCornerShape(TooltipCornerRadius),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ) {
-                Text(text = text, style = MaterialTheme.typography.bodySmall)
+            DisableSelection {
+                PlainTooltip(
+                    caretSize = TooltipDefaults.caretSize,
+                    shape = RoundedCornerShape(TooltipCornerRadius),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Text(text = text, style = MaterialTheme.typography.bodySmall)
+                }
             }
         },
         state = rememberTooltipState(isPersistent = true),
