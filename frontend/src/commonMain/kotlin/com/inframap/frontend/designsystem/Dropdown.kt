@@ -3,6 +3,7 @@ package com.inframap.frontend.designsystem
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -59,14 +60,16 @@ fun <T> InfraMapDropdown(
                 expanded = expanded && enabled,
                 onDismissRequest = { expanded = false },
             ) {
-                options.forEach { (optionValue, optionLabel) ->
-                    DropdownMenuItem(
-                        text = { Text(optionLabel) },
-                        onClick = {
-                            onSelected(optionValue)
-                            expanded = false
-                        },
-                    )
+                DisableSelection {
+                    options.forEach { (optionValue, optionLabel) ->
+                        DropdownMenuItem(
+                            text = { Text(optionLabel) },
+                            onClick = {
+                                onSelected(optionValue)
+                                expanded = false
+                            },
+                        )
+                    }
                 }
             }
         }
