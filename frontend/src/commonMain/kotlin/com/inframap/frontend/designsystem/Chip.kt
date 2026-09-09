@@ -411,8 +411,9 @@ private fun InfraMapChoiceChipItem(
  * intercepts pointer input. Combined with the persistence above — which is what stops the
  * popup from timing itself out — clicking a chip left that popup standing and the whole
  * screen stopped accepting clicks. A tooltip explains; it must never take focus.
- *
  * The JVM test harness does not reproduce that freeze: `performClick` on the anchor dismisses
+ * the tooltip there, so the blocking state never forms and any assertion written around it
+ * passes with or without this argument. It is verified by clicking chips in a running build.
  *
  * `DisableSelection` is the fifth override. When the root container uses `SelectionContainer`,
  * the `Text` inside the popup inherits `LocalSelectionRegistrar`. Clicking a chip while the
