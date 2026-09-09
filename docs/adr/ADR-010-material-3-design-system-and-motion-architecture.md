@@ -101,3 +101,14 @@ All overlay containers (`CommandPaletteModal`, `InfraMapConfirmDialog`, `SetupWi
 - **Enter**: `scaleIn(0.88f -> 1.0f) + fadeIn()` over 350ms (`EmphasizedDecelerate`).
 - **Exit**: `scaleOut(1.0f -> 0.88f) + fadeOut()` over 200ms (`EmphasizedAccelerate`).
 - **Scrim**: Soft 50% black backdrop overlay with synchronized fade.
+
+---
+
+## Decision AD-059: Selection Isolation for Popups, Tooltips and Floating Overlays
+
+### Context
+`MainScaffold` wraps all screen routes in `SelectionContainer` to support operator text copying. In Compose Multiplatform, overlay components such as `TooltipBox` and `ExposedDropdownMenu` render within distinct `Popup` window hierarchies. When text within these popups inherits the ambient `LocalSelectionRegistrar`, it registers with the root window's `SelectionManager`. Interactions occurring while the overlay is visible trigger cross-window coordinate evaluation via `localPositionOf`, throwing `IllegalArgumentException: layouts are not part of the same hierarchy` (CMP-9161) and permanently crashing the Compose runtime loop.
+
+### Decision
+All overlay and popup content embedded within the main `SelectionContainer` MUST isolate its subtree by wrapping child composables in `DisableSelection { ... }`. This prevents popup text from registering with the outer window's `SelectionManager` while maintaining text selectable across normal screen content.
+
