@@ -49,11 +49,11 @@ class CreateSubnetViewModel(
     }
 
     fun onNameChanged(name: String) {
-        updateState { it.copy(name = name, validationErrors = it.validationErrors - "name") }
+        updateState { it.copy(name = name, validationErrors = it.validationErrors - "name").reconcileSelection() }
     }
 
     fun onCidrChanged(cidr: String) {
-        updateState { it.copy(cidr = cidr, validationErrors = it.validationErrors - "cidr") }
+        updateState { it.copy(cidr = cidr, validationErrors = it.validationErrors - "cidr").reconcileSelection() }
     }
 
     fun onVlanIdChanged(vlanId: String) {
@@ -61,7 +61,9 @@ class CreateSubnetViewModel(
     }
 
     fun onGatewayIpChanged(gatewayIp: String) {
-        updateState { it.copy(gatewayIp = gatewayIp, validationErrors = it.validationErrors - "gateway_ip") }
+        updateState {
+            it.copy(gatewayIp = gatewayIp, validationErrors = it.validationErrors - "gateway_ip").reconcileSelection()
+        }
     }
 
     fun onDescriptionChanged(description: String) {
@@ -74,19 +76,25 @@ class CreateSubnetViewModel(
 
     fun onInterfaceSelected(iface: NetworkInterface) {
         updateState {
-            val clearedErrors = it.validationErrors - "cidr" - "name"
-            it.copy(
-                cidr = iface.cidr,
-                name = iface.name,
-                gatewayIp = iface.gateway.ifEmpty { it.gatewayIp },
-                showInterfaceSuggestions = false,
-                validationErrors =
-                    if (iface.gateway.isNotEmpty()) {
-                        clearedErrors - "gateway_ip"
-                    } else {
-                        clearedErrors
-                    },
-            )
+            if (it.selectedInterface == iface) {
+                // A second click only takes the highlight away. The values stay: the operator
+                // may have meant "stop tracking this interface", not "undo what it filled in".
+                it.copy(selectedInterface = null)
+            } else {
+                val clearedErrors = it.validationErrors - "cidr" - "name"
+                it.copy(
+                    cidr = iface.cidr,
+                    name = iface.name,
+                    gatewayIp = iface.gateway.ifEmpty { it.gatewayIp },
+                    selectedInterface = iface,
+                    validationErrors =
+                        if (iface.gateway.isNotEmpty()) {
+                            clearedErrors - "gateway_ip"
+                        } else {
+                            clearedErrors
+                        },
+                )
+            }
         }
     }
 
@@ -191,3 +199,19 @@ class CreateSubnetViewModel(
         return parts.all { it.toIntOrNull() in 0..255 }
     }
 }
+
+/** Drops the highlight once the form no longer carries what the selected interface filled in. */
+private fun CreateSubnetUiState.reconcileSelection(): CreateSubnetUiState {
+    val selected = selectedInterface ?: return this
+    return if (isFilledFrom(selected)) this else copy(selectedInterface = null)
+}
+
+/**
+ * Whether the form still carries the values [iface] filled in via [CreateSubnetViewModel.onInterfaceSelected].
+ * The gateway only counts when the interface reported one; values are compared trimmed,
+ * the same way they are submitted.
+ */
+private fun CreateSubnetUiState.isFilledFrom(iface: NetworkInterface): Boolean =
+    name.trim() == iface.name &&
+        cidr.trim() == iface.cidr &&
+        (iface.gateway.isEmpty() || gatewayIp.trim() == iface.gateway)

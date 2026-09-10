@@ -39,6 +39,15 @@ class CreateSubnetViewModelTest {
             gateway = "192.168.18.1",
         )
 
+    private val otherInterface =
+        NetworkInterface(
+            name = "wlan0",
+            ip = "10.0.0.15",
+            cidr = "10.0.0.0/16",
+            mac = "11:22:33:44:55:66",
+            gateway = "10.0.0.1",
+        )
+
     private fun makeVm(
         subnetRepo: FakeSubnetRepository =
             FakeSubnetRepository(
@@ -191,7 +200,109 @@ class CreateSubnetViewModelTest {
             assertEquals("192.168.18.0/24", state.cidr)
             assertEquals("eth0", state.name)
             assertEquals("192.168.18.1", state.gatewayIp)
-            assertFalse(state.showInterfaceSuggestions)
+            assertTrue(state.showInterfaceSuggestions)
+            assertEquals(sampleInterface, state.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun selectingSelectedInterfaceAgainClearsHighlightButKeepsFields() =
+        runTest {
+            val vm = makeVm(scope = this)
+
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onInterfaceSelected(sampleInterface)
+            val state = vm.state.value
+            assertNull(state.selectedInterface)
+            assertEquals("192.168.18.0/24", state.cidr)
+            assertEquals("eth0", state.name)
+            assertEquals("192.168.18.1", state.gatewayIp)
+            assertTrue(state.showInterfaceSuggestions)
+            vm.clear()
+        }
+
+    @Test
+    fun selectingAnotherInterfaceMovesHighlightAndRefills() =
+        runTest {
+            val vm = makeVm(scope = this)
+
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onInterfaceSelected(otherInterface)
+            val state = vm.state.value
+            assertEquals(otherInterface, state.selectedInterface)
+            assertEquals("10.0.0.0/16", state.cidr)
+            assertEquals("wlan0", state.name)
+            assertEquals("10.0.0.1", state.gatewayIp)
+            assertTrue(state.showInterfaceSuggestions)
+            vm.clear()
+        }
+
+    @Test
+    fun reselectingAfterToggleOffHighlightsAgain() =
+        runTest {
+            val vm = makeVm(scope = this)
+
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onInterfaceSelected(sampleInterface)
+            assertNull(vm.state.value.selectedInterface)
+
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun togglingOffKeepsValidationErrors() =
+        runTest {
+            val vm = makeVm(scope = this)
+            val ifaceWithoutGateway =
+                NetworkInterface(
+                    name = "lo",
+                    ip = "127.0.0.1",
+                    cidr = "127.0.0.0/8",
+                    mac = "00:00:00:00:00:00",
+                    gateway = "",
+                )
+            vm.onGatewayIpChanged("bad-ip")
+            vm.onVlanIdChanged("invalid-vlan")
+            vm.validate()
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("vlan_id"),
+            )
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("gateway_ip"),
+            )
+
+            // An interface without gateway does not clear gateway_ip on first selection
+            vm.onInterfaceSelected(ifaceWithoutGateway)
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("vlan_id"),
+            )
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("gateway_ip"),
+            )
+
+            // Toggle off preserves errors without re-running any clearance
+            vm.onInterfaceSelected(ifaceWithoutGateway)
+            assertNull(vm.state.value.selectedInterface)
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("vlan_id"),
+            )
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("gateway_ip"),
+            )
             vm.clear()
         }
 
@@ -278,6 +389,142 @@ class CreateSubnetViewModelTest {
             vm.onInterfaceSelected(ifaceWithoutGateway)
 
             assertEquals("10.0.0.1", vm.state.value.gatewayIp)
+            vm.clear()
+        }
+
+    @Test
+    fun editingCidrAwayFromSelectedInterfaceClearsHighlight() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onCidrChanged("192.168.18.0/25")
+            assertNull(vm.state.value.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun editingNameAwayFromSelectedInterfaceClearsHighlight() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onNameChanged("eth1")
+            assertNull(vm.state.value.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun editingGatewayAwayClearsHighlightWhenInterfaceHasGateway() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onGatewayIpChanged("192.168.18.254")
+            assertNull(vm.state.value.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun editingGatewayKeepsHighlightWhenInterfaceHasNoGateway() =
+        runTest {
+            val vm = makeVm(scope = this)
+            val ifaceWithoutGateway =
+                NetworkInterface(
+                    name = "eth0",
+                    ip = "192.168.18.5",
+                    cidr = "192.168.18.0/24",
+                    mac = "aa:bb:cc:dd:ee:ff",
+                    gateway = "",
+                )
+            vm.onInterfaceSelected(ifaceWithoutGateway)
+            assertEquals(ifaceWithoutGateway, vm.state.value.selectedInterface)
+
+            vm.onGatewayIpChanged("192.168.18.1")
+            assertEquals(ifaceWithoutGateway, vm.state.value.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun editingVlanDescriptionOrDiscoveryKeepsHighlight() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onVlanIdChanged("20")
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onDescriptionChanged("Custom description")
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onDiscoveryEnabledChanged(false)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun whitespaceOnlyEditKeepsHighlight() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onCidrChanged("  192.168.18.0/24  ")
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onNameChanged(" eth0 ")
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onGatewayIpChanged(" 192.168.18.1 ")
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun typingMatchingValuesBackDoesNotReselect() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onCidrChanged("10.0.0.0/8")
+            assertNull(vm.state.value.selectedInterface)
+
+            vm.onCidrChanged(sampleInterface.cidr)
+            assertNull(vm.state.value.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun rewritingSameValueKeepsHighlight() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.onNameChanged("eth0")
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun toggleSuggestionsDoesNotAffectSelection() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onInterfaceSelected(sampleInterface)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.toggleSuggestions()
+            assertFalse(vm.state.value.showInterfaceSuggestions)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
+
+            vm.toggleSuggestions()
+            assertTrue(vm.state.value.showInterfaceSuggestions)
+            assertEquals(sampleInterface, vm.state.value.selectedInterface)
             vm.clear()
         }
 }
