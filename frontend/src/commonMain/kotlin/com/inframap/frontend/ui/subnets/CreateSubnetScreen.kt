@@ -111,6 +111,7 @@ private fun CreateSubnetFormFields(
 
             InterfaceSuggestionsPanel(
                 interfaces = state.detectedInterfaces,
+                selectedInterface = state.selectedInterface,
                 isExpanded = state.showInterfaceSuggestions,
                 onToggle = actions.onToggleSuggestions,
                 onInterfaceSelected = actions.onInterfaceSelected,
@@ -144,6 +145,7 @@ private fun CreateSubnetFormFields(
 @Composable
 private fun InterfaceSuggestionsPanel(
     interfaces: List<NetworkInterface>,
+    selectedInterface: NetworkInterface?,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     onInterfaceSelected: (NetworkInterface) -> Unit,
@@ -167,6 +169,7 @@ private fun InterfaceSuggestionsPanel(
                 SuggestionCard(
                     title = "${iface.name} — ${iface.cidr}",
                     detail = "${iface.ip} · ${iface.mac}",
+                    isSelected = iface == selectedInterface,
                     onClick = { onInterfaceSelected(iface) },
                 )
             }

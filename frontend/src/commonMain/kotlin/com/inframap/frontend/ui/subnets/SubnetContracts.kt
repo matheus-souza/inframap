@@ -37,6 +37,14 @@ data class CreateSubnetUiState(
     val isSuccess: Boolean = false,
     val detectedInterfaces: List<NetworkInterface> = emptyList(),
     val showInterfaceSuggestions: Boolean = true,
+    /**
+     * The detected interface whose values currently fill the form, highlighted in the panel.
+     *
+     * Held explicitly rather than derived from the fields: a second click on the highlighted
+     * card drops the highlight but keeps the values, and a selection computed from the fields
+     * would light the card straight back up because they still match.
+     */
+    val selectedInterface: NetworkInterface? = null,
 )
 
 data class CreateSubnetActions(
