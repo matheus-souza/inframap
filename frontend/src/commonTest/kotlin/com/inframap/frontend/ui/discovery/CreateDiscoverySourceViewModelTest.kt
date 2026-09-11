@@ -941,7 +941,7 @@ class CreateDiscoverySourceViewModelTest {
         }
 
     @Test
-    fun failedValidationKeepsAnActiveTabThatHasItsOwnError() =
+    fun failedValidationBringsFirstProviderForwardEvenIfActiveTabHasError() =
         runTest {
             val vm = makeVm(scope = this)
             advanceUntilIdle()
@@ -953,7 +953,7 @@ class CreateDiscoverySourceViewModelTest {
             val isValid = vm.validate()
 
             assertFalse(isValid)
-            assertEquals("docker", vm.state.value.activeProviderTab)
+            assertEquals("proxmox", vm.state.value.activeProviderTab)
             vm.clear()
         }
 

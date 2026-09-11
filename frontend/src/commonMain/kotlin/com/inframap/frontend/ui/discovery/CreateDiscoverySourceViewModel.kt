@@ -170,16 +170,9 @@ class CreateDiscoverySourceViewModel(
         val providerErrors = providerValidationErrors(state.value)
         errors += providerErrors
 
-        val currentTab = state.value.currentProviderTab
-        val currentTabHasError = currentTab != null && ProviderForms.labelKey(currentTab) in providerErrors
         val firstProviderWithError =
             state.value.selectedProviders.firstOrNull { ProviderForms.labelKey(it) in providerErrors }
-        val targetTab =
-            if (currentTabHasError || firstProviderWithError == null) {
-                state.value.activeProviderTab
-            } else {
-                firstProviderWithError
-            }
+        val targetTab = firstProviderWithError ?: state.value.activeProviderTab
 
         updateState { it.copy(validationErrors = errors, activeProviderTab = targetTab) }
         return errors.isEmpty()
