@@ -3,10 +3,23 @@ package com.inframap.frontend.ui.discovery
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ProviderFormsTest {
+    @Test
+    fun everyProviderDeclaresLabelAndIcon() {
+        ProviderForms.ids.forEach { id ->
+            val form = ProviderForms.formFor(id)
+            assertNotNull(form, "form must exist for $id")
+        }
+        val labels = ProviderForms.ids.map { ProviderForms.formFor(it)!!.label }
+        assertEquals(labels.distinct().size, labels.size, "provider labels must be distinct")
+        val icons = ProviderForms.ids.map { ProviderForms.formFor(it)!!.icon }
+        assertEquals(icons.distinct().size, icons.size, "provider icons must be distinct")
+    }
+
     @Test
     fun offersProxmoxAndDockerInChipOrder() {
         assertEquals(listOf("proxmox", "docker"), ProviderForms.ids)

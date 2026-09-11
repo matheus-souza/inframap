@@ -721,6 +721,7 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
             onCollectorsChanged = viewModel::onCollectorsChanged,
             onProviderFieldChanged = viewModel::onProviderFieldChanged,
             onTestConnectionClicked = viewModel::testConnection,
+            onProviderTabSelected = viewModel::onProviderTabSelected,
             onSubmitClicked = {
                 viewModel.createSource {
                     navigator.navigateTo(Route.DiscoverySources)

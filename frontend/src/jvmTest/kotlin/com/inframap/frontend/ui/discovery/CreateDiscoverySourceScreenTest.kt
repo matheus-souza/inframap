@@ -1,14 +1,17 @@
 package com.inframap.frontend.ui.discovery
 
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
@@ -28,6 +31,9 @@ class CreateDiscoverySourceScreenTest {
         onEnabledChanged: (Boolean) -> Unit = {},
         onSubnetSelected: (SubnetSummary) -> Unit = {},
         onCollectorsChanged: (Set<String>) -> Unit = {},
+        onProviderFieldChanged: (providerId: String, key: String, value: String) -> Unit = { _, _, _ -> },
+        onTestConnectionClicked: (providerId: String) -> Unit = {},
+        onProviderTabSelected: (providerId: String) -> Unit = {},
         onSubmitClicked: () -> Unit = {},
         onCancelClicked: () -> Unit = {},
     ) = CreateDiscoverySourceActions(
@@ -37,6 +43,9 @@ class CreateDiscoverySourceScreenTest {
         onEnabledChanged = onEnabledChanged,
         onSubnetSelected = onSubnetSelected,
         onCollectorsChanged = onCollectorsChanged,
+        onProviderFieldChanged = onProviderFieldChanged,
+        onTestConnectionClicked = onTestConnectionClicked,
+        onProviderTabSelected = onProviderTabSelected,
         onSubmitClicked = onSubmitClicked,
         onCancelClicked = onCancelClicked,
     )
@@ -339,5 +348,210 @@ class CreateDiscoverySourceScreenTest {
             onNodeWithText("Proxmox VE").performScrollTo().assertIsDisplayed()
             onNodeWithText("Docker").performScrollTo().assertIsDisplayed()
             onNodeWithText("UniFi").assertDoesNotExist()
+        }
+
+    @Test
+    fun singleProviderRendersInlineWithoutTabs() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("docker"),
+                            ),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("provider_tabs").assertDoesNotExist()
+            onNodeWithTag("provider_field_docker_socket_path").performScrollTo().assertIsDisplayed()
+        }
+
+    @Test
+    fun networkOnlyPlanRendersNoProviderArea() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("icmp_sweep", "arp_sweep"),
+                            ),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("provider_tabs").assertDoesNotExist()
+            onNodeWithTag("provider_field_docker_socket_path").assertDoesNotExist()
+            onNodeWithTag("provider_field_proxmox_api_url").assertDoesNotExist()
+        }
+
+    @Test
+    fun twoProvidersRenderTabsAndOnlyTheActiveProvidersFields() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("proxmox", "docker"),
+                                activeProviderTab = "docker",
+                            ),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("provider_tabs").performScrollTo().assertIsDisplayed()
+            onNodeWithTag("provider_tab_proxmox").assertIsDisplayed()
+            onNodeWithTag("provider_tab_docker").assertIsDisplayed()
+            onNodeWithTag("provider_field_docker_socket_path").performScrollTo().assertIsDisplayed()
+            onNodeWithTag("provider_field_proxmox_api_url").assertDoesNotExist()
+        }
+
+    @Test
+    fun nullActiveTabShowsTheFirstSelectedProvider() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("proxmox", "docker"),
+                                activeProviderTab = null,
+                            ),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("provider_tabs").performScrollTo().assertIsDisplayed()
+            onNodeWithTag("provider_field_proxmox_api_url").performScrollTo().assertIsDisplayed()
+            onNodeWithTag("provider_field_docker_socket_path").assertDoesNotExist()
+        }
+
+    @Test
+    fun clickingATabSwitchesTheVisibleProvider() =
+        runComposeUiTest {
+            var activeTab by mutableStateOf<String?>("proxmox")
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("proxmox", "docker"),
+                                activeProviderTab = activeTab,
+                            ),
+                        actions = defaultActions(onProviderTabSelected = { activeTab = it }),
+                    )
+                }
+            }
+
+            onNodeWithTag("provider_field_proxmox_api_url").performScrollTo().assertIsDisplayed()
+            onNodeWithTag("provider_field_docker_socket_path").assertDoesNotExist()
+
+            onNodeWithTag("provider_tab_docker").performScrollTo().performClick()
+            assertEquals("docker", activeTab)
+
+            onNodeWithTag("provider_field_docker_socket_path").performScrollTo().assertIsDisplayed()
+            onNodeWithTag("provider_field_proxmox_api_url").assertDoesNotExist()
+        }
+
+    @Test
+    fun providerWithErrorShowsBadgeOnItsTab() =
+        runComposeUiTest {
+            val errors =
+                mapOf(
+                    ProviderForms.labelKey("docker") to UiText.DynamicString("Docker error"),
+                )
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("proxmox", "docker"),
+                                activeProviderTab = "proxmox",
+                                validationErrors = errors,
+                            ),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("provider_tabs").performScrollTo().assertIsDisplayed()
+            onNodeWithTag("provider_tab_error_docker", useUnmergedTree = true).assertIsDisplayed()
+            onNodeWithTag("provider_tab_error_proxmox", useUnmergedTree = true).assertDoesNotExist()
+        }
+
+    @Test
+    fun tabsInsideSelectionContainerSurviveTooltipThenClick() =
+        runComposeUiTest {
+            var activeTab by mutableStateOf<String?>("proxmox")
+            mainClock.autoAdvance = false
+            setContent {
+                InfraMapTheme {
+                    SelectionContainer {
+                        CreateDiscoverySourceScreen(
+                            state =
+                                CreateDiscoverySourceUiState(
+                                    selectedCollectors = setOf("icmp_sweep", "proxmox", "docker"),
+                                    activeProviderTab = activeTab,
+                                ),
+                            actions = defaultActions(onProviderTabSelected = { activeTab = it }),
+                        )
+                    }
+                }
+            }
+
+            onNodeWithText("ICMP Ping").performScrollTo().performMouseInput { moveTo(Offset(4f, 4f)) }
+            mainClock.advanceTimeBy(200L)
+
+            onNodeWithTag("provider_tab_docker").performScrollTo().performClick()
+            mainClock.advanceTimeBy(200L)
+
+            assertEquals("docker", activeTab)
+        }
+
+    @Test
+    fun typingAndTestConnectionForwardTheActiveProviderId() =
+        runComposeUiTest {
+            var fieldChangedProvider: String? = null
+            var fieldChangedKey: String? = null
+            var fieldChangedValue: String? = null
+            var testClickedProvider: String? = null
+
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("proxmox", "docker"),
+                                activeProviderTab = "docker",
+                            ),
+                        actions =
+                            defaultActions(
+                                onProviderFieldChanged = { provider, key, value ->
+                                    fieldChangedProvider = provider
+                                    fieldChangedKey = key
+                                    fieldChangedValue = value
+                                },
+                                onTestConnectionClicked = { provider ->
+                                    testClickedProvider = provider
+                                },
+                            ),
+                    )
+                }
+            }
+
+            onNodeWithText("Caminho do socket").performScrollTo().performTextInput("/var/run/docker.sock")
+            assertEquals("docker", fieldChangedProvider)
+            assertEquals("socket_path", fieldChangedKey)
+            assertEquals("/var/run/docker.sock", fieldChangedValue)
+
+            onNodeWithTag("test_connection_docker").performScrollTo().performClick()
+            assertEquals("docker", testClickedProvider)
         }
 }
