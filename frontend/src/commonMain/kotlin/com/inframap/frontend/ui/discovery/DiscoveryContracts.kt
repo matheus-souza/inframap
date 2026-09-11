@@ -61,9 +61,18 @@ data class CreateDiscoverySourceUiState(
     val connectionTests: Map<String, ConnectionTest> = emptyMap(),
     /** Stored credentials a provider can reference instead of carrying its secrets inline. */
     val credentials: List<CredentialSummary> = emptyList(),
+    /** Active provider tab identifier when providers are selected; the screen reads [currentProviderTab]. */
+    val activeProviderTab: String? = null,
 ) {
     /** Providers the user selected, in the order they are offered. */
     val selectedProviders: List<String> get() = ProviderForms.ids.filter { it in selectedCollectors }
+
+    /** Tabs only earn their place once there is more than one provider to switch between. */
+    val showsProviderTabs: Boolean get() = selectedProviders.size >= 2
+
+    /** The provider actually shown: the chosen one while it is still selected, else the first. */
+    val currentProviderTab: String? get() =
+        activeProviderTab?.takeIf { it in selectedProviders } ?: selectedProviders.firstOrNull()
 
     /**
      * A CIDR only describes a network sweep. A plan made purely of providers has no range to
@@ -82,6 +91,7 @@ data class CreateDiscoverySourceActions(
     val onCollectorsChanged: (Set<String>) -> Unit = {},
     val onProviderFieldChanged: (providerId: String, key: String, value: String) -> Unit = { _, _, _ -> },
     val onTestConnectionClicked: (providerId: String) -> Unit = {},
+    val onProviderTabSelected: (providerId: String) -> Unit = {},
     val onSubmitClicked: () -> Unit,
     val onCancelClicked: () -> Unit,
 )

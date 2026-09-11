@@ -1,6 +1,10 @@
 package com.inframap.frontend.ui.discovery
 
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.collector_name_docker
+import com.inframap.frontend.generated.resources.collector_name_proxmox
 import com.inframap.frontend.generated.resources.provider_field_docker_socket_path
 import com.inframap.frontend.generated.resources.provider_field_docker_tcp_url
 import com.inframap.frontend.generated.resources.provider_field_docker_tls_ca
@@ -35,6 +39,10 @@ data class ProviderField(
 
 data class ProviderForm(
     val id: String,
+    /** Name shown on the provider's chip and tab. */
+    val label: StringResource,
+    /** Icon shown on the provider's chip and tab. */
+    val icon: ImageVector,
     val fields: List<ProviderField>,
 )
 
@@ -51,6 +59,8 @@ object ProviderForms {
     private val proxmox =
         ProviderForm(
             id = PROXMOX,
+            label = Res.string.collector_name_proxmox,
+            icon = InfraMapIcons.Cloud,
             fields =
                 listOf(
                     ProviderField(
@@ -88,6 +98,8 @@ object ProviderForms {
     private val docker =
         ProviderForm(
             id = DOCKER,
+            label = Res.string.collector_name_docker,
+            icon = InfraMapIcons.ViewInAr,
             fields =
                 listOf(
                     ProviderField(

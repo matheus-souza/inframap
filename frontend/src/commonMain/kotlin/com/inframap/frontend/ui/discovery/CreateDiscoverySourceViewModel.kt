@@ -22,6 +22,7 @@ import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
 
+@Suppress("TooManyFunctions")
 class CreateDiscoverySourceViewModel(
     private val createSourceUseCase: CreateDiscoverySourceUseCase,
     private val listSubnetsUseCase: ListSubnetsUseCase,
@@ -93,12 +94,23 @@ class CreateDiscoverySourceViewModel(
                 } else {
                     current.validationErrors
                 }
+            // A provider just switched on is the one the operator is about to configure.
+            // If none was added, retain activeProviderTab if still selected, else fall back to first selected or null.
+            val added = ProviderForms.ids.firstOrNull { it in collectors && it !in current.selectedCollectors }
+            val newActive = added ?: current.copy(selectedCollectors = collectors).currentProviderTab
+
             current.copy(
                 selectedCollectors = collectors,
                 providerConfigs = seeded + current.providerConfigs,
                 validationErrors = errors,
+                activeProviderTab = newActive,
             )
         }
+    }
+
+    fun onProviderTabSelected(providerId: String) {
+        if (providerId !in state.value.selectedProviders) return
+        updateState { it.copy(activeProviderTab = providerId) }
     }
 
     fun onScheduleCronChanged(cron: String) {
@@ -155,9 +167,14 @@ class CreateDiscoverySourceViewModel(
             errors["cidr"] = UiText.Resource(Res.string.validation_cidr_invalid)
         }
 
-        errors += providerValidationErrors(state.value)
+        val providerErrors = providerValidationErrors(state.value)
+        errors += providerErrors
 
-        updateState { it.copy(validationErrors = errors) }
+        val firstProviderWithError =
+            state.value.selectedProviders.firstOrNull { ProviderForms.labelKey(it) in providerErrors }
+        val targetTab = firstProviderWithError ?: state.value.activeProviderTab
+
+        updateState { it.copy(validationErrors = errors, activeProviderTab = targetTab) }
         return errors.isEmpty()
     }
 

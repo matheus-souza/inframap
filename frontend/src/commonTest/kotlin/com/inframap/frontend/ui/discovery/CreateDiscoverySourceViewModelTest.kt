@@ -776,4 +776,227 @@ class CreateDiscoverySourceViewModelTest {
             assertNull(config["token_secret"], "the typed secret must not survive picking a credential")
             assertEquals("https://pve.local:8006", config["api_url"], "the endpoint is not a secret and must remain")
         }
+
+    @Test
+    fun addingASecondProviderMakesItTheActiveTab() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onCollectorsChanged(setOf("proxmox"))
+            assertEquals("proxmox", vm.state.value.activeProviderTab)
+
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            assertEquals("docker", vm.state.value.activeProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun addingANetworkCollectorKeepsTheActiveTab() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onCollectorsChanged(setOf("proxmox"))
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            assertEquals("docker", vm.state.value.activeProviderTab)
+
+            vm.onCollectorsChanged(setOf("proxmox", "docker", "icmp_sweep"))
+            assertEquals("docker", vm.state.value.activeProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun onProviderTabSelectedSwitchesTheActiveTab() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onCollectorsChanged(setOf("proxmox"))
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            assertEquals("docker", vm.state.value.activeProviderTab)
+
+            vm.onProviderTabSelected("proxmox")
+            assertEquals("proxmox", vm.state.value.activeProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun onProviderTabSelectedIgnoresAnUnselectedProvider() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onCollectorsChanged(setOf("proxmox"))
+            assertEquals("proxmox", vm.state.value.activeProviderTab)
+
+            vm.onProviderTabSelected("docker")
+            assertEquals("proxmox", vm.state.value.activeProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun deselectingTheActiveProviderFallsBackToTheRemainingOne() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            vm.onProviderTabSelected("docker")
+
+            vm.onCollectorsChanged(setOf("proxmox"))
+            assertEquals("proxmox", vm.state.value.activeProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun deselectingAllProvidersClearsTheTab() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            vm.onCollectorsChanged(setOf("icmp_sweep"))
+
+            assertNull(vm.state.value.activeProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun switchingTabsKeepsConfigsTestsAndErrors() =
+        runTest {
+            val integrations = FakeIntegrationsRepository()
+            val vm = makeVm(integrationsRepo = integrations, scope = this)
+            advanceUntilIdle()
+
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve.local:8006")
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+            vm.testConnection("docker")
+            advanceUntilIdle()
+
+            // Validate generates an error for the incomplete proxmox provider
+            vm.validate()
+
+            assertEquals(ConnectionTest.Healthy, vm.state.value.connectionTests["docker"])
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("provider:proxmox"),
+            )
+
+            vm.onProviderTabSelected("docker")
+            assertEquals(
+                "https://pve.local:8006",
+                vm.state.value.providerConfigs["proxmox"]
+                    ?.get("api_url"),
+            )
+            assertEquals(
+                "unix:///var/run/docker.sock",
+                vm.state.value.providerConfigs["docker"]
+                    ?.get("socket_path"),
+            )
+            assertEquals(ConnectionTest.Healthy, vm.state.value.connectionTests["docker"])
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("provider:proxmox"),
+            )
+
+            vm.onProviderTabSelected("proxmox")
+            assertEquals(
+                "https://pve.local:8006",
+                vm.state.value.providerConfigs["proxmox"]
+                    ?.get("api_url"),
+            )
+            assertEquals(
+                "unix:///var/run/docker.sock",
+                vm.state.value.providerConfigs["docker"]
+                    ?.get("socket_path"),
+            )
+            assertEquals(ConnectionTest.Healthy, vm.state.value.connectionTests["docker"])
+            assertTrue(
+                vm.state.value.validationErrors
+                    .containsKey("provider:proxmox"),
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun failedValidationBringsTheFirstProviderWithAnErrorForward() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Multi-provider plan")
+            // Use only providers so CIDR is not required
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            // Docker is the active tab and valid
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+            vm.onProviderTabSelected("docker")
+            // Proxmox is missing required fields (empty)
+            val isValid = vm.validate()
+
+            assertFalse(isValid)
+            assertEquals("proxmox", vm.state.value.activeProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun failedValidationBringsFirstProviderForwardEvenIfActiveTabHasError() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Multi-provider plan")
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            // Both have errors, but docker is active
+            vm.onProviderTabSelected("docker")
+            val isValid = vm.validate()
+
+            assertFalse(isValid)
+            assertEquals("proxmox", vm.state.value.activeProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun failedValidationJumpsToSecondProviderWhenFirstIsValid() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Multi-provider plan")
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            vm.onProviderTabSelected("proxmox")
+            // Proxmox valid
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve.local:8006")
+            vm.onProviderFieldChanged("proxmox", "token_id", "root@pam!token")
+            vm.onProviderFieldChanged("proxmox", "token_secret", "secret")
+            // Docker is invalid (missing socket_path / tcp_url)
+
+            val isValid = vm.validate()
+
+            assertFalse(isValid)
+            assertEquals("docker", vm.state.value.activeProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun successfulValidationDoesNotMoveTheTab() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Multi-provider plan")
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve.local:8006")
+            vm.onProviderFieldChanged("proxmox", "token_id", "root@pam!token")
+            vm.onProviderFieldChanged("proxmox", "token_secret", "secret")
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+            vm.onProviderTabSelected("docker")
+
+            val isValid = vm.validate()
+
+            assertTrue(isValid)
+            assertEquals("docker", vm.state.value.activeProviderTab)
+            vm.clear()
+        }
 }

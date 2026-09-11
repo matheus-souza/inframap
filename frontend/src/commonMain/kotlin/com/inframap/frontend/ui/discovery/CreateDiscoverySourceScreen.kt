@@ -12,15 +12,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LeadingIconTab
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -40,10 +50,8 @@ import com.inframap.frontend.designsystem.SubnetSuggestionChips
 import com.inframap.frontend.domain.model.CredentialSummary
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.collector_name_arp_sweep
-import com.inframap.frontend.generated.resources.collector_name_docker
 import com.inframap.frontend.generated.resources.collector_name_icmp_sweep
 import com.inframap.frontend.generated.resources.collector_name_mdns
-import com.inframap.frontend.generated.resources.collector_name_proxmox
 import com.inframap.frontend.generated.resources.collector_name_reverse_dns
 import com.inframap.frontend.generated.resources.collector_name_snmp
 import com.inframap.frontend.generated.resources.collector_section_network
@@ -143,18 +151,10 @@ private fun CreateDiscoverySourceFormFields(
             error = state.validationErrors["collectors"]?.asString(),
         )
 
-        state.selectedProviders.forEach { providerId ->
-            Spacer(modifier = Modifier.height(16.dp))
-            ProviderConfigSection(
-                providerId = providerId,
-                config = state.providerConfigs[providerId].orEmpty(),
-                connectionTest = state.connectionTests[providerId],
-                error = state.validationErrors[ProviderForms.labelKey(providerId)]?.asString(),
-                credentials = state.credentials,
-                onFieldChanged = { key, value -> actions.onProviderFieldChanged(providerId, key, value) },
-                onTestClicked = { actions.onTestConnectionClicked(providerId) },
-            )
-        }
+        ProviderConfigArea(
+            state = state,
+            actions = actions,
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -190,6 +190,93 @@ private fun CreateDiscoverySourceFormFields(
             label = stringResource(Res.string.create_discovery_source_enabled_label),
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProviderConfigArea(
+    state: CreateDiscoverySourceUiState,
+    actions: CreateDiscoverySourceActions,
+) {
+    val providers = state.selectedProviders
+    if (providers.isEmpty()) return
+
+    val active = state.currentProviderTab ?: return
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    if (state.showsProviderTabs) {
+        val providersWithErrors =
+            remember(state.validationErrors, providers) {
+                providers.filter { ProviderForms.labelKey(it) in state.validationErrors }.toSet()
+            }
+
+        ProviderTabs(
+            providers = providers,
+            active = active,
+            providersWithErrors = providersWithErrors,
+            onSelected = actions.onProviderTabSelected,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    key(active) {
+        ProviderConfigSection(
+            providerId = active,
+            config = state.providerConfigs[active].orEmpty(),
+            connectionTest = state.connectionTests[active],
+            error = state.validationErrors[ProviderForms.labelKey(active)]?.asString(),
+            credentials = state.credentials,
+            onFieldChanged = { key, value -> actions.onProviderFieldChanged(active, key, value) },
+            onTestClicked = { actions.onTestConnectionClicked(active) },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProviderTabs(
+    providers: List<String>,
+    active: String,
+    providersWithErrors: Set<String>,
+    onSelected: (String) -> Unit,
+) {
+    val forms = providers.mapNotNull { ProviderForms.formFor(it) }
+    SecondaryTabRow(
+        selectedTabIndex = forms.indexOfFirst { it.id == active }.coerceAtLeast(0),
+        containerColor = Color.Transparent,
+        modifier = Modifier.fillMaxWidth().testTag("provider_tabs"),
+    ) {
+        forms.forEach { form ->
+            val hasError = form.id in providersWithErrors
+            LeadingIconTab(
+                selected = form.id == active,
+                onClick = { onSelected(form.id) },
+                text = { Text(stringResource(form.label)) },
+                icon = {
+                    if (hasError) {
+                        BadgedBox(
+                            badge = {
+                                Badge(modifier = Modifier.testTag("provider_tab_error_${form.id}"))
+                            },
+                        ) {
+                            Icon(form.icon, contentDescription = null)
+                        }
+                    } else {
+                        Icon(form.icon, contentDescription = null)
+                    }
+                },
+                modifier =
+                    Modifier
+                        .testTag("provider_tab_${form.id}")
+                        .semantics {
+                            if (hasError) {
+                                stateDescription = "Contém erros"
+                            }
+                        },
+            )
+        }
     }
 }
 
@@ -429,8 +516,10 @@ private fun rememberProvidersSection(): ChipSection<String> {
     // that cannot be selected is an offer the product cannot honour, and the "coming soon"
     // label did not make it one.
     val title = stringResource(Res.string.collector_section_providers)
-    val proxmoxLabel = stringResource(Res.string.collector_name_proxmox)
-    val dockerLabel = stringResource(Res.string.collector_name_docker)
+    val proxmoxForm = checkNotNull(ProviderForms.formFor(ProviderForms.PROXMOX))
+    val dockerForm = checkNotNull(ProviderForms.formFor(ProviderForms.DOCKER))
+    val proxmoxLabel = stringResource(proxmoxForm.label)
+    val dockerLabel = stringResource(dockerForm.label)
     val proxmoxTooltip = stringResource(Res.string.tooltip_provider_proxmox)
     val dockerTooltip = stringResource(Res.string.tooltip_provider_docker)
 
@@ -446,15 +535,15 @@ private fun rememberProvidersSection(): ChipSection<String> {
             options =
                 listOf(
                     ChipOption(
-                        value = "proxmox",
+                        value = proxmoxForm.id,
                         label = proxmoxLabel,
-                        icon = InfraMapIcons.Cloud,
+                        icon = proxmoxForm.icon,
                         tooltip = proxmoxTooltip,
                     ),
                     ChipOption(
-                        value = "docker",
+                        value = dockerForm.id,
                         label = dockerLabel,
-                        icon = InfraMapIcons.ViewInAr,
+                        icon = dockerForm.icon,
                         tooltip = dockerTooltip,
                     ),
                 ),
