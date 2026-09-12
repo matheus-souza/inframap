@@ -4,6 +4,7 @@ import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.domain.usecase.auth.GetCurrentUserUseCase
 import com.inframap.frontend.domain.usecase.auth.GetSetupStatusUseCase
 import com.inframap.frontend.ui.base.BaseViewModel
+import com.inframap.frontend.ui.session.SessionResume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 class SplashViewModel(
     private val getSetupStatusUseCase: GetSetupStatusUseCase,
     private val getCurrentUserUseCase: GetCurrentUserUseCase,
+    private val sessionResume: SessionResume? = null,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<SplashUiState>(SplashUiState(), scope) {
     private val _effects = Channel<SplashEffect>(Channel.BUFFERED)
@@ -36,9 +38,11 @@ class SplashViewModel(
                 }
             }
 
-            when (getCurrentUserUseCase()) {
-                is ApiResult.Success ->
+            when (val userResult = getCurrentUserUseCase()) {
+                is ApiResult.Success -> {
+                    sessionResume?.onAuthenticated(userResult.data.id)
                     _effects.send(SplashEffect.NavigateToDashboard)
+                }
                 is ApiResult.Error ->
                     _effects.send(SplashEffect.NavigateToLogin)
                 is ApiResult.NetworkError ->

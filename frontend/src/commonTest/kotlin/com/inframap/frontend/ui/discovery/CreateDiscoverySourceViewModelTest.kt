@@ -2,6 +2,9 @@ package com.inframap.frontend.ui.discovery
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.storage.SessionOwnerStore
+import com.inframap.frontend.data.storage.draft.DraftForm
+import com.inframap.frontend.data.storage.draft.FormDraftStore
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
@@ -12,7 +15,9 @@ import com.inframap.frontend.domain.usecase.integrations.TestProviderHealthUseCa
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.fakes.FakeCredentialsRepository
 import com.inframap.frontend.fakes.FakeDiscoveryRepository
+import com.inframap.frontend.fakes.FakeEpochClock
 import com.inframap.frontend.fakes.FakeIntegrationsRepository
+import com.inframap.frontend.fakes.FakeLocalStorage
 import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,11 +26,17 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateDiscoverySourceViewModelTest {
+    private val fakeStorage = FakeLocalStorage()
+    private val fakeClock = FakeEpochClock(now = 1_000_000L)
+    private val sessionOwner = SessionOwnerStore(fakeStorage).apply { setOwner("u1") }
+    private val formDraftStore = FormDraftStore(fakeStorage, fakeClock, sessionOwner)
+
     private val createdSource =
         DiscoverySource(
             id = "src-1",
@@ -58,12 +69,14 @@ class CreateDiscoverySourceViewModelTest {
             ),
         integrationsRepo: FakeIntegrationsRepository = FakeIntegrationsRepository(),
         credentialsRepo: FakeCredentialsRepository = FakeCredentialsRepository(),
+        formDrafts: FormDraftStore = formDraftStore,
         scope: CoroutineScope? = null,
     ) = CreateDiscoverySourceViewModel(
         createSourceUseCase = CreateDiscoverySourceUseCase(discoveryRepo),
         listSubnetsUseCase = ListSubnetsUseCase(subnetRepo),
         testProviderHealthUseCase = TestProviderHealthUseCase(integrationsRepo),
         listCredentialsUseCase = ListCredentialsUseCase(credentialsRepo),
+        formDrafts = formDrafts,
         scope = scope,
     )
 
@@ -997,6 +1010,223 @@ class CreateDiscoverySourceViewModelTest {
 
             assertTrue(isValid)
             assertEquals("docker", vm.state.value.activeProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun providerFieldEditPersistsWithoutSecrets() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onCollectorsChanged(setOf("proxmox"))
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve:8006")
+            vm.onProviderFieldChanged("proxmox", "token_secret", "SUPER-SECRET-TOKEN")
+
+            val raw = fakeStorage.get(DraftForm.CreateDiscoverySource.storageKey)
+            assertNotNull(raw)
+            assertFalse(raw.contains("SUPER-SECRET-TOKEN"), "Storage must not contain secret values")
+
+            val loaded = formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer())
+            assertNotNull(loaded)
+            assertEquals("https://pve:8006", loaded.providerConfigs["proxmox"]?.get("api_url"))
+            assertFalse(loaded.providerConfigs["proxmox"]?.containsKey("token_secret") == true)
+            vm.clear()
+        }
+
+    @Test
+    fun collectorToggleSubnetSelectionAndTabChangePersist() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Discovery Ops")
+            vm.onCollectorsChanged(setOf("proxmox", "docker"))
+            vm.onProviderTabSelected("docker")
+            vm.onScheduleCronChanged("0 * * * *")
+            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.onEnabledChanged(false)
+
+            val loaded = formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer())
+            assertNotNull(loaded)
+            assertEquals("Discovery Ops", loaded.name)
+            assertEquals(setOf("proxmox", "docker"), loaded.selectedCollectors)
+            assertEquals("docker", loaded.activeProviderTab)
+            assertEquals("0 * * * *", loaded.scheduleCron)
+            assertEquals("192.168.1.0/24", loaded.configCidr)
+            assertFalse(loaded.enabled)
+            vm.clear()
+        }
+
+    @Test
+    fun connectionTestAndDataLoadsDoNotPersist() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.loadSubnets()
+            advanceUntilIdle()
+
+            assertNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun untouchedFormCreatesNoDraft() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            assertNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun initRestoresDraftWithSecretsBlank() =
+        runTest {
+            val draft =
+                CreateDiscoverySourceDraft(
+                    name = "Restored Source",
+                    selectedCollectors = setOf("proxmox"),
+                    providerConfigs =
+                        mapOf(
+                            "proxmox" to
+                                mapOf(
+                                    "api_url" to "https://proxmox.local:8006",
+                                    "token_id" to "root@pam!token",
+                                ),
+                        ),
+                )
+            formDraftStore.save(DraftForm.CreateDiscoverySource, draft, CreateDiscoverySourceDraft.serializer())
+
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertEquals("Restored Source", state.name)
+            assertEquals(setOf("proxmox"), state.selectedCollectors)
+            assertTrue(state.restoredFromDraft)
+            assertEquals("https://proxmox.local:8006", state.providerConfigs["proxmox"]?.get("api_url"))
+            assertEquals("root@pam!token", state.providerConfigs["proxmox"]?.get("token_id"))
+            assertFalse(state.providerConfigs["proxmox"]?.containsKey("token_secret") == true)
+
+            // Validation must fail because the secret token is required and blank
+            assertFalse(vm.validate())
+            assertTrue(
+                state.validationErrors.containsKey("provider:proxmox") ||
+                    vm.state.value.validationErrors
+                        .containsKey("provider:proxmox"),
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun restoredActiveTabFallsBackWhenProviderNoLongerSelected() =
+        runTest {
+            val draft =
+                CreateDiscoverySourceDraft(
+                    name = "Fallback Tab Source",
+                    selectedCollectors = setOf("proxmox"),
+                    activeProviderTab = "docker",
+                )
+            formDraftStore.save(DraftForm.CreateDiscoverySource, draft, CreateDiscoverySourceDraft.serializer())
+
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            assertEquals("proxmox", vm.state.value.currentProviderTab)
+            vm.clear()
+        }
+
+    @Test
+    fun successfulSubmitDiscardsDraft() =
+        runTest {
+            var onSuccessCalled = false
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Valid Discovery")
+            vm.onCollectorsChanged(setOf("icmp_sweep"))
+            vm.onConfigCidrChanged("10.0.0.0/24")
+
+            assertNotNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
+
+            vm.createSource { onSuccessCalled = true }
+            advanceUntilIdle()
+
+            assertTrue(onSuccessCalled)
+            assertNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun failedSubmitKeepsDraft() =
+        runTest {
+            val failingRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult =
+                        ApiResult.Error(
+                            code = "INTERNAL_ERROR",
+                            message = "Database down",
+                            requestId = "req-1",
+                            httpStatus = 500,
+                        ),
+                )
+            val vm = makeVm(discoveryRepo = failingRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Failed Discovery")
+            vm.onCollectorsChanged(setOf("icmp_sweep"))
+            vm.onConfigCidrChanged("10.0.0.0/24")
+
+            vm.createSource()
+            advanceUntilIdle()
+
+            assertNotNull(vm.state.value.errorMessage)
+            assertNotNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun discardDraftRemovesIt() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Draft to discard")
+            assertNotNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
+
+            vm.discardDraft()
+            assertNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun revertingToPristineRemovesDraft() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Temporary Name")
+            assertNotNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
+
+            vm.onNameChanged("")
+            assertNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun selectingAndDeselectingProviderLeavesNoDraft() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            val defaultCollectors = setOf("icmp_sweep", "arp_sweep", "mdns", "reverse_dns")
+            vm.onCollectorsChanged(defaultCollectors + "proxmox")
+            assertNotNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
+
+            vm.onCollectorsChanged(defaultCollectors)
+            assertNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
             vm.clear()
         }
 }

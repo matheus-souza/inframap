@@ -64,4 +64,85 @@ class NavigatorTest {
             assertEquals(route, navigator.currentRoute.value)
         }
     }
+
+    @Test
+    fun expireSessionNavigatesToLogin() {
+        val navigator = Navigator(initialRoute = Route.Subnets)
+        navigator.expireSession()
+
+        assertEquals(Route.Login, navigator.currentRoute.value)
+        assertEquals(Route.Subnets, navigator.expiredRoute)
+    }
+
+    @Test
+    fun completeLoginResumingReturnsToExpiredRoute() {
+        val targetRoute = Route.CreateSubnet("10.0.0.0/24", "eth0")
+        val navigator = Navigator(initialRoute = targetRoute)
+
+        navigator.expireSession()
+        assertEquals(Route.Login, navigator.currentRoute.value)
+
+        navigator.completeLogin(resumePrevious = true)
+        assertEquals(targetRoute, navigator.currentRoute.value)
+        assertEquals(null, navigator.expiredRoute)
+    }
+
+    @Test
+    fun completeLoginWithoutResumeGoesToDashboardAndForgetsRoute() {
+        val navigator = Navigator(initialRoute = Route.CreateDiscoverySource)
+        navigator.expireSession()
+
+        navigator.completeLogin(resumePrevious = false)
+        assertEquals(Route.Dashboard, navigator.currentRoute.value)
+        assertEquals(null, navigator.expiredRoute)
+    }
+
+    @Test
+    fun completeLoginResumingWithoutStoredRouteGoesToDashboard() {
+        val navigator = Navigator(initialRoute = Route.Login)
+
+        navigator.completeLogin(resumePrevious = true)
+        assertEquals(Route.Dashboard, navigator.currentRoute.value)
+    }
+
+    @Test
+    fun repeatedExpiryKeepsFirstRoute() {
+        val navigator = Navigator(initialRoute = Route.CreateSubnet())
+        navigator.expireSession()
+
+        // Suppose another 401 triggers while navigating or on login screen
+        navigator.navigateTo(Route.Login)
+        navigator.expireSession()
+
+        assertEquals(Route.CreateSubnet(), navigator.expiredRoute)
+    }
+
+    @Test
+    fun expiryWhileOnLoginSplashOrOnboardingStoresNothing() {
+        val splashNav = Navigator(initialRoute = Route.Splash)
+        splashNav.expireSession()
+        assertEquals(null, splashNav.expiredRoute)
+
+        val loginNav = Navigator(initialRoute = Route.Login)
+        loginNav.expireSession()
+        assertEquals(null, loginNav.expiredRoute)
+
+        val onboardingNav = Navigator(initialRoute = Route.Onboarding)
+        onboardingNav.expireSession()
+        assertEquals(null, onboardingNav.expiredRoute)
+    }
+
+    @Test
+    fun returnRouteIsConsumedOnce() {
+        val navigator = Navigator(initialRoute = Route.CreateSubnet())
+        navigator.expireSession()
+
+        navigator.completeLogin(resumePrevious = true)
+        assertEquals(Route.CreateSubnet(), navigator.currentRoute.value)
+
+        // Subsequent login without expire goes to dashboard
+        navigator.navigateTo(Route.Login)
+        navigator.completeLogin(resumePrevious = true)
+        assertEquals(Route.Dashboard, navigator.currentRoute.value)
+    }
 }

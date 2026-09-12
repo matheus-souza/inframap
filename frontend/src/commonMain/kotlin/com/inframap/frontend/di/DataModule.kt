@@ -11,6 +11,10 @@ import com.inframap.frontend.data.repository.NetworkRepositoryImpl
 import com.inframap.frontend.data.repository.StagingRepositoryImpl
 import com.inframap.frontend.data.repository.SubnetRepositoryImpl
 import com.inframap.frontend.data.repository.TopologyRepositoryImpl
+import com.inframap.frontend.data.storage.SessionOwnerStore
+import com.inframap.frontend.data.storage.draft.FormDraftStore
+import com.inframap.frontend.data.time.EpochClock
+import com.inframap.frontend.data.time.SystemEpochClock
 import com.inframap.frontend.domain.repository.AuthRepository
 import com.inframap.frontend.domain.repository.CredentialsRepository
 import com.inframap.frontend.domain.repository.DashboardRepository
@@ -26,6 +30,9 @@ import org.koin.dsl.module
 fun dataModule(baseUrl: String) =
     module {
         single { ApiClient(baseUrl) }
+        single<EpochClock> { SystemEpochClock }
+        single { SessionOwnerStore(get()) }
+        single { FormDraftStore(get(), get(), get()) }
         single<DeviceRepository> { DeviceRepositoryImpl(get()) }
         single<StagingRepository> { StagingRepositoryImpl(get()) }
         single<SubnetRepository> { SubnetRepositoryImpl(get()) }

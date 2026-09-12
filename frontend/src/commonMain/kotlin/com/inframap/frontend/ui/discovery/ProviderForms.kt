@@ -35,7 +35,13 @@ data class ProviderField(
     val boolean: Boolean = false,
     /** Value used when the operator never touches the field. */
     val default: String = "",
-)
+    /** Whether this field is safe to persist in client-side form drafts (fail-closed, default false). */
+    val persistable: Boolean = false,
+) {
+    init {
+        require(!(secret && persistable)) { "A secret field cannot be persistable: $key" }
+    }
+}
 
 data class ProviderForm(
     val id: String,
@@ -68,12 +74,14 @@ object ProviderForms {
                         label = Res.string.provider_field_proxmox_api_url,
                         placeholder = "https://proxmox.local:8006",
                         required = true,
+                        persistable = true,
                     ),
                     ProviderField(
                         key = "token_id",
                         label = Res.string.provider_field_proxmox_token_id,
                         placeholder = "root@pam!inframap",
                         required = true,
+                        persistable = true,
                     ),
                     ProviderField(
                         key = "token_secret",
@@ -91,6 +99,7 @@ object ProviderForms {
                         placeholder = "",
                         boolean = true,
                         default = "true",
+                        persistable = true,
                     ),
                 ),
         )
@@ -106,11 +115,13 @@ object ProviderForms {
                         key = "socket_path",
                         label = Res.string.provider_field_docker_socket_path,
                         placeholder = "unix:///var/run/docker.sock",
+                        persistable = true,
                     ),
                     ProviderField(
                         key = "tcp_url",
                         label = Res.string.provider_field_docker_tcp_url,
                         placeholder = "tcp://192.168.1.50:2376",
+                        persistable = true,
                     ),
                     ProviderField(
                         key = "tls_ca",
@@ -208,4 +219,13 @@ object ProviderForms {
         providerId == DOCKER &&
             config["socket_path"].isNullOrBlank() &&
             config["tcp_url"].isNullOrBlank()
+
+    /** Keys safe to keep in browser storage: every persistable field plus the credential reference. */
+    fun persistableKeys(providerId: String): Set<String> {
+        val form = formFor(providerId) ?: return emptySet()
+        return form.fields
+            .filter { it.persistable }
+            .map { it.key }
+            .toSet() + CREDENTIAL_KEY
+    }
 }

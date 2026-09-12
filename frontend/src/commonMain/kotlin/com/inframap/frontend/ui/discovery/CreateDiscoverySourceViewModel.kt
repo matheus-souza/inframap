@@ -3,6 +3,8 @@ package com.inframap.frontend.ui.discovery
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CollectorConfigDto
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
+import com.inframap.frontend.data.storage.draft.DraftForm
+import com.inframap.frontend.data.storage.draft.FormDraftStore
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.model.toSummary
 import com.inframap.frontend.domain.usecase.credentials.ListCredentialsUseCase
@@ -28,11 +30,38 @@ class CreateDiscoverySourceViewModel(
     private val listSubnetsUseCase: ListSubnetsUseCase,
     private val testProviderHealthUseCase: TestProviderHealthUseCase,
     private val listCredentialsUseCase: ListCredentialsUseCase,
+    private val formDrafts: FormDraftStore,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<CreateDiscoverySourceUiState>(CreateDiscoverySourceUiState(), scope) {
+    private val pristineDraft = CreateDiscoverySourceUiState().toDraft()
+
     init {
+        restoreDraft()
         loadSubnets()
         loadCredentials()
+    }
+
+    private fun restoreDraft() {
+        val draft = formDrafts.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()) ?: return
+        updateState { draft.applyTo(it) }
+    }
+
+    private inline fun editForm(crossinline reducer: (CreateDiscoverySourceUiState) -> CreateDiscoverySourceUiState) {
+        updateState { reducer(it) }
+        val currentDraft = state.value.toDraft()
+        if (currentDraft == pristineDraft) {
+            formDrafts.discard(DraftForm.CreateDiscoverySource)
+        } else {
+            formDrafts.save(
+                DraftForm.CreateDiscoverySource,
+                currentDraft,
+                CreateDiscoverySourceDraft.serializer(),
+            )
+        }
+    }
+
+    fun discardDraft() {
+        formDrafts.discard(DraftForm.CreateDiscoverySource)
     }
 
     /**
@@ -69,7 +98,7 @@ class CreateDiscoverySourceViewModel(
     }
 
     fun onNameChanged(name: String) {
-        updateState { it.copy(name = name, validationErrors = it.validationErrors - "name") }
+        editForm { it.copy(name = name, validationErrors = it.validationErrors - "name") }
     }
 
     fun toggleCollector(collectorType: String) {
@@ -80,7 +109,7 @@ class CreateDiscoverySourceViewModel(
     }
 
     fun onCollectorsChanged(collectors: Set<String>) {
-        updateState { current ->
+        editForm { current ->
             // Seed a newly selected provider with its defaults, so a field the operator never
             // touches still reaches the backend with its intended value.
             val seeded =
@@ -110,19 +139,19 @@ class CreateDiscoverySourceViewModel(
 
     fun onProviderTabSelected(providerId: String) {
         if (providerId !in state.value.selectedProviders) return
-        updateState { it.copy(activeProviderTab = providerId) }
+        editForm { it.copy(activeProviderTab = providerId) }
     }
 
     fun onScheduleCronChanged(cron: String) {
-        updateState { it.copy(scheduleCron = cron) }
+        editForm { it.copy(scheduleCron = cron) }
     }
 
     fun onConfigCidrChanged(cidr: String) {
-        updateState { it.copy(configCidr = cidr, validationErrors = it.validationErrors - "cidr") }
+        editForm { it.copy(configCidr = cidr, validationErrors = it.validationErrors - "cidr") }
     }
 
     fun onSubnetSelected(subnet: SubnetSummary) {
-        updateState { current ->
+        editForm { current ->
             val wasNameBlank = current.name.isBlank()
             val newName = if (wasNameBlank) "Varredura ${subnet.name}" else current.name
             var errors = current.validationErrors - "cidr"
@@ -138,7 +167,7 @@ class CreateDiscoverySourceViewModel(
     }
 
     fun onEnabledChanged(enabled: Boolean) {
-        updateState { it.copy(enabled = enabled) }
+        editForm { it.copy(enabled = enabled) }
     }
 
     fun validate(): Boolean {
@@ -209,6 +238,7 @@ class CreateDiscoverySourceViewModel(
                     )
             ) {
                 is ApiResult.Success -> {
+                    formDrafts.discard(DraftForm.CreateDiscoverySource)
                     updateState {
                         it.copy(
                             isSubmitting = false,
@@ -243,7 +273,7 @@ class CreateDiscoverySourceViewModel(
         key: String,
         value: String,
     ) {
-        updateState { current ->
+        editForm { current ->
             var updated = current.providerConfigs[providerId].orEmpty() + (key to value)
             // Picking a credential must drop whatever secrets were typed before it. The
             // backend gives collector values precedence over the credential's, so a stale

@@ -11,4 +11,6 @@ data class LoginUiState(
 
 sealed class LoginEffect {
     data object NavigateToDashboard : LoginEffect()
+
+    data object ResumePreviousRoute : LoginEffect()
 }

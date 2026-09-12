@@ -408,5 +408,9 @@
 
     <!-- Design System Chips -->
     <string name="chip_integration_coming_soon">Coming soon</string>
+
+    <!-- Form Drafts -->
+    <string name="draft_restored_notice">Previous draft restored automatically.</string>
+    <string name="draft_restored_notice_secrets">Draft restored. For security, secrets and keys were not saved and must be re-entered.</string>
 </resources>
 

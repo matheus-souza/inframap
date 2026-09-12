@@ -2,10 +2,16 @@ package com.inframap.frontend.ui.subnets
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.storage.SessionOwnerStore
+import com.inframap.frontend.data.storage.draft.DRAFT_TTL_MS
+import com.inframap.frontend.data.storage.draft.DraftForm
+import com.inframap.frontend.data.storage.draft.FormDraftStore
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
+import com.inframap.frontend.fakes.FakeEpochClock
+import com.inframap.frontend.fakes.FakeLocalStorage
 import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.CoroutineScope
@@ -15,11 +21,17 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateSubnetViewModelTest {
+    private val fakeStorage = FakeLocalStorage()
+    private val fakeClock = FakeEpochClock(now = 1_000_000L)
+    private val sessionOwner = SessionOwnerStore(fakeStorage).apply { setOwner("u1") }
+    private val formDraftStore = FormDraftStore(fakeStorage, fakeClock, sessionOwner)
+
     private val sampleCreatedSubnet =
         Subnet(
             id = "sub1",
@@ -57,12 +69,14 @@ class CreateSubnetViewModelTest {
             FakeNetworkRepository(
                 getInterfacesResult = ApiResult.Success(listOf(sampleInterface), requestId = ""),
             ),
+        formDrafts: FormDraftStore = formDraftStore,
         prefilledCidr: String? = null,
         prefilledName: String? = null,
         scope: CoroutineScope? = null,
     ) = CreateSubnetViewModel(
         CreateSubnetUseCase(subnetRepo),
         GetNetworkInterfacesUseCase(networkRepo),
+        formDrafts,
         prefilledCidr,
         prefilledName,
         scope,
@@ -525,6 +539,243 @@ class CreateSubnetViewModelTest {
             vm.toggleSuggestions()
             assertTrue(vm.state.value.showInterfaceSuggestions)
             assertEquals(sampleInterface, vm.state.value.selectedInterface)
+            vm.clear()
+        }
+
+    @Test
+    fun editingPersistsDraftImmediately() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onNameChanged("My Edited Subnet")
+
+            val loaded = formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer())
+            assertNotNull(loaded)
+            assertEquals("My Edited Subnet", loaded.name)
+            vm.clear()
+        }
+
+    @Test
+    fun everyFieldMutatorPersists() =
+        runTest {
+            val vm = makeVm(scope = this)
+
+            vm.onNameChanged("VLAN 20")
+            vm.onCidrChanged("10.0.20.0/24")
+            vm.onVlanIdChanged("20")
+            vm.onGatewayIpChanged("10.0.20.1")
+            vm.onDescriptionChanged("Floor 2")
+            vm.onDiscoveryEnabledChanged(false)
+            vm.onInterfaceSelected(sampleInterface)
+
+            val loaded = formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer())
+            assertNotNull(loaded)
+            assertEquals("eth0", loaded.name)
+            assertEquals("192.168.18.0/24", loaded.cidr)
+            assertEquals("20", loaded.vlanId)
+            assertEquals("192.168.18.1", loaded.gatewayIp)
+            assertEquals("Floor 2", loaded.description)
+            assertFalse(loaded.discoveryEnabled)
+            vm.clear()
+        }
+
+    @Test
+    fun toggleSuggestionsDoesNotPersist() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.toggleSuggestions()
+
+            assertNull(formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun untouchedFormCreatesNoDraft() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            assertNull(formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun revertingToPristineRemovesDraft() =
+        runTest {
+            val vm = makeVm(prefilledCidr = "192.168.1.0/24", prefilledName = "Default", scope = this)
+
+            vm.onNameChanged("Modified")
+            assertNotNull(formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()))
+
+            vm.onNameChanged("Default")
+            assertNull(formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun initRestoresDraftAndFlagsRestored() =
+        runTest {
+            val draft =
+                CreateSubnetDraft(
+                    name = "Saved Draft",
+                    cidr = "10.10.0.0/16",
+                    vlanId = "10",
+                    gatewayIp = "10.10.0.1",
+                    description = "Restored notes",
+                    discoveryEnabled = false,
+                )
+            formDraftStore.save(DraftForm.CreateSubnet, draft, CreateSubnetDraft.serializer())
+
+            val vm = makeVm(scope = this)
+
+            val state = vm.state.value
+            assertEquals("Saved Draft", state.name)
+            assertEquals("10.10.0.0/16", state.cidr)
+            assertEquals("10", state.vlanId)
+            assertEquals("10.10.0.1", state.gatewayIp)
+            assertEquals("Restored notes", state.description)
+            assertFalse(state.discoveryEnabled)
+            assertTrue(state.restoredFromDraft)
+            vm.clear()
+        }
+
+    @Test
+    fun restoreDoesNotRefreshTimestamp() =
+        runTest {
+            fakeClock.now = 100_000L
+            val draft = CreateSubnetDraft(name = "Original Draft")
+            formDraftStore.save(DraftForm.CreateSubnet, draft, CreateSubnetDraft.serializer())
+
+            fakeClock.now = 200_000L
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            val raw = fakeStorage.get(DraftForm.CreateSubnet.storageKey)
+            assertNotNull(raw)
+            assertTrue(raw.contains("\"saved_at_ms\":100000"))
+            vm.clear()
+        }
+
+    @Test
+    fun expiredDraftIsNotRestored() =
+        runTest {
+            fakeClock.now = 1_000_000L
+            val draft = CreateSubnetDraft(name = "Old Draft")
+            formDraftStore.save(DraftForm.CreateSubnet, draft, CreateSubnetDraft.serializer())
+
+            fakeClock.advanceBy(DRAFT_TTL_MS + 1)
+            val vm = makeVm(scope = this)
+
+            assertEquals("", vm.state.value.name)
+            assertFalse(vm.state.value.restoredFromDraft)
+            assertNull(formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun draftFromOtherPrefillIsIgnoredButKept() =
+        runTest {
+            val draft =
+                CreateSubnetDraft(
+                    name = "Interface eth0",
+                    cidr = "192.168.1.0/24",
+                    prefilledCidr = "192.168.1.0/24",
+                    prefilledName = "eth0",
+                )
+            formDraftStore.save(DraftForm.CreateSubnet, draft, CreateSubnetDraft.serializer())
+
+            // Operator navigates with different prefill: eth1
+            val vm = makeVm(prefilledCidr = "10.0.0.0/24", prefilledName = "eth1", scope = this)
+
+            assertEquals("eth1", vm.state.value.name)
+            assertEquals("10.0.0.0/24", vm.state.value.cidr)
+            assertFalse(vm.state.value.restoredFromDraft)
+            // Draft kept for eth0
+            assertNotNull(formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun draftWithMatchingPrefillWinsOverPrefill() =
+        runTest {
+            val draft =
+                CreateSubnetDraft(
+                    name = "Customized eth0",
+                    cidr = "192.168.1.0/24",
+                    description = "Customized during session",
+                    prefilledCidr = "192.168.1.0/24",
+                    prefilledName = "eth0",
+                )
+            formDraftStore.save(DraftForm.CreateSubnet, draft, CreateSubnetDraft.serializer())
+
+            val vm = makeVm(prefilledCidr = "192.168.1.0/24", prefilledName = "eth0", scope = this)
+
+            assertEquals("Customized eth0", vm.state.value.name)
+            assertEquals("Customized during session", vm.state.value.description)
+            assertTrue(vm.state.value.restoredFromDraft)
+            vm.clear()
+        }
+
+    @Test
+    fun successfulSubmitDiscardsDraftBeforeOnSuccess() =
+        runTest {
+            var onSuccessCalled = false
+            var draftPresentWhenOnSuccessCalled: Boolean? = null
+
+            val vm = makeVm(scope = this)
+            vm.onNameChanged("Production")
+            vm.onCidrChanged("10.0.0.0/24")
+
+            assertNotNull(formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()))
+
+            vm.createSubnet {
+                onSuccessCalled = true
+                draftPresentWhenOnSuccessCalled =
+                    formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()) != null
+            }
+            advanceUntilIdle()
+
+            assertTrue(onSuccessCalled)
+            assertEquals(false, draftPresentWhenOnSuccessCalled)
+            assertNull(formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()))
+            vm.clear()
+        }
+
+    @Test
+    fun failedSubmitKeepsDraft() =
+        runTest {
+            val failingRepo =
+                FakeSubnetRepository(
+                    createSubnetResult =
+                        ApiResult.Error(
+                            code = "CONFLICT",
+                            message = "CIDR already exists",
+                            requestId = "req-1",
+                            httpStatus = 409,
+                        ),
+                )
+            val vm = makeVm(subnetRepo = failingRepo, scope = this)
+            vm.onNameChanged("Conflict Net")
+            vm.onCidrChanged("10.0.0.0/24")
+
+            vm.createSubnet()
+            advanceUntilIdle()
+
+            assertNotNull(vm.state.value.errorMessage)
+            val draft = formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer())
+            assertNotNull(draft)
+            assertEquals("Conflict Net", draft.name)
+            vm.clear()
+        }
+
+    @Test
+    fun discardDraftRemovesIt() =
+        runTest {
+            val vm = makeVm(scope = this)
+            vm.onNameChanged("To be discarded")
+            assertNotNull(formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()))
+
+            vm.discardDraft()
+            assertNull(formDraftStore.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()))
             vm.clear()
         }
 }

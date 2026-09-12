@@ -443,4 +443,8 @@
     <string name="tooltip_collector_snmp">Consulta switches, roteadores e servidores que expõem SNMP para obter nome, modelo e interfaces.</string>
     <string name="tooltip_provider_proxmox">Conecta na API do Proxmox e importa nós do cluster, VMs QEMU e containers LXC, com CPU, memória e estado de energia.</string>
     <string name="tooltip_provider_docker">Conecta no daemon Docker e importa o host e todos os containers, inclusive os parados, com portas e redes.</string>
+
+    <!-- Form Drafts -->
+    <string name="draft_restored_notice">Rascunho anterior restaurado automaticamente.</string>
+    <string name="draft_restored_notice_secrets">Rascunho restaurado. Por segurança, senhas e chaves não foram salvas e devem ser inseridas novamente.</string>
 </resources>

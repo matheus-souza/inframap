@@ -45,6 +45,7 @@ data class CreateSubnetUiState(
      * would light the card straight back up because they still match.
      */
     val selectedInterface: NetworkInterface? = null,
+    val restoredFromDraft: Boolean = false,
 )
 
 data class CreateSubnetActions(

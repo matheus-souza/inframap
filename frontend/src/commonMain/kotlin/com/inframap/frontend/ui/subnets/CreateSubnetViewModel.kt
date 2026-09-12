@@ -2,6 +2,8 @@ package com.inframap.frontend.ui.subnets
 
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CreateSubnetRequest
+import com.inframap.frontend.data.storage.draft.DraftForm
+import com.inframap.frontend.data.storage.draft.FormDraftStore
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
@@ -16,11 +18,13 @@ import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
 
+@Suppress("TooManyFunctions")
 class CreateSubnetViewModel(
     private val createSubnetUseCase: CreateSubnetUseCase,
     private val getNetworkInterfacesUseCase: GetNetworkInterfacesUseCase,
-    prefilledCidr: String? = null,
-    prefilledName: String? = null,
+    private val formDrafts: FormDraftStore,
+    private val prefilledCidr: String? = null,
+    private val prefilledName: String? = null,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<CreateSubnetUiState>(
         CreateSubnetUiState(
@@ -29,8 +33,38 @@ class CreateSubnetViewModel(
         ),
         scope,
     ) {
+    private val pristineDraft =
+        CreateSubnetDraft(
+            name = prefilledName.orEmpty(),
+            cidr = prefilledCidr.orEmpty(),
+            prefilledCidr = prefilledCidr,
+            prefilledName = prefilledName,
+        )
+
     init {
+        restoreDraft()
         loadNetworkInterfaces()
+    }
+
+    private fun restoreDraft() {
+        val draft = formDrafts.load(DraftForm.CreateSubnet, CreateSubnetDraft.serializer()) ?: return
+        if (draft.matchesOrigin(prefilledCidr, prefilledName)) {
+            updateState { draft.applyTo(it) }
+        }
+    }
+
+    private inline fun editForm(crossinline reducer: (CreateSubnetUiState) -> CreateSubnetUiState) {
+        updateState { reducer(it) }
+        val currentDraft = state.value.toDraft(prefilledCidr, prefilledName)
+        if (currentDraft == pristineDraft) {
+            formDrafts.discard(DraftForm.CreateSubnet)
+        } else {
+            formDrafts.save(DraftForm.CreateSubnet, currentDraft, CreateSubnetDraft.serializer())
+        }
+    }
+
+    fun discardDraft() {
+        formDrafts.discard(DraftForm.CreateSubnet)
     }
 
     private fun loadNetworkInterfaces() {
@@ -49,33 +83,33 @@ class CreateSubnetViewModel(
     }
 
     fun onNameChanged(name: String) {
-        updateState { it.copy(name = name, validationErrors = it.validationErrors - "name").reconcileSelection() }
+        editForm { it.copy(name = name, validationErrors = it.validationErrors - "name").reconcileSelection() }
     }
 
     fun onCidrChanged(cidr: String) {
-        updateState { it.copy(cidr = cidr, validationErrors = it.validationErrors - "cidr").reconcileSelection() }
+        editForm { it.copy(cidr = cidr, validationErrors = it.validationErrors - "cidr").reconcileSelection() }
     }
 
     fun onVlanIdChanged(vlanId: String) {
-        updateState { it.copy(vlanId = vlanId, validationErrors = it.validationErrors - "vlan_id") }
+        editForm { it.copy(vlanId = vlanId, validationErrors = it.validationErrors - "vlan_id") }
     }
 
     fun onGatewayIpChanged(gatewayIp: String) {
-        updateState {
+        editForm {
             it.copy(gatewayIp = gatewayIp, validationErrors = it.validationErrors - "gateway_ip").reconcileSelection()
         }
     }
 
     fun onDescriptionChanged(description: String) {
-        updateState { it.copy(description = description) }
+        editForm { it.copy(description = description) }
     }
 
     fun onDiscoveryEnabledChanged(enabled: Boolean) {
-        updateState { it.copy(discoveryEnabled = enabled) }
+        editForm { it.copy(discoveryEnabled = enabled) }
     }
 
     fun onInterfaceSelected(iface: NetworkInterface) {
-        updateState {
+        editForm {
             if (it.selectedInterface == iface) {
                 // A second click only takes the highlight away. The values stay: the operator
                 // may have meant "stop tracking this interface", not "undo what it filled in".
@@ -157,6 +191,7 @@ class CreateSubnetViewModel(
                     )
             ) {
                 is ApiResult.Success -> {
+                    formDrafts.discard(DraftForm.CreateSubnet)
                     updateState {
                         it.copy(
                             isSubmitting = false,

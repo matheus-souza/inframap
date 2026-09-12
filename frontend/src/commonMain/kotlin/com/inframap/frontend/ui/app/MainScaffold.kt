@@ -661,7 +661,10 @@ private fun CreateSubnetRoute(
                     navigator.navigateTo(Route.Subnets)
                 }
             },
-            onCancelClicked = { navigator.navigateTo(Route.Subnets) },
+            onCancelClicked = {
+                viewModel.discardDraft()
+                navigator.navigateTo(Route.Subnets)
+            },
         )
     CreateSubnetScreen(
         state = state,
@@ -727,7 +730,10 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
                     navigator.navigateTo(Route.DiscoverySources)
                 }
             },
-            onCancelClicked = { navigator.navigateTo(Route.DiscoverySources) },
+            onCancelClicked = {
+                viewModel.discardDraft()
+                navigator.navigateTo(Route.DiscoverySources)
+            },
         )
     CreateDiscoverySourceScreen(
         state = state,
