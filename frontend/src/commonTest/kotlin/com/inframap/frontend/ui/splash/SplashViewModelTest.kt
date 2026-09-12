@@ -2,14 +2,21 @@ package com.inframap.frontend.ui.splash
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.storage.SessionOwnerStore
+import com.inframap.frontend.data.storage.draft.FormDraftStore
 import com.inframap.frontend.domain.model.SetupStatus
+import com.inframap.frontend.domain.model.User
 import com.inframap.frontend.domain.usecase.auth.GetCurrentUserUseCase
 import com.inframap.frontend.domain.usecase.auth.GetSetupStatusUseCase
 import com.inframap.frontend.fakes.FakeAuthRepository
+import com.inframap.frontend.fakes.FakeEpochClock
+import com.inframap.frontend.fakes.FakeLocalStorage
+import com.inframap.frontend.ui.session.SessionResume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -17,10 +24,12 @@ import kotlin.test.assertTrue
 class SplashViewModelTest {
     private fun makeVm(
         repo: FakeAuthRepository = FakeAuthRepository(),
+        sessionResume: SessionResume? = null,
         scope: CoroutineScope? = null,
     ) = SplashViewModel(
         GetSetupStatusUseCase(repo),
         GetCurrentUserUseCase(repo),
+        sessionResume = sessionResume,
         scope = scope,
     )
 
@@ -125,6 +134,28 @@ class SplashViewModelTest {
                 assertIs<SplashEffect.NavigateToLogin>(awaitItem())
                 cancelAndIgnoreRemainingEvents()
             }
+            vm.clear()
+        }
+
+    @Test
+    fun authenticatedBootRegistersSessionOwnerViaSessionResume() =
+        runTest {
+            val storage = FakeLocalStorage()
+            val clock = FakeEpochClock(1_000_000L)
+            val ownerStore = SessionOwnerStore(storage)
+            val draftStore = FormDraftStore(storage, clock, ownerStore)
+            val sessionResume = SessionResume(ownerStore, draftStore)
+            val user = User(id = "user-xyz", username = "admin")
+            val repo = FakeAuthRepository(getCurrentUserResult = ApiResult.Success(user, requestId = ""))
+
+            val vm = makeVm(repo = repo, sessionResume = sessionResume, scope = this)
+
+            vm.effects.test {
+                vm.checkAuthState()
+                assertIs<SplashEffect.NavigateToDashboard>(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals("user-xyz", ownerStore.currentOwnerId())
             vm.clear()
         }
 }

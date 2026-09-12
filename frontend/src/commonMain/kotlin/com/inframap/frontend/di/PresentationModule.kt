@@ -12,6 +12,7 @@ import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
 import com.inframap.frontend.ui.login.LoginViewModel
 import com.inframap.frontend.ui.onboarding.OnboardingCoordinator
 import com.inframap.frontend.ui.onboarding.OnboardingViewModel
+import com.inframap.frontend.ui.session.SessionResume
 import com.inframap.frontend.ui.splash.SplashViewModel
 import com.inframap.frontend.ui.staging.StagingViewModel
 import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
@@ -32,11 +33,11 @@ val presentationModule =
 
         factory { SubnetsViewModel(get(), get()) }
         factory { (prefilledCidr: String?, prefilledName: String?) ->
-            CreateSubnetViewModel(get(), get(), prefilledCidr, prefilledName)
+            CreateSubnetViewModel(get(), get(), get(), prefilledCidr, prefilledName)
         }
 
         factory { DiscoveryListViewModel(get(), get(), get()) }
-        factory { CreateDiscoverySourceViewModel(get(), get(), get(), get()) }
+        factory { CreateDiscoverySourceViewModel(get(), get(), get(), get(), get()) }
 
         single { AutoSetupCoordinator(get(), get(), get(), get(), get(), get(), get()) }
 
@@ -52,7 +53,8 @@ val presentationModule =
 
         single { OnboardingCoordinator(get()) }
 
-        factory { LoginViewModel(get()) }
+        single { SessionResume(get(), get()) }
+        factory { LoginViewModel(get(), get()) }
         factory { OnboardingViewModel(get()) }
-        factory { SplashViewModel(get(), get()) }
+        factory { SplashViewModel(get(), get(), get()) }
     }

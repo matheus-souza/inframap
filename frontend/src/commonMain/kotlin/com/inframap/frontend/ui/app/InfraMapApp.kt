@@ -65,7 +65,7 @@ fun InfraMapApp() {
 
     DisposableEffect(apiClient, navigator) {
         apiClient?.onSessionExpired = {
-            navigator.navigateTo(Route.Login)
+            navigator.expireSession()
         }
         onDispose {
             apiClient?.onSessionExpired = null
@@ -144,7 +144,8 @@ private fun LoginRoute(navigator: Navigator) {
     LaunchedEffect(Unit) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                LoginEffect.NavigateToDashboard -> navigator.navigateTo(Route.Dashboard)
+                LoginEffect.NavigateToDashboard -> navigator.completeLogin(resumePrevious = false)
+                LoginEffect.ResumePreviousRoute -> navigator.completeLogin(resumePrevious = true)
             }
         }
     }

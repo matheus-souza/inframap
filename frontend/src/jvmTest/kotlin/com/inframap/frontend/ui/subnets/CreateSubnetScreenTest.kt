@@ -205,4 +205,19 @@ class CreateSubnetScreenTest {
         onSubmitClicked = {},
         onCancelClicked = {},
     )
+
+    @Test
+    fun showsDraftRestoredNoticeWhenRestoredFromDraft() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateSubnetScreen(
+                        state = CreateSubnetUiState(restoredFromDraft = true),
+                        actions = noopActions(),
+                    )
+                }
+            }
+
+            onNodeWithText("Previous draft restored automatically.").assertIsDisplayed()
+        }
 }

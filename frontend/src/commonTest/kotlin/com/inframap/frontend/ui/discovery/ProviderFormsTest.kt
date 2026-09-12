@@ -147,4 +147,29 @@ class ProviderFormsTest {
         assertEquals(listOf("token_secret"), ProviderForms.secretKeys(ProviderForms.PROXMOX))
         assertEquals(listOf("tls_ca", "tls_cert", "tls_key"), ProviderForms.secretKeys(ProviderForms.DOCKER))
     }
+
+    @Test
+    fun persistableKeysExcludeEverySecretField() {
+        ProviderForms.ids.forEach { id ->
+            val secrets = ProviderForms.secretKeys(id).toSet()
+            val persistable = ProviderForms.persistableKeys(id)
+            val leaked = persistable.intersect(secrets)
+            assertTrue(leaked.isEmpty(), "Provider $id leaked secrets into persistableKeys: $leaked")
+        }
+    }
+
+    @Test
+    fun persistableKeysIncludeCredentialReference() {
+        ProviderForms.ids.forEach { id ->
+            assertTrue(
+                ProviderForms.persistableKeys(id).contains(ProviderForms.CREDENTIAL_KEY),
+                "Provider $id should allow credential reference",
+            )
+        }
+    }
+
+    @Test
+    fun persistableKeysOfUnknownProviderIsEmpty() {
+        assertTrue(ProviderForms.persistableKeys("unknown_provider").isEmpty())
+    }
 }

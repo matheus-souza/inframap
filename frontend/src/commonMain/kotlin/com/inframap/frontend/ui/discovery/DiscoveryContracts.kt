@@ -63,6 +63,7 @@ data class CreateDiscoverySourceUiState(
     val credentials: List<CredentialSummary> = emptyList(),
     /** Active provider tab identifier when providers are selected; the screen reads [currentProviderTab]. */
     val activeProviderTab: String? = null,
+    val restoredFromDraft: Boolean = false,
 ) {
     /** Providers the user selected, in the order they are offered. */
     val selectedProviders: List<String> get() = ProviderForms.ids.filter { it in selectedCollectors }

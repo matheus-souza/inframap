@@ -554,4 +554,21 @@ class CreateDiscoverySourceScreenTest {
             onNodeWithTag("test_connection_docker").performScrollTo().performClick()
             assertEquals("docker", testClickedProvider)
         }
+
+    @Test
+    fun showsDraftRestoredNoticeWhenRestoredFromDraft() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state = CreateDiscoverySourceUiState(restoredFromDraft = true),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithText(
+                "Draft restored. For security, secrets and keys were not saved and must be re-entered.",
+            ).assertIsDisplayed()
+        }
 }

@@ -2,11 +2,16 @@ package com.inframap.frontend.ui.login
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.storage.SessionOwnerStore
+import com.inframap.frontend.data.storage.draft.FormDraftStore
 import com.inframap.frontend.domain.model.LoginResult
 import com.inframap.frontend.domain.usecase.auth.LoginUseCase
 import com.inframap.frontend.fakes.FakeAuthRepository
+import com.inframap.frontend.fakes.FakeEpochClock
+import com.inframap.frontend.fakes.FakeLocalStorage
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.login_error_credentials
+import com.inframap.frontend.ui.session.SessionResume
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -214,6 +219,53 @@ class LoginViewModelTest {
                 assertNotNull(expectMostRecentItem().errorMessage)
                 cancelAndIgnoreRemainingEvents()
             }
+            vm.clear()
+        }
+
+    @Test
+    fun successfulLoginWithSameUserEmitsResumePreviousRoute() =
+        runTest {
+            val storage = FakeLocalStorage()
+            val clock = FakeEpochClock(1_000_000L)
+            val ownerStore = SessionOwnerStore(storage)
+            ownerStore.setOwner("u1")
+            val draftStore = FormDraftStore(storage, clock, ownerStore)
+            val sessionResume = SessionResume(ownerStore, draftStore)
+
+            val vm = LoginViewModel(mockLoginSuccess, sessionResume = sessionResume, scope = this)
+            vm.onUsernameChanged("admin")
+            vm.onPasswordChanged("password123")
+
+            vm.effects.test {
+                vm.login()
+                advanceUntilIdle()
+                assertIs<LoginEffect.ResumePreviousRoute>(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.clear()
+        }
+
+    @Test
+    fun successfulLoginWithDifferentUserEmitsNavigateToDashboard() =
+        runTest {
+            val storage = FakeLocalStorage()
+            val clock = FakeEpochClock(1_000_000L)
+            val ownerStore = SessionOwnerStore(storage)
+            ownerStore.setOwner("different-user")
+            val draftStore = FormDraftStore(storage, clock, ownerStore)
+            val sessionResume = SessionResume(ownerStore, draftStore)
+
+            val vm = LoginViewModel(mockLoginSuccess, sessionResume = sessionResume, scope = this)
+            vm.onUsernameChanged("admin")
+            vm.onPasswordChanged("password123")
+
+            vm.effects.test {
+                vm.login()
+                advanceUntilIdle()
+                assertIs<LoginEffect.NavigateToDashboard>(awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals("u1", ownerStore.currentOwnerId())
             vm.clear()
         }
 }

@@ -7,6 +7,7 @@ import com.inframap.frontend.generated.resources.login_error_credentials
 import com.inframap.frontend.generated.resources.login_error_network
 import com.inframap.frontend.generated.resources.login_error_rate_limit
 import com.inframap.frontend.ui.base.BaseViewModel
+import com.inframap.frontend.ui.session.SessionResume
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 
 class LoginViewModel(
     private val loginUseCase: LoginUseCase,
+    private val sessionResume: SessionResume? = null,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<LoginUiState>(LoginUiState(), scope) {
     private val _effects = Channel<LoginEffect>(Channel.BUFFERED)
@@ -42,7 +44,12 @@ class LoginViewModel(
             when (val result = loginUseCase(username = current.username, password = current.password)) {
                 is ApiResult.Success -> {
                     updateState { it.copy(isLoading = false) }
-                    _effects.send(LoginEffect.NavigateToDashboard)
+                    val resumed = sessionResume?.onAuthenticated(result.data.userId) ?: false
+                    if (resumed) {
+                        _effects.send(LoginEffect.ResumePreviousRoute)
+                    } else {
+                        _effects.send(LoginEffect.NavigateToDashboard)
+                    }
                 }
                 is ApiResult.Error -> {
                     val message =

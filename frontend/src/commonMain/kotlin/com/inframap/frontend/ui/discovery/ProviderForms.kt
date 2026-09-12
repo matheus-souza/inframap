@@ -208,4 +208,13 @@ object ProviderForms {
         providerId == DOCKER &&
             config["socket_path"].isNullOrBlank() &&
             config["tcp_url"].isNullOrBlank()
+
+    /** Keys safe to keep in browser storage: every non-secret field plus the credential reference. */
+    fun persistableKeys(providerId: String): Set<String> {
+        val form = formFor(providerId) ?: return emptySet()
+        return form.fields
+            .filter { !it.secret }
+            .map { it.key }
+            .toSet() + CREDENTIAL_KEY
+    }
 }
