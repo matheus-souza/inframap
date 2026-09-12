@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.CollapsibleSection
 import com.inframap.frontend.designsystem.InfraMapButton
@@ -96,6 +97,7 @@ fun CreateSubnetScreen(
                                 text = stringResource(Res.string.draft_restored_notice),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.testTag("draft_restored_notice"),
                             )
                         }
                         Spacer(modifier = Modifier.height(16.dp))

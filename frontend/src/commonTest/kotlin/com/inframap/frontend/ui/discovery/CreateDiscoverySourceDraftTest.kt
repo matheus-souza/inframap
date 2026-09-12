@@ -207,4 +207,78 @@ class CreateDiscoverySourceDraftTest {
         val proxmoxConfig = restored.providerConfigs["proxmox"] ?: emptyMap()
         assertEquals("false", proxmoxConfig["tls_verify"])
     }
+
+    @Test
+    fun applyToDropsSecretsFromLegacyDraft() {
+        val draft =
+            CreateDiscoverySourceDraft(
+                selectedCollectors = setOf("proxmox", "docker"),
+                providerConfigs =
+                    mapOf(
+                        "proxmox" to
+                            mapOf(
+                                "api_url" to "https://proxmox.home:8006",
+                                "token_secret" to "leaked-secret",
+                            ),
+                        "docker" to
+                            mapOf(
+                                "socket_path" to "unix:///var/run/docker.sock",
+                                "tls_key" to "leaked-private-key",
+                            ),
+                    ),
+            )
+
+        val restored = draft.applyTo(CreateDiscoverySourceUiState())
+        assertFalse(restored.providerConfigs["proxmox"]?.containsKey("token_secret") == true)
+        assertFalse(restored.providerConfigs["docker"]?.containsKey("tls_key") == true)
+        assertEquals("https://proxmox.home:8006", restored.providerConfigs["proxmox"]?.get("api_url"))
+        assertEquals("unix:///var/run/docker.sock", restored.providerConfigs["docker"]?.get("socket_path"))
+    }
+
+    @Test
+    fun applyToDropsConfigsOfUnselectedProviders() {
+        val draft =
+            CreateDiscoverySourceDraft(
+                selectedCollectors = setOf("proxmox"),
+                providerConfigs =
+                    mapOf(
+                        "proxmox" to mapOf("api_url" to "https://proxmox.home:8006"),
+                        "docker" to mapOf("socket_path" to "unix:///var/run/docker.sock"),
+                    ),
+            )
+
+        val restored = draft.applyTo(CreateDiscoverySourceUiState())
+        assertTrue(restored.providerConfigs.containsKey("proxmox"))
+        assertFalse(restored.providerConfigs.containsKey("docker"))
+    }
+
+    @Test
+    fun applyToDropsUnknownProviders() {
+        val draft =
+            CreateDiscoverySourceDraft(
+                selectedCollectors = setOf("proxmox", "unknown_provider"),
+                providerConfigs =
+                    mapOf(
+                        "proxmox" to mapOf("api_url" to "https://proxmox.home:8006"),
+                        "unknown_provider" to mapOf("key" to "value"),
+                    ),
+            )
+
+        val restored = draft.applyTo(CreateDiscoverySourceUiState())
+        assertTrue(restored.providerConfigs.containsKey("proxmox"))
+        assertFalse(restored.providerConfigs.containsKey("unknown_provider"))
+    }
+
+    @Test
+    fun applyToSeedsDefaultsForSelectedProviderMissingFromDraft() {
+        val draft =
+            CreateDiscoverySourceDraft(
+                selectedCollectors = setOf("proxmox"),
+                providerConfigs = emptyMap(),
+            )
+
+        val restored = draft.applyTo(CreateDiscoverySourceUiState())
+        val proxmoxConfig = restored.providerConfigs["proxmox"] ?: emptyMap()
+        assertEquals("true", proxmoxConfig["tls_verify"])
+    }
 }

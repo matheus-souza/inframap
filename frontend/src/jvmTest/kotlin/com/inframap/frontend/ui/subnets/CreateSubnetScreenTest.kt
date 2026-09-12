@@ -8,6 +8,8 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -15,8 +17,7 @@ import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.draft_restored_notice
-import kotlinx.coroutines.runBlocking
-import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -213,7 +214,9 @@ class CreateSubnetScreenTest {
     @Test
     fun showsDraftRestoredNoticeWhenRestoredFromDraft() =
         runComposeUiTest {
+            lateinit var expectedText: String
             setContent {
+                expectedText = stringResource(Res.string.draft_restored_notice)
                 InfraMapTheme {
                     CreateSubnetScreen(
                         state = CreateSubnetUiState(restoredFromDraft = true),
@@ -222,7 +225,8 @@ class CreateSubnetScreenTest {
                 }
             }
 
-            val expectedText = runBlocking { getString(Res.string.draft_restored_notice) }
-            onNodeWithText(expectedText).assertIsDisplayed()
+            onNodeWithTag("draft_restored_notice")
+                .assertIsDisplayed()
+                .assertTextContains(expectedText)
         }
 }

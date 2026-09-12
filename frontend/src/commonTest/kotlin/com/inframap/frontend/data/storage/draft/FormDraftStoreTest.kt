@@ -154,6 +154,18 @@ class FormDraftStoreTest {
     }
 
     @Test
+    fun loadWithMissingVersionDiscards() {
+        sessionOwner.setOwner("user-1")
+        val raw = """{"owner_user_id":"user-1","saved_at_ms":${clock.now},"payload":{"text":"no version"}}"""
+        storage.set(DraftForm.CreateSubnet.storageKey, raw)
+
+        val loaded = store.load(DraftForm.CreateSubnet, SamplePayload.serializer())
+
+        assertNull(loaded)
+        assertNull(storage.get(DraftForm.CreateSubnet.storageKey))
+    }
+
+    @Test
     fun loadWithIncompatiblePayloadDiscards() {
         sessionOwner.setOwner("user-1")
         val raw = """{"version":1,"owner_user_id":"user-1","saved_at_ms":${clock.now},"payload":"just a string"}"""

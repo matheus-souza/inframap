@@ -143,6 +143,7 @@ fun CreateDiscoverySourceScreen(
                                 text = stringResource(Res.string.draft_restored_notice_secrets),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.testTag("draft_restored_notice"),
                             )
                         }
                         Spacer(modifier = Modifier.height(16.dp))

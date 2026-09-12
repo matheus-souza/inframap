@@ -38,9 +38,12 @@ internal fun CreateDiscoverySourceUiState.toDraft(): CreateDiscoverySourceDraft 
 
 internal fun CreateDiscoverySourceDraft.applyTo(state: CreateDiscoverySourceUiState): CreateDiscoverySourceUiState {
     val reseededConfigs =
-        providerConfigs.mapValues { (providerId, restoredConfig) ->
-            ProviderForms.defaults(providerId) + restoredConfig
-        }
+        ProviderForms.ids
+            .filter { it in selectedCollectors }
+            .associateWith { id ->
+                val allowed = ProviderForms.persistableKeys(id)
+                ProviderForms.defaults(id) + providerConfigs[id].orEmpty().filterKeys { it in allowed }
+            }
 
     return state.copy(
         name = name,

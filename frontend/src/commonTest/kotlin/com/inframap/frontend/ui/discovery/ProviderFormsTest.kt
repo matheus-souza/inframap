@@ -1,7 +1,10 @@
 package com.inframap.frontend.ui.discovery
 
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.collector_name_proxmox
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -171,5 +174,30 @@ class ProviderFormsTest {
     @Test
     fun persistableKeysOfUnknownProviderIsEmpty() {
         assertTrue(ProviderForms.persistableKeys("unknown_provider").isEmpty())
+    }
+
+    @Test
+    fun persistableKeysMatchesExactExpectedSetPerProvider() {
+        assertEquals(
+            setOf("api_url", "token_id", "tls_verify", ProviderForms.CREDENTIAL_KEY),
+            ProviderForms.persistableKeys(ProviderForms.PROXMOX),
+        )
+        assertEquals(
+            setOf("socket_path", "tcp_url", ProviderForms.CREDENTIAL_KEY),
+            ProviderForms.persistableKeys(ProviderForms.DOCKER),
+        )
+    }
+
+    @Test
+    fun secretFieldCannotBeMarkedPersistable() {
+        assertFailsWith<IllegalArgumentException> {
+            ProviderField(
+                key = "illegal_secret",
+                label = Res.string.collector_name_proxmox,
+                placeholder = "",
+                secret = true,
+                persistable = true,
+            )
+        }
     }
 }

@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -20,8 +21,7 @@ import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.draft_restored_notice_secrets
 import com.inframap.frontend.ui.util.UiText
-import kotlinx.coroutines.runBlocking
-import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -562,7 +562,9 @@ class CreateDiscoverySourceScreenTest {
     @Test
     fun showsDraftRestoredNoticeWhenRestoredFromDraft() =
         runComposeUiTest {
+            lateinit var expectedText: String
             setContent {
+                expectedText = stringResource(Res.string.draft_restored_notice_secrets)
                 InfraMapTheme {
                     CreateDiscoverySourceScreen(
                         state = CreateDiscoverySourceUiState(restoredFromDraft = true),
@@ -571,7 +573,8 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            val expectedText = runBlocking { getString(Res.string.draft_restored_notice_secrets) }
-            onNodeWithText(expectedText).assertIsDisplayed()
+            onNodeWithTag("draft_restored_notice")
+                .assertIsDisplayed()
+                .assertTextContains(expectedText)
         }
 }

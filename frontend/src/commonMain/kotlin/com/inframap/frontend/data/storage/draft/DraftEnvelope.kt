@@ -10,7 +10,7 @@ const val DRAFT_TTL_MS: Long = 30L * 60L * 1000L
 
 @Serializable
 internal data class DraftEnvelope(
-    val version: Int = DRAFT_SCHEMA_VERSION,
+    val version: Int,
     @SerialName("owner_user_id") val ownerUserId: String,
     @SerialName("saved_at_ms") val savedAtEpochMs: Long,
     val payload: JsonElement,
