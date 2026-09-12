@@ -17,7 +17,11 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.domain.model.SubnetSummary
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.draft_restored_notice_secrets
 import com.inframap.frontend.ui.util.UiText
+import kotlinx.coroutines.runBlocking
+import org.jetbrains.compose.resources.getString
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -567,8 +571,7 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText(
-                "Draft restored. For security, secrets and keys were not saved and must be re-entered.",
-            ).assertIsDisplayed()
+            val expectedText = runBlocking { getString(Res.string.draft_restored_notice_secrets) }
+            onNodeWithText(expectedText).assertIsDisplayed()
         }
 }

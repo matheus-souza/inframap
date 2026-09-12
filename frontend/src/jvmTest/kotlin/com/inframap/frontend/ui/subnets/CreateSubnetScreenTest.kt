@@ -13,6 +13,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.domain.model.NetworkInterface
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.draft_restored_notice
+import kotlinx.coroutines.runBlocking
+import org.jetbrains.compose.resources.getString
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -218,6 +222,7 @@ class CreateSubnetScreenTest {
                 }
             }
 
-            onNodeWithText("Previous draft restored automatically.").assertIsDisplayed()
+            val expectedText = runBlocking { getString(Res.string.draft_restored_notice) }
+            onNodeWithText(expectedText).assertIsDisplayed()
         }
 }
