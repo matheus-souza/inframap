@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 
 @Suppress("LongParameterList")
 @Composable
@@ -28,6 +29,7 @@ fun InfraMapCheckboxRow(
     Row(
         modifier =
             modifier
+                .m3ClickableCursor()
                 .toggleable(
                     value = checked,
                     enabled = enabled,

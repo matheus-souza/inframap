@@ -53,7 +53,7 @@ val presentationModule =
 
         single { OnboardingCoordinator(get()) }
 
-        single { SessionResume(get(), get()) }
+        single { SessionResume(get(), get(), get()) }
         factory { LoginViewModel(get(), get()) }
         factory { OnboardingViewModel(get()) }
         factory { SplashViewModel(get(), get(), get()) }

@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.inframap.frontend.data.api.ApiClient
+import com.inframap.frontend.data.storage.InterruptedRouteStore
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.designsystem.motion.MotionTransitions
 import com.inframap.frontend.navigation.Navigator
@@ -56,11 +57,13 @@ private fun rootDestinationDepth(destination: RootDestination): Int =
 
 @Composable
 fun InfraMapApp() {
-    val navigator = remember { Navigator() }
+    val koinScope = currentKoinScope()
+    val interruptedRouteStore: InterruptedRouteStore? =
+        remember { runCatching { koinScope.get<InterruptedRouteStore>() }.getOrNull() }
+    val navigator = remember { Navigator(interruptedRouteStore = interruptedRouteStore) }
     val currentRoute by navigator.currentRoute.collectAsState()
     val rootDestination = remember(currentRoute) { currentRoute.toRootDestination() }
     var isHealthy by remember { mutableStateOf<Boolean?>(null) }
-    val koinScope = currentKoinScope()
     val apiClient: ApiClient? = remember { runCatching { koinScope.get<ApiClient>() }.getOrNull() }
 
     DisposableEffect(apiClient, navigator) {
@@ -121,7 +124,8 @@ private fun SplashRoute(navigator: Navigator) {
             when (effect) {
                 SplashEffect.NavigateToLogin -> navigator.navigateTo(Route.Login)
                 SplashEffect.NavigateToOnboarding -> navigator.navigateTo(Route.Onboarding)
-                SplashEffect.NavigateToDashboard -> navigator.navigateTo(Route.Dashboard)
+                SplashEffect.NavigateToDashboard -> navigator.completeLogin(resumePrevious = false)
+                SplashEffect.ResumePreviousRoute -> navigator.completeLogin(resumePrevious = true)
             }
         }
     }

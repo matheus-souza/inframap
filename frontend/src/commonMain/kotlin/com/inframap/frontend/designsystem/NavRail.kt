@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.navrail_collapse_menu
 import com.inframap.frontend.generated.resources.navrail_expand_menu
@@ -185,6 +186,7 @@ private fun ExpandedNavRailItem(
                 .clip(RoundedCornerShape(8.dp))
                 .background(backgroundColor)
                 .hoverable(interactionSource)
+                .m3ClickableCursor()
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -248,6 +250,7 @@ private fun SlimNavRailItem(
                 .fillMaxWidth()
                 .height(44.dp)
                 .hoverable(interactionSource)
+                .m3ClickableCursor()
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,

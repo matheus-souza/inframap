@@ -51,6 +51,7 @@ import com.inframap.frontend.generated.resources.create_subnet_submitting
 import com.inframap.frontend.generated.resources.create_subnet_suggestions_toggle
 import com.inframap.frontend.generated.resources.create_subnet_vlan_label
 import com.inframap.frontend.generated.resources.draft_restored_notice
+import com.inframap.frontend.generated.resources.legend_required_fields
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -124,10 +125,18 @@ private fun CreateSubnetFormFields(
     actions: CreateSubnetActions,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(Res.string.legend_required_fields),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 12.dp).testTag("legend_required_fields"),
+        )
+
         InfraMapTextField(
             value = state.name,
             onValueChange = actions.onNameChanged,
             label = stringResource(Res.string.create_subnet_name_label),
+            required = true,
             error = state.validationErrors["name"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -138,6 +147,7 @@ private fun CreateSubnetFormFields(
             value = state.cidr,
             onValueChange = actions.onCidrChanged,
             label = stringResource(Res.string.create_subnet_cidr_label),
+            required = true,
             error = state.validationErrors["cidr"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )

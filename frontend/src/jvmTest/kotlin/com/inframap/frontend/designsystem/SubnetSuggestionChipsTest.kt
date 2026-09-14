@@ -42,7 +42,7 @@ class SubnetSuggestionChipsTest {
                 }
             }
 
-            onNodeWithText("Sub-redes cadastradas").assertIsDisplayed()
+            onNodeWithText("Registered subnets").assertIsDisplayed()
             onNodeWithText("Production LAN").assertIsDisplayed()
             onNodeWithText("10.0.0.0/16").assertIsDisplayed()
             onNodeWithText("DMZ Network").assertIsDisplayed()
@@ -104,7 +104,7 @@ class SubnetSuggestionChipsTest {
                 }
             }
 
-            onNodeWithText("Sub-redes cadastradas").assertIsDisplayed()
+            onNodeWithText("Registered subnets").assertIsDisplayed()
             // When loading, chips are not rendered
             onNodeWithText("Production LAN").assertDoesNotExist()
             onNodeWithText("DMZ Network").assertDoesNotExist()
@@ -123,8 +123,8 @@ class SubnetSuggestionChipsTest {
                 }
             }
 
-            onNodeWithText("Sub-redes cadastradas").assertIsDisplayed()
-            onNodeWithText("Nenhuma sub-rede cadastrada para sugestão.").assertIsDisplayed()
+            onNodeWithText("Registered subnets").assertIsDisplayed()
+            onNodeWithText("No registered subnets for suggestions.").assertIsDisplayed()
         }
 
     @Test
@@ -165,11 +165,11 @@ class SubnetSuggestionChipsTest {
             // value to fill the field below, so both are the same component.
             onNodeWithText("Production LAN").assertIsDisplayed()
 
-            onNodeWithText("Sub-redes cadastradas").performClick()
+            onNodeWithText("Registered subnets").performClick()
             waitForIdle()
             onNodeWithText("Production LAN").assertDoesNotExist()
 
-            onNodeWithText("Sub-redes cadastradas").performClick()
+            onNodeWithText("Registered subnets").performClick()
             waitForIdle()
             onNodeWithText("Production LAN").assertIsDisplayed()
         }

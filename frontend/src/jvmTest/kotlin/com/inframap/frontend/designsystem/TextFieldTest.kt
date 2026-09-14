@@ -69,4 +69,37 @@ class TextFieldTest {
             }
             onNodeWithText("Email is required").assertDoesNotExist()
         }
+
+    @Test
+    fun textFieldRendersRequiredAsterisk() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapTextField(
+                        value = "",
+                        onValueChange = {},
+                        label = "Username",
+                        required = true,
+                    )
+                }
+            }
+            onNodeWithText("Username *").assertIsDisplayed()
+        }
+
+    @Test
+    fun textFieldWithoutRequiredDoesNotRenderAsterisk() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapTextField(
+                        value = "",
+                        onValueChange = {},
+                        label = "Username",
+                        required = false,
+                    )
+                }
+            }
+            onNodeWithText("Username").assertIsDisplayed()
+            onNodeWithText("Username *").assertDoesNotExist()
+        }
 }

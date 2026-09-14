@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.InfraMapWizardOverlay
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.ui.wizard.SetupWizardViewModel.Companion.TOTAL_STEPS
 
@@ -123,7 +124,7 @@ private fun StepOneContent(
                 text = errorMessage,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.clickable(onClick = onDismissError),
+                modifier = Modifier.m3ClickableCursor().clickable(onClick = onDismissError),
             )
         }
     }
@@ -179,7 +180,7 @@ private fun StepTwoContent(
                 text = errorMessage,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.clickable(onClick = onDismissError),
+                modifier = Modifier.m3ClickableCursor().clickable(onClick = onDismissError),
             )
         }
     }
@@ -243,7 +244,7 @@ private fun StepThreeContent(
                 text = errorMessage,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.clickable(onClick = onDismissError),
+                modifier = Modifier.m3ClickableCursor().clickable(onClick = onDismissError),
             )
         }
     }
@@ -259,6 +260,7 @@ private fun RadioRow(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .m3ClickableCursor()
                 .clickable(onClick = onClick)
                 .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -283,6 +285,7 @@ private fun InterfaceCheckboxRow(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .m3ClickableCursor()
                 .clickable(onClick = onToggle)
                 .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

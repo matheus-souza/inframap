@@ -11,8 +11,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 
 @Suppress("LongParameterList")
@@ -24,6 +27,7 @@ fun InfraMapTextField(
     modifier: Modifier = Modifier,
     error: String? = null,
     enabled: Boolean = true,
+    required: Boolean = false,
     textStyle: TextStyle = LocalTextStyle.current,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
@@ -33,7 +37,22 @@ fun InfraMapTextField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            label = { Text(label) },
+            label = {
+                if (required) {
+                    Text(
+                        text =
+                            buildAnnotatedString {
+                                append(label)
+                                append(" ")
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.error)) {
+                                    append("*")
+                                }
+                            },
+                    )
+                } else {
+                    Text(label)
+                }
+            },
             textStyle = textStyle,
             modifier = Modifier.fillMaxWidth(),
             enabled = enabled,

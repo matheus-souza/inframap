@@ -10,4 +10,6 @@ sealed class SplashEffect {
     data object NavigateToOnboarding : SplashEffect()
 
     data object NavigateToDashboard : SplashEffect()
+
+    data object ResumePreviousRoute : SplashEffect()
 }

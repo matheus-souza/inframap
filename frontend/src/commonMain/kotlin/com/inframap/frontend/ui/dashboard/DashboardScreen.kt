@@ -2,7 +2,6 @@ package com.inframap.frontend.ui.dashboard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -357,14 +356,10 @@ private fun MetricCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
 ) {
-    val clickableModifier =
-        if (onClick != null) {
-            modifier.clickable(onClick = onClick)
-        } else {
-            modifier
-        }
-
-    InfraMapCard(modifier = clickableModifier) {
+    InfraMapCard(
+        modifier = modifier,
+        onClick = onClick,
+    ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween,

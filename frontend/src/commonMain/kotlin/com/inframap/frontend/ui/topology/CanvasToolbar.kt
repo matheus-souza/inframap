@@ -39,6 +39,7 @@ import com.inframap.frontend.designsystem.InfraMapSurfaceBg
 import com.inframap.frontend.designsystem.InfraMapSurfaceElevated
 import com.inframap.frontend.designsystem.InfraMapTextPrimary
 import com.inframap.frontend.designsystem.InfraMapTextSecondary
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.topology_toolbar_auto_layout
 import com.inframap.frontend.generated.resources.topology_toolbar_hand_mode
@@ -180,6 +181,7 @@ private fun ToolIconButton(
                 .size(32.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(background)
+                .m3ClickableCursor()
                 .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

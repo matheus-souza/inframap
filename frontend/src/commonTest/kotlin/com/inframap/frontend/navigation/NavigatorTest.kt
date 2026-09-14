@@ -1,8 +1,14 @@
 package com.inframap.frontend.navigation
 
+import com.inframap.frontend.data.storage.InterruptedRouteStore
+import com.inframap.frontend.data.storage.ROUTE_TTL_MS
+import com.inframap.frontend.data.storage.SessionOwnerStore
+import com.inframap.frontend.fakes.FakeEpochClock
+import com.inframap.frontend.fakes.FakeLocalStorage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 
 class NavigatorTest {
     @Test
@@ -144,5 +150,97 @@ class NavigatorTest {
         navigator.navigateTo(Route.Login)
         navigator.completeLogin(resumePrevious = true)
         assertEquals(Route.Dashboard, navigator.currentRoute.value)
+    }
+
+    @Test
+    fun completeLoginResumesRouteFromInterruptedRouteStoreAcrossNavigatorRecreation() {
+        val storage = FakeLocalStorage()
+        val clock = FakeEpochClock(now = 1_000_000L)
+        val sessionOwner = SessionOwnerStore(storage)
+        sessionOwner.setOwner("user-1")
+        val store = InterruptedRouteStore(storage, clock, sessionOwner)
+
+        val targetRoute = Route.CreateSubnet(prefilledCidr = "192.168.1.0/24")
+        val navBeforeReload = Navigator(initialRoute = targetRoute, interruptedRouteStore = store)
+        navBeforeReload.expireSession()
+        assertEquals(Route.Login, navBeforeReload.currentRoute.value)
+
+        // Simulating hard reload: new Navigator instance created with Route.Splash,
+        // expiredRoute in-memory is null
+        val navAfterReload = Navigator(initialRoute = Route.Splash, interruptedRouteStore = store)
+        assertNull(navAfterReload.expiredRoute)
+
+        navAfterReload.completeLogin(resumePrevious = true)
+        assertEquals(targetRoute, navAfterReload.currentRoute.value)
+    }
+
+    @Test
+    fun completeLoginWithFalseDoesNotResumeFromInterruptedRouteStore() {
+        val storage = FakeLocalStorage()
+        val clock = FakeEpochClock(now = 1_000_000L)
+        val sessionOwner = SessionOwnerStore(storage)
+        sessionOwner.setOwner("user-1")
+        val store = InterruptedRouteStore(storage, clock, sessionOwner)
+
+        val navBeforeReload = Navigator(initialRoute = Route.CreateDiscoverySource, interruptedRouteStore = store)
+        navBeforeReload.expireSession()
+
+        val navAfterReload = Navigator(initialRoute = Route.Splash, interruptedRouteStore = store)
+        navAfterReload.completeLogin(resumePrevious = false)
+
+        assertEquals(Route.Dashboard, navAfterReload.currentRoute.value)
+        assertNull(store.restore())
+    }
+
+    @Test
+    fun inMemoryExpiredRouteTakesPriorityOverStoredRoute() {
+        val storage = FakeLocalStorage()
+        val clock = FakeEpochClock(now = 1_000_000L)
+        val sessionOwner = SessionOwnerStore(storage)
+        sessionOwner.setOwner("user-1")
+        val store = InterruptedRouteStore(storage, clock, sessionOwner)
+        store.save(Route.Topology)
+
+        val nav = Navigator(initialRoute = Route.CreateSubnet(), interruptedRouteStore = store)
+        nav.expireSession()
+
+        nav.completeLogin(resumePrevious = true)
+        assertEquals(Route.CreateSubnet(), nav.currentRoute.value)
+    }
+
+    @Test
+    fun expiredStoredRouteFallsBackToDashboard() {
+        val storage = FakeLocalStorage()
+        val clock = FakeEpochClock(now = 1_000_000L)
+        val sessionOwner = SessionOwnerStore(storage)
+        sessionOwner.setOwner("user-1")
+        val store = InterruptedRouteStore(storage, clock, sessionOwner)
+        store.save(Route.CreateSubnet())
+
+        clock.now = 1_000_000L + ROUTE_TTL_MS + 10_000L
+
+        val nav = Navigator(initialRoute = Route.Splash, interruptedRouteStore = store)
+        nav.completeLogin(resumePrevious = true)
+
+        assertEquals(Route.Dashboard, nav.currentRoute.value)
+    }
+
+    @Test
+    fun splashLoginAndOnboardingAreNeverSavedToInterruptedRouteStore() {
+        val storage = FakeLocalStorage()
+        val clock = FakeEpochClock(now = 1_000_000L)
+        val sessionOwner = SessionOwnerStore(storage)
+        sessionOwner.setOwner("user-1")
+        val store = InterruptedRouteStore(storage, clock, sessionOwner)
+
+        val nav = Navigator(initialRoute = Route.Splash, interruptedRouteStore = store)
+        nav.navigateTo(Route.Login)
+        assertNull(storage.get(InterruptedRouteStore.KEY_INTERRUPTED_ROUTE))
+
+        nav.navigateTo(Route.Onboarding)
+        assertNull(storage.get(InterruptedRouteStore.KEY_INTERRUPTED_ROUTE))
+
+        nav.navigateTo(Route.Splash)
+        assertNull(storage.get(InterruptedRouteStore.KEY_INTERRUPTED_ROUTE))
     }
 }
