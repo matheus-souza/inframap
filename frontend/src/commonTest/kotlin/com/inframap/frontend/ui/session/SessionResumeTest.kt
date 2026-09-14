@@ -1,10 +1,12 @@
 package com.inframap.frontend.ui.session
 
+import com.inframap.frontend.data.storage.InterruptedRouteStore
 import com.inframap.frontend.data.storage.SessionOwnerStore
 import com.inframap.frontend.data.storage.draft.DraftForm
 import com.inframap.frontend.data.storage.draft.FormDraftStore
 import com.inframap.frontend.fakes.FakeEpochClock
 import com.inframap.frontend.fakes.FakeLocalStorage
+import com.inframap.frontend.navigation.Route
 import kotlinx.serialization.Serializable
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,7 +25,8 @@ class SessionResumeTest {
     private val clock = FakeEpochClock(now = 1_000_000L)
     private val sessionOwner = SessionOwnerStore(storage)
     private val formDrafts = FormDraftStore(storage, clock, sessionOwner)
-    private val sessionResume = SessionResume(sessionOwner, formDrafts)
+    private val interruptedRoutes = InterruptedRouteStore(storage, clock, sessionOwner)
+    private val sessionResume = SessionResume(sessionOwner, formDrafts, interruptedRoutes)
 
     @Test
     fun firstLoginWithNoPreviousOwnerIsNotSameUserAndPurgesDrafts() {
@@ -97,5 +100,16 @@ class SessionResumeTest {
 
         assertTrue(resumed)
         assertNull(storage.get(DraftForm.CreateSubnet.storageKey))
+    }
+
+    @Test
+    fun differentUserPurgesInterruptedRoute() {
+        sessionOwner.setOwner("user-alice")
+        interruptedRoutes.save(Route.CreateSubnet())
+
+        val resumed = sessionResume.onAuthenticated("user-bob")
+
+        assertFalse(resumed)
+        assertNull(interruptedRoutes.restore())
     }
 }

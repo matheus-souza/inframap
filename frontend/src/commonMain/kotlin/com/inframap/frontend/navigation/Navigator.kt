@@ -1,11 +1,13 @@
 package com.inframap.frontend.navigation
 
+import com.inframap.frontend.data.storage.InterruptedRouteStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class Navigator(
     initialRoute: Route = Route.Splash,
+    private val interruptedRouteStore: InterruptedRouteStore? = null,
 ) {
     private val _currentRoute = MutableStateFlow(initialRoute)
     val currentRoute: StateFlow<Route> = _currentRoute.asStateFlow()
@@ -13,7 +15,16 @@ class Navigator(
     internal var expiredRoute: Route? = null
         private set
 
+    init {
+        if (isRestorableWorkRoute(initialRoute)) {
+            interruptedRouteStore?.save(initialRoute)
+        }
+    }
+
     fun navigateTo(route: Route) {
+        if (isRestorableWorkRoute(route)) {
+            interruptedRouteStore?.save(route)
+        }
         _currentRoute.value = route
     }
 
@@ -26,6 +37,7 @@ class Navigator(
         val current = _currentRoute.value
         if (expiredRoute == null && isRestorableWorkRoute(current)) {
             expiredRoute = current
+            interruptedRouteStore?.save(current)
         }
         _currentRoute.value = Route.Login
     }
@@ -45,8 +57,10 @@ class Navigator(
      * Clears any remembered expired route. (R20)
      */
     fun completeLogin(resumePrevious: Boolean) {
-        val target = if (resumePrevious) expiredRoute ?: Route.Dashboard else Route.Dashboard
+        val restored = if (resumePrevious) (expiredRoute ?: interruptedRouteStore?.restore()) else null
+        val target = restored ?: Route.Dashboard
         expiredRoute = null
+        interruptedRouteStore?.clear()
         _currentRoute.value = target
     }
 }

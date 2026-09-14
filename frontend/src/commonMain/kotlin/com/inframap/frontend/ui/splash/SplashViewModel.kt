@@ -40,8 +40,12 @@ class SplashViewModel(
 
             when (val userResult = getCurrentUserUseCase()) {
                 is ApiResult.Success -> {
-                    sessionResume?.onAuthenticated(userResult.data.id)
-                    _effects.send(SplashEffect.NavigateToDashboard)
+                    val resumed = sessionResume?.onAuthenticated(userResult.data.id) ?: false
+                    if (resumed) {
+                        _effects.send(SplashEffect.ResumePreviousRoute)
+                    } else {
+                        _effects.send(SplashEffect.NavigateToDashboard)
+                    }
                 }
                 is ApiResult.Error ->
                     _effects.send(SplashEffect.NavigateToLogin)
