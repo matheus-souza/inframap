@@ -70,6 +70,7 @@ class CreateSubnetScreenTest {
                 }
             }
 
+            onNodeWithTag("legend_required_fields").assertIsDisplayed()
             onNodeWithText("New Subnet").assertIsDisplayed()
             onNodeWithText("Subnet Name *").assertIsDisplayed()
             onNodeWithText("CIDR (e.g. 192.168.1.0/24) *").assertIsDisplayed()

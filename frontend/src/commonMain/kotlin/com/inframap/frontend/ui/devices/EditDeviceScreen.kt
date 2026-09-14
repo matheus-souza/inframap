@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.ChipCustomOption
 import com.inframap.frontend.designsystem.ChipOption
@@ -59,6 +60,7 @@ import com.inframap.frontend.generated.resources.edit_device_status_inactive
 import com.inframap.frontend.generated.resources.edit_device_status_label
 import com.inframap.frontend.generated.resources.edit_device_status_maintenance
 import com.inframap.frontend.generated.resources.edit_device_submit_button
+import com.inframap.frontend.generated.resources.legend_required_fields
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -161,7 +163,14 @@ private fun EditDeviceFormCard(
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(Res.string.legend_required_fields),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp).testTag("legend_required_fields"),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
 
             EditDeviceFormFields(state = state, actions = actions)
 
@@ -195,6 +204,7 @@ private fun EditDeviceNetworkFields(
         value = state.hostname,
         onValueChange = actions.onHostnameChanged,
         label = stringResource(Res.string.create_device_hostname_label),
+        required = true,
         error = state.validationErrors["hostname"]?.asString(),
         modifier = Modifier.fillMaxWidth(),
     )

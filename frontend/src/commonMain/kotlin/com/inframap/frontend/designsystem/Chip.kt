@@ -36,6 +36,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.motion.m3Clickable
 import kotlin.jvm.JvmName
@@ -259,16 +263,12 @@ fun <T> InfraMapFilterChipGroup(
     onSelectionChanged: (Set<T>) -> Unit,
     modifier: Modifier = Modifier,
     label: String? = null,
+    required: Boolean = false,
     enabled: Boolean = true,
 ) {
     Column(modifier = modifier) {
         if (label != null) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = ChipSpacing),
-            )
+            ChipGroupLabel(label = label, required = required)
         }
         sections.forEachIndexed { sectionIndex, section ->
             if (sectionIndex > 0) {
@@ -317,12 +317,38 @@ fun <T> InfraMapFilterChipGroup(
 }
 
 @Composable
+private fun ChipGroupLabel(
+    label: String,
+    required: Boolean,
+) {
+    val text =
+        if (required) {
+            buildAnnotatedString {
+                append(label)
+                append(" ")
+                withStyle(SpanStyle(color = MaterialTheme.colorScheme.error)) {
+                    append("*")
+                }
+            }
+        } else {
+            AnnotatedString(label)
+        }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(bottom = ChipSpacing),
+    )
+}
+
+@Composable
 fun <T> InfraMapFilterChipGroup(
     options: List<ChipOption<T>>,
     selected: Set<T>,
     onSelectionChanged: (Set<T>) -> Unit,
     modifier: Modifier = Modifier,
     label: String? = null,
+    required: Boolean = false,
     enabled: Boolean = true,
 ) = InfraMapFilterChipGroup(
     sections = listOf(ChipSection(options = options)),
@@ -330,6 +356,7 @@ fun <T> InfraMapFilterChipGroup(
     onSelectionChanged = onSelectionChanged,
     modifier = modifier,
     label = label,
+    required = required,
     enabled = enabled,
 )
 

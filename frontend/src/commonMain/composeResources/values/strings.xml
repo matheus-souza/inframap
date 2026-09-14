@@ -141,7 +141,7 @@
     <string name="collector_section_providers">Provedores de Infraestrutura</string>
     <string name="discovery_validation_collector_required">Selecione pelo menos um coletor de descoberta.</string>
     <string name="collector_multi_selection_hint">Selecione um ou mais coletores para executar nesta fonte de descoberta</string>
-    <string name="discovery_collectors_label">Coletores de Descoberta *</string>
+    <string name="discovery_collectors_label">Coletores de Descoberta</string>
     <string name="collector_name_icmp_sweep">ICMP Ping</string>
     <string name="collector_name_arp_sweep">Varredura ARP</string>
     <string name="collector_name_mdns">mDNS / Bonjour</string>
@@ -151,8 +151,8 @@
     <string name="collector_name_docker">Docker</string>
     <string name="collector_name_unifi">UniFi</string>
     <string name="create_discovery_source_subtitle">Configure uma fonte para varredura automática de dispositivos na rede</string>
-    <string name="create_discovery_source_name_label">Nome da Fonte *</string>
-    <string name="create_discovery_source_cidr_label">CIDR Alvo (ex: 192.168.1.0/24) *</string>
+    <string name="create_discovery_source_name_label">Nome da Fonte</string>
+    <string name="create_discovery_source_cidr_label">CIDR Alvo (ex: 192.168.1.0/24)</string>
     <string name="create_discovery_source_schedule_label">Agendamento</string>
     <string name="create_discovery_source_enabled_label">Fonte habilitada</string>
     <string name="create_discovery_source_submit">Criar Fonte</string>
@@ -340,7 +340,7 @@
     <string name="create_device_header_title">Novo Dispositivo</string>
     <string name="create_device_header_subtitle">Cadastre um novo ativo no inventário da rede</string>
     <string name="create_device_form_title">Dados do Dispositivo</string>
-    <string name="create_device_hostname_label">Hostname *</string>
+    <string name="create_device_hostname_label">Hostname</string>
     <string name="create_device_ip_label">Endereço IP (ex: 192.168.1.1)</string>
     <string name="create_device_mac_label">Endereço MAC (ex: 00:11:22:33:44:55)</string>
     <string name="create_device_type_label">Tipo de Dispositivo</string>
@@ -392,8 +392,8 @@
     <string name="subnets_detected_interface_add">Adicionar</string>
     <string name="create_subnet_header_title">Nova Sub-rede</string>
     <string name="create_subnet_header_subtitle">Cadastre uma nova faixa de sub-rede para segmentação e varredura de ativos</string>
-    <string name="create_subnet_name_label">Nome da Sub-rede *</string>
-    <string name="create_subnet_cidr_label">CIDR (ex: 192.168.1.0/24) *</string>
+    <string name="create_subnet_name_label">Nome da Sub-rede</string>
+    <string name="create_subnet_cidr_label">CIDR (ex: 192.168.1.0/24)</string>
     <string name="create_subnet_vlan_label">VLAN ID (Opcional)</string>
     <string name="create_subnet_gateway_label">Gateway IP (Opcional)</string>
     <string name="create_subnet_description_label">Descrição (Opcional)</string>
@@ -447,4 +447,6 @@
     <!-- Form Drafts -->
     <string name="draft_restored_notice">Rascunho anterior restaurado automaticamente.</string>
     <string name="draft_restored_notice_secrets">Rascunho restaurado. Por segurança, senhas e chaves não foram salvas e devem ser inseridas novamente.</string>
+    <string name="provider_tab_has_errors">Contém erros</string>
+    <string name="legend_required_fields">Os campos marcados com * são obrigatórios.</string>
 </resources>

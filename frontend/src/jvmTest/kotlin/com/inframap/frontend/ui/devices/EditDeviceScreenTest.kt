@@ -2,6 +2,7 @@ package com.inframap.frontend.ui.devices
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -43,6 +44,7 @@ class EditDeviceScreenTest {
                 }
             }
 
+            onNodeWithTag("legend_required_fields").assertIsDisplayed()
             onNodeWithText("Edit Device").assertIsDisplayed()
             onNodeWithText("Device Details").assertIsDisplayed()
             onNodeWithText("Status").assertIsDisplayed()

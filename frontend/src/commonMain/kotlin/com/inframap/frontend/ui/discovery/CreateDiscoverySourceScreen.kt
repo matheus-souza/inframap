@@ -54,6 +54,7 @@ import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapTextField
 import com.inframap.frontend.designsystem.SubnetSuggestionChips
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 import com.inframap.frontend.domain.model.CredentialSummary
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.collector_name_arp_sweep
@@ -74,10 +75,12 @@ import com.inframap.frontend.generated.resources.create_discovery_source_subtitl
 import com.inframap.frontend.generated.resources.create_discovery_source_title
 import com.inframap.frontend.generated.resources.discovery_collectors_label
 import com.inframap.frontend.generated.resources.draft_restored_notice_secrets
+import com.inframap.frontend.generated.resources.legend_required_fields
 import com.inframap.frontend.generated.resources.provider_credential_label
 import com.inframap.frontend.generated.resources.provider_credential_none
 import com.inframap.frontend.generated.resources.provider_docker_endpoint_hint
 import com.inframap.frontend.generated.resources.provider_section_config
+import com.inframap.frontend.generated.resources.provider_tab_has_errors
 import com.inframap.frontend.generated.resources.provider_test_connection
 import com.inframap.frontend.generated.resources.provider_test_connection_ok
 import com.inframap.frontend.generated.resources.provider_test_connection_testing
@@ -170,10 +173,18 @@ private fun CreateDiscoverySourceFormFields(
     actions: CreateDiscoverySourceActions,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(Res.string.legend_required_fields),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 12.dp).testTag("legend_required_fields"),
+        )
+
         InfraMapTextField(
             value = state.name,
             onValueChange = actions.onNameChanged,
             label = stringResource(Res.string.create_discovery_source_name_label),
+            required = true,
             error = state.validationErrors["name"]?.asString(),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -205,6 +216,7 @@ private fun CreateDiscoverySourceFormFields(
             value = state.configCidr,
             onValueChange = actions.onConfigCidrChanged,
             label = stringResource(Res.string.create_discovery_source_cidr_label),
+            required = state.requiresCidr,
             error = state.validationErrors["cidr"]?.asString(),
             textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
             modifier = Modifier.fillMaxWidth(),
@@ -283,6 +295,7 @@ private fun ProviderTabs(
         containerColor = Color.Transparent,
         modifier = Modifier.fillMaxWidth().testTag("provider_tabs"),
     ) {
+        val errorDescription = stringResource(Res.string.provider_tab_has_errors)
         forms.forEach { form ->
             val hasError = form.id in providersWithErrors
             LeadingIconTab(
@@ -304,10 +317,11 @@ private fun ProviderTabs(
                 },
                 modifier =
                     Modifier
+                        .m3ClickableCursor()
                         .testTag("provider_tab_${form.id}")
                         .semantics {
                             if (hasError) {
-                                stateDescription = "Contém erros"
+                                stateDescription = errorDescription
                             }
                         },
             )
@@ -414,6 +428,7 @@ private fun ProviderFieldInput(
         value = value.orEmpty(),
         onValueChange = onValueChange,
         label = stringResource(field.label),
+        required = field.required,
         visualTransformation =
             if (field.secret) PasswordVisualTransformation() else VisualTransformation.None,
         modifier = Modifier.fillMaxWidth().testTag(tag),
@@ -481,6 +496,7 @@ private fun CollectorsSection(
             selected = selectedCollectors,
             onSelectionChanged = onSelectionChanged,
             label = stringResource(Res.string.discovery_collectors_label),
+            required = true,
             modifier = Modifier.fillMaxWidth(),
         )
 

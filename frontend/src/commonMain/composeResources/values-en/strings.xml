@@ -141,7 +141,7 @@
     <string name="collector_section_providers">Infrastructure Providers</string>
     <string name="discovery_validation_collector_required">Select at least one discovery collector.</string>
     <string name="collector_multi_selection_hint">Select one or more collectors to run for this discovery source</string>
-    <string name="discovery_collectors_label">Discovery Collectors *</string>
+    <string name="discovery_collectors_label">Discovery Collectors</string>
     <string name="collector_name_icmp_sweep">ICMP Ping</string>
     <string name="collector_name_arp_sweep">ARP Sweep</string>
     <string name="collector_name_mdns">mDNS / Bonjour</string>
@@ -151,8 +151,8 @@
     <string name="collector_name_docker">Docker</string>
     <string name="collector_name_unifi">UniFi</string>
     <string name="create_discovery_source_subtitle">Configure a source for automatic network discovery</string>
-    <string name="create_discovery_source_name_label">Source Name *</string>
-    <string name="create_discovery_source_cidr_label">Target CIDR (e.g. 192.168.1.0/24) *</string>
+    <string name="create_discovery_source_name_label">Source Name</string>
+    <string name="create_discovery_source_cidr_label">Target CIDR (e.g. 192.168.1.0/24)</string>
     <string name="create_discovery_source_schedule_label">Schedule</string>
     <string name="create_discovery_source_enabled_label">Source enabled</string>
     <string name="create_discovery_source_submit">Create Source</string>
@@ -255,9 +255,6 @@
     <string name="create_subnet_title">New Subnet</string>
     <string name="create_discovery_source_title">New Discovery Source</string>
 
-    <!-- Scaffold & NavRail -->
-    <string name="navrail_collapse">Collapse menu</string>
-    <string name="navrail_expand">Expand menu</string>
 
     <!-- TopBar -->
     <string name="topbar_system_healthy">System healthy</string>
@@ -344,7 +341,7 @@
     <string name="create_device_header_title">New Device</string>
     <string name="create_device_header_subtitle">Register a new asset in the network inventory</string>
     <string name="create_device_form_title">Device Details</string>
-    <string name="create_device_hostname_label">Hostname *</string>
+    <string name="create_device_hostname_label">Hostname</string>
     <string name="create_device_ip_label">IP Address (e.g. 192.168.1.1)</string>
     <string name="create_device_mac_label">MAC Address (e.g. 00:11:22:33:44:55)</string>
     <string name="create_device_type_label">Device Type</string>
@@ -396,8 +393,8 @@
     <string name="subnets_detected_interface_add">Add</string>
     <string name="create_subnet_header_title">New Subnet</string>
     <string name="create_subnet_header_subtitle">Register a new subnet range for segmentation and asset scanning</string>
-    <string name="create_subnet_name_label">Subnet Name *</string>
-    <string name="create_subnet_cidr_label">CIDR (e.g. 192.168.1.0/24) *</string>
+    <string name="create_subnet_name_label">Subnet Name</string>
+    <string name="create_subnet_cidr_label">CIDR (e.g. 192.168.1.0/24)</string>
     <string name="create_subnet_vlan_label">VLAN ID (Optional)</string>
     <string name="create_subnet_gateway_label">Gateway IP (Optional)</string>
     <string name="create_subnet_description_label">Description (Optional)</string>
@@ -409,8 +406,50 @@
     <!-- Design System Chips -->
     <string name="chip_integration_coming_soon">Coming soon</string>
 
+    <!-- T07: Multi-provider form and connection test -->
+    <string name="provider_section_config">Provider Configuration</string>
+    <string name="provider_credential_label">Use stored credential</string>
+    <string name="provider_credential_none">Enter credentials for this plan</string>
+    <string name="provider_field_proxmox_api_url">API URL</string>
+    <string name="provider_field_proxmox_token_id">Token ID</string>
+    <string name="provider_field_proxmox_token_secret">Token Secret</string>
+    <string name="provider_field_proxmox_tls_verify">Verify TLS certificate</string>
+    <string name="provider_field_docker_socket_path">Socket path</string>
+    <string name="provider_field_docker_tcp_url">TCP URL</string>
+    <string name="provider_field_docker_tls_ca">CA Certificate (TLS)</string>
+    <string name="provider_field_docker_tls_cert">Client Certificate (TLS)</string>
+    <string name="provider_field_docker_tls_key">Client Key (TLS)</string>
+    <string name="provider_test_connection">Test connection</string>
+    <string name="provider_test_connection_testing">Testing…</string>
+    <string name="provider_test_connection_ok">Connection established</string>
+    <string name="provider_test_connection_failed">Could not connect</string>
+    <string name="provider_validation_field_required">Fill in required provider fields.</string>
+    <string name="provider_validation_docker_endpoint_required">Provide Docker socket path or TCP URL.</string>
+    <string name="provider_docker_endpoint_hint">Fill socket path for local daemon, or TCP URL for remote.</string>
+
+    <!-- T08: Power state and containerization in topology -->
+    <string name="power_state_running">Running</string>
+    <string name="power_state_stopped">Stopped</string>
+    <string name="power_state_paused">Paused</string>
+    <string name="topology_hosted_on">Hosted on</string>
+    <string name="topology_inspector_power_state">Power state</string>
+    <string name="device_detail_power_state">Power state</string>
+    <string name="subnet_chips_title">Registered subnets</string>
+    <string name="subnet_chips_empty">No registered subnets for suggestions.</string>
+
+    <!-- Collector and Provider Tooltips -->
+    <string name="tooltip_collector_icmp">Sends pings to each address in the range and records responses. Fast, but firewalled hosts may not appear.</string>
+    <string name="tooltip_collector_arp">Queries ARP table to discover devices by physical address. Local network only.</string>
+    <string name="tooltip_collector_mdns">Listens for service announcements on the local network. Discovers self-identifying devices like printers, TVs, and NAS.</string>
+    <string name="tooltip_collector_reverse_dns">Queries DNS to resolve each discovered IP to a hostname.</string>
+    <string name="tooltip_collector_snmp">Queries switches, routers, and servers exposing SNMP for name, model, and interfaces.</string>
+    <string name="tooltip_provider_proxmox">Connects to Proxmox API and imports cluster nodes, QEMU VMs, and LXC containers with CPU, memory, and power state.</string>
+    <string name="tooltip_provider_docker">Connects to Docker daemon and imports host and all containers, including stopped ones, with ports and networks.</string>
+
     <!-- Form Drafts -->
     <string name="draft_restored_notice">Previous draft restored automatically.</string>
     <string name="draft_restored_notice_secrets">Draft restored. For security, secrets and keys were not saved and must be re-entered.</string>
+    <string name="provider_tab_has_errors">Contains errors</string>
+    <string name="legend_required_fields">Fields marked with * are required.</string>
 </resources>
 

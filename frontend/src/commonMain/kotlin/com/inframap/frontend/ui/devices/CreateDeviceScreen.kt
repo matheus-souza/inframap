@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.ChipCustomOption
 import com.inframap.frontend.designsystem.ChipOption
@@ -50,6 +51,7 @@ import com.inframap.frontend.generated.resources.device_type_firewall
 import com.inframap.frontend.generated.resources.device_type_router
 import com.inframap.frontend.generated.resources.device_type_server
 import com.inframap.frontend.generated.resources.device_type_switch
+import com.inframap.frontend.generated.resources.legend_required_fields
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -123,7 +125,14 @@ private fun CreateDeviceFormCard(
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(Res.string.legend_required_fields),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp).testTag("legend_required_fields"),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
 
             CreateDeviceFormFields(state = state, actions = actions)
 
@@ -155,6 +164,7 @@ private fun CreateDeviceNetworkFields(
         value = state.hostname,
         onValueChange = actions.onHostnameChanged,
         label = stringResource(Res.string.create_device_hostname_label),
+        required = true,
         error = state.validationErrors["hostname"]?.asString(),
         modifier = Modifier.fillMaxWidth(),
     )

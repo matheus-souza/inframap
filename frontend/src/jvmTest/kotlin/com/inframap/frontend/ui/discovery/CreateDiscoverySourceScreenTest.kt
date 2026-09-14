@@ -168,7 +168,7 @@ class CreateDiscoverySourceScreenTest {
 
             onNodeWithTag("provider_field_docker_socket_path").performScrollTo().assertIsDisplayed()
             onNodeWithTag("test_connection_docker").performScrollTo().assertIsDisplayed()
-            onNodeWithText("Conexão estabelecida").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Connection established").performScrollTo().assertIsDisplayed()
         }
 
     @Test
@@ -258,7 +258,7 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("Sub-redes cadastradas").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Registered subnets").performScrollTo().assertIsDisplayed()
             onNodeWithText("Home LAN").performScrollTo().assertIsDisplayed()
             onNodeWithText("192.168.1.0/24").performScrollTo().assertIsDisplayed()
             onNodeWithText("DMZ").performScrollTo().assertIsDisplayed()
@@ -550,7 +550,7 @@ class CreateDiscoverySourceScreenTest {
                 }
             }
 
-            onNodeWithText("Caminho do socket").performScrollTo().performTextInput("/var/run/docker.sock")
+            onNodeWithText("Socket path").performScrollTo().performTextInput("/var/run/docker.sock")
             assertEquals("docker", fieldChangedProvider)
             assertEquals("socket_path", fieldChangedKey)
             assertEquals("/var/run/docker.sock", fieldChangedValue)
@@ -576,5 +576,68 @@ class CreateDiscoverySourceScreenTest {
             onNodeWithTag("draft_restored_notice")
                 .assertIsDisplayed()
                 .assertTextContains(expectedText)
+        }
+
+    @Test
+    fun showsRequiredFieldsLegend() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state = CreateDiscoverySourceUiState(),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("legend_required_fields").assertIsDisplayed()
+        }
+
+    @Test
+    fun requiredFieldsShowAsteriskAndOptionalDoNot() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("proxmox", "docker"),
+                                activeProviderTab = "proxmox",
+                            ),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            // Name is required
+            onNodeWithText("Source Name *").assertIsDisplayed()
+
+            // Proxmox required fields show asterisk
+            onNodeWithText("API URL *").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Token ID *").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Token Secret *").performScrollTo().assertIsDisplayed()
+        }
+
+    @Test
+    fun dockerOptionalFieldsDoNotShowAsterisk() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("docker"),
+                                activeProviderTab = "docker",
+                            ),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            // Docker fields are all optional — no asterisk
+            onNodeWithText("Socket path").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Socket path *").assertDoesNotExist()
+            onNodeWithText("TCP URL").performScrollTo().assertIsDisplayed()
+            onNodeWithText("TCP URL *").assertDoesNotExist()
         }
 }
