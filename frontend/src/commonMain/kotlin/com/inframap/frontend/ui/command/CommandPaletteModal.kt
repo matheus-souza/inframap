@@ -57,7 +57,7 @@ import androidx.compose.ui.unit.sp
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapShapeLarge
 import com.inframap.frontend.designsystem.motion.MotionTransitions
-import com.inframap.frontend.designsystem.motion.m3InteractiveScale
+import com.inframap.frontend.designsystem.motion.m3Clickable
 import com.inframap.frontend.domain.model.CommandPaletteCategory
 import com.inframap.frontend.domain.model.CommandPaletteItem
 import com.inframap.frontend.generated.resources.Res
@@ -94,6 +94,7 @@ fun CommandPaletteModal(
                 modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.50f))
+                    // no-hand-cursor: scrim backdrop
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -135,6 +136,7 @@ private fun CommandPaletteModalContent(
                 .padding(top = 80.dp, start = 16.dp, end = 16.dp)
                 .widthIn(max = 640.dp)
                 .fillMaxWidth()
+                // no-hand-cursor: modal container click interceptor
                 .clickable(enabled = false, onClick = {})
                 .onPreviewKeyEvent { event ->
                     handleKeyEvent(event, actions)
@@ -373,7 +375,7 @@ private fun CommandPaletteItemRow(
                 .padding(horizontal = 8.dp, vertical = 2.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .then(bgModifier)
-                .m3InteractiveScale(interactionSource = interactionSource, pressScale = 0.98f)
+                .m3Clickable(interactionSource = interactionSource, pressScale = 0.98f)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,

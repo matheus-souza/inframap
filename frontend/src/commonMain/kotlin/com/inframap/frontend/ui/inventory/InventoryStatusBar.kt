@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
@@ -139,7 +140,8 @@ fun InventoryStatusBar(
                                         } else {
                                             status.color.copy(alpha = 0.3f)
                                         },
-                                    ).clickable {
+                                    ).m3ClickableCursor()
+                                    .clickable {
                                         onStatusSelected(if (isSelected) null else status)
                                     },
                         )
@@ -170,6 +172,7 @@ fun InventoryStatusBar(
                             .clip(RoundedCornerShape(8.dp))
                             .background(chipBg)
                             .border(1.dp, chipBorder, RoundedCornerShape(8.dp))
+                            .m3ClickableCursor()
                             .clickable {
                                 onStatusSelected(if (isSelected) null else status)
                             }.padding(horizontal = 10.dp, vertical = 6.dp),

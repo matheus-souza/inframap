@@ -48,6 +48,7 @@ import com.inframap.frontend.designsystem.InfraMapTextPrimary
 import com.inframap.frontend.designsystem.InfraMapTextSecondary
 import com.inframap.frontend.designsystem.PowerState
 import com.inframap.frontend.designsystem.StatusOnline
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 import com.inframap.frontend.domain.model.TopologyNode
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.topology_hosted_on
@@ -197,7 +198,7 @@ fun DeviceInspectorSheet(
                                     .fillMaxWidth()
                                     .then(
                                         if (parent != null) {
-                                            Modifier.clickable { onParentSelected(parentId) }
+                                            Modifier.m3ClickableCursor().clickable { onParentSelected(parentId) }
                                         } else {
                                             Modifier
                                         },

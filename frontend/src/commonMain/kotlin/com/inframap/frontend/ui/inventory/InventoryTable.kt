@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.inframap.frontend.designsystem.InfraMapIcons
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 
 val JetBrainsMonoFontFamily: FontFamily = FontFamily.Monospace
 
@@ -164,6 +165,7 @@ fun InventoryTable(
                             Modifier
                                 .fillMaxWidth()
                                 .background(rowBg)
+                                .m3ClickableCursor()
                                 .clickable { onToggleSelectItem(item.id) }
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
