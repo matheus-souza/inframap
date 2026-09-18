@@ -123,6 +123,20 @@ func (c *CredentialsController) DeleteCredential(w http.ResponseWriter, r *http.
 			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Credential record not found", nil)
 			return
 		}
+		var errInUse *usecase.ErrCredentialInUse
+		if errors.As(err, &errInUse) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			sources := errInUse.DependentSources
+			if sources == nil {
+				sources = []dto.DependentSource{}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error":             "CREDENTIAL_IN_USE",
+				"dependent_sources": sources,
+			})
+			return
+		}
 		slog.Error("failed to delete credential", "error", err, "credential_id", idStr)
 		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete credential", nil)
 		return
@@ -130,3 +144,4 @@ func (c *CredentialsController) DeleteCredential(w http.ResponseWriter, r *http.
 
 	w.WriteHeader(http.StatusNoContent)
 }
+

@@ -79,4 +79,31 @@ class StagingScreenTest {
             onNodeWithText("Dismiss").performClick()
             assertEquals("stg-1", dismissedDevice?.id)
         }
+
+    @Test
+    fun rendersPreviouslyDeletedBadgeForFlaggedStagingDevice() =
+        runComposeUiTest {
+            val device =
+                StagingDevice(
+                    id = "stg-del-1",
+                    hostname = "rediscovered-server",
+                    ipAddress = "192.168.1.99",
+                    macAddress = "AA:BB:CC:DD:EE:FF",
+                    deviceType = "server",
+                    previouslyDeleted = true,
+                    matchedDeviceId = "orig-dev-id",
+                )
+
+            setContent {
+                InfraMapTheme {
+                    StagingScreen(
+                        state = StagingUiState(devices = listOf(device), totalItems = 1, isLoading = false),
+                        actions = testActions(),
+                    )
+                }
+            }
+
+            onNodeWithText("rediscovered-server").assertIsDisplayed()
+            onNodeWithText("Previously Deleted").assertIsDisplayed()
+        }
 }

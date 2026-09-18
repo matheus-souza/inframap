@@ -1,4 +1,4 @@
-@file:Suppress("MatchingDeclarationName")
+@file:Suppress("MatchingDeclarationName", "TooManyFunctions")
 
 package com.inframap.frontend.ui.app
 
@@ -38,6 +38,8 @@ import com.inframap.frontend.generated.resources.device_detail_title
 import com.inframap.frontend.generated.resources.devices_title
 import com.inframap.frontend.generated.resources.discovery_title
 import com.inframap.frontend.generated.resources.edit_device_title
+import com.inframap.frontend.generated.resources.edit_discovery_source_title
+import com.inframap.frontend.generated.resources.edit_subnet_title
 import com.inframap.frontend.generated.resources.staging_header
 import com.inframap.frontend.generated.resources.subnets_title
 import com.inframap.frontend.generated.resources.topology_title
@@ -69,6 +71,9 @@ import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
 import com.inframap.frontend.ui.discovery.DiscoveryListActions
 import com.inframap.frontend.ui.discovery.DiscoveryListScreen
 import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
+import com.inframap.frontend.ui.discovery.EditDiscoverySourceActions
+import com.inframap.frontend.ui.discovery.EditDiscoverySourceScreen
+import com.inframap.frontend.ui.discovery.EditDiscoverySourceViewModel
 import com.inframap.frontend.ui.onboarding.OnboardingCoordinator
 import com.inframap.frontend.ui.staging.StagingActions
 import com.inframap.frontend.ui.staging.StagingScreen
@@ -76,6 +81,9 @@ import com.inframap.frontend.ui.staging.StagingViewModel
 import com.inframap.frontend.ui.subnets.CreateSubnetActions
 import com.inframap.frontend.ui.subnets.CreateSubnetScreen
 import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
+import com.inframap.frontend.ui.subnets.EditSubnetActions
+import com.inframap.frontend.ui.subnets.EditSubnetScreen
+import com.inframap.frontend.ui.subnets.EditSubnetViewModel
 import com.inframap.frontend.ui.subnets.SubnetsActions
 import com.inframap.frontend.ui.subnets.SubnetsScreen
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
@@ -110,6 +118,7 @@ internal val defaultNavItems =
         NavItem(Res.string.topology_title, InfraMapIcons.AccountTree, Route.Topology, "topology"),
     )
 
+@Suppress("CyclomaticComplexMethod")
 fun resolveScreenTitleResource(route: Route): StringResource? =
     when (route) {
         Route.Dashboard -> Res.string.dashboard_title
@@ -120,8 +129,11 @@ fun resolveScreenTitleResource(route: Route): StringResource? =
         Route.Staging -> Res.string.staging_header
         Route.Subnets -> Res.string.subnets_title
         is Route.CreateSubnet -> Res.string.create_subnet_title
+        is Route.EditSubnet -> Res.string.edit_subnet_title
         Route.DiscoverySources -> Res.string.discovery_title
+
         Route.CreateDiscoverySource -> Res.string.create_discovery_source_title
+        is Route.EditDiscoverySource -> Res.string.edit_discovery_source_title
         Route.Topology -> Res.string.topology_title
         else -> null
     }
@@ -361,11 +373,13 @@ private fun AppNavRail(
 
             Route.DiscoverySources,
             Route.CreateDiscoverySource,
+            is Route.EditDiscoverySource,
             -> "discovery"
 
             Route.Staging -> "staging"
             Route.Subnets,
             is Route.CreateSubnet,
+            is Route.EditSubnet,
             -> "subnets"
 
             Route.Topology -> "topology"
@@ -386,6 +400,7 @@ private fun AppNavRail(
     )
 }
 
+@Suppress("CyclomaticComplexMethod")
 @Composable
 private fun RouteContent(
     currentRoute: Route,
@@ -416,8 +431,19 @@ private fun RouteContent(
                 prefilledName = currentRoute.prefilledName,
                 navigator = navigator,
             )
+        is Route.EditSubnet ->
+            EditSubnetRoute(
+                subnetId = currentRoute.id,
+                navigator = navigator,
+            )
         Route.DiscoverySources -> DiscoveryListRoute(navigator = navigator)
+
         Route.CreateDiscoverySource -> CreateDiscoverySourceRoute(navigator = navigator)
+        is Route.EditDiscoverySource ->
+            EditDiscoverySourceRoute(
+                sourceId = currentRoute.id,
+                navigator = navigator,
+            )
         Route.Topology -> TopologyRoute(navigator = navigator)
         else -> PlaceholderScreen("")
     }
@@ -559,6 +585,13 @@ private fun EditDeviceRoute(
         onDispose {}
     }
 
+    DisposableEffect(state.isDeleted) {
+        if (state.isDeleted) {
+            navigator.navigateTo(Route.Devices)
+        }
+        onDispose {}
+    }
+
     val actions =
         EditDeviceActions(
             onHostnameChanged = viewModel::onHostnameChanged,
@@ -569,6 +602,9 @@ private fun EditDeviceRoute(
             onSubmitClicked = viewModel::updateDevice,
             onCancelClicked = { navigator.navigateTo(Route.DeviceDetail(deviceId)) },
             onRetryClicked = viewModel::loadDevice,
+            onDeleteClicked = viewModel::requestDelete,
+            onConfirmDeleteClicked = { viewModel.confirmDelete { navigator.navigateTo(Route.Devices) } },
+            onDismissDeleteClicked = viewModel::dismissDelete,
         )
 
     EditDeviceScreen(
@@ -622,10 +658,58 @@ private fun SubnetsRoute(navigator: Navigator) {
                     ),
                 )
             },
+            onSubnetClicked = { subnet -> navigator.navigateTo(Route.EditSubnet(subnet.id)) },
+            onEditSubnetClicked = { subnet -> navigator.navigateTo(Route.EditSubnet(subnet.id)) },
+            onDeleteSubnetClicked = viewModel::requestDelete,
+            onConfirmDeleteClicked = viewModel::confirmDelete,
+            onDismissDeleteClicked = viewModel::dismissDelete,
             onDismissToast = viewModel::dismissToast,
             onRetryClicked = viewModel::loadSubnets,
         )
     SubnetsScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun EditSubnetRoute(
+    subnetId: String,
+    navigator: Navigator,
+) {
+    val koinScope = currentKoinScope()
+    val viewModel: EditSubnetViewModel = remember(subnetId) { koinScope.get { parametersOf(subnetId) } }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+
+    DisposableEffect(state.isSuccess) {
+        if (state.isSuccess) {
+            navigator.navigateTo(Route.Subnets)
+        }
+        onDispose {}
+    }
+
+    val actions =
+        EditSubnetActions(
+            onNameChanged = viewModel::onNameChanged,
+            onCidrChanged = viewModel::onCidrChanged,
+            onVlanIdChanged = viewModel::onVlanIdChanged,
+            onGatewayIpChanged = viewModel::onGatewayIpChanged,
+            onDescriptionChanged = viewModel::onDescriptionChanged,
+            onDiscoveryEnabledChanged = viewModel::onDiscoveryEnabledChanged,
+            onSubmitClicked = { viewModel.updateSubnet() },
+            onConfirmImpactClicked = { viewModel.confirmImpact() },
+            onDismissImpactClicked = { viewModel.dismissImpact() },
+            onDeleteClicked = viewModel::requestDelete,
+            onConfirmDeleteClicked = { viewModel.confirmDelete { navigator.navigateTo(Route.Subnets) } },
+            onDismissDeleteClicked = viewModel::dismissDelete,
+            onCancelClicked = { navigator.navigateTo(Route.Subnets) },
+            onRetryClicked = viewModel::loadSubnet,
+        )
+
+    EditSubnetScreen(
         state = state,
         actions = actions,
     )
@@ -683,6 +767,7 @@ private fun DiscoveryListRoute(navigator: Navigator) {
     val actions =
         DiscoveryListActions(
             onCreateSourceClicked = { navigator.navigateTo(Route.CreateDiscoverySource) },
+            onEditSourceClicked = { id -> navigator.navigateTo(Route.EditDiscoverySource(id)) },
             onTriggerRunClicked = viewModel::triggerRun,
             onDeleteSourceClicked = viewModel::confirmDeleteSource,
             onConfirmDelete = viewModel::deleteSource,
@@ -736,6 +821,48 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
             },
         )
     CreateDiscoverySourceScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun EditDiscoverySourceRoute(
+    sourceId: String,
+    navigator: Navigator,
+) {
+    val koinScope = currentKoinScope()
+    val viewModel: EditDiscoverySourceViewModel =
+        remember(sourceId) { koinScope.get { parametersOf(sourceId) } }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+
+    DisposableEffect(state.isSuccess, state.isDeleted) {
+        if (state.isSuccess || state.isDeleted) {
+            navigator.navigateTo(Route.DiscoverySources)
+        }
+        onDispose {}
+    }
+
+    val actions =
+        EditDiscoverySourceActions(
+            onNameChanged = viewModel::onNameChanged,
+            onScheduleCronChanged = viewModel::onScheduleCronChanged,
+            onEnabledChanged = viewModel::onEnabledChanged,
+            onProviderFieldChanged = viewModel::onProviderFieldChanged,
+            onProviderTabSelected = viewModel::onProviderTabSelected,
+            onTestConnectionClicked = viewModel::testConnection,
+            onSubmitClicked = viewModel::onSubmitClicked,
+            onDeleteClicked = viewModel::onDeleteClicked,
+            onConfirmDeleteClicked = viewModel::onConfirmDeleteClicked,
+            onDismissDeleteDialog = viewModel::onDismissDeleteDialog,
+            onDismissError = viewModel::onDismissError,
+            onBackClicked = { navigator.navigateTo(Route.DiscoverySources) },
+        )
+
+    EditDiscoverySourceScreen(
         state = state,
         actions = actions,
     )

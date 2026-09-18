@@ -219,4 +219,42 @@ class StagingViewModelTest {
             assertNull(vm.state.value.deviceToDismiss)
             vm.clear()
         }
+
+    @Test
+    fun loadStagingDevicesWithPreviouslyDeletedDeviceMaintainsFlagAndAllowsApproval() =
+        runTest {
+            val previouslyDeletedDevice =
+                StagingDevice(
+                    id = "st2",
+                    hostname = "restored-core-router",
+                    deviceType = "router",
+                    status = "pending",
+                    previouslyDeleted = true,
+                    matchedDeviceId = "orig-router-uuid",
+                )
+            val paged = PaginatedList(items = listOf(previouslyDeletedDevice), total = 1, page = 1, perPage = 50)
+            val repo =
+                FakeStagingRepository(
+                    getStagingDevicesResult = ApiResult.Success(paged, requestId = ""),
+                )
+            val vm = makeVm(repo = repo, scope = this)
+
+            vm.state.test {
+                skipItems(1)
+                val loaded = awaitItem()
+                assertEquals(1, loaded.devices.size)
+                val dev = loaded.devices.first()
+                assertTrue(dev.previouslyDeleted)
+                assertEquals("orig-router-uuid", dev.matchedDeviceId)
+
+                vm.approveDevice(dev)
+                advanceUntilIdle()
+
+                val approvedState = expectMostRecentItem()
+                assertFalse(approvedState.isProcessingAction)
+                assertNotNull(approvedState.toastMessage)
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm.clear()
+        }
 }

@@ -30,6 +30,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.ChipCustomOption
 import com.inframap.frontend.designsystem.ChipOption
+import com.inframap.frontend.designsystem.DangerZone
+import com.inframap.frontend.designsystem.ImpactConfirmationDialog
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapChoiceChipGroup
@@ -38,6 +40,7 @@ import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapTextField
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.common_cancel
 import com.inframap.frontend.generated.resources.create_device_back_button
 import com.inframap.frontend.generated.resources.create_device_cancel_button
 import com.inframap.frontend.generated.resources.create_device_custom_type
@@ -47,11 +50,19 @@ import com.inframap.frontend.generated.resources.create_device_hostname_label
 import com.inframap.frontend.generated.resources.create_device_ip_label
 import com.inframap.frontend.generated.resources.create_device_mac_label
 import com.inframap.frontend.generated.resources.create_device_type_label
+import com.inframap.frontend.generated.resources.danger_zone_delete_button
+import com.inframap.frontend.generated.resources.danger_zone_device_description
+import com.inframap.frontend.generated.resources.danger_zone_title
 import com.inframap.frontend.generated.resources.device_type_firewall
 import com.inframap.frontend.generated.resources.device_type_router
 import com.inframap.frontend.generated.resources.device_type_server
 import com.inframap.frontend.generated.resources.device_type_switch
+import com.inframap.frontend.generated.resources.devices_delete_action
+import com.inframap.frontend.generated.resources.devices_delete_confirm_message
+import com.inframap.frontend.generated.resources.devices_delete_dialog_title
+import com.inframap.frontend.generated.resources.devices_delete_processing
 import com.inframap.frontend.generated.resources.devices_retry
+import com.inframap.frontend.generated.resources.devices_title
 import com.inframap.frontend.generated.resources.edit_device_form_title
 import com.inframap.frontend.generated.resources.edit_device_header_subtitle
 import com.inframap.frontend.generated.resources.edit_device_header_title
@@ -95,7 +106,37 @@ fun EditDeviceScreen(
                 }
 
                 EditDeviceFormCard(state = state, actions = actions)
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                DangerZone(
+                    title = stringResource(Res.string.danger_zone_title),
+                    description = stringResource(Res.string.danger_zone_device_description),
+                    deleteLabel =
+                        stringResource(
+                            Res.string.danger_zone_delete_button,
+                            state.hostname.ifEmpty { stringResource(Res.string.devices_title) },
+                        ),
+                    onDelete = actions.onDeleteClicked,
+                    enabled = !state.isSubmitting && !state.isDeleting,
+                )
             }
+        }
+
+        if (state.showDeleteDialog) {
+            ImpactConfirmationDialog(
+                title = stringResource(Res.string.devices_delete_dialog_title),
+                description = stringResource(Res.string.devices_delete_confirm_message, state.hostname),
+                confirmButtonText =
+                    if (state.isDeleting) {
+                        stringResource(Res.string.devices_delete_processing)
+                    } else {
+                        stringResource(Res.string.devices_delete_action)
+                    },
+                cancelButtonText = stringResource(Res.string.common_cancel),
+                onConfirm = actions.onConfirmDeleteClicked,
+                onDismiss = actions.onDismissDeleteClicked,
+            )
         }
     }
 }

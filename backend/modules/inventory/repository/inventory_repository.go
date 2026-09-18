@@ -32,6 +32,7 @@ type InventoryRepository interface {
 	ListDevices(ctx context.Context, searchQuery, deviceType string, limit, offset int32, includeDeleted bool) ([]db.Device, int64, error)
 	UpdateDevice(ctx context.Context, params db.UpdateDeviceParams) (*db.Device, error)
 	SoftDeleteDevice(ctx context.Context, id uuid.UUID) error
+	RestoreDevice(ctx context.Context, params db.RestoreDeviceParams) (*db.Device, error)
 
 	ListDevicesByProviderScope(ctx context.Context, providerScope string) ([]db.Device, error)
 	MarkDeviceAbsent(ctx context.Context, id uuid.UUID, archiveThreshold int32) (*db.Device, error)
@@ -41,13 +42,21 @@ type InventoryRepository interface {
 	SetDeviceParent(ctx context.Context, id uuid.UUID, parentDeviceID uuid.UUID, parentProviderRef string) (*db.Device, error)
 
 	CreateStagingDevice(ctx context.Context, params db.CreateStagingDeviceParams) (*db.DeviceStaging, error)
+	FindPendingStagingDevice(ctx context.Context, params db.FindPendingStagingDeviceParams) (*db.DeviceStaging, error)
+	UpdateStagingDevice(ctx context.Context, params db.UpdateStagingDeviceParams) (*db.DeviceStaging, error)
 	GetStagingDeviceByID(ctx context.Context, id uuid.UUID) (*db.DeviceStaging, error)
 	ListStagingDevices(ctx context.Context, status string, limit, offset int32) ([]db.DeviceStaging, int64, error)
 	UpdateStagingDeviceStatus(ctx context.Context, id uuid.UUID, status string) error
 
 	CreateSubnet(ctx context.Context, params db.CreateSubnetParams) (*db.Subnet, error)
 	ListSubnets(ctx context.Context) ([]db.Subnet, error)
+	GetSubnetByID(ctx context.Context, id uuid.UUID) (*db.Subnet, error)
+	UpdateSubnet(ctx context.Context, params db.UpdateSubnetParams) (*db.Subnet, error)
+	SoftDeleteSubnet(ctx context.Context, id uuid.UUID) error
+
+	GetInactiveDiscoverySourceDeviceIDs(ctx context.Context, deviceIDs []uuid.UUID) ([]uuid.UUID, error)
 }
+
 
 // PgInventoryRepository implements InventoryRepository using pgxpool.
 type PgInventoryRepository struct {
@@ -127,6 +136,16 @@ func (r *PgInventoryRepository) SoftDeleteDevice(ctx context.Context, id uuid.UU
 	return queries.SoftDeleteDevice(ctx, id)
 }
 
+// RestoreDevice restores a soft-deleted device and marks it active.
+func (r *PgInventoryRepository) RestoreDevice(ctx context.Context, params db.RestoreDeviceParams) (*db.Device, error) {
+	queries := db.New(r.pool)
+	device, err := queries.RestoreDevice(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to restore device: %w", err)
+	}
+	return &device, nil
+}
+
 // ListDevicesByProviderScope returns every non-archived device an authoritative provider
 // owns in a scope, which is the candidate set the lifecycle hysteresis evaluates.
 func (r *PgInventoryRepository) ListDevicesByProviderScope(ctx context.Context, providerScope string) ([]db.Device, error) {
@@ -199,6 +218,29 @@ func (r *PgInventoryRepository) CreateStagingDevice(ctx context.Context, params 
 	return &staging, nil
 }
 
+// FindPendingStagingDevice checks if a pending or discovered staging device exists matching IP, MAC or matched_device_id.
+func (r *PgInventoryRepository) FindPendingStagingDevice(ctx context.Context, params db.FindPendingStagingDeviceParams) (*db.DeviceStaging, error) {
+	queries := db.New(r.pool)
+	staging, err := queries.FindPendingStagingDevice(ctx, params)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find pending staging device: %w", err)
+	}
+	return &staging, nil
+}
+
+// UpdateStagingDevice updates an existing staging device in the staging queue.
+func (r *PgInventoryRepository) UpdateStagingDevice(ctx context.Context, params db.UpdateStagingDeviceParams) (*db.DeviceStaging, error) {
+	queries := db.New(r.pool)
+	staging, err := queries.UpdateStagingDevice(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update staging device: %w", err)
+	}
+	return &staging, nil
+}
+
 // GetStagingDeviceByID fetches a staged device by UUID.
 func (r *PgInventoryRepository) GetStagingDeviceByID(ctx context.Context, id uuid.UUID) (*db.DeviceStaging, error) {
 	queries := db.New(r.pool)
@@ -260,6 +302,51 @@ func (r *PgInventoryRepository) ListSubnets(ctx context.Context) ([]db.Subnet, e
 	}
 	return subnets, nil
 }
+
+// GetSubnetByID fetches a subnet by UUID.
+func (r *PgInventoryRepository) GetSubnetByID(ctx context.Context, id uuid.UUID) (*db.Subnet, error) {
+	queries := db.New(r.pool)
+	subnet, err := queries.GetSubnetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrSubnetNotFound
+		}
+		return nil, fmt.Errorf("failed to fetch subnet: %w", err)
+	}
+	return &subnet, nil
+}
+
+// UpdateSubnet updates an existing subnet.
+func (r *PgInventoryRepository) UpdateSubnet(ctx context.Context, params db.UpdateSubnetParams) (*db.Subnet, error) {
+	queries := db.New(r.pool)
+	subnet, err := queries.UpdateSubnet(ctx, params)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrSubnetNotFound
+		}
+		return nil, fmt.Errorf("failed to update subnet: %w", err)
+	}
+	return &subnet, nil
+}
+
+// SoftDeleteSubnet marks a subnet as deleted.
+func (r *PgInventoryRepository) SoftDeleteSubnet(ctx context.Context, id uuid.UUID) error {
+	queries := db.New(r.pool)
+	if err := queries.SoftDeleteSubnet(ctx, id); err != nil {
+		return fmt.Errorf("failed to soft-delete subnet: %w", err)
+	}
+	return nil
+}
+
+// GetInactiveDiscoverySourceDeviceIDs returns device IDs whose discovery source has been soft-deleted and have no active discovery sources.
+func (r *PgInventoryRepository) GetInactiveDiscoverySourceDeviceIDs(ctx context.Context, deviceIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if len(deviceIDs) == 0 {
+		return nil, nil
+	}
+	queries := db.New(r.pool)
+	return queries.GetInactiveDiscoverySourceDeviceIDs(ctx, deviceIDs)
+}
+
 
 // ExtractUserLockedFields reads 'user_locked_fields' from metadata JSONB.
 func ExtractUserLockedFields(metadata []byte) []string {

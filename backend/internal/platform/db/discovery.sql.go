@@ -24,6 +24,30 @@ func (q *Queries) CountCollectorRunsBySource(ctx context.Context, sourceID uuid.
 	return count, err
 }
 
+const countCollectorsBySourceID = `-- name: CountCollectorsBySourceID :one
+SELECT COUNT(*) FROM discovery_source_collectors
+WHERE source_id = $1
+`
+
+func (q *Queries) CountCollectorsBySourceID(ctx context.Context, sourceID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCollectorsBySourceID, sourceID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDiscoveredDevicesBySourceID = `-- name: CountDiscoveredDevicesBySourceID :one
+SELECT COUNT(DISTINCT device_id) FROM device_discovery_records
+WHERE discovery_source_id = $1
+`
+
+func (q *Queries) CountDiscoveredDevicesBySourceID(ctx context.Context, discoverySourceID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countDiscoveredDevicesBySourceID, discoverySourceID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCollectorRun = `-- name: CreateCollectorRun :one
 INSERT INTO discovery_collector_runs (
     id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
@@ -76,7 +100,7 @@ INSERT INTO discovery_sources (
     id, name, type, enabled, schedule_cron, config_encrypted, last_status
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at
+) RETURNING id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at, deleted_at
 `
 
 type CreateDiscoverySourceParams struct {
@@ -111,11 +135,13 @@ func (q *Queries) CreateDiscoverySource(ctx context.Context, arg CreateDiscovery
 		&i.LastStatus,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const createDiscoverySourceCollector = `-- name: CreateDiscoverySourceCollector :one
+
 INSERT INTO discovery_source_collectors (
     id, source_id, collector_type, config_encrypted, enabled, created_at
 ) VALUES (
@@ -153,6 +179,20 @@ func (q *Queries) CreateDiscoverySourceCollector(ctx context.Context, arg Create
 	return i, err
 }
 
+const deactivateCollectorsBySourceID = `-- name: DeactivateCollectorsBySourceID :execrows
+UPDATE discovery_source_collectors
+SET enabled = false
+WHERE source_id = $1
+`
+
+func (q *Queries) DeactivateCollectorsBySourceID(ctx context.Context, sourceID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deactivateCollectorsBySourceID, sourceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteCollectorsBySourceID = `-- name: DeleteCollectorsBySourceID :execrows
 DELETE FROM discovery_source_collectors WHERE source_id = $1
 `
@@ -166,7 +206,10 @@ func (q *Queries) DeleteCollectorsBySourceID(ctx context.Context, sourceID uuid.
 }
 
 const deleteDiscoverySource = `-- name: DeleteDiscoverySource :execrows
-DELETE FROM discovery_sources WHERE id = $1
+UPDATE discovery_sources
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) DeleteDiscoverySource(ctx context.Context, id uuid.UUID) (int64, error) {
@@ -178,7 +221,7 @@ func (q *Queries) DeleteDiscoverySource(ctx context.Context, id uuid.UUID) (int6
 }
 
 const getDiscoverySourceByID = `-- name: GetDiscoverySourceByID :one
-SELECT id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at FROM discovery_sources WHERE id = $1
+SELECT id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at, deleted_at FROM discovery_sources WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetDiscoverySourceByID(ctx context.Context, id uuid.UUID) (DiscoverySource, error) {
@@ -195,6 +238,7 @@ func (q *Queries) GetDiscoverySourceByID(ctx context.Context, id uuid.UUID) (Dis
 		&i.LastStatus,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -405,7 +449,7 @@ func (q *Queries) ListDiscoveryRecordsBySource(ctx context.Context, arg ListDisc
 }
 
 const listDiscoverySources = `-- name: ListDiscoverySources :many
-SELECT id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at FROM discovery_sources ORDER BY created_at DESC, id DESC
+SELECT id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at, deleted_at FROM discovery_sources WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) ListDiscoverySources(ctx context.Context) ([]DiscoverySource, error) {
@@ -428,6 +472,7 @@ func (q *Queries) ListDiscoverySources(ctx context.Context) ([]DiscoverySource, 
 			&i.LastStatus,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -462,13 +507,57 @@ func (q *Queries) PurgeOldCollectorRunsChunk(ctx context.Context, arg PurgeOldCo
 	return result.RowsAffected(), nil
 }
 
+const updateDiscoverySource = `-- name: UpdateDiscoverySource :one
+UPDATE discovery_sources
+SET name = $2,
+    enabled = $3,
+    schedule_cron = $4,
+    config_encrypted = $5,
+    updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at, deleted_at
+`
+
+type UpdateDiscoverySourceParams struct {
+	ID              uuid.UUID   `json:"id"`
+	Name            string      `json:"name"`
+	Enabled         bool        `json:"enabled"`
+	ScheduleCron    pgtype.Text `json:"schedule_cron"`
+	ConfigEncrypted pgtype.Text `json:"config_encrypted"`
+}
+
+func (q *Queries) UpdateDiscoverySource(ctx context.Context, arg UpdateDiscoverySourceParams) (DiscoverySource, error) {
+	row := q.db.QueryRow(ctx, updateDiscoverySource,
+		arg.ID,
+		arg.Name,
+		arg.Enabled,
+		arg.ScheduleCron,
+		arg.ConfigEncrypted,
+	)
+	var i DiscoverySource
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.Enabled,
+		&i.ScheduleCron,
+		&i.ConfigEncrypted,
+		&i.LastRunAt,
+		&i.LastStatus,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const updateDiscoverySourceStatus = `-- name: UpdateDiscoverySourceStatus :one
 UPDATE discovery_sources
 SET last_status = $2,
     last_run_at = NOW(),
     updated_at = NOW()
-WHERE id = $1
-RETURNING id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, name, type, enabled, schedule_cron, config_encrypted, last_run_at, last_status, created_at, updated_at, deleted_at
 `
 
 type UpdateDiscoverySourceStatusParams struct {
@@ -490,6 +579,7 @@ func (q *Queries) UpdateDiscoverySourceStatus(ctx context.Context, arg UpdateDis
 		&i.LastStatus,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }

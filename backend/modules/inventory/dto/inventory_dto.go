@@ -26,9 +26,10 @@ type DeviceResponse struct {
 	ParentDeviceID   string    `json:"parent_device_id,omitempty"`
 	FirstSeenAt      time.Time `json:"first_seen_at"`
 	LastSeenAt       time.Time `json:"last_seen_at"`
-	UserLockedFields []string  `json:"user_locked_fields,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	UserLockedFields        []string  `json:"user_locked_fields,omitempty"`
+	DiscoverySourceInactive bool      `json:"discovery_source_inactive,omitempty"`
+	CreatedAt               time.Time `json:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at"`
 }
 
 // CreateDeviceRequest represents payload for manual device registration.
@@ -90,6 +91,8 @@ type StagingDeviceResponse struct {
 	DeviceType        string    `json:"device_type"`
 	DiscoverySourceID string    `json:"discovery_source_id,omitempty"`
 	Status            string    `json:"status"`
+	PreviouslyDeleted bool      `json:"previously_deleted"`
+	MatchedDeviceID   *string   `json:"matched_device_id,omitempty"`
 	CreatedAt         time.Time `json:"created_at"`
 }
 
@@ -130,4 +133,83 @@ type SubnetResponse struct {
 	Description      string    `json:"description,omitempty"`
 	DiscoveryEnabled bool      `json:"discovery_enabled"`
 	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at,omitempty"`
 }
+
+// UpdateSubnetRequest represents the payload to update an existing subnet.
+type UpdateSubnetRequest struct {
+	Name             string  `json:"name"`
+	CIDR             string  `json:"cidr"`
+	VLANID           *int32  `json:"vlan_id,omitempty"`
+	GatewayIP        *string `json:"gateway_ip,omitempty"`
+	Description      *string `json:"description,omitempty"`
+	DiscoveryEnabled *bool   `json:"discovery_enabled,omitempty"`
+}
+
+// Validate validates UpdateSubnetRequest attributes.
+func (r *UpdateSubnetRequest) Validate() []FieldError {
+	var errs []FieldError
+	if strings.TrimSpace(r.Name) == "" {
+		errs = append(errs, FieldError{Field: "name", Issue: "subnet name is required"})
+	}
+	cidr := strings.TrimSpace(r.CIDR)
+	if cidr == "" {
+		errs = append(errs, FieldError{Field: "cidr", Issue: "CIDR is required"})
+	} else {
+		if _, err := netip.ParsePrefix(cidr); err != nil {
+			errs = append(errs, FieldError{Field: "cidr", Issue: "invalid CIDR notation"})
+		}
+	}
+	if r.GatewayIP != nil && strings.TrimSpace(*r.GatewayIP) != "" {
+		if _, err := netip.ParseAddr(strings.TrimSpace(*r.GatewayIP)); err != nil {
+			errs = append(errs, FieldError{Field: "gateway_ip", Issue: "invalid gateway IP address"})
+		}
+	}
+	return errs
+}
+
+// SubnetCIDRImpactRequest represents the payload to check the impact of a subnet CIDR change.
+type SubnetCIDRImpactRequest struct {
+	NewCIDR string `json:"new_cidr"`
+}
+
+// Validate validates SubnetCIDRImpactRequest attributes.
+func (r *SubnetCIDRImpactRequest) Validate() []FieldError {
+	var errs []FieldError
+	cidr := strings.TrimSpace(r.NewCIDR)
+	if cidr == "" {
+		errs = append(errs, FieldError{Field: "new_cidr", Issue: "new_cidr is required"})
+	} else {
+		if _, err := netip.ParsePrefix(cidr); err != nil {
+			errs = append(errs, FieldError{Field: "new_cidr", Issue: "invalid CIDR notation"})
+		}
+	}
+	return errs
+}
+
+// SubnetCIDRImpactResponse represents the count of devices affected by a CIDR change.
+type SubnetCIDRImpactResponse struct {
+	CurrentCIDR          string `json:"current_cidr"`
+	NewCIDR              string `json:"new_cidr"`
+	AffectedDevicesCount int    `json:"affected_devices_count"`
+}
+
+// SubnetDeletionImpact contains counts of entities affected by a subnet deletion.
+type SubnetDeletionImpact struct {
+	AffectedDevices        int `json:"affected_devices"`
+	UnlinkedTopologyEdges int `json:"unlinked_topology_edges"`
+}
+
+// SubnetDeletionImpactResponse represents the impact of deleting a subnet.
+type SubnetDeletionImpactResponse struct {
+	SubnetID string               `json:"subnet_id"`
+	Impact   SubnetDeletionImpact `json:"impact"`
+}
+
+// DeleteSubnetResponse represents the result of soft-deleting a subnet.
+type DeleteSubnetResponse struct {
+	DeletedID string               `json:"deleted_id"`
+	Impact    SubnetDeletionImpact `json:"impact"`
+}
+
+

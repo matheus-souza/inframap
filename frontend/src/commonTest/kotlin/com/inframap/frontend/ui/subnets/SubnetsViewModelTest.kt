@@ -2,10 +2,14 @@ package com.inframap.frontend.ui.subnets
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.SubnetDeletionImpact
+import com.inframap.frontend.data.dto.SubnetDeletionImpactResponse
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
+import com.inframap.frontend.domain.usecase.subnet.DeleteSubnetUseCase
+import com.inframap.frontend.domain.usecase.subnet.GetSubnetDeletionImpactUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
 import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
@@ -56,6 +60,8 @@ class SubnetsViewModelTest {
     ) = SubnetsViewModel(
         GetSubnetsUseCase(subnetRepo),
         GetNetworkInterfacesUseCase(networkRepo),
+        DeleteSubnetUseCase(subnetRepo),
+        GetSubnetDeletionImpactUseCase(subnetRepo),
         scope = scope,
     )
 
@@ -153,6 +159,76 @@ class SubnetsViewModelTest {
             val state = vm.state.value
             assertTrue(state.detectedInterfaces.isEmpty())
             assertNull(state.errorMessage)
+            vm.clear()
+        }
+
+    @Test
+    fun requestDeleteSetsSubnetAndLoadsImpact() =
+        runTest {
+            val impact = SubnetDeletionImpact(affectedDevices = 4, unlinkedTopologyEdges = 2)
+            val subnetRepo =
+                FakeSubnetRepository(
+                    getSubnetsResult = ApiResult.Success(pagedSubnets, requestId = ""),
+                    getSubnetDeletionImpactResult =
+                        ApiResult.Success(
+                            SubnetDeletionImpactResponse(subnetId = "sub1", impact = impact),
+                            requestId = "",
+                        ),
+                )
+            val vm = makeVm(subnetRepo = subnetRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.requestDelete(sampleSubnet)
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertEquals(sampleSubnet, state.subnetToDelete)
+            assertFalse(state.isLoadingDeleteImpact)
+            assertEquals(impact, state.deleteImpact)
+            vm.clear()
+        }
+
+    @Test
+    fun confirmDeleteDeletesSubnetAndReloads() =
+        runTest {
+            val subnetRepo =
+                FakeSubnetRepository(
+                    getSubnetsResult = ApiResult.Success(pagedSubnets, requestId = ""),
+                )
+            val vm = makeVm(subnetRepo = subnetRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.requestDelete(sampleSubnet)
+            advanceUntilIdle()
+
+            vm.confirmDelete()
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertNull(state.subnetToDelete)
+            assertNull(state.deleteImpact)
+            assertFalse(state.isDeleting)
+            assertNotNull(state.toastMessage)
+            vm.clear()
+        }
+
+    @Test
+    fun dismissDeleteResetsDeletionState() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.requestDelete(sampleSubnet)
+            advanceUntilIdle()
+            assertEquals(sampleSubnet, vm.state.value.subnetToDelete)
+
+            vm.dismissDelete()
+
+            val state = vm.state.value
+            assertNull(state.subnetToDelete)
+            assertNull(state.deleteImpact)
+            assertFalse(state.isLoadingDeleteImpact)
+            assertFalse(state.isDeleting)
             vm.clear()
         }
 }

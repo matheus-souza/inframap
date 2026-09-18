@@ -2,13 +2,16 @@ package com.inframap.frontend.ui.discovery
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.domain.model.DiscoverySource
+import com.inframap.frontend.domain.model.DiscoverySourceDeletionImpact
 import com.inframap.frontend.domain.model.SourceCollector
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalTestApi::class)
@@ -84,6 +87,7 @@ class DiscoveryListScreenTest {
             onNodeWithText("Run").performClick()
             assertEquals("disc-1", triggeredId)
 
+            onNodeWithContentDescription("More options").performClick()
             onNodeWithText("Delete").performClick()
             assertEquals("disc-1", deletedSource?.id)
         }
@@ -169,5 +173,54 @@ class DiscoveryListScreenTest {
             onNodeWithText("Empty Collectors Plan").assertIsDisplayed()
             onNodeWithText("10.1.0.0/24").assertIsDisplayed()
             onNodeWithText("-").assertIsDisplayed()
+        }
+
+    @Test
+    fun rendersDeletionImpactDialogWhenSourceToDeleteIsSet() =
+        runComposeUiTest {
+            val source =
+                DiscoverySource(
+                    id = "disc-1",
+                    name = "LAN Ping Scan",
+                    sourceType = "icmp_sweep",
+                )
+            var confirmed = false
+
+            setContent {
+                InfraMapTheme {
+                    DiscoveryListScreen(
+                        state =
+                            DiscoveryListUiState(
+                                sources = listOf(source),
+                                isLoading = false,
+                                sourceToDelete = source,
+                                deleteImpact =
+                                    DiscoverySourceDeletionImpact(
+                                        collectorsHalted = 3,
+                                        devicesUnlinked = 7,
+                                    ),
+                            ),
+                        actions =
+                            DiscoveryListActions(
+                                onCreateSourceClicked = {},
+                                onTriggerRunClicked = {},
+                                onDeleteSourceClicked = {},
+                                onConfirmDelete = { confirmed = true },
+                                onCancelDelete = {},
+                                onRetryClicked = {},
+                                onDismissToast = {},
+                                onDismissDeleteError = {},
+                                onDismissTriggerRunError = {},
+                            ),
+                    )
+                }
+            }
+
+            onNodeWithText("Delete Discovery Source").assertIsDisplayed()
+            onNodeWithText("3 collector(s) to deactivate").assertIsDisplayed()
+            onNodeWithText("7 associated device(s)").assertIsDisplayed()
+
+            onNodeWithText("Confirm Deletion").performClick()
+            assertTrue(confirmed)
         }
 }

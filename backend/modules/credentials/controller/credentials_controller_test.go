@@ -14,22 +14,38 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/credentials/controller"
+	"github.com/matheussouza/inframap/modules/credentials/dto"
 	"github.com/matheussouza/inframap/modules/credentials/repository"
 	"github.com/matheussouza/inframap/modules/credentials/usecase"
 )
 
+
 type mockRepo struct {
 	items       map[uuid.UUID]db.Credential
 	secrets     map[uuid.UUID]string
+	references  map[uuid.UUID][]dto.DependentSource
 	shouldError bool
 }
 
 func newMockRepo() *mockRepo {
 	return &mockRepo{
-		items:   make(map[uuid.UUID]db.Credential),
-		secrets: make(map[uuid.UUID]string),
+		items:      make(map[uuid.UUID]db.Credential),
+		secrets:    make(map[uuid.UUID]string),
+		references: make(map[uuid.UUID][]dto.DependentSource),
 	}
 }
+
+func (m *mockRepo) CountActiveReferences(_ context.Context, id uuid.UUID) (int, []dto.DependentSource, error) {
+	if m.shouldError {
+		return 0, nil, errors.New("db failure")
+	}
+	sources, ok := m.references[id]
+	if !ok {
+		return 0, []dto.DependentSource{}, nil
+	}
+	return len(sources), sources, nil
+}
+
 
 func (m *mockRepo) Create(_ context.Context, cred *db.Credential, secret string) (*db.Credential, error) {
 	if m.shouldError {
@@ -256,5 +272,42 @@ func TestCredentialsController_Unit(t *testing.T) {
 		if recInv.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400 Bad Request, got %d", recInv.Code)
 		}
+
+		// 5. 409 Conflict when in use by active sources
+		inUseID := uuid.New()
+		_, _ = repo.Create(context.Background(), &db.Credential{ID: inUseID, Name: "In Use Cred", Type: "api_token"}, "sec")
+		repo.references[inUseID] = []dto.DependentSource{
+			{ID: "source-1", Name: "Proxmox Primary"},
+			{ID: "source-2", Name: "Docker Daemon"},
+		}
+
+		reqConflict := httptest.NewRequest(http.MethodDelete, "/api/v1/credentials/"+inUseID.String(), nil)
+		recConflict := httptest.NewRecorder()
+		mux.ServeHTTP(recConflict, reqConflict)
+
+		if recConflict.Code != http.StatusConflict {
+			t.Fatalf("expected status 409 Conflict, got %d", recConflict.Code)
+		}
+
+		var conflictResp struct {
+			Error            string `json:"error"`
+			DependentSources []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"dependent_sources"`
+		}
+		if err := json.Unmarshal(recConflict.Body.Bytes(), &conflictResp); err != nil {
+			t.Fatalf("failed to decode 409 response: %v", err)
+		}
+		if conflictResp.Error != "CREDENTIAL_IN_USE" {
+			t.Errorf("expected error CREDENTIAL_IN_USE, got %s", conflictResp.Error)
+		}
+		if len(conflictResp.DependentSources) != 2 {
+			t.Fatalf("expected 2 dependent sources, got %d", len(conflictResp.DependentSources))
+		}
+		if conflictResp.DependentSources[0].Name != "Proxmox Primary" || conflictResp.DependentSources[1].Name != "Docker Daemon" {
+			t.Errorf("unexpected dependent sources: %+v", conflictResp.DependentSources)
+		}
 	})
 }
+

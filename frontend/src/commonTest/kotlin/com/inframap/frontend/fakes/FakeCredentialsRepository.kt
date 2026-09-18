@@ -10,6 +10,14 @@ class FakeCredentialsRepository(
             listOf(CredentialSummary(id = "cred-1", name = "Proxmox homelab", type = "api_token")),
             requestId = "",
         ),
+    var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit, requestId = ""),
 ) : CredentialsRepository {
+    val deletedIds = mutableListOf<String>()
+
     override suspend fun listCredentials(): ApiResult<List<CredentialSummary>> = listResult
+
+    override suspend fun deleteCredential(id: String): ApiResult<Unit> {
+        deletedIds.add(id)
+        return deleteResult
+    }
 }

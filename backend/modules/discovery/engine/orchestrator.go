@@ -329,26 +329,56 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 			}
 
 			if existingDev != nil {
-				_, changed := o.reconciler.Reconcile(existingDev, normDTO, normalized.ProtocolSource)
-				if changed && !processedKeys[dedupeKey] {
-					totalUpdated++
-					processedKeys[dedupeKey] = true
+				if existingDev.DeletedAt.Valid {
+					normDTO.MatchedDeviceID = &existingDev.ID
+					normDTO.PreviouslyDeleted = true
+					if !processedKeys[dedupeKey] {
+						totalDiscovered++
+						processedKeys[dedupeKey] = true
 
-					if o.bus != nil {
-						if pubErr := o.bus.Publish(ctx, eventbus.NewBaseEvent("device.updated", map[string]interface{}{
-							"device_id":       existingDev.ID.String(),
-							"ip_address":      normalized.IPAddress,
-							"protocol_source": normalized.ProtocolSource,
-						})); pubErr != nil {
-							slog.Warn("failed to publish device.updated event", "device_id", existingDev.ID, "error", pubErr)
+						if o.bus != nil {
+							if pubErr := o.bus.Publish(ctx, eventbus.NewBaseEvent("device.discovered", map[string]interface{}{
+								"ip_address":         normalized.IPAddress,
+								"mac_address":        normalized.MACAddress,
+								"hostname":           normalized.Hostname,
+								"vendor":             normalized.Vendor,
+								"protocol_source":    normalized.ProtocolSource,
+								"previously_deleted": true,
+								"matched_device_id":  existingDev.ID.String(),
+							})); pubErr != nil {
+								slog.Warn("failed to publish device.discovered event", "ip_address", normalized.IPAddress, "error", pubErr)
+							}
+						}
+
+						o.mu.RLock()
+						cb := o.onDeviceCallback
+						o.mu.RUnlock()
+						if cb != nil {
+							cb(ctx, normDTO, normalized.ProtocolSource, false)
 						}
 					}
+				} else {
+					_, changed := o.reconciler.Reconcile(existingDev, normDTO, normalized.ProtocolSource)
+					if changed && !processedKeys[dedupeKey] {
+						totalUpdated++
+						processedKeys[dedupeKey] = true
 
-					o.mu.RLock()
-					cb := o.onDeviceCallback
-					o.mu.RUnlock()
-					if cb != nil {
-						cb(ctx, normDTO, normalized.ProtocolSource, true)
+						if o.bus != nil {
+							if pubErr := o.bus.Publish(ctx, eventbus.NewBaseEvent("device.updated", map[string]interface{}{
+								"device_id":       existingDev.ID.String(),
+								"ip_address":      normalized.IPAddress,
+								"protocol_source": normalized.ProtocolSource,
+							})); pubErr != nil {
+								slog.Warn("failed to publish device.updated event", "device_id", existingDev.ID, "error", pubErr)
+							}
+						}
+
+						o.mu.RLock()
+						cb := o.onDeviceCallback
+						o.mu.RUnlock()
+						if cb != nil {
+							cb(ctx, normDTO, normalized.ProtocolSource, true)
+						}
 					}
 				}
 			}

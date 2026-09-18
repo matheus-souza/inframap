@@ -6,18 +6,39 @@ INSERT INTO discovery_sources (
 ) RETURNING *;
 
 -- name: GetDiscoverySourceByID :one
-SELECT * FROM discovery_sources WHERE id = $1;
+SELECT * FROM discovery_sources WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: ListDiscoverySources :many
-SELECT * FROM discovery_sources ORDER BY created_at DESC, id DESC;
+SELECT * FROM discovery_sources WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC;
 
 -- name: UpdateDiscoverySourceStatus :one
 UPDATE discovery_sources
 SET last_status = $2,
     last_run_at = NOW(),
     updated_at = NOW()
-WHERE id = $1
+WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
+
+-- name: UpdateDiscoverySource :one
+UPDATE discovery_sources
+SET name = $2,
+    enabled = $3,
+    schedule_cron = $4,
+    config_encrypted = $5,
+    updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING *;
+
+-- name: DeleteDiscoverySource :execrows
+UPDATE discovery_sources
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: DeactivateCollectorsBySourceID :execrows
+UPDATE discovery_source_collectors
+SET enabled = false
+WHERE source_id = $1;
 
 -- name: UpsertDeviceDiscoveryRecord :one
 INSERT INTO device_discovery_records (
@@ -42,10 +63,8 @@ WHERE discovery_source_id = $1
 ORDER BY last_scanned_at DESC, id DESC
 LIMIT $2 OFFSET $3;
 
--- name: DeleteDiscoverySource :execrows
-DELETE FROM discovery_sources WHERE id = $1;
-
 -- name: CreateDiscoverySourceCollector :one
+
 INSERT INTO discovery_source_collectors (
     id, source_id, collector_type, config_encrypted, enabled, created_at
 ) VALUES (
@@ -93,4 +112,12 @@ WHERE id IN (
     ORDER BY sub.finished_at ASC, sub.id ASC
     LIMIT $2
 );
+
+-- name: CountCollectorsBySourceID :one
+SELECT COUNT(*) FROM discovery_source_collectors
+WHERE source_id = $1;
+
+-- name: CountDiscoveredDevicesBySourceID :one
+SELECT COUNT(DISTINCT device_id) FROM device_discovery_records
+WHERE discovery_source_id = $1;
 

@@ -5,6 +5,7 @@ import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.usecase.discovery.DeleteDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceDeletionImpactUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
 import com.inframap.frontend.fakes.FakeDiscoveryRepository
@@ -43,6 +44,7 @@ class DiscoveryListViewModelTest {
         GetDiscoverySourcesUseCase(repo),
         TriggerDiscoveryRunUseCase(repo),
         DeleteDiscoverySourceUseCase(repo),
+        GetDiscoverySourceDeletionImpactUseCase(repo),
         scope = scope,
     )
 
@@ -180,17 +182,19 @@ class DiscoveryListViewModelTest {
                 awaitItem()
 
                 vm.confirmDeleteSource(sampleSource)
-                assertEquals(
-                    "src-1",
-                    vm.state.value.sourceToDelete
-                        ?.id,
-                )
+                advanceUntilIdle()
+
+                val confirmedState = expectMostRecentItem()
+                assertEquals("src-1", confirmedState.sourceToDelete?.id)
+                assertEquals(2, confirmedState.deleteImpact?.collectorsHalted)
+                assertEquals(5, confirmedState.deleteImpact?.devicesUnlinked)
 
                 vm.deleteSource()
                 advanceUntilIdle()
 
                 val state = expectMostRecentItem()
                 assertNull(state.sourceToDelete)
+                assertNull(state.deleteImpact)
                 assertTrue(state.sources.isEmpty())
                 assertEquals(0, state.totalItems)
                 assertNotNull(state.toastMessage)

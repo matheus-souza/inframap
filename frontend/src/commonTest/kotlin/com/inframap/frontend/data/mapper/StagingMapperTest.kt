@@ -19,6 +19,8 @@ class StagingMapperTest {
                 deviceType = "server",
                 discoverySourceId = "src-1",
                 status = "pending",
+                previouslyDeleted = true,
+                matchedDeviceId = "orig-id-123",
                 createdAt = "2026-01-01T00:00:00Z",
             )
 
@@ -33,6 +35,8 @@ class StagingMapperTest {
         assertEquals("server", domain.deviceType)
         assertEquals("src-1", domain.discoverySourceId)
         assertEquals("pending", domain.status)
+        assertEquals(true, domain.previouslyDeleted)
+        assertEquals("orig-id-123", domain.matchedDeviceId)
         assertEquals("2026-01-01T00:00:00Z", domain.createdAt)
     }
 

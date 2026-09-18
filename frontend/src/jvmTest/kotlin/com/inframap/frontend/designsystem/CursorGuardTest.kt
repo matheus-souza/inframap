@@ -21,6 +21,19 @@ class CursorGuardTest {
     }
 
     @Test
+    fun devicesScreenInteractionsComplyWithCursorStandards() {
+        val devicesDir = File("src/commonMain/kotlin/com/inframap/frontend/ui/devices")
+        assertTrue(devicesDir.exists(), "devices UI dir must exist at ${devicesDir.absolutePath}")
+
+        val violations = scanDirectory(devicesDir)
+
+        assertTrue(
+            violations.isEmpty(),
+            "Found clickable usages without hand cursor in devices UI:\n" + violations.joinToString("\n"),
+        )
+    }
+
+    @Test
     fun syntheticNonCompliantSnippetTripsGuard() {
         val tempDir = createTempDirectory("cursor-guard-test")
         try {

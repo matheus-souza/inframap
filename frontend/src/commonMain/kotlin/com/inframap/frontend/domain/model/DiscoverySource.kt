@@ -19,6 +19,8 @@ data class SourceCollector(
     val id: String = "",
     val collectorType: String = "",
     val enabled: Boolean = true,
+    val config: Map<String, String> = emptyMap(),
+    val configuredSecrets: List<String> = emptyList(),
 )
 
 data class CollectorRunSummary(
@@ -32,4 +34,9 @@ data class CollectorRunDetail(
     val devicesFound: Int = 0,
     val durationMs: Long = 0L,
     val errorMessage: String? = null,
+)
+
+data class DiscoverySourceDeletionImpact(
+    val collectorsHalted: Int = 0,
+    val devicesUnlinked: Int = 0,
 )

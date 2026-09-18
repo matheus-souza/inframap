@@ -80,6 +80,9 @@ data class EditDeviceUiState(
     val status: String = "active",
     val isLoading: Boolean = true,
     val isSubmitting: Boolean = false,
+    val isDeleting: Boolean = false,
+    val showDeleteDialog: Boolean = false,
+    val isDeleted: Boolean = false,
     val validationErrors: Map<String, UiText> = emptyMap(),
     val errorMessage: UiText? = null,
     val isSuccess: Boolean = false,
@@ -94,4 +97,7 @@ data class EditDeviceActions(
     val onSubmitClicked: () -> Unit,
     val onCancelClicked: () -> Unit,
     val onRetryClicked: () -> Unit,
+    val onDeleteClicked: () -> Unit = {},
+    val onConfirmDeleteClicked: () -> Unit = {},
+    val onDismissDeleteClicked: () -> Unit = {},
 )

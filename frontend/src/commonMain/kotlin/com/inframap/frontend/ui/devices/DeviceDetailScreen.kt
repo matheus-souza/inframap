@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.DeviceStatus
@@ -27,6 +28,7 @@ import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapConfirmDialog
 import com.inframap.frontend.designsystem.InfraMapDetailSkeleton
+import com.inframap.frontend.designsystem.InfraMapInactiveSourceBadge
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapPowerStateBadge
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
@@ -234,7 +236,17 @@ private fun DeviceMainInfoCard(device: Device) {
                         "staged" -> DeviceStatus.STAGED
                         else -> DeviceStatus.OFFLINE
                     }
-                InfraMapStatusBadge(status = statusBadge)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    InfraMapStatusBadge(status = statusBadge)
+                    if (device.discoverySourceInactive) {
+                        InfraMapInactiveSourceBadge(
+                            modifier = Modifier.testTag("device_discovery_source_inactive_${device.id}"),
+                        )
+                    }
+                }
             }
 
             // A provider-owned workload also has a runtime state, which is independent of

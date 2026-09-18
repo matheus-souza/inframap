@@ -4,6 +4,7 @@ package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.domain.model.CredentialSummary
 import com.inframap.frontend.domain.model.DiscoverySource
+import com.inframap.frontend.domain.model.DiscoverySourceDeletionImpact
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.ui.base.Paginated
 import com.inframap.frontend.ui.util.UiText
@@ -16,12 +17,15 @@ data class DiscoveryListUiState(
     override val currentPage: Int = 1,
     val toastMessage: UiText? = null,
     val sourceToDelete: DiscoverySource? = null,
+    val deleteImpact: DiscoverySourceDeletionImpact? = null,
+    val isLoadingDeleteImpact: Boolean = false,
     val deleteError: UiText? = null,
     val triggerRunError: UiText? = null,
 ) : Paginated
 
 data class DiscoveryListActions(
     val onCreateSourceClicked: () -> Unit,
+    val onEditSourceClicked: (String) -> Unit = {},
     val onTriggerRunClicked: (String) -> Unit,
     val onDeleteSourceClicked: (DiscoverySource) -> Unit,
     val onConfirmDelete: () -> Unit,
@@ -95,4 +99,68 @@ data class CreateDiscoverySourceActions(
     val onProviderTabSelected: (providerId: String) -> Unit = {},
     val onSubmitClicked: () -> Unit,
     val onCancelClicked: () -> Unit,
+)
+
+data class EditDiscoverySourceUiState(
+    val id: String = "",
+    val name: String = "",
+    val sourceType: String = "",
+    val selectedCollectors: Set<String> = emptySet(),
+    val scheduleCron: String = "",
+    val configCidr: String = "",
+    val enabled: Boolean = true,
+    val isLoading: Boolean = true,
+    val isSubmitting: Boolean = false,
+    val isSuccess: Boolean = false,
+    val errorMessage: UiText? = null,
+    val validationErrors: Map<String, UiText> = emptyMap(),
+    val providerConfigs: Map<String, Map<String, String>> = emptyMap(),
+    val initialProviderTargets: Map<String, Map<String, String>> = emptyMap(),
+    val configuredSecrets: Map<String, Set<String>> = emptyMap(),
+    val targetChangedWarnings: Map<String, Boolean> = emptyMap(),
+    val connectionTests: Map<String, ConnectionTest> = emptyMap(),
+    val activeProviderTab: String? = null,
+    val showDeleteDialog: Boolean = false,
+    val deleteImpact: DiscoverySourceDeletionImpact? = null,
+    val isLoadingDeleteImpact: Boolean = false,
+    val isDeleting: Boolean = false,
+    val deleteError: UiText? = null,
+    val isDeleted: Boolean = false,
+) {
+    val selectedProviders: List<String> get() = ProviderForms.ids.filter { it in selectedCollectors }
+    val showsProviderTabs: Boolean get() = selectedProviders.size >= 2
+    val currentProviderTab: String? get() =
+        activeProviderTab?.takeIf { it in selectedProviders } ?: selectedProviders.firstOrNull()
+
+    fun hasPendingTargetOrSecretChanges(providerId: String): Boolean {
+        val targetKeys = ProviderForms.targetKeys(providerId)
+        val secretKeys = ProviderForms.secretKeys(providerId)
+        val initialTargets = initialProviderTargets[providerId].orEmpty()
+        val currentConfig = providerConfigs[providerId].orEmpty()
+
+        val targetChanged =
+            targetKeys.any { tKey ->
+                initialTargets[tKey].orEmpty() != currentConfig[tKey].orEmpty()
+            }
+        val secretEntered =
+            secretKeys.any { sKey ->
+                currentConfig[sKey].orEmpty().isNotBlank()
+            }
+        return targetChanged || secretEntered
+    }
+}
+
+data class EditDiscoverySourceActions(
+    val onNameChanged: (String) -> Unit,
+    val onScheduleCronChanged: (String) -> Unit,
+    val onEnabledChanged: (Boolean) -> Unit,
+    val onProviderFieldChanged: (providerId: String, key: String, value: String) -> Unit,
+    val onProviderTabSelected: (providerId: String) -> Unit,
+    val onTestConnectionClicked: (providerId: String) -> Unit = {},
+    val onSubmitClicked: () -> Unit,
+    val onDeleteClicked: () -> Unit,
+    val onConfirmDeleteClicked: () -> Unit,
+    val onDismissDeleteDialog: () -> Unit,
+    val onDismissError: () -> Unit,
+    val onBackClicked: () -> Unit,
 )

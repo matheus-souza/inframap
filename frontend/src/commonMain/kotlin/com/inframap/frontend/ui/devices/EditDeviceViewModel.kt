@@ -1,9 +1,11 @@
 package com.inframap.frontend.ui.devices
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.domain.usecase.device.DeleteDeviceUseCase
 import com.inframap.frontend.domain.usecase.device.GetDeviceByIdUseCase
 import com.inframap.frontend.domain.usecase.device.UpdateDeviceUseCase
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.devices_error_delete
 import com.inframap.frontend.generated.resources.devices_error_load_detail
 import com.inframap.frontend.generated.resources.devices_error_update
 import com.inframap.frontend.generated.resources.validation_hostname_empty
@@ -15,6 +17,7 @@ class EditDeviceViewModel(
     private val deviceId: String,
     private val getDeviceByIdUseCase: GetDeviceByIdUseCase,
     private val updateDeviceUseCase: UpdateDeviceUseCase,
+    private val deleteDeviceUseCase: DeleteDeviceUseCase,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<EditDeviceUiState>(EditDeviceUiState(deviceId = deviceId), scope) {
     init {
@@ -154,6 +157,50 @@ class EditDeviceViewModel(
                         it.copy(
                             isSubmitting = false,
                             errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_update)),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun requestDelete() {
+        updateState { it.copy(showDeleteDialog = true) }
+    }
+
+    fun dismissDelete() {
+        updateState { it.copy(showDeleteDialog = false) }
+    }
+
+    fun confirmDelete(onSuccess: (() -> Unit)? = null) {
+        if (state.value.isDeleting) return
+        updateState { it.copy(isDeleting = true, errorMessage = null) }
+
+        launchJob("delete_device") {
+            when (val result = deleteDeviceUseCase(deviceId)) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            showDeleteDialog = false,
+                            isDeleting = false,
+                            isDeleted = true,
+                        )
+                    }
+                    onSuccess?.invoke()
+                }
+                is ApiResult.Error -> {
+                    updateState {
+                        it.copy(
+                            isDeleting = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_delete)),
+                        )
+                    }
+                }
+                is ApiResult.NetworkError -> {
+                    updateState {
+                        it.copy(
+                            isDeleting = false,
+                            errorMessage = mapError(result, UiText.Resource(Res.string.devices_error_delete)),
                         )
                     }
                 }

@@ -5,4 +5,6 @@ import com.inframap.frontend.domain.model.CredentialSummary
 
 interface CredentialsRepository {
     suspend fun listCredentials(): ApiResult<List<CredentialSummary>>
+
+    suspend fun deleteCredential(id: String): ApiResult<Unit>
 }

@@ -10,6 +10,7 @@ import com.inframap.frontend.domain.model.CollectorRunSummary
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.SourceCollector
+import kotlinx.serialization.json.JsonPrimitive
 
 object DiscoveryMapper {
     fun toDomain(dto: DiscoverySourceDto): DiscoverySource {
@@ -38,12 +39,20 @@ object DiscoveryMapper {
         )
     }
 
-    fun toDomain(dto: CollectorDto): SourceCollector =
-        SourceCollector(
+    fun toDomain(dto: CollectorDto): SourceCollector {
+        val stringConfig =
+            dto.config?.mapValues { (_, value) ->
+                if (value is JsonPrimitive) value.content else value.toString()
+            } ?: emptyMap()
+
+        return SourceCollector(
             id = dto.id,
             collectorType = dto.collectorType,
             enabled = dto.enabled,
+            config = stringConfig,
+            configuredSecrets = dto.configuredSecrets ?: emptyList(),
         )
+    }
 
     fun toDomain(dto: CollectorRunSummaryDto): CollectorRunSummary =
         CollectorRunSummary(
@@ -69,4 +78,12 @@ object DiscoveryMapper {
             perPage = list.size.coerceAtLeast(1),
         )
     }
+
+    fun toDomain(
+        dto: com.inframap.frontend.data.dto.DiscoverySourceDeletionImpactDto,
+    ): com.inframap.frontend.domain.model.DiscoverySourceDeletionImpact =
+        com.inframap.frontend.domain.model.DiscoverySourceDeletionImpact(
+            collectorsHalted = dto.collectorsHalted,
+            devicesUnlinked = dto.devicesUnlinked,
+        )
 }

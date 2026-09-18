@@ -20,6 +20,7 @@ object DeviceMapper {
             powerState = dto.powerState?.takeIf { it.isNotBlank() },
             parentDeviceId = dto.parentDeviceId?.takeIf { it.isNotBlank() },
             metadata = dto.metadata,
+            discoverySourceInactive = dto.discoverySourceInactive,
             createdAt = dto.createdAt,
             updatedAt = dto.updatedAt,
         )

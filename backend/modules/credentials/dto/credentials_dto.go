@@ -67,3 +67,10 @@ type CredentialResponse struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
+
+// DependentSource represents an active discovery source referencing a credential.
+type DependentSource struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+

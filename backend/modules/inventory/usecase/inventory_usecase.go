@@ -3,6 +3,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -26,6 +27,12 @@ var (
 
 	// ErrInvalidInput indicates malformed user input.
 	ErrInvalidInput = errors.New("invalid input")
+
+	// ErrGatewayNotContained indicates gateway IP does not belong to the subnet CIDR.
+	ErrGatewayNotContained = errors.New("gateway IP is not contained within CIDR prefix")
+
+	// ErrSubnetConflict indicates subnet CIDR conflicts with an active subnet.
+	ErrSubnetConflict = errors.New("subnet CIDR conflicts with an active subnet")
 )
 
 // InventoryUseCase defines business capabilities for inventory resources.
@@ -42,7 +49,14 @@ type InventoryUseCase interface {
 
 	CreateSubnet(ctx context.Context, req dto.CreateSubnetRequest) (*dto.SubnetResponse, error)
 	ListSubnets(ctx context.Context) ([]dto.SubnetResponse, error)
+	GetSubnetByID(ctx context.Context, idStr string) (*dto.SubnetResponse, error)
+	UpdateSubnet(ctx context.Context, idStr string, req dto.UpdateSubnetRequest) (*dto.SubnetResponse, error)
+	SoftDeleteSubnet(ctx context.Context, idStr string) (*dto.DeleteSubnetResponse, error)
+	GetSubnetDeletionImpact(ctx context.Context, idStr string) (*dto.SubnetDeletionImpactResponse, error)
+	GetSubnetCIDRImpact(ctx context.Context, idStr string, req dto.SubnetCIDRImpactRequest) (*dto.SubnetCIDRImpactResponse, error)
 }
+
+
 
 // DefaultInventoryUseCase implements InventoryUseCase.
 type DefaultInventoryUseCase struct {
@@ -121,7 +135,12 @@ func (uc *DefaultInventoryUseCase) GetDeviceByID(ctx context.Context, idStr stri
 		return nil, err
 	}
 
-	return uc.mapDeviceToResponse(device), nil
+	resp := uc.mapDeviceToResponse(device)
+	if inactiveIDs, err := uc.repo.GetInactiveDiscoverySourceDeviceIDs(ctx, []uuid.UUID{deviceID}); err == nil && len(inactiveIDs) > 0 {
+		resp.DiscoverySourceInactive = true
+	}
+
+	return resp, nil
 }
 
 // ListDevices returns paginated active devices.
@@ -139,9 +158,26 @@ func (uc *DefaultInventoryUseCase) ListDevices(ctx context.Context, searchQuery,
 		return nil, 0, err
 	}
 
+	deviceIDs := make([]uuid.UUID, len(devices))
+	for i, d := range devices {
+		deviceIDs[i] = d.ID
+	}
+	inactiveSet := make(map[uuid.UUID]bool)
+	if len(deviceIDs) > 0 {
+		if inactiveIDs, err := uc.repo.GetInactiveDiscoverySourceDeviceIDs(ctx, deviceIDs); err == nil {
+			for _, id := range inactiveIDs {
+				inactiveSet[id] = true
+			}
+		}
+	}
+
 	responses := make([]dto.DeviceResponse, len(devices))
 	for i, d := range devices {
-		responses[i] = *uc.mapDeviceToResponse(&d)
+		resp := uc.mapDeviceToResponse(&d)
+		if inactiveSet[d.ID] {
+			resp.DiscoverySourceInactive = true
+		}
+		responses[i] = *resp
 	}
 
 	return responses, total, nil
@@ -292,16 +328,46 @@ func (uc *DefaultInventoryUseCase) ListStagingDevices(ctx context.Context, statu
 
 	responses := make([]dto.StagingDeviceResponse, len(items))
 	for i, st := range items {
+		var prevDeleted bool
+		var matchedDevID *string
+		if len(st.RawPayload) > 0 {
+			var rawMap map[string]interface{}
+			if err := json.Unmarshal(st.RawPayload, &rawMap); err == nil {
+				if val, ok := rawMap["previously_deleted"].(bool); ok && val {
+					prevDeleted = true
+				}
+				if idStr, ok := rawMap["matched_device_id"].(string); ok && idStr != "" {
+					matchedDevID = &idStr
+				}
+				if meta, ok := rawMap["metadata"].(map[string]interface{}); ok {
+					if val, ok := meta["previously_deleted"].(bool); ok && val {
+						prevDeleted = true
+					}
+					if idStr, ok := meta["matched_device_id"].(string); ok && idStr != "" {
+						matchedDevID = &idStr
+					}
+				}
+			}
+		}
+
+		var discSourceID string
+		if st.DiscoverySourceID.Valid {
+			discSourceID = uuid.UUID(st.DiscoverySourceID.Bytes).String()
+		}
+
 		responses[i] = dto.StagingDeviceResponse{
-			ID:           st.ID.String(),
-			Hostname:     st.Hostname,
-			IPAddress:    repository.MapInetToString(st.IpAddress),
-			MACAddress:   repository.MapMacToString(st.MacAddress),
-			Manufacturer: st.Manufacturer.String,
-			Model:        st.Model.String,
-			DeviceType:   st.DeviceType,
-			Status:       st.Status,
-			CreatedAt:    st.CreatedAt.Time,
+			ID:                st.ID.String(),
+			Hostname:          st.Hostname,
+			IPAddress:         repository.MapInetToString(st.IpAddress),
+			MACAddress:        repository.MapMacToString(st.MacAddress),
+			Manufacturer:      st.Manufacturer.String,
+			Model:             st.Model.String,
+			DeviceType:        st.DeviceType,
+			DiscoverySourceID: discSourceID,
+			Status:            st.Status,
+			PreviouslyDeleted: prevDeleted,
+			MatchedDeviceID:   matchedDevID,
+			CreatedAt:         st.CreatedAt.Time,
 		}
 	}
 
@@ -309,6 +375,7 @@ func (uc *DefaultInventoryUseCase) ListStagingDevices(ctx context.Context, statu
 }
 
 // ApproveStagingDevice promotes a staged device into active inventory and emits 'device.approved'.
+// If the device was previously deleted, it restores the existing device record and keeps its original ID.
 func (uc *DefaultInventoryUseCase) ApproveStagingDevice(ctx context.Context, stagingIDStr string) (*dto.DeviceResponse, error) {
 	stagingID, err := uuid.Parse(stagingIDStr)
 	if err != nil {
@@ -320,23 +387,68 @@ func (uc *DefaultInventoryUseCase) ApproveStagingDevice(ctx context.Context, sta
 		return nil, err
 	}
 
-	if staged.Status != "pending" {
+	if staged.Status != "pending" && staged.Status != "discovered" {
 		return nil, fmt.Errorf("staging device is already %s", staged.Status)
 	}
 
-	// Create active device from staged data
-	newDeviceReq := dto.CreateDeviceRequest{
-		Hostname:     staged.Hostname,
-		IPAddress:    repository.MapInetToString(staged.IpAddress),
-		MACAddress:   repository.MapMacToString(staged.MacAddress),
-		Manufacturer: staged.Manufacturer.String,
-		Model:        staged.Model.String,
-		DeviceType:   staged.DeviceType,
+	var prevDeleted bool
+	var matchedDeviceID *uuid.UUID
+	if len(staged.RawPayload) > 0 {
+		var rawMap map[string]interface{}
+		if jsonErr := json.Unmarshal(staged.RawPayload, &rawMap); jsonErr == nil {
+			if val, ok := rawMap["previously_deleted"].(bool); ok && val {
+				prevDeleted = true
+			}
+			if idStr, ok := rawMap["matched_device_id"].(string); ok && idStr != "" {
+				if parsed, pErr := uuid.Parse(idStr); pErr == nil {
+					matchedDeviceID = &parsed
+				}
+			}
+			if meta, ok := rawMap["metadata"].(map[string]interface{}); ok {
+				if val, ok := meta["previously_deleted"].(bool); ok && val {
+					prevDeleted = true
+				}
+				if idStr, ok := meta["matched_device_id"].(string); ok && idStr != "" {
+					if parsed, pErr := uuid.Parse(idStr); pErr == nil {
+						matchedDeviceID = &parsed
+					}
+				}
+			}
+		}
 	}
 
-	device, err := uc.CreateDevice(ctx, newDeviceReq)
-	if err != nil {
-		return nil, err
+	var device *dto.DeviceResponse
+	if prevDeleted && matchedDeviceID != nil {
+		restoreParams := db.RestoreDeviceParams{
+			ID:           *matchedDeviceID,
+			Hostname:     staged.Hostname,
+			IpAddress:    staged.IpAddress,
+			MacAddress:   staged.MacAddress,
+			Manufacturer: staged.Manufacturer.String,
+			Model:        staged.Model.String,
+			DeviceType:   staged.DeviceType,
+		}
+		restored, restoreErr := uc.repo.RestoreDevice(ctx, restoreParams)
+		if restoreErr != nil {
+			return nil, fmt.Errorf("failed to restore soft-deleted device: %w", restoreErr)
+		}
+		device = uc.mapDeviceToResponse(restored)
+	} else {
+		// Create active device from staged data
+		newDeviceReq := dto.CreateDeviceRequest{
+			Hostname:     staged.Hostname,
+			IPAddress:    repository.MapInetToString(staged.IpAddress),
+			MACAddress:   repository.MapMacToString(staged.MacAddress),
+			Manufacturer: staged.Manufacturer.String,
+			Model:        staged.Model.String,
+			DeviceType:   staged.DeviceType,
+		}
+
+		createdDevice, createErr := uc.CreateDevice(ctx, newDeviceReq)
+		if createErr != nil {
+			return nil, createErr
+		}
+		device = createdDevice
 	}
 
 	// Mark staging item approved
@@ -367,6 +479,10 @@ func (uc *DefaultInventoryUseCase) DismissStagingDevice(ctx context.Context, sta
 	staged, err := uc.repo.GetStagingDeviceByID(ctx, stagingID)
 	if err != nil {
 		return err
+	}
+
+	if staged.Status != "pending" && staged.Status != "discovered" {
+		return fmt.Errorf("staging device is already %s", staged.Status)
 	}
 
 	if err := uc.repo.UpdateStagingDeviceStatus(ctx, stagingID, "dismissed"); err != nil {
@@ -442,23 +558,222 @@ func (uc *DefaultInventoryUseCase) ListSubnets(ctx context.Context) ([]dto.Subne
 
 	responses := make([]dto.SubnetResponse, len(subnets))
 	for i, s := range subnets {
-		responses[i] = dto.SubnetResponse{
-			ID:               s.ID.String(),
-			Name:             s.Name,
-			CIDR:             s.Cidr.String(),
-			GatewayIP:        repository.MapInetToString(s.GatewayIp),
-			Description:      s.Description.String,
-			DiscoveryEnabled: s.DiscoveryEnabled,
-			CreatedAt:        s.CreatedAt.Time,
-		}
-		if s.VlanID.Valid {
-			vlan := s.VlanID.Int32
-			responses[i].VLANID = &vlan
-		}
+		responses[i] = *uc.mapSubnetToResponse(&s)
 	}
 
 	return responses, nil
 }
+
+// GetSubnetByID fetches a single subnet by UUID string.
+func (uc *DefaultInventoryUseCase) GetSubnetByID(ctx context.Context, idStr string) (*dto.SubnetResponse, error) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, ErrInvalidUUID
+	}
+
+	subnet, err := uc.repo.GetSubnetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return uc.mapSubnetToResponse(subnet), nil
+}
+
+// UpdateSubnet validates and updates an existing subnet.
+func (uc *DefaultInventoryUseCase) UpdateSubnet(ctx context.Context, idStr string, req dto.UpdateSubnetRequest) (*dto.SubnetResponse, error) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, ErrInvalidUUID
+	}
+
+	existing, err := uc.repo.GetSubnetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	prefix, err := netip.ParsePrefix(strings.TrimSpace(req.CIDR))
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid CIDR notation", ErrInvalidInput)
+	}
+
+	var gatewayAddr *netip.Addr
+	if req.GatewayIP != nil && strings.TrimSpace(*req.GatewayIP) != "" {
+		parsed, err := netip.ParseAddr(strings.TrimSpace(*req.GatewayIP))
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid gateway IP address", ErrInvalidInput)
+		}
+		if !prefix.Contains(parsed) {
+			return nil, ErrGatewayNotContained
+		}
+		gatewayAddr = &parsed
+	} else if req.GatewayIP == nil && existing.GatewayIp != nil {
+		if !prefix.Contains(*existing.GatewayIp) {
+			return nil, ErrGatewayNotContained
+		}
+		gatewayAddr = existing.GatewayIp
+	}
+
+	allSubnets, err := uc.repo.ListSubnets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range allSubnets {
+		if s.ID != id && s.Cidr == prefix {
+			return nil, ErrSubnetConflict
+		}
+	}
+
+	params := db.UpdateSubnetParams{
+		ID:               id,
+		Name:             strings.TrimSpace(req.Name),
+		Cidr:             prefix,
+		GatewayIp:        gatewayAddr,
+		DiscoveryEnabled: existing.DiscoveryEnabled,
+	}
+	if req.DiscoveryEnabled != nil {
+		params.DiscoveryEnabled = *req.DiscoveryEnabled
+	}
+	if req.VLANID != nil {
+		params.VlanID = pgtype.Int4{Int32: *req.VLANID, Valid: true}
+	} else if existing.VlanID.Valid {
+		params.VlanID = existing.VlanID
+	}
+	if req.Description != nil {
+		params.Description = pgtype.Text{String: strings.TrimSpace(*req.Description), Valid: true}
+	} else if existing.Description.Valid {
+		params.Description = existing.Description
+	}
+
+	updated, err := uc.repo.UpdateSubnet(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return uc.mapSubnetToResponse(updated), nil
+}
+
+// GetSubnetDeletionImpact returns the count of affected devices and edges for deleting a subnet.
+func (uc *DefaultInventoryUseCase) GetSubnetDeletionImpact(ctx context.Context, idStr string) (*dto.SubnetDeletionImpactResponse, error) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, ErrInvalidUUID
+	}
+
+	subnet, err := uc.repo.GetSubnetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	devices, _, err := uc.repo.ListDevices(ctx, "", "", 10000, 0, false)
+	if err != nil {
+		return nil, err
+	}
+
+	affectedCount := 0
+	for _, dev := range devices {
+		if dev.IpAddress != nil && subnet.Cidr.Contains(*dev.IpAddress) {
+			affectedCount++
+		}
+	}
+
+	return &dto.SubnetDeletionImpactResponse{
+		SubnetID: idStr,
+		Impact: dto.SubnetDeletionImpact{
+			AffectedDevices:        affectedCount,
+			UnlinkedTopologyEdges: 0,
+		},
+	}, nil
+}
+
+// SoftDeleteSubnet soft-deletes a subnet and returns the impact summary.
+func (uc *DefaultInventoryUseCase) SoftDeleteSubnet(ctx context.Context, idStr string) (*dto.DeleteSubnetResponse, error) {
+	impactResp, err := uc.GetSubnetDeletionImpact(ctx, idStr)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, ErrInvalidUUID
+	}
+
+	if err := uc.repo.SoftDeleteSubnet(ctx, id); err != nil {
+		return nil, err
+	}
+
+	return &dto.DeleteSubnetResponse{
+		DeletedID: idStr,
+		Impact:    impactResp.Impact,
+	}, nil
+}
+
+// GetSubnetCIDRImpact calculates the count of active devices that fall outside the new CIDR.
+func (uc *DefaultInventoryUseCase) GetSubnetCIDRImpact(ctx context.Context, idStr string, req dto.SubnetCIDRImpactRequest) (*dto.SubnetCIDRImpactResponse, error) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, ErrInvalidUUID
+	}
+
+	fieldErrors := req.Validate()
+	if len(fieldErrors) > 0 {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidInput, fieldErrors[0].Issue)
+	}
+
+	existing, err := uc.repo.GetSubnetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	newPrefix, err := netip.ParsePrefix(strings.TrimSpace(req.NewCIDR))
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid CIDR notation", ErrInvalidInput)
+	}
+
+	currentPrefix := existing.Cidr
+
+	devices, _, err := uc.repo.ListDevices(ctx, "", "", 10000, 0, false)
+	if err != nil {
+		return nil, err
+	}
+
+	affectedCount := 0
+	for _, dev := range devices {
+		if dev.IpAddress != nil {
+			if currentPrefix.Contains(*dev.IpAddress) && !newPrefix.Contains(*dev.IpAddress) {
+				affectedCount++
+			}
+		}
+	}
+
+	return &dto.SubnetCIDRImpactResponse{
+		CurrentCIDR:          currentPrefix.String(),
+		NewCIDR:              newPrefix.String(),
+		AffectedDevicesCount: affectedCount,
+	}, nil
+}
+
+func (uc *DefaultInventoryUseCase) mapSubnetToResponse(subnet *db.Subnet) *dto.SubnetResponse {
+
+	if subnet == nil {
+		return nil
+	}
+	resp := &dto.SubnetResponse{
+		ID:               subnet.ID.String(),
+		Name:             subnet.Name,
+		CIDR:             subnet.Cidr.String(),
+		GatewayIP:        repository.MapInetToString(subnet.GatewayIp),
+		Description:      subnet.Description.String,
+		DiscoveryEnabled: subnet.DiscoveryEnabled,
+		CreatedAt:        subnet.CreatedAt.Time,
+		UpdatedAt:        subnet.UpdatedAt.Time,
+	}
+	if subnet.VlanID.Valid {
+		vlan := subnet.VlanID.Int32
+		resp.VLANID = &vlan
+	}
+	return resp
+}
+
 
 func (uc *DefaultInventoryUseCase) mapDeviceToResponse(device *db.Device) *dto.DeviceResponse {
 	if device == nil {

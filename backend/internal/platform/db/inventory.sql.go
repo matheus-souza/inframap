@@ -35,7 +35,7 @@ func (q *Queries) CountDevices(ctx context.Context, arg CountDevicesParams) (int
 }
 
 const countStagingDevices = `-- name: CountStagingDevices :one
-SELECT COUNT(*) FROM device_staging WHERE status = $1
+SELECT COUNT(*) FROM device_staging WHERE status = $1 OR ($1 = 'pending' AND status = 'discovered')
 `
 
 func (q *Queries) CountStagingDevices(ctx context.Context, status string) (int64, error) {
@@ -165,7 +165,7 @@ INSERT INTO subnets (
     id, name, cidr, vlan_id, gateway_ip, description, discovery_enabled
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, name, cidr, vlan_id, gateway_ip, description, discovery_enabled, created_at, updated_at
+) RETURNING id, name, cidr, vlan_id, gateway_ip, description, discovery_enabled, created_at, updated_at, deleted_at
 `
 
 type CreateSubnetParams struct {
@@ -197,6 +197,44 @@ func (q *Queries) CreateSubnet(ctx context.Context, arg CreateSubnetParams) (Sub
 		&i.GatewayIp,
 		&i.Description,
 		&i.DiscoveryEnabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const findPendingStagingDevice = `-- name: FindPendingStagingDevice :one
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, device_type, discovery_source_id, raw_payload, status, created_at, updated_at FROM device_staging
+WHERE status IN ('pending', 'discovered')
+  AND (
+    ($1::inet IS NOT NULL AND ip_address = $1)
+    OR ($2::macaddr IS NOT NULL AND mac_address = $2)
+    OR ($3::text IS NOT NULL AND (raw_payload->>'matched_device_id' = $3::text OR raw_payload->'metadata'->>'matched_device_id' = $3::text))
+  )
+LIMIT 1
+`
+
+type FindPendingStagingDeviceParams struct {
+	IpAddress       *netip.Addr      `json:"ip_address"`
+	MacAddress      net.HardwareAddr `json:"mac_address"`
+	MatchedDeviceID pgtype.Text      `json:"matched_device_id"`
+}
+
+func (q *Queries) FindPendingStagingDevice(ctx context.Context, arg FindPendingStagingDeviceParams) (DeviceStaging, error) {
+	row := q.db.QueryRow(ctx, findPendingStagingDevice, arg.IpAddress, arg.MacAddress, arg.MatchedDeviceID)
+	var i DeviceStaging
+	err := row.Scan(
+		&i.ID,
+		&i.Hostname,
+		&i.IpAddress,
+		&i.MacAddress,
+		&i.Manufacturer,
+		&i.Model,
+		&i.DeviceType,
+		&i.DiscoverySourceID,
+		&i.RawPayload,
+		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -274,6 +312,39 @@ func (q *Queries) GetDeviceByProviderRef(ctx context.Context, providerRef string
 	return i, err
 }
 
+const getInactiveDiscoverySourceDeviceIDs = `-- name: GetInactiveDiscoverySourceDeviceIDs :many
+SELECT DISTINCT ddr.device_id
+FROM device_discovery_records ddr
+JOIN discovery_sources ds ON ds.id = ddr.discovery_source_id
+WHERE ddr.device_id = ANY($1::uuid[])
+  AND ds.deleted_at IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM device_discovery_records ddr2
+      JOIN discovery_sources ds2 ON ds2.id = ddr2.discovery_source_id
+      WHERE ddr2.device_id = ddr.device_id AND ds2.deleted_at IS NULL
+  )
+`
+
+func (q *Queries) GetInactiveDiscoverySourceDeviceIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, getInactiveDiscoverySourceDeviceIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var device_id uuid.UUID
+		if err := rows.Scan(&device_id); err != nil {
+			return nil, err
+		}
+		items = append(items, device_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStagingDeviceByID = `-- name: GetStagingDeviceByID :one
 SELECT id, hostname, ip_address, mac_address, manufacturer, model, device_type, discovery_source_id, raw_payload, status, created_at, updated_at FROM device_staging WHERE id = $1
 `
@@ -299,7 +370,7 @@ func (q *Queries) GetStagingDeviceByID(ctx context.Context, id uuid.UUID) (Devic
 }
 
 const getSubnetByID = `-- name: GetSubnetByID :one
-SELECT id, name, cidr, vlan_id, gateway_ip, description, discovery_enabled, created_at, updated_at FROM subnets WHERE id = $1
+SELECT id, name, cidr, vlan_id, gateway_ip, description, discovery_enabled, created_at, updated_at, deleted_at FROM subnets WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetSubnetByID(ctx context.Context, id uuid.UUID) (Subnet, error) {
@@ -315,6 +386,7 @@ func (q *Queries) GetSubnetByID(ctx context.Context, id uuid.UUID) (Subnet, erro
 		&i.DiscoveryEnabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -483,7 +555,7 @@ func (q *Queries) ListDevicesPendingParentResolution(ctx context.Context, parent
 
 const listStagingDevices = `-- name: ListStagingDevices :many
 SELECT id, hostname, ip_address, mac_address, manufacturer, model, device_type, discovery_source_id, raw_payload, status, created_at, updated_at FROM device_staging
-WHERE status = $1
+WHERE status = $1 OR ($1 = 'pending' AND status = 'discovered')
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
 `
@@ -528,7 +600,7 @@ func (q *Queries) ListStagingDevices(ctx context.Context, arg ListStagingDevices
 }
 
 const listSubnets = `-- name: ListSubnets :many
-SELECT id, name, cidr, vlan_id, gateway_ip, description, discovery_enabled, created_at, updated_at FROM subnets ORDER BY name ASC
+SELECT id, name, cidr, vlan_id, gateway_ip, description, discovery_enabled, created_at, updated_at, deleted_at FROM subnets WHERE deleted_at IS NULL ORDER BY name ASC
 `
 
 func (q *Queries) ListSubnets(ctx context.Context) ([]Subnet, error) {
@@ -550,6 +622,7 @@ func (q *Queries) ListSubnets(ctx context.Context) ([]Subnet, error) {
 			&i.DiscoveryEnabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -580,6 +653,68 @@ type MarkDeviceAbsentParams struct {
 // untouched so it keeps pointing at the last time the device was actually observed.
 func (q *Queries) MarkDeviceAbsent(ctx context.Context, arg MarkDeviceAbsentParams) (Device, error) {
 	row := q.db.QueryRow(ctx, markDeviceAbsent, arg.ID, arg.ArchiveThreshold)
+	var i Device
+	err := row.Scan(
+		&i.ID,
+		&i.Hostname,
+		&i.IpAddress,
+		&i.MacAddress,
+		&i.Manufacturer,
+		&i.Model,
+		&i.SerialNumber,
+		&i.DeviceType,
+		&i.Status,
+		&i.FirstSeenAt,
+		&i.LastSeenAt,
+		&i.Metadata,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentProviderRef,
+		&i.ParentDeviceID,
+		&i.ProviderScope,
+		&i.AbsenceCount,
+	)
+	return i, err
+}
+
+const restoreDevice = `-- name: RestoreDevice :one
+UPDATE devices
+SET deleted_at = NULL,
+    status = 'active',
+    hostname = CASE WHEN $2::text <> '' THEN $2::text ELSE hostname END,
+    ip_address = COALESCE($3, ip_address),
+    mac_address = COALESCE($4, mac_address),
+    manufacturer = CASE WHEN $5::text <> '' THEN $5::text ELSE manufacturer END,
+    model = CASE WHEN $6::text <> '' THEN $6::text ELSE model END,
+    device_type = CASE WHEN $7::text <> '' THEN $7::text ELSE device_type END,
+    last_seen_at = NOW(),
+    absence_count = 0,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
+`
+
+type RestoreDeviceParams struct {
+	ID           uuid.UUID        `json:"id"`
+	Hostname     string           `json:"hostname"`
+	IpAddress    *netip.Addr      `json:"ip_address"`
+	MacAddress   net.HardwareAddr `json:"mac_address"`
+	Manufacturer string           `json:"manufacturer"`
+	Model        string           `json:"model"`
+	DeviceType   string           `json:"device_type"`
+}
+
+func (q *Queries) RestoreDevice(ctx context.Context, arg RestoreDeviceParams) (Device, error) {
+	row := q.db.QueryRow(ctx, restoreDevice,
+		arg.ID,
+		arg.Hostname,
+		arg.IpAddress,
+		arg.MacAddress,
+		arg.Manufacturer,
+		arg.Model,
+		arg.DeviceType,
+	)
 	var i Device
 	err := row.Scan(
 		&i.ID,
@@ -662,6 +797,18 @@ func (q *Queries) SoftDeleteDevice(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const softDeleteSubnet = `-- name: SoftDeleteSubnet :exec
+UPDATE subnets
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) SoftDeleteSubnet(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, softDeleteSubnet, id)
+	return err
+}
+
 const updateDevice = `-- name: UpdateDevice :one
 UPDATE devices
 SET hostname = $2,
@@ -736,6 +883,54 @@ func (q *Queries) UpdateDevice(ctx context.Context, arg UpdateDeviceParams) (Dev
 	return i, err
 }
 
+const updateStagingDevice = `-- name: UpdateStagingDevice :one
+UPDATE device_staging
+SET hostname = CASE WHEN $2::text <> '' THEN $2::text ELSE hostname END,
+    ip_address = COALESCE($3, ip_address),
+    mac_address = COALESCE($4, mac_address),
+    device_type = CASE WHEN $5::text <> '' THEN $5::text ELSE device_type END,
+    raw_payload = $6,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, hostname, ip_address, mac_address, manufacturer, model, device_type, discovery_source_id, raw_payload, status, created_at, updated_at
+`
+
+type UpdateStagingDeviceParams struct {
+	ID         uuid.UUID        `json:"id"`
+	Hostname   string           `json:"hostname"`
+	IpAddress  *netip.Addr      `json:"ip_address"`
+	MacAddress net.HardwareAddr `json:"mac_address"`
+	DeviceType string           `json:"device_type"`
+	RawPayload []byte           `json:"raw_payload"`
+}
+
+func (q *Queries) UpdateStagingDevice(ctx context.Context, arg UpdateStagingDeviceParams) (DeviceStaging, error) {
+	row := q.db.QueryRow(ctx, updateStagingDevice,
+		arg.ID,
+		arg.Hostname,
+		arg.IpAddress,
+		arg.MacAddress,
+		arg.DeviceType,
+		arg.RawPayload,
+	)
+	var i DeviceStaging
+	err := row.Scan(
+		&i.ID,
+		&i.Hostname,
+		&i.IpAddress,
+		&i.MacAddress,
+		&i.Manufacturer,
+		&i.Model,
+		&i.DeviceType,
+		&i.DiscoverySourceID,
+		&i.RawPayload,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateStagingDeviceStatus = `-- name: UpdateStagingDeviceStatus :exec
 UPDATE device_staging
 SET status = $2, updated_at = NOW()
@@ -750,4 +945,53 @@ type UpdateStagingDeviceStatusParams struct {
 func (q *Queries) UpdateStagingDeviceStatus(ctx context.Context, arg UpdateStagingDeviceStatusParams) error {
 	_, err := q.db.Exec(ctx, updateStagingDeviceStatus, arg.ID, arg.Status)
 	return err
+}
+
+const updateSubnet = `-- name: UpdateSubnet :one
+UPDATE subnets
+SET name = $2,
+    cidr = $3,
+    vlan_id = $4,
+    gateway_ip = $5,
+    description = $6,
+    discovery_enabled = $7,
+    updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, name, cidr, vlan_id, gateway_ip, description, discovery_enabled, created_at, updated_at, deleted_at
+`
+
+type UpdateSubnetParams struct {
+	ID               uuid.UUID    `json:"id"`
+	Name             string       `json:"name"`
+	Cidr             netip.Prefix `json:"cidr"`
+	VlanID           pgtype.Int4  `json:"vlan_id"`
+	GatewayIp        *netip.Addr  `json:"gateway_ip"`
+	Description      pgtype.Text  `json:"description"`
+	DiscoveryEnabled bool         `json:"discovery_enabled"`
+}
+
+func (q *Queries) UpdateSubnet(ctx context.Context, arg UpdateSubnetParams) (Subnet, error) {
+	row := q.db.QueryRow(ctx, updateSubnet,
+		arg.ID,
+		arg.Name,
+		arg.Cidr,
+		arg.VlanID,
+		arg.GatewayIp,
+		arg.Description,
+		arg.DiscoveryEnabled,
+	)
+	var i Subnet
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Cidr,
+		&i.VlanID,
+		&i.GatewayIp,
+		&i.Description,
+		&i.DiscoveryEnabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }

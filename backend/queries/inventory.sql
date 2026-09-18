@@ -94,6 +94,22 @@ SET deleted_at = NOW(),
     updated_at = NOW()
 WHERE id = $1;
 
+-- name: RestoreDevice :one
+UPDATE devices
+SET deleted_at = NULL,
+    status = 'active',
+    hostname = CASE WHEN sqlc.arg(hostname)::text <> '' THEN sqlc.arg(hostname)::text ELSE hostname END,
+    ip_address = COALESCE(sqlc.narg(ip_address), ip_address),
+    mac_address = COALESCE(sqlc.narg(mac_address), mac_address),
+    manufacturer = CASE WHEN sqlc.arg(manufacturer)::text <> '' THEN sqlc.arg(manufacturer)::text ELSE manufacturer END,
+    model = CASE WHEN sqlc.arg(model)::text <> '' THEN sqlc.arg(model)::text ELSE model END,
+    device_type = CASE WHEN sqlc.arg(device_type)::text <> '' THEN sqlc.arg(device_type)::text ELSE device_type END,
+    last_seen_at = NOW(),
+    absence_count = 0,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
 -- name: CreateStagingDevice :one
 INSERT INTO device_staging (
     id, hostname, ip_address, mac_address, manufacturer, model, device_type, discovery_source_id, raw_payload, status
@@ -104,14 +120,35 @@ INSERT INTO device_staging (
 -- name: GetStagingDeviceByID :one
 SELECT * FROM device_staging WHERE id = $1;
 
+-- name: FindPendingStagingDevice :one
+SELECT * FROM device_staging
+WHERE status IN ('pending', 'discovered')
+  AND (
+    (sqlc.narg('ip_address')::inet IS NOT NULL AND ip_address = sqlc.narg('ip_address'))
+    OR (sqlc.narg('mac_address')::macaddr IS NOT NULL AND mac_address = sqlc.narg('mac_address'))
+    OR (sqlc.narg('matched_device_id')::text IS NOT NULL AND (raw_payload->>'matched_device_id' = sqlc.narg('matched_device_id')::text OR raw_payload->'metadata'->>'matched_device_id' = sqlc.narg('matched_device_id')::text))
+  )
+LIMIT 1;
+
+-- name: UpdateStagingDevice :one
+UPDATE device_staging
+SET hostname = CASE WHEN sqlc.arg(hostname)::text <> '' THEN sqlc.arg(hostname)::text ELSE hostname END,
+    ip_address = COALESCE(sqlc.narg(ip_address), ip_address),
+    mac_address = COALESCE(sqlc.narg(mac_address), mac_address),
+    device_type = CASE WHEN sqlc.arg(device_type)::text <> '' THEN sqlc.arg(device_type)::text ELSE device_type END,
+    raw_payload = sqlc.arg(raw_payload),
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
 -- name: ListStagingDevices :many
 SELECT * FROM device_staging
-WHERE status = $1
+WHERE status = $1 OR ($1 = 'pending' AND status = 'discovered')
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CountStagingDevices :one
-SELECT COUNT(*) FROM device_staging WHERE status = $1;
+SELECT COUNT(*) FROM device_staging WHERE status = $1 OR ($1 = 'pending' AND status = 'discovered');
 
 -- name: UpdateStagingDeviceStatus :exec
 UPDATE device_staging
@@ -126,7 +163,38 @@ INSERT INTO subnets (
 ) RETURNING *;
 
 -- name: ListSubnets :many
-SELECT * FROM subnets ORDER BY name ASC;
+SELECT * FROM subnets WHERE deleted_at IS NULL ORDER BY name ASC;
 
 -- name: GetSubnetByID :one
-SELECT * FROM subnets WHERE id = $1;
+SELECT * FROM subnets WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: UpdateSubnet :one
+UPDATE subnets
+SET name = $2,
+    cidr = $3,
+    vlan_id = $4,
+    gateway_ip = $5,
+    description = $6,
+    discovery_enabled = $7,
+    updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING *;
+
+-- name: SoftDeleteSubnet :exec
+UPDATE subnets
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: GetInactiveDiscoverySourceDeviceIDs :many
+SELECT DISTINCT ddr.device_id
+FROM device_discovery_records ddr
+JOIN discovery_sources ds ON ds.id = ddr.discovery_source_id
+WHERE ddr.device_id = ANY($1::uuid[])
+  AND ds.deleted_at IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM device_discovery_records ddr2
+      JOIN discovery_sources ds2 ON ds2.id = ddr2.discovery_source_id
+      WHERE ddr2.device_id = ddr.device_id AND ds2.deleted_at IS NULL
+  );
+

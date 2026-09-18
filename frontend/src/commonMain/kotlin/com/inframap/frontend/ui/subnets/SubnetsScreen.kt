@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.DeviceStatus
+import com.inframap.frontend.designsystem.ImpactConfirmationDialog
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
 import com.inframap.frontend.designsystem.InfraMapEmptyState
@@ -29,10 +30,15 @@ import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.InfraMapTableSkeleton
+import com.inframap.frontend.designsystem.RowOverflowMenu
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.delete_subnet_confirm_message
+import com.inframap.frontend.generated.resources.delete_subnet_dialog_title
+import com.inframap.frontend.generated.resources.delete_subnet_impact_devices
+import com.inframap.frontend.generated.resources.delete_subnet_impact_edges
 import com.inframap.frontend.generated.resources.devices_retry
 import com.inframap.frontend.generated.resources.subnets_col_auto_discovery
 import com.inframap.frontend.generated.resources.subnets_col_cidr
@@ -78,6 +84,23 @@ fun SubnetsScreen(
             } else {
                 SubnetsTableCard(state = state, actions = actions)
             }
+        }
+
+        if (state.subnetToDelete != null) {
+            val impactLines = mutableListOf<String>()
+            val impact = state.deleteImpact
+            if (impact != null) {
+                impactLines.add(stringResource(Res.string.delete_subnet_impact_devices, impact.affectedDevices))
+                impactLines.add(stringResource(Res.string.delete_subnet_impact_edges, impact.unlinkedTopologyEdges))
+            }
+            ImpactConfirmationDialog(
+                title = stringResource(Res.string.delete_subnet_dialog_title),
+                description = stringResource(Res.string.delete_subnet_confirm_message, state.subnetToDelete.name),
+                impactLines = impactLines,
+                isLoadingImpact = state.isLoadingDeleteImpact,
+                onConfirm = actions.onConfirmDeleteClicked,
+                onDismiss = actions.onDismissDeleteClicked,
+            )
         }
     }
 }
@@ -165,6 +188,7 @@ private fun SubnetsTableCard(
                 TableColumn(header = stringResource(Res.string.subnets_col_gateway), weight = 1.5f),
                 TableColumn(header = stringResource(Res.string.subnets_col_auto_discovery), weight = 1.5f),
                 TableColumn(header = stringResource(Res.string.subnets_col_description), weight = 2f),
+                TableColumn(header = "", weight = 0.6f),
             )
 
         InfraMapCard(modifier = Modifier.fillMaxWidth()) {
@@ -172,9 +196,15 @@ private fun SubnetsTableCard(
                 InfraMapTable(
                     columns = columns,
                     items = state.subnets,
+                    onRowClick = { actions.onSubnetClicked(it) },
                     modifier = Modifier.weight(1f),
                 ) { colIndex, item ->
-                    SubnetRowCell(colIndex = colIndex, item = item)
+                    SubnetRowCell(
+                        colIndex = colIndex,
+                        item = item,
+                        onEditClicked = { actions.onEditSubnetClicked(item) },
+                        onDeleteClicked = { actions.onDeleteSubnetClicked(item) },
+                    )
                 }
             }
         }
@@ -258,6 +288,8 @@ private fun DetectedInterfaceRow(
 private fun SubnetRowCell(
     colIndex: Int,
     item: Subnet,
+    onEditClicked: () -> Unit = {},
+    onDeleteClicked: () -> Unit = {},
 ) {
     when (colIndex) {
         0 ->
@@ -295,6 +327,11 @@ private fun SubnetRowCell(
                 text = item.description?.ifEmpty { "-" } ?: "-",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+            )
+        6 ->
+            RowOverflowMenu(
+                onEdit = onEditClicked,
+                onDelete = onDeleteClicked,
             )
     }
 }

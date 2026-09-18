@@ -23,6 +23,7 @@ import com.inframap.frontend.designsystem.InfraMapConfirmDialog
 import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
+import com.inframap.frontend.designsystem.InfraMapPreviouslyDeletedBadge
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.InfraMapTablePagination
@@ -168,7 +169,7 @@ private fun StagingTableCard(
                 TableColumn(header = stringResource(Res.string.staging_col_ip), weight = 1.5f),
                 TableColumn(header = stringResource(Res.string.staging_col_mac), weight = 1.5f),
                 TableColumn(header = stringResource(Res.string.staging_col_type), weight = 1.2f),
-                TableColumn(header = stringResource(Res.string.staging_col_status), weight = 1f),
+                TableColumn(header = stringResource(Res.string.staging_col_status), weight = 2.2f),
                 TableColumn(header = stringResource(Res.string.staging_col_actions), weight = 2.5f),
             )
 
@@ -233,7 +234,13 @@ private fun StagingRowCell(
                 color = MaterialTheme.colorScheme.onSurface,
             )
         4 ->
-            InfraMapStatusBadge(status = DeviceStatus.STAGED)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                InfraMapStatusBadge(status = DeviceStatus.STAGED)
+                if (item.previouslyDeleted) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    InfraMapPreviouslyDeletedBadge()
+                }
+            }
         5 ->
             Row {
                 InfraMapButton(

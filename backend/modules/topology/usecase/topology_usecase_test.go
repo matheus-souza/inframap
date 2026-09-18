@@ -151,6 +151,18 @@ func (m *mockInvRepo) SoftDeleteDevice(_ context.Context, _ uuid.UUID) error {
 	return nil
 }
 
+func (m *mockInvRepo) RestoreDevice(_ context.Context, _ db.RestoreDeviceParams) (*db.Device, error) {
+	return nil, nil
+}
+
+func (m *mockInvRepo) FindPendingStagingDevice(_ context.Context, _ db.FindPendingStagingDeviceParams) (*db.DeviceStaging, error) {
+	return nil, nil
+}
+
+func (m *mockInvRepo) UpdateStagingDevice(_ context.Context, _ db.UpdateStagingDeviceParams) (*db.DeviceStaging, error) {
+	return nil, nil
+}
+
 func (m *mockInvRepo) CreateStagingDevice(_ context.Context, _ db.CreateStagingDeviceParams) (*db.DeviceStaging, error) {
 	return nil, nil
 }
@@ -172,6 +184,22 @@ func (m *mockInvRepo) CreateSubnet(_ context.Context, _ db.CreateSubnetParams) (
 }
 
 func (m *mockInvRepo) ListSubnets(_ context.Context) ([]db.Subnet, error) {
+	return nil, nil
+}
+
+func (m *mockInvRepo) GetSubnetByID(_ context.Context, _ uuid.UUID) (*db.Subnet, error) {
+	return nil, nil
+}
+
+func (m *mockInvRepo) UpdateSubnet(_ context.Context, _ db.UpdateSubnetParams) (*db.Subnet, error) {
+	return nil, nil
+}
+
+func (m *mockInvRepo) SoftDeleteSubnet(_ context.Context, _ uuid.UUID) error {
+	return nil
+}
+
+func (m *mockInvRepo) GetInactiveDiscoverySourceDeviceIDs(_ context.Context, _ []uuid.UUID) ([]uuid.UUID, error) {
 	return nil, nil
 }
 

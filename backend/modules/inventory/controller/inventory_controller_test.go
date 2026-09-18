@@ -38,6 +38,14 @@ type mockInventoryUseCase struct {
 	subnetErr         error
 	listSubnetsResp   []dto.SubnetResponse
 	listSubnetsErr    error
+	getSubnetErr       error
+	updateSubnetErr    error
+	deleteSubnetErr    error
+	deleteSubnetResp   *dto.DeleteSubnetResponse
+	deletionImpactResp *dto.SubnetDeletionImpactResponse
+	deletionImpactErr  error
+	impactResp         *dto.SubnetCIDRImpactResponse
+	impactErr          error
 }
 
 func (m *mockInventoryUseCase) CreateDevice(_ context.Context, _ dto.CreateDeviceRequest) (*dto.DeviceResponse, error) {
@@ -103,6 +111,60 @@ func (m *mockInventoryUseCase) ListSubnets(_ context.Context) ([]dto.SubnetRespo
 	}
 	return m.listSubnetsResp, nil
 }
+
+func (m *mockInventoryUseCase) GetSubnetByID(_ context.Context, _ string) (*dto.SubnetResponse, error) {
+	if m.getSubnetErr != nil {
+		return nil, m.getSubnetErr
+	}
+	return m.subnetResp, nil
+}
+
+func (m *mockInventoryUseCase) UpdateSubnet(_ context.Context, _ string, _ dto.UpdateSubnetRequest) (*dto.SubnetResponse, error) {
+	if m.updateSubnetErr != nil {
+		return nil, m.updateSubnetErr
+	}
+	return m.subnetResp, nil
+}
+
+func (m *mockInventoryUseCase) SoftDeleteSubnet(_ context.Context, idStr string) (*dto.DeleteSubnetResponse, error) {
+	if m.deleteSubnetErr != nil {
+		return nil, m.deleteSubnetErr
+	}
+	if m.deleteSubnetResp != nil {
+		return m.deleteSubnetResp, nil
+	}
+	return &dto.DeleteSubnetResponse{
+		DeletedID: idStr,
+		Impact: dto.SubnetDeletionImpact{
+			AffectedDevices:        0,
+			UnlinkedTopologyEdges: 0,
+		},
+	}, nil
+}
+
+func (m *mockInventoryUseCase) GetSubnetDeletionImpact(_ context.Context, idStr string) (*dto.SubnetDeletionImpactResponse, error) {
+	if m.deletionImpactErr != nil {
+		return nil, m.deletionImpactErr
+	}
+	if m.deletionImpactResp != nil {
+		return m.deletionImpactResp, nil
+	}
+	return &dto.SubnetDeletionImpactResponse{
+		SubnetID: idStr,
+		Impact: dto.SubnetDeletionImpact{
+			AffectedDevices:        0,
+			UnlinkedTopologyEdges: 0,
+		},
+	}, nil
+}
+
+func (m *mockInventoryUseCase) GetSubnetCIDRImpact(_ context.Context, _ string, _ dto.SubnetCIDRImpactRequest) (*dto.SubnetCIDRImpactResponse, error) {
+	if m.impactErr != nil {
+		return nil, m.impactErr
+	}
+	return m.impactResp, nil
+}
+
 
 func TestInventoryController_Unit(t *testing.T) {
 	mockUC := &mockInventoryUseCase{}
@@ -682,4 +744,249 @@ func TestInventoryController_Unit(t *testing.T) {
 		}
 		mockUC.subnetErr = nil
 	})
+
+	t.Run("GetSubnetByID Success", func(t *testing.T) {
+		mockUC.subnetResp = &dto.SubnetResponse{ID: "sub-1", Name: "LAN", CIDR: "192.168.1.0/24"}
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/subnets/sub-1", nil)
+		req.SetPathValue("id", "sub-1")
+		w := httptest.NewRecorder()
+
+		ctrl.GetSubnetByID(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+		mockUC.subnetResp = nil
+	})
+
+	t.Run("GetSubnetByID InvalidUUID", func(t *testing.T) {
+		mockUC.getSubnetErr = usecase.ErrInvalidUUID
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/subnets/bad", nil)
+		req.SetPathValue("id", "bad")
+		w := httptest.NewRecorder()
+
+		ctrl.GetSubnetByID(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+		mockUC.getSubnetErr = nil
+	})
+
+	t.Run("GetSubnetByID NotFound", func(t *testing.T) {
+		mockUC.getSubnetErr = repository.ErrSubnetNotFound
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/subnets/missing", nil)
+		req.SetPathValue("id", "missing")
+		w := httptest.NewRecorder()
+
+		ctrl.GetSubnetByID(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
+		}
+		mockUC.getSubnetErr = nil
+	})
+
+	t.Run("UpdateSubnet Success", func(t *testing.T) {
+		mockUC.subnetResp = &dto.SubnetResponse{ID: "sub-1", Name: "LAN Renamed", CIDR: "192.168.1.0/24"}
+		payload := dto.UpdateSubnetRequest{Name: "LAN Renamed", CIDR: "192.168.1.0/24"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/subnets/sub-1", bytes.NewReader(body))
+		req.SetPathValue("id", "sub-1")
+		w := httptest.NewRecorder()
+
+		ctrl.UpdateSubnet(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+		mockUC.subnetResp = nil
+	})
+
+	t.Run("UpdateSubnet ValidationFailed", func(t *testing.T) {
+		payload := dto.UpdateSubnetRequest{Name: "", CIDR: "invalid-cidr"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/subnets/sub-1", bytes.NewReader(body))
+		req.SetPathValue("id", "sub-1")
+		w := httptest.NewRecorder()
+
+		ctrl.UpdateSubnet(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 on validation failed, got %d", w.Code)
+		}
+	})
+
+	t.Run("UpdateSubnet GatewayNotContained", func(t *testing.T) {
+		mockUC.updateSubnetErr = usecase.ErrGatewayNotContained
+		payload := dto.UpdateSubnetRequest{Name: "LAN", CIDR: "192.168.1.0/24"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/subnets/sub-1", bytes.NewReader(body))
+		req.SetPathValue("id", "sub-1")
+		w := httptest.NewRecorder()
+
+		ctrl.UpdateSubnet(w, req)
+
+		if w.Code != http.StatusUnprocessableEntity {
+			t.Errorf("expected 422, got %d", w.Code)
+		}
+		mockUC.updateSubnetErr = nil
+	})
+
+	t.Run("UpdateSubnet Conflict", func(t *testing.T) {
+		mockUC.updateSubnetErr = usecase.ErrSubnetConflict
+		payload := dto.UpdateSubnetRequest{Name: "LAN", CIDR: "192.168.1.0/24"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/subnets/sub-1", bytes.NewReader(body))
+		req.SetPathValue("id", "sub-1")
+		w := httptest.NewRecorder()
+
+		ctrl.UpdateSubnet(w, req)
+
+		if w.Code != http.StatusConflict {
+			t.Errorf("expected 409, got %d", w.Code)
+		}
+		mockUC.updateSubnetErr = nil
+	})
+
+	t.Run("DeleteSubnet Success", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/subnets/sub-1", nil)
+		req.SetPathValue("id", "sub-1")
+		w := httptest.NewRecorder()
+
+		ctrl.DeleteSubnet(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("DeleteSubnet NotFound", func(t *testing.T) {
+		mockUC.deleteSubnetErr = repository.ErrSubnetNotFound
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/subnets/missing", nil)
+		req.SetPathValue("id", "missing")
+		w := httptest.NewRecorder()
+
+		ctrl.DeleteSubnet(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
+		}
+		mockUC.deleteSubnetErr = nil
+	})
+
+	t.Run("GetSubnetCIDRImpact Success", func(t *testing.T) {
+		mockUC.impactResp = &dto.SubnetCIDRImpactResponse{
+			CurrentCIDR:          "192.168.1.0/24",
+			NewCIDR:              "192.168.1.0/25",
+			AffectedDevicesCount: 3,
+		}
+		payload := dto.SubnetCIDRImpactRequest{NewCIDR: "192.168.1.0/25"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/subnets/sub-1/cidr-impact", bytes.NewReader(body))
+		req.SetPathValue("id", "sub-1")
+		w := httptest.NewRecorder()
+
+		ctrl.GetSubnetCIDRImpact(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+		mockUC.impactResp = nil
+	})
+
+	t.Run("GetSubnetCIDRImpact ValidationFailure", func(t *testing.T) {
+		payload := dto.SubnetCIDRImpactRequest{NewCIDR: "invalid-cidr"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/subnets/sub-1/cidr-impact", bytes.NewReader(body))
+		req.SetPathValue("id", "sub-1")
+		w := httptest.NewRecorder()
+
+		ctrl.GetSubnetCIDRImpact(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 on validation failure, got %d", w.Code)
+		}
+	})
+
+	t.Run("GetSubnetCIDRImpact InvalidUUID", func(t *testing.T) {
+		mockUC.impactErr = usecase.ErrInvalidUUID
+		payload := dto.SubnetCIDRImpactRequest{NewCIDR: "192.168.1.0/25"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/subnets/invalid/cidr-impact", bytes.NewReader(body))
+		req.SetPathValue("id", "invalid")
+		w := httptest.NewRecorder()
+
+		ctrl.GetSubnetCIDRImpact(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+		mockUC.impactErr = nil
+	})
+
+	t.Run("GetSubnetCIDRImpact NotFound", func(t *testing.T) {
+		mockUC.impactErr = repository.ErrSubnetNotFound
+		payload := dto.SubnetCIDRImpactRequest{NewCIDR: "192.168.1.0/25"}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/subnets/missing/cidr-impact", bytes.NewReader(body))
+		req.SetPathValue("id", "missing")
+		w := httptest.NewRecorder()
+
+		ctrl.GetSubnetCIDRImpact(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
+		}
+		mockUC.impactErr = nil
+	})
+
+	t.Run("GetSubnetDeletionImpact Success", func(t *testing.T) {
+		mockUC.deletionImpactResp = &dto.SubnetDeletionImpactResponse{
+			SubnetID: "sub-1",
+			Impact: dto.SubnetDeletionImpact{
+				AffectedDevices:        5,
+				UnlinkedTopologyEdges: 0,
+			},
+		}
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/subnets/sub-1/deletion-impact", nil)
+		req.SetPathValue("id", "sub-1")
+		w := httptest.NewRecorder()
+
+		ctrl.GetSubnetDeletionImpact(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+		mockUC.deletionImpactResp = nil
+	})
+
+	t.Run("GetSubnetDeletionImpact InvalidUUID", func(t *testing.T) {
+		mockUC.deletionImpactErr = usecase.ErrInvalidUUID
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/subnets/invalid/deletion-impact", nil)
+		req.SetPathValue("id", "invalid")
+		w := httptest.NewRecorder()
+
+		ctrl.GetSubnetDeletionImpact(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+		mockUC.deletionImpactErr = nil
+	})
+
+	t.Run("GetSubnetDeletionImpact NotFound", func(t *testing.T) {
+		mockUC.deletionImpactErr = repository.ErrSubnetNotFound
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/subnets/missing/deletion-impact", nil)
+		req.SetPathValue("id", "missing")
+		w := httptest.NewRecorder()
+
+		ctrl.GetSubnetDeletionImpact(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
+		}
+		mockUC.deletionImpactErr = nil
+	})
 }
+

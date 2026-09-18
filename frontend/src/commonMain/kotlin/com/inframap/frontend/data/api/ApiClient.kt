@@ -10,10 +10,13 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 class ApiClient(
     @PublishedApi internal val baseUrl: String,
@@ -87,24 +90,78 @@ class ApiClient(
                     requestId = envelope.meta.requestId,
                 )
             } else {
-                val envelope: ErrorEnvelope = response.body()
-                val errCode = envelope.error.code
-                val errMsg = envelope.error.message
+                val responseText = response.bodyAsText()
+                val errorResult = parseErrorResponse(status, responseText)
+                val errCode = errorResult.code
+                val errMsg = errorResult.message
                 println("[InfraMap-API] [WARN] HTTP $status: $errCode - $errMsg")
                 if (status == 401 || errCode == "UNAUTHORIZED") {
                     onSessionExpired?.invoke()
                 }
-                ApiResult.Error(
-                    code = envelope.error.code,
-                    message = envelope.error.message,
-                    requestId = envelope.meta.requestId,
-                    httpStatus = status,
-                )
+                errorResult
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Throwable) {
             println("[InfraMap-API] [ERROR] Network/Serialization error: ${e.message}")
             ApiResult.NetworkError(throwable = e)
+        }
+
+    @PublishedApi
+    internal fun parseErrorResponse(
+        status: Int,
+        responseText: String,
+    ): ApiResult.Error {
+        val json =
+            Json {
+                ignoreUnknownKeys = true
+                isLenient = true
+            }
+        return try {
+            val envelope = json.decodeFromString<ErrorEnvelope>(responseText)
+            ApiResult.Error(
+                code = envelope.error.code,
+                message = envelope.error.message,
+                requestId = envelope.meta.requestId,
+                httpStatus = status,
+                detailsJson = responseText,
+            )
+        } catch (_: Throwable) {
+            parseFallbackError(status, responseText, json)
+        }
+    }
+
+    @PublishedApi
+    internal fun parseFallbackError(
+        status: Int,
+        responseText: String,
+        json: Json,
+    ): ApiResult.Error =
+        try {
+            val element = json.parseToJsonElement(responseText)
+            val obj = element as? JsonObject
+            val errCode =
+                obj?.get("error")?.let {
+                    if (it is JsonPrimitive) it.content else null
+                } ?: "HTTP_$status"
+            val errMsg =
+                obj?.get("message")?.let {
+                    if (it is JsonPrimitive) it.content else null
+                } ?: errCode
+            ApiResult.Error(
+                code = errCode,
+                message = errMsg,
+                requestId = "",
+                httpStatus = status,
+                detailsJson = responseText,
+            )
+        } catch (_: Throwable) {
+            ApiResult.Error(
+                code = "HTTP_$status",
+                message = responseText,
+                requestId = "",
+                httpStatus = status,
+                detailsJson = responseText,
+            )
         }
 }

@@ -9,33 +9,31 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.DeviceStatus
+import com.inframap.frontend.designsystem.ImpactConfirmationDialog
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
-import com.inframap.frontend.designsystem.InfraMapConfirmDialog
 import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapIcons
+import com.inframap.frontend.designsystem.InfraMapInactiveSourceBadge
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.InfraMapTablePagination
 import com.inframap.frontend.designsystem.InfraMapTableSkeleton
 import com.inframap.frontend.designsystem.InfraMapTextField
+import com.inframap.frontend.designsystem.RowOverflowMenu
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.Device
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.common_cancel
-import com.inframap.frontend.generated.resources.devices_action_delete
-import com.inframap.frontend.generated.resources.devices_action_edit
-import com.inframap.frontend.generated.resources.devices_action_view
-import com.inframap.frontend.generated.resources.devices_col_actions
 import com.inframap.frontend.generated.resources.devices_col_hostname
 import com.inframap.frontend.generated.resources.devices_col_ip
 import com.inframap.frontend.generated.resources.devices_col_status
@@ -98,23 +96,24 @@ fun DeviceListScreen(
             }
         }
 
-        if (state.deviceToDelete != null) {
+        val deviceToDelete = state.deviceToDelete
+        if (deviceToDelete != null) {
             val confirmMessage =
                 if (state.deleteErrorMessage != null) {
                     stringResource(Res.string.devices_delete_error_retry, state.deleteErrorMessage.asString())
                 } else {
-                    stringResource(Res.string.devices_delete_confirm_message, state.deviceToDelete.hostname)
+                    stringResource(Res.string.devices_delete_confirm_message, deviceToDelete.hostname)
                 }
-            InfraMapConfirmDialog(
+            ImpactConfirmationDialog(
                 title = stringResource(Res.string.devices_delete_dialog_title),
-                message = confirmMessage,
-                confirmText =
+                description = confirmMessage,
+                confirmButtonText =
                     if (state.isDeleting) {
                         stringResource(Res.string.devices_delete_processing)
                     } else {
                         stringResource(Res.string.devices_delete_action)
                     },
-                dismissText = stringResource(Res.string.common_cancel),
+                cancelButtonText = stringResource(Res.string.common_cancel),
                 onConfirm = actions.onConfirmDelete,
                 onDismiss = actions.onCancelDelete,
             )
@@ -193,7 +192,7 @@ private fun DeviceListTableCard(
                 TableColumn(header = stringResource(Res.string.devices_col_ip), weight = 1.5f),
                 TableColumn(header = stringResource(Res.string.devices_col_type), weight = 1.2f),
                 TableColumn(header = stringResource(Res.string.devices_col_status), weight = 1f),
-                TableColumn(header = stringResource(Res.string.devices_col_actions), weight = 2f),
+                TableColumn(header = "", weight = 0.6f),
             )
 
         InfraMapCard(modifier = Modifier.fillMaxWidth()) {
@@ -201,7 +200,7 @@ private fun DeviceListTableCard(
                 InfraMapTable(
                     columns = columns,
                     items = state.devices,
-                    onRowClick = { actions.onDeviceClicked(it.id) },
+                    onRowClick = { actions.onEditDeviceClicked(it.id) },
                     modifier = Modifier.weight(1f),
                 ) { colIndex, item ->
                     DeviceTableRowCell(colIndex = colIndex, item = item, actions = actions)
@@ -245,35 +244,32 @@ private fun DeviceTableRowCell(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
             )
-        3 -> {
-            val deviceStatus =
-                when (item.status.lowercase()) {
-                    "active", "ok" -> DeviceStatus.ACTIVE
-                    "staged" -> DeviceStatus.STAGED
-                    else -> DeviceStatus.OFFLINE
-                }
-            InfraMapStatusBadge(status = deviceStatus)
+        3 -> DeviceStatusCell(item = item)
+        4 ->
+            RowOverflowMenu(
+                onEdit = { actions.onEditDeviceClicked(item.id) },
+                onDelete = { actions.onDeleteDeviceClicked(item) },
+            )
+    }
+}
+
+@Composable
+private fun DeviceStatusCell(item: Device) {
+    val deviceStatus =
+        when (item.status.lowercase()) {
+            "active", "ok" -> DeviceStatus.ACTIVE
+            "staged" -> DeviceStatus.STAGED
+            else -> DeviceStatus.OFFLINE
         }
-        4 -> {
-            Row(
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                InfraMapOutlinedButton(
-                    text = stringResource(Res.string.devices_action_view),
-                    onClick = { actions.onDeviceClicked(item.id) },
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                InfraMapOutlinedButton(
-                    text = stringResource(Res.string.devices_action_edit),
-                    onClick = { actions.onEditDeviceClicked(item.id) },
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                InfraMapOutlinedButton(
-                    text = stringResource(Res.string.devices_action_delete),
-                    onClick = { actions.onDeleteDeviceClicked(item) },
-                )
-            }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        InfraMapStatusBadge(status = deviceStatus)
+        if (item.discoverySourceInactive) {
+            InfraMapInactiveSourceBadge(
+                modifier = Modifier.testTag("device_discovery_source_inactive_${item.id}"),
+            )
         }
     }
 }

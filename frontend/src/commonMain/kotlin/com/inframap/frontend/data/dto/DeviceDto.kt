@@ -17,6 +17,7 @@ data class DeviceDto(
     @SerialName("power_state") val powerState: String? = null,
     @SerialName("parent_device_id") val parentDeviceId: String? = null,
     val metadata: Map<String, String>? = null,
+    @SerialName("discovery_source_inactive") val discoverySourceInactive: Boolean = false,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
 )
@@ -59,6 +60,8 @@ data class StagingDeviceDto(
     @SerialName("device_type") val deviceType: String,
     @SerialName("discovery_source_id") val discoverySourceId: String? = null,
     val status: String = "pending",
+    @SerialName("previously_deleted") val previouslyDeleted: Boolean = false,
+    @SerialName("matched_device_id") val matchedDeviceId: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
 )
 

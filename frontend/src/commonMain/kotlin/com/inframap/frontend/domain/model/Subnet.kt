@@ -9,4 +9,5 @@ data class Subnet(
     val description: String? = null,
     val discoveryEnabled: Boolean = false,
     val createdAt: String? = null,
+    val updatedAt: String? = null,
 )

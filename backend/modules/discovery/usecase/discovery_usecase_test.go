@@ -3,9 +3,13 @@ package usecase_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,9 +25,10 @@ import (
 )
 
 type mockDiscRepo struct {
-	sources map[uuid.UUID]*dto.DiscoverySourceResponse
-	records []*dto.DiscoveryRecordResponse
-	runs    []*db.CreateCollectorRunParams
+	sources             map[uuid.UUID]*dto.DiscoverySourceResponse
+	records             []*dto.DiscoveryRecordResponse
+	runs                []*db.CreateCollectorRunParams
+	rawCollectorConfigs map[uuid.UUID]map[string]map[string]interface{}
 
 	failGetSource          bool
 	failUpdateSourceStatus bool
@@ -35,23 +40,31 @@ type mockDiscRepo struct {
 	lastBatchSize          int
 	lastLimit              int
 	lastOffset             int
+	resolveConfigFn        func(ctx context.Context, id uuid.UUID, collectorType string) (sdk.ProviderConfig, error)
 }
 
 func newMockDiscRepo() *mockDiscRepo {
 	return &mockDiscRepo{
-		sources: make(map[uuid.UUID]*dto.DiscoverySourceResponse),
-		runs:    make([]*db.CreateCollectorRunParams, 0),
+		sources:             make(map[uuid.UUID]*dto.DiscoverySourceResponse),
+		runs:                make([]*db.CreateCollectorRunParams, 0),
+		rawCollectorConfigs: make(map[uuid.UUID]map[string]map[string]interface{}),
 	}
 }
 
 func (m *mockDiscRepo) CreateSource(_ context.Context, req *dto.CreateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
 	id := uuid.New()
 	cols := make([]dto.CollectorResponse, len(req.Collectors))
+	if m.rawCollectorConfigs[id] == nil {
+		m.rawCollectorConfigs[id] = make(map[string]map[string]interface{})
+	}
 	for i, c := range req.Collectors {
 		cols[i] = dto.CollectorResponse{
 			ID:            uuid.New(),
 			CollectorType: c.Type,
 			Enabled:       true,
+		}
+		if c.Config != nil {
+			m.rawCollectorConfigs[id][c.Type] = c.Config
 		}
 	}
 	resp := &dto.DiscoverySourceResponse{
@@ -68,6 +81,56 @@ func (m *mockDiscRepo) CreateSource(_ context.Context, req *dto.CreateDiscoveryS
 	}
 	m.sources[id] = resp
 	return resp, nil
+}
+
+func (m *mockDiscRepo) GetRawCollectorConfigs(_ context.Context, sourceID uuid.UUID) (map[string]map[string]interface{}, error) {
+	cfgs, exists := m.rawCollectorConfigs[sourceID]
+	if !exists {
+		return make(map[string]map[string]interface{}), nil
+	}
+	copied := make(map[string]map[string]interface{})
+	for k, v := range cfgs {
+		sub := make(map[string]interface{})
+		for sk, sv := range v {
+			sub[sk] = sv
+		}
+		copied[k] = sub
+	}
+	return copied, nil
+}
+
+func (m *mockDiscRepo) UpdateSource(_ context.Context, id uuid.UUID, req *dto.UpdateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
+	src, exists := m.sources[id]
+	if !exists {
+		return nil, repository.ErrSourceNotFound
+	}
+	src.Name = req.Name
+	if req.Enabled != nil {
+		src.Enabled = *req.Enabled
+	}
+	if req.ScheduleCron != "" {
+		cron := req.ScheduleCron
+		src.ScheduleCron = &cron
+	} else {
+		src.ScheduleCron = nil
+	}
+	cols := make([]dto.CollectorResponse, len(req.Collectors))
+	if m.rawCollectorConfigs[id] == nil {
+		m.rawCollectorConfigs[id] = make(map[string]map[string]interface{})
+	}
+	for i, c := range req.Collectors {
+		cols[i] = dto.CollectorResponse{
+			ID:            uuid.New(),
+			CollectorType: c.Type,
+			Enabled:       true,
+		}
+		if c.Config != nil {
+			m.rawCollectorConfigs[id][c.Type] = c.Config
+		}
+	}
+	src.Collectors = cols
+	src.UpdatedAt = time.Now()
+	return src, nil
 }
 
 func (m *mockDiscRepo) GetSourceByID(_ context.Context, id uuid.UUID) (*dto.DiscoverySourceResponse, error) {
@@ -107,9 +170,33 @@ func (m *mockDiscRepo) UpdateSourceStatus(_ context.Context, id uuid.UUID, statu
 	return src, nil
 }
 
-func (m *mockDiscRepo) DeleteSource(_ context.Context, id uuid.UUID) error {
+func (m *mockDiscRepo) GetDeletionImpact(_ context.Context, id uuid.UUID) (*dto.DiscoverySourceDeletionImpact, error) {
+	src, exists := m.sources[id]
+	if !exists {
+		return nil, repository.ErrSourceNotFound
+	}
+	return &dto.DiscoverySourceDeletionImpact{
+		CollectorsHalted: len(src.Collectors),
+		DevicesUnlinked:  2,
+	}, nil
+}
+
+func (m *mockDiscRepo) SoftDeleteSource(_ context.Context, id uuid.UUID) (*dto.DiscoverySourceDeletionImpact, error) {
+	src, exists := m.sources[id]
+	if !exists {
+		return nil, repository.ErrSourceNotFound
+	}
+	impact := &dto.DiscoverySourceDeletionImpact{
+		CollectorsHalted: len(src.Collectors),
+		DevicesUnlinked:  2,
+	}
 	delete(m.sources, id)
-	return nil
+	return impact, nil
+}
+
+func (m *mockDiscRepo) DeleteSource(ctx context.Context, id uuid.UUID) error {
+	_, err := m.SoftDeleteSource(ctx, id)
+	return err
 }
 
 func (m *mockDiscRepo) UpsertRecord(_ context.Context, deviceID, sourceID uuid.UUID, matchedBy string, rawPayload map[string]interface{}) (*dto.DiscoveryRecordResponse, error) {
@@ -220,7 +307,10 @@ func (m *mockDiscRepo) PurgeOldCollectorRuns(_ context.Context, cutoff time.Time
 	return m.purgedCount, nil
 }
 
-func (m *mockDiscRepo) ResolveCollectorConfig(_ context.Context, _ uuid.UUID, collectorType string) (sdk.ProviderConfig, error) {
+func (m *mockDiscRepo) ResolveCollectorConfig(ctx context.Context, id uuid.UUID, collectorType string) (sdk.ProviderConfig, error) {
+	if m.resolveConfigFn != nil {
+		return m.resolveConfigFn(ctx, id, collectorType)
+	}
 	if collectorType == "docker" {
 		// Point the Docker collector at a closed port. Left unconfigured it falls back to
 		// the local daemon socket, so these tests would otherwise pass or fail depending on
@@ -308,6 +398,59 @@ func (m *mockInvRepo) SoftDeleteDevice(_ context.Context, _ uuid.UUID) error {
 	return nil
 }
 
+func (m *mockInvRepo) RestoreDevice(_ context.Context, params db.RestoreDeviceParams) (*db.Device, error) {
+	d, err := m.GetDeviceByID(context.Background(), params.ID, true)
+	if err != nil {
+		return nil, err
+	}
+	d.DeletedAt = pgtype.Timestamptz{Valid: false}
+	d.Status = "active"
+	return d, nil
+}
+
+func (m *mockInvRepo) FindPendingStagingDevice(_ context.Context, params db.FindPendingStagingDeviceParams) (*db.DeviceStaging, error) {
+	for i := range m.staged {
+		st := &m.staged[i]
+		if st.Status != "pending" && st.Status != "discovered" {
+			continue
+		}
+		if params.IpAddress != nil && st.IpAddress != nil && *params.IpAddress == *st.IpAddress {
+			return st, nil
+		}
+		if len(params.MacAddress) > 0 && len(st.MacAddress) > 0 && params.MacAddress.String() == st.MacAddress.String() {
+			return st, nil
+		}
+		if params.MatchedDeviceID.Valid && len(st.RawPayload) > 0 {
+			var rawMap map[string]interface{}
+			if err := json.Unmarshal(st.RawPayload, &rawMap); err == nil {
+				if id, ok := rawMap["matched_device_id"].(string); ok && id == params.MatchedDeviceID.String {
+					return st, nil
+				}
+				if meta, ok := rawMap["metadata"].(map[string]interface{}); ok {
+					if id, ok := meta["matched_device_id"].(string); ok && id == params.MatchedDeviceID.String {
+						return st, nil
+					}
+				}
+			}
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockInvRepo) UpdateStagingDevice(_ context.Context, params db.UpdateStagingDeviceParams) (*db.DeviceStaging, error) {
+	for i := range m.staged {
+		if m.staged[i].ID == params.ID {
+			m.staged[i].Hostname = params.Hostname
+			m.staged[i].IpAddress = params.IpAddress
+			m.staged[i].MacAddress = params.MacAddress
+			m.staged[i].DeviceType = params.DeviceType
+			m.staged[i].RawPayload = params.RawPayload
+			return &m.staged[i], nil
+		}
+	}
+	return nil, inventoryRepo.ErrStagingDeviceNotFound
+}
+
 func (m *mockInvRepo) CreateStagingDevice(_ context.Context, params db.CreateStagingDeviceParams) (*db.DeviceStaging, error) {
 	if m.failCreateStagingDevice {
 		return nil, errors.New("failed to create staging device")
@@ -315,6 +458,9 @@ func (m *mockInvRepo) CreateStagingDevice(_ context.Context, params db.CreateSta
 	staged := db.DeviceStaging{
 		ID:         params.ID,
 		Hostname:   params.Hostname,
+		IpAddress:  params.IpAddress,
+		MacAddress: params.MacAddress,
+		DeviceType: params.DeviceType,
 		Status:     params.Status,
 		RawPayload: params.RawPayload,
 	}
@@ -344,6 +490,22 @@ func (m *mockInvRepo) CreateSubnet(_ context.Context, _ db.CreateSubnetParams) (
 }
 
 func (m *mockInvRepo) ListSubnets(_ context.Context) ([]db.Subnet, error) {
+	return nil, nil
+}
+
+func (m *mockInvRepo) GetSubnetByID(_ context.Context, _ uuid.UUID) (*db.Subnet, error) {
+	return nil, nil
+}
+
+func (m *mockInvRepo) UpdateSubnet(_ context.Context, _ db.UpdateSubnetParams) (*db.Subnet, error) {
+	return nil, nil
+}
+
+func (m *mockInvRepo) SoftDeleteSubnet(_ context.Context, _ uuid.UUID) error {
+	return nil
+}
+
+func (m *mockInvRepo) GetInactiveDiscoverySourceDeviceIDs(_ context.Context, _ []uuid.UUID) ([]uuid.UUID, error) {
 	return nil, nil
 }
 
@@ -927,10 +1089,56 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("GetDeletionImpact Invalid UUID", func(t *testing.T) {
+		_, err := uc.GetDeletionImpact(ctx, "not-a-uuid")
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
+			t.Errorf("expected ErrInvalidUUID, got %v", err)
+		}
+	})
+
+	t.Run("GetDeletionImpact NotFound", func(t *testing.T) {
+		_, err := uc.GetDeletionImpact(ctx, uuid.New().String())
+		if !errors.Is(err, repository.ErrSourceNotFound) {
+			t.Errorf("expected ErrSourceNotFound, got %v", err)
+		}
+	})
+
+	t.Run("GetDeletionImpact Success", func(t *testing.T) {
+		impactID := uuid.New()
+		discRepo.sources[impactID] = &dto.DiscoverySourceResponse{
+			ID:   impactID,
+			Name: "impact-src",
+			Collectors: []dto.CollectorResponse{
+				{ID: uuid.New(), CollectorType: "proxmox", Enabled: true},
+			},
+		}
+
+		resp, err := uc.GetDeletionImpact(ctx, impactID.String())
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if resp.SourceID != impactID.String() {
+			t.Errorf("expected source ID %s, got %s", impactID.String(), resp.SourceID)
+		}
+		if resp.Impact.CollectorsHalted != 1 {
+			t.Errorf("expected 1 collector halted, got %d", resp.Impact.CollectorsHalted)
+		}
+		if resp.Impact.DevicesUnlinked != 2 {
+			t.Errorf("expected 2 devices unlinked, got %d", resp.Impact.DevicesUnlinked)
+		}
+	})
+
 	t.Run("DeleteSource Invalid UUID", func(t *testing.T) {
 		err := uc.DeleteSource(ctx, "not-a-uuid")
 		if !errors.Is(err, usecase.ErrInvalidUUID) {
 			t.Errorf("expected ErrInvalidUUID, got %v", err)
+		}
+	})
+
+	t.Run("DeleteSource NotFound", func(t *testing.T) {
+		err := uc.DeleteSource(ctx, uuid.New().String())
+		if !errors.Is(err, repository.ErrSourceNotFound) {
+			t.Errorf("expected ErrSourceNotFound, got %v", err)
 		}
 	})
 
@@ -947,6 +1155,51 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("SoftDeleteSource Preserves Devices and Allows Same Name Re-registration", func(t *testing.T) {
+		deleteID := uuid.New()
+		sourceName := "reusable-source-name"
+		discRepo.sources[deleteID] = &dto.DiscoverySourceResponse{
+			ID:   deleteID,
+			Name: sourceName,
+			Collectors: []dto.CollectorResponse{
+				{ID: uuid.New(), CollectorType: "docker", Enabled: true},
+			},
+		}
+
+		// Seed a device record linked to this source
+		devID := uuid.New()
+		rec, _ := discRepo.UpsertRecord(ctx, devID, deleteID, "mac", map[string]interface{}{"ip": "10.0.0.1"})
+
+		resp, err := uc.SoftDeleteSource(ctx, deleteID.String())
+		if err != nil {
+			t.Fatalf("unexpected error on SoftDeleteSource: %v", err)
+		}
+		if resp.DeletedID != deleteID.String() {
+			t.Errorf("expected deleted ID %s, got %s", deleteID.String(), resp.DeletedID)
+		}
+		if resp.Impact.CollectorsHalted != 1 {
+			t.Errorf("expected 1 collector halted, got %d", resp.Impact.CollectorsHalted)
+		}
+
+		// Discovery record is preserved for history
+		records, err := discRepo.ListRecordsByDevice(ctx, devID)
+		if err != nil || len(records) == 0 || records[0].ID != rec.ID {
+			t.Errorf("expected discovery record to be preserved in repo")
+		}
+
+		// Re-registering with the same name is permitted after soft-delete
+		newSource, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: sourceName,
+			Type: "docker",
+		})
+		if err != nil {
+			t.Fatalf("expected creating source with same name after deletion to succeed, got %v", err)
+		}
+		if newSource.Name != sourceName {
+			t.Errorf("expected new source name %s, got %s", sourceName, newSource.Name)
+		}
+	})
+
 	t.Run("DeleteSource Publishes Event", func(t *testing.T) {
 		localBus := eventbus.NewInMemoryEventBus(1, 10)
 		defer func() { _ = localBus.Close() }()
@@ -959,7 +1212,13 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 		deleteID := uuid.New()
 		localRepo := newMockDiscRepo()
-		localRepo.sources[deleteID] = &dto.DiscoverySourceResponse{ID: deleteID, Name: "evt-src"}
+		localRepo.sources[deleteID] = &dto.DiscoverySourceResponse{
+			ID:   deleteID,
+			Name: "evt-src",
+			Collectors: []dto.CollectorResponse{
+				{ID: uuid.New(), CollectorType: "proxmox", Enabled: true},
+			},
+		}
 		localUC := usecase.NewDefaultDiscoveryUseCase(localRepo, newMockInvRepo(), localBus, slog.Default())
 
 		err := localUC.DeleteSource(ctx, deleteID.String())
@@ -975,6 +1234,12 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 			}
 			if payload["source_id"] != deleteID.String() {
 				t.Errorf("expected source_id %s, got %v", deleteID, payload["source_id"])
+			}
+			if payload["collectors_halted"] != 1 {
+				t.Errorf("expected collectors_halted 1, got %v", payload["collectors_halted"])
+			}
+			if payload["devices_unlinked"] != 2 {
+				t.Errorf("expected devices_unlinked 2, got %v", payload["devices_unlinked"])
 			}
 		case <-time.After(2 * time.Second):
 			t.Fatal("discovery_source.deleted event was not received within 2s")
@@ -1237,3 +1502,383 @@ func (m *mockInvRepo) SetDeviceParent(_ context.Context, id, parentDeviceID uuid
 		ParentProviderRef: pgtype.Text{String: parentProviderRef, Valid: parentProviderRef != ""},
 	}, nil
 }
+
+func TestUpdateDiscoverySource_SecretPreservationAndSSRFGuard(t *testing.T) {
+	discRepo := newMockDiscRepo()
+	invRepo := newMockInvRepo()
+	bus := eventbus.NewInMemoryEventBus(1, 10)
+	uc := usecase.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, slog.Default())
+	ctx := context.Background()
+
+	createReq := &dto.CreateDiscoverySourceRequest{
+		Name: "Lab Proxmox",
+		Type: "proxmox",
+		Collectors: []dto.CollectorConfig{
+			{
+				Type: "proxmox",
+				Config: map[string]interface{}{
+					"api_url":      "https://pve1.lab:8006",
+					"token_id":     "root@pam!inframap",
+					"token_secret": "super-secret-12345",
+				},
+			},
+		},
+	}
+	src, err := uc.CreateSource(ctx, createReq)
+	if err != nil {
+		t.Fatalf("failed to create source: %v", err)
+	}
+
+	t.Run("same target and blank secret preserves secret", func(t *testing.T) {
+		updateReq := &dto.UpdateDiscoverySourceRequest{
+			Name: "Lab Proxmox Updated",
+			Type: "proxmox",
+			Collectors: []dto.CollectorConfig{
+				{
+					Type: "proxmox",
+					Config: map[string]interface{}{
+						"api_url":      "https://pve1.lab:8006",
+						"token_id":     "root@pam!inframap",
+						"token_secret": "",
+					},
+				},
+			},
+		}
+
+		updated, err := uc.UpdateSource(ctx, src.ID.String(), updateReq)
+		if err != nil {
+			t.Fatalf("expected update to succeed, got %v", err)
+		}
+		if updated.Name != "Lab Proxmox Updated" {
+			t.Errorf("expected name to be updated, got %s", updated.Name)
+		}
+
+		rawConfigs, err := discRepo.GetRawCollectorConfigs(ctx, src.ID)
+		if err != nil {
+			t.Fatalf("failed to get raw configs: %v", err)
+		}
+		if rawConfigs["proxmox"]["token_secret"] != "super-secret-12345" {
+			t.Errorf("expected secret to be preserved, got %v", rawConfigs["proxmox"]["token_secret"])
+		}
+	})
+
+	t.Run("target changed and blank secret rejects with ErrSecretRequiredOnTargetChange", func(t *testing.T) {
+		updateReq := &dto.UpdateDiscoverySourceRequest{
+			Name: "Lab Proxmox SSRF Attempt",
+			Type: "proxmox",
+			Collectors: []dto.CollectorConfig{
+				{
+					Type: "proxmox",
+					Config: map[string]interface{}{
+						"api_url":      "https://evil-attacker.com:8006",
+						"token_id":     "root@pam!inframap",
+						"token_secret": "",
+					},
+				},
+			},
+		}
+
+		_, err := uc.UpdateSource(ctx, src.ID.String(), updateReq)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var ssrfErr *dto.ErrSecretRequiredOnTargetChange
+		if !errors.As(err, &ssrfErr) {
+			t.Fatalf("expected ErrSecretRequiredOnTargetChange, got %v", err)
+		}
+		if len(ssrfErr.Fields) == 0 || ssrfErr.Fields[0] != "api_url" {
+			t.Errorf("expected api_url in changed fields, got %v", ssrfErr.Fields)
+		}
+	})
+
+	t.Run("target changed and new secret provided succeeds", func(t *testing.T) {
+		updateReq := &dto.UpdateDiscoverySourceRequest{
+			Name: "Lab Proxmox Legit Move",
+			Type: "proxmox",
+			Collectors: []dto.CollectorConfig{
+				{
+					Type: "proxmox",
+					Config: map[string]interface{}{
+						"api_url":      "https://pve2.lab:8006",
+						"token_id":     "root@pam!inframap",
+						"token_secret": "brand-new-secret-67890",
+					},
+				},
+			},
+		}
+
+		updated, err := uc.UpdateSource(ctx, src.ID.String(), updateReq)
+		if err != nil {
+			t.Fatalf("expected update to succeed, got %v", err)
+		}
+		if updated.Name != "Lab Proxmox Legit Move" {
+			t.Errorf("expected name to be updated, got %s", updated.Name)
+		}
+
+		rawConfigs, err := discRepo.GetRawCollectorConfigs(ctx, src.ID)
+		if err != nil {
+			t.Fatalf("failed to get raw configs: %v", err)
+		}
+		if rawConfigs["proxmox"]["token_secret"] != "brand-new-secret-67890" {
+			t.Errorf("expected secret to be updated, got %v", rawConfigs["proxmox"]["token_secret"])
+		}
+		if rawConfigs["proxmox"]["api_url"] != "https://pve2.lab:8006" {
+			t.Errorf("expected api_url to be updated, got %v", rawConfigs["proxmox"]["api_url"])
+		}
+	})
+}
+
+type dummyHealthProvider struct {
+	id         string
+	healthErr  error
+	lastConfig sdk.ProviderConfig
+}
+
+func (d *dummyHealthProvider) ID() string { return d.id }
+func (d *dummyHealthProvider) Metadata() sdk.ProviderMetadata {
+	return sdk.ProviderMetadata{Name: d.id}
+}
+func (d *dummyHealthProvider) ConfigSchema() sdk.ConfigSchema {
+	return sdk.ConfigSchema{}
+}
+func (d *dummyHealthProvider) ValidateConfig(_ sdk.ProviderConfig) error { return nil }
+func (d *dummyHealthProvider) HealthCheck(_ context.Context, config sdk.ProviderConfig) error {
+	d.lastConfig = config
+	return d.healthErr
+}
+func (d *dummyHealthProvider) Discover(_ context.Context, _ sdk.ProviderConfig) ([]sdk.NormalizedDevice, error) {
+	return nil, nil
+}
+
+func TestDiscoveryUseCase_TestHealth(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("success using stored secret", func(t *testing.T) {
+		discRepo := newMockDiscRepo()
+		invRepo := newMockInvRepo()
+		bus := eventbus.NewInMemoryEventBus(1, 10)
+		uc := usecase.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, slog.Default())
+
+		provider := &dummyHealthProvider{id: "proxmox"}
+		uc.RegisterProvider(provider)
+
+		srcID := uuid.New()
+		discRepo.sources[srcID] = &dto.DiscoverySourceResponse{
+			ID:   srcID,
+			Name: "Proxmox Cluster",
+			Type: "proxmox",
+			Collectors: []dto.CollectorResponse{
+				{
+					ID:            uuid.New(),
+					CollectorType: "proxmox",
+					Enabled:       true,
+				},
+			},
+		}
+
+		discRepo.resolveConfigFn = func(_ context.Context, _ uuid.UUID, _ string) (sdk.ProviderConfig, error) {
+			return sdk.ProviderConfig{
+				"api_url":      "https://pve.example.com:8006",
+				"token_id":     "root@pam!token",
+				"token_secret": "super-secret-stored-value",
+			}, nil
+		}
+
+		resp, err := uc.TestHealth(ctx, srcID.String(), "")
+		if err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if resp.Status != "ok" {
+			t.Errorf("expected status ok, got %s", resp.Status)
+		}
+		if resp.ProviderID != "proxmox" {
+			t.Errorf("expected provider proxmox, got %s", resp.ProviderID)
+		}
+		if provider.lastConfig["token_secret"] != "super-secret-stored-value" {
+			t.Errorf("expected stored secret to be passed to provider, got %v", provider.lastConfig["token_secret"])
+		}
+	})
+
+	t.Run("error sanitizes secret from message", func(t *testing.T) {
+		discRepo := newMockDiscRepo()
+		invRepo := newMockInvRepo()
+		bus := eventbus.NewInMemoryEventBus(1, 10)
+		uc := usecase.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, slog.Default())
+
+		secretVal := "very-sensitive-token-secret-12345"
+		provider := &dummyHealthProvider{
+			id:        "proxmox",
+			healthErr: fmt.Errorf("connection failed using token secret %s: timeout", secretVal),
+		}
+		uc.RegisterProvider(provider)
+
+		srcID := uuid.New()
+		discRepo.sources[srcID] = &dto.DiscoverySourceResponse{
+			ID:   srcID,
+			Name: "Proxmox Cluster",
+			Type: "proxmox",
+			Collectors: []dto.CollectorResponse{
+				{
+					ID:            uuid.New(),
+					CollectorType: "proxmox",
+					Enabled:       true,
+				},
+			},
+		}
+
+		discRepo.resolveConfigFn = func(_ context.Context, _ uuid.UUID, _ string) (sdk.ProviderConfig, error) {
+			return sdk.ProviderConfig{
+				"api_url":      "https://pve.example.com:8006",
+				"token_id":     "root@pam!token",
+				"token_secret": secretVal,
+			}, nil
+		}
+
+		resp, err := uc.TestHealth(ctx, srcID.String(), "proxmox")
+		if err != nil {
+			t.Fatalf("expected nil error (health reporting error via payload), got %v", err)
+		}
+		if resp.Status != "error" {
+			t.Errorf("expected status error, got %s", resp.Status)
+		}
+		if strings.Contains(resp.Message, secretVal) {
+			t.Fatalf("CRITICAL: secret leaked in health error message: %s", resp.Message)
+		}
+		if !strings.Contains(resp.Message, "[REDACTED]") {
+			t.Errorf("expected redacted indicator in message, got: %s", resp.Message)
+		}
+	})
+
+	t.Run("not found source", func(t *testing.T) {
+		discRepo := newMockDiscRepo()
+		invRepo := newMockInvRepo()
+		bus := eventbus.NewInMemoryEventBus(1, 10)
+		uc := usecase.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, slog.Default())
+
+		_, err := uc.TestHealth(ctx, uuid.New().String(), "")
+		if err == nil {
+			t.Fatal("expected error for nonexistent source")
+		}
+	})
+
+	t.Run("invalid uuid", func(t *testing.T) {
+		discRepo := newMockDiscRepo()
+		invRepo := newMockInvRepo()
+		bus := eventbus.NewInMemoryEventBus(1, 10)
+		uc := usecase.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, slog.Default())
+
+		_, err := uc.TestHealth(ctx, "invalid-uuid", "")
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
+			t.Errorf("expected ErrInvalidUUID, got %v", err)
+		}
+	})
+
+	t.Run("source without provider", func(t *testing.T) {
+		discRepo := newMockDiscRepo()
+		invRepo := newMockInvRepo()
+		bus := eventbus.NewInMemoryEventBus(1, 10)
+		uc := usecase.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, slog.Default())
+
+		srcID := uuid.New()
+		discRepo.sources[srcID] = &dto.DiscoverySourceResponse{
+			ID:   srcID,
+			Name: "Network Scan",
+			Type: "network",
+			Collectors: []dto.CollectorResponse{
+				{
+					ID:            uuid.New(),
+					CollectorType: "icmp_sweep",
+					Enabled:       true,
+				},
+			},
+		}
+
+		_, err := uc.TestHealth(ctx, srcID.String(), "")
+		if !errors.Is(err, usecase.ErrNoProviderForSource) {
+			t.Errorf("expected ErrNoProviderForSource, got %v", err)
+		}
+	})
+}
+
+func TestIngestNormalizedDevice_RediscoverSoftDeletedDevice(t *testing.T) {
+	discRepo := newMockDiscRepo()
+	invRepo := newMockInvRepo()
+	bus := eventbus.NewInMemoryEventBus(1, 10)
+	uc := usecase.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, slog.Default())
+
+	srcID := uuid.New()
+	discRepo.sources[srcID] = &dto.DiscoverySourceResponse{
+		ID:   srcID,
+		Name: "Test Sweeper",
+		Type: "network",
+	}
+
+	delDeviceID := uuid.New()
+	addr, _ := netip.ParseAddr("10.0.0.99")
+	hw := net.HardwareAddr{0x00, 0x11, 0x22, 0x33, 0x44, 0x55}
+	invRepo.devices = append(invRepo.devices, db.Device{
+		ID:         delDeviceID,
+		Hostname:   "deleted-device",
+		IpAddress:  &addr,
+		MacAddress: hw,
+		DeviceType: "server",
+		Status:     "deleted",
+		DeletedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	})
+
+	norm := &dto.NormalizedDeviceDTO{
+		Hostname:       "deleted-device-new-name",
+		IPAddress:      "10.0.0.99",
+		MACAddress:     "00:11:22:33:44:55",
+		DeviceType:     "server",
+		ProtocolSource: "icmp_sweep",
+		RawPayload:     map[string]interface{}{"ping": "ok"},
+	}
+
+	// First sweep: should match soft-deleted device and route to staging marked previously_deleted
+	rec, err := uc.IngestNormalizedDevice(context.Background(), srcID, norm)
+	if err != nil {
+		t.Fatalf("unexpected error ingesting device: %v", err)
+	}
+	if rec.MatchedBy != "previously_deleted" {
+		t.Errorf("expected matched_by previously_deleted, got %s", rec.MatchedBy)
+	}
+
+	// Verify device in inventory was NOT restored automatically
+	for _, d := range invRepo.devices {
+		if d.ID == delDeviceID {
+			if !d.DeletedAt.Valid {
+				t.Error("soft-deleted device must NOT have deleted_at cleared automatically")
+			}
+		}
+	}
+
+	// Verify staging record
+	if len(invRepo.staged) != 1 {
+		t.Fatalf("expected 1 staging record, got %d", len(invRepo.staged))
+	}
+	staged := invRepo.staged[0]
+	var payload map[string]interface{}
+	if err := json.Unmarshal(staged.RawPayload, &payload); err != nil {
+		t.Fatalf("failed to parse staged raw payload: %v", err)
+	}
+	if prevDel, ok := payload["previously_deleted"].(bool); !ok || !prevDel {
+		t.Error("expected previously_deleted=true in raw_payload")
+	}
+	if matchedID, ok := payload["matched_device_id"].(string); !ok || matchedID != delDeviceID.String() {
+		t.Errorf("expected matched_device_id=%s, got %v", delDeviceID, payload["matched_device_id"])
+	}
+
+	// Second sweep: idempotency guarantee - repeated sweep must NOT create duplicate staging record
+	rec2, err2 := uc.IngestNormalizedDevice(context.Background(), srcID, norm)
+	if err2 != nil {
+		t.Fatalf("unexpected error in second sweep: %v", err2)
+	}
+	if rec2 == nil {
+		t.Fatal("expected record from second sweep")
+	}
+	if len(invRepo.staged) != 1 {
+		t.Errorf("idempotency violated: expected 1 staging record after repeated sweep, got %d", len(invRepo.staged))
+	}
+}
+

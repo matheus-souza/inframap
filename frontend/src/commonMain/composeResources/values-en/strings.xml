@@ -294,6 +294,7 @@
     <string name="staging_col_actions">Actions</string>
     <string name="staging_action_processing">Processing...</string>
     <string name="staging_action_approve">Approve</string>
+    <string name="staging_tag_previously_deleted">Previously Deleted</string>
     <string name="staging_value_empty">-</string>
 
     <!-- Device List Screen -->
@@ -451,5 +452,70 @@
     <string name="draft_restored_notice_secrets">Draft restored. For security, secrets and keys were not saved and must be re-entered.</string>
     <string name="provider_tab_has_errors">Contains errors</string>
     <string name="legend_required_fields">Fields marked with * are required.</string>
+
+    <!-- Danger Zone & Impact Dialog & Overflow Menu -->
+    <string name="danger_zone_title">Danger Zone</string>
+    <string name="danger_zone_delete_button">Delete %1$s</string>
+    <string name="danger_zone_device_description">This device will be moved to deleted state. It will no longer be actively monitored.</string>
+    <string name="danger_zone_subnet_description">This subnet will be removed from active listings. Discovered devices and IPs will not be deleted.</string>
+    <string name="danger_zone_discovery_source_description">This discovery source will be removed from active listings. Discovered devices will remain in inventory.</string>
+    <string name="impact_dialog_title">Confirm Deletion</string>
+    <string name="impact_dialog_affected_devices">%1$d affected device(s)</string>
+    <string name="impact_dialog_collectors_halted">%1$d collector(s) will be stopped</string>
+    <string name="impact_dialog_confirm_button">Confirm Deletion</string>
+    <string name="impact_dialog_cancel_button">Cancel</string>
+    <string name="impact_dialog_loading">Calculating impact…</string>
+    <string name="row_overflow_menu_content_description">More options</string>
+    <string name="row_overflow_menu_edit">Edit</string>
+    <string name="row_overflow_menu_delete">Delete</string>
+
+    <!-- Edit Subnet -->
+    <string name="edit_subnet_title">Edit Subnet</string>
+    <string name="edit_subnet_header_title">Edit Subnet</string>
+    <string name="edit_subnet_header_subtitle">Modify subnet CIDR parameters and discovery settings</string>
+    <string name="edit_subnet_form_title">Subnet Details</string>
+    <string name="edit_subnet_submit_button">Save Changes</string>
+    <string name="edit_subnet_submitting">Saving…</string>
+    <string name="edit_subnet_error_load">Failed to load subnet.</string>
+    <string name="edit_subnet_error_update">Failed to update subnet.</string>
+    <string name="error_subnet_conflict">Subnet conflict: an active subnet already exists with this range.</string>
+    <string name="error_gateway_not_contained">Gateway IP must belong to the specified CIDR block.</string>
+    <string name="edit_subnet_impact_title">CIDR Block Impact Warning</string>
+    <string name="edit_subnet_impact_warning">Changing the CIDR range will leave %1$d device(s) outside the new subnet. Do you wish to proceed?</string>
+    <string name="delete_subnet_dialog_title">Delete Subnet</string>
+    <string name="delete_subnet_confirm_message">Are you sure you want to delete subnet \"%1$s\"? This action will remove the subnet from active listings.</string>
+    <string name="delete_subnet_impact_devices">%1$d contained device(s)</string>
+    <string name="delete_subnet_impact_edges">%1$d linked topology edge(s)</string>
+    <string name="delete_subnet_success">Subnet \"%1$s\" successfully deleted.</string>
+    <string name="delete_subnet_error">Failed to delete subnet.</string>
+
+    <!-- Edit Discovery Source -->
+    <string name="edit_discovery_source_title">Edit Discovery Source</string>
+    <string name="edit_discovery_source_header_title">Edit Discovery Source</string>
+    <string name="edit_discovery_source_header_subtitle">Modify discovery source parameters and credentials</string>
+    <string name="edit_discovery_source_form_title">Source Configuration</string>
+    <string name="edit_discovery_source_name_label">Source Name</string>
+    <string name="edit_discovery_source_schedule_label">Cron Schedule (Optional)</string>
+    <string name="edit_discovery_source_secret_hint">Leave blank to preserve current credential</string>
+    <string name="edit_discovery_source_secret_configured">Credential already configured</string>
+    <string name="edit_discovery_source_target_changed_warning">Target host/URL changed. Please re-enter the credential to confirm.</string>
+    <string name="error_secret_required_on_target_change">Target host/URL changed. Please re-enter credentials to continue.</string>
+    <string name="edit_discovery_source_submit_button">Save Changes</string>
+    <string name="edit_discovery_source_submitting">Saving…</string>
+    <string name="edit_discovery_source_success">Discovery source updated successfully.</string>
+    <string name="edit_discovery_source_error_update">Failed to update discovery source.</string>
+    <string name="edit_discovery_source_error_load">Failed to load discovery source.</string>
+    <string name="edit_discovery_source_test_unsaved_warning">Save changes to test the updated configuration</string>
+    <string name="device_discovery_source_inactive">Inactive source</string>
+    <string name="delete_discovery_source_dialog_title">Delete Discovery Source</string>
+    <string name="delete_discovery_source_confirm_message">Are you sure you want to delete source \&quot;%1$s\&quot;? Its collectors and schedules will be deactivated.</string>
+    <string name="delete_discovery_source_impact_collectors">%1$d collector(s) to deactivate</string>
+    <string name="delete_discovery_source_impact_devices">%1$d associated device(s)</string>
+    <string name="delete_discovery_source_success">Discovery source \&quot;%1$s\&quot; successfully deleted.</string>
+    <string name="delete_discovery_source_error">Failed to delete discovery source.</string>
+    <string name="error_credential_in_use">This credential is in use by %1$d active discovery source(s).</string>
 </resources>
+
+
+
 

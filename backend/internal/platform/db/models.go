@@ -103,6 +103,7 @@ type DiscoverySource struct {
 	LastStatus      string             `json:"last_status"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type DiscoverySourceCollector struct {
@@ -172,6 +173,7 @@ type Subnet struct {
 	DiscoveryEnabled bool               `json:"discovery_enabled"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type SystemState struct {
