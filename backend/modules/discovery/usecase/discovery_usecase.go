@@ -1260,15 +1260,18 @@ func (u *DefaultDiscoveryUseCase) TestHealth(ctx context.Context, sourceIDStr st
 		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, providerID)
 	}
 
-	resolvedConfig, err := u.discRepo.ResolveCollectorConfig(ctx, sourceUUID, providerID)
+	cleanSourceID := strings.ReplaceAll(strings.ReplaceAll(sourceUUID.String(), "\n", ""), "\r", "")
+	cleanProviderID := strings.ReplaceAll(strings.ReplaceAll(provider.ID(), "\n", ""), "\r", "")
+
+	resolvedConfig, err := u.discRepo.ResolveCollectorConfig(ctx, sourceUUID, provider.ID())
 	if err != nil {
 		u.logger.Error("failed to resolve collector config for health check",
-			slog.String("source_id", sourceIDStr),
-			slog.String("provider_id", providerID),
+			slog.String("source_id", cleanSourceID),
+			slog.String("provider_id", cleanProviderID),
 			slog.Any("error", err),
 		)
 		return &dto.SourceHealthResponse{
-			ProviderID: providerID,
+			ProviderID: provider.ID(),
 			Status:     "error",
 			Message:    SanitizeHealthError(err, nil),
 		}, nil
@@ -1276,12 +1279,12 @@ func (u *DefaultDiscoveryUseCase) TestHealth(ctx context.Context, sourceIDStr st
 
 	if err := provider.HealthCheck(ctx, resolvedConfig); err != nil {
 		u.logger.Warn("provider health check failed",
-			slog.String("source_id", sourceIDStr),
-			slog.String("provider_id", providerID),
+			slog.String("source_id", cleanSourceID),
+			slog.String("provider_id", cleanProviderID),
 			slog.Any("error", err),
 		)
 		return &dto.SourceHealthResponse{
-			ProviderID: providerID,
+			ProviderID: provider.ID(),
 			Status:     "error",
 			Message:    SanitizeHealthError(err, resolvedConfig),
 		}, nil
