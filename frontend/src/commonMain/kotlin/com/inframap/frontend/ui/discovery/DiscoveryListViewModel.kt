@@ -3,10 +3,12 @@ package com.inframap.frontend.ui.discovery
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.usecase.discovery.DeleteDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceDeletionImpactUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
 import com.inframap.frontend.generated.resources.Res
-import com.inframap.frontend.generated.resources.discovery_error_delete
+import com.inframap.frontend.generated.resources.delete_discovery_source_error
+import com.inframap.frontend.generated.resources.delete_discovery_source_success
 import com.inframap.frontend.generated.resources.discovery_error_load
 import com.inframap.frontend.generated.resources.discovery_error_trigger
 import com.inframap.frontend.generated.resources.discovery_run_triggered
@@ -18,6 +20,7 @@ class DiscoveryListViewModel(
     private val getSourcesUseCase: GetDiscoverySourcesUseCase,
     private val triggerRunUseCase: TriggerDiscoveryRunUseCase,
     private val deleteSourceUseCase: DeleteDiscoverySourceUseCase,
+    private val getDeletionImpactUseCase: GetDiscoverySourceDeletionImpactUseCase,
     scope: CoroutineScope? = null,
 ) : BaseListViewModel<DiscoveryListUiState>(DiscoveryListUiState(), scope = scope) {
     init {
@@ -103,12 +106,40 @@ class DiscoveryListViewModel(
     }
 
     fun confirmDeleteSource(source: DiscoverySource) {
-        updateState { it.copy(sourceToDelete = source) }
+        updateState {
+            it.copy(
+                sourceToDelete = source,
+                isLoadingDeleteImpact = true,
+                deleteImpact = null,
+                deleteError = null,
+            )
+        }
+        launchJob("fetch_deletion_impact") {
+            when (val result = getDeletionImpactUseCase(source.id)) {
+                is ApiResult.Success -> {
+                    updateState {
+                        it.copy(
+                            isLoadingDeleteImpact = false,
+                            deleteImpact = result.data,
+                        )
+                    }
+                }
+                is ApiResult.Error,
+                is ApiResult.NetworkError,
+                -> {
+                    updateState {
+                        it.copy(
+                            isLoadingDeleteImpact = false,
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun deleteSource() {
         val source = currentState.sourceToDelete ?: return
-        updateState { it.copy(sourceToDelete = null) }
+        updateState { it.copy(sourceToDelete = null, deleteImpact = null) }
 
         launchJob("delete") {
             when (val result = deleteSourceUseCase(source.id)) {
@@ -117,21 +148,25 @@ class DiscoveryListViewModel(
                         it.copy(
                             sources = it.sources.filter { src -> src.id != source.id },
                             totalItems = it.totalItems - 1,
-                            toastMessage = UiText.DynamicString("Fonte '${source.name}' excluida com sucesso."),
+                            toastMessage =
+                                UiText.Resource(
+                                    Res.string.delete_discovery_source_success,
+                                    listOf(source.name),
+                                ),
                         )
                     }
                 }
                 is ApiResult.Error -> {
                     updateState {
                         it.copy(
-                            deleteError = mapError(result, UiText.Resource(Res.string.discovery_error_delete)),
+                            deleteError = mapError(result, UiText.Resource(Res.string.delete_discovery_source_error)),
                         )
                     }
                 }
                 is ApiResult.NetworkError -> {
                     updateState {
                         it.copy(
-                            deleteError = mapError(result, UiText.Resource(Res.string.discovery_error_delete)),
+                            deleteError = mapError(result, UiText.Resource(Res.string.delete_discovery_source_error)),
                         )
                     }
                 }
@@ -140,7 +175,7 @@ class DiscoveryListViewModel(
     }
 
     fun cancelDeleteSource() {
-        updateState { it.copy(sourceToDelete = null) }
+        updateState { it.copy(sourceToDelete = null, deleteImpact = null, isLoadingDeleteImpact = false) }
     }
 
     fun dismissDeleteError() {

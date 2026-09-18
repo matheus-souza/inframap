@@ -3,9 +3,15 @@ package com.inframap.frontend.domain.usecase
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CreateDeviceRequest
 import com.inframap.frontend.data.dto.CreateSubnetRequest
+import com.inframap.frontend.data.dto.DeleteSubnetResponse
 import com.inframap.frontend.data.dto.LoginRequest
 import com.inframap.frontend.data.dto.OnboardRequest
+import com.inframap.frontend.data.dto.SubnetCidrImpactRequest
+import com.inframap.frontend.data.dto.SubnetCidrImpactResponse
+import com.inframap.frontend.data.dto.SubnetDeletionImpact
+import com.inframap.frontend.data.dto.SubnetDeletionImpactResponse
 import com.inframap.frontend.data.dto.UpdateDeviceRequest
+import com.inframap.frontend.data.dto.UpdateSubnetRequest
 import com.inframap.frontend.domain.model.Device
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.Health
@@ -37,6 +43,8 @@ import com.inframap.frontend.domain.usecase.device.UpdateDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
+import com.inframap.frontend.domain.usecase.subnet.DeleteSubnetUseCase
+import com.inframap.frontend.domain.usecase.subnet.GetSubnetDeletionImpactUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import kotlinx.coroutines.test.runTest
@@ -80,8 +88,45 @@ private class FakeFullRepository :
 
     override suspend fun getSubnets() = ApiResult.Success(PaginatedList(emptyList<Subnet>(), 0), "req-1")
 
+    override suspend fun getSubnetById(id: String) = ApiResult.Success(Subnet(id = id, name = "sub-1", cidr = "10.0.0.0/24"), "req-1")
+
     override suspend fun createSubnet(request: CreateSubnetRequest) =
         ApiResult.Success(Subnet(id = "sub-1", name = request.name, cidr = request.cidr), "req-1")
+
+    override suspend fun updateSubnet(
+        id: String,
+        request: UpdateSubnetRequest,
+    ) = ApiResult.Success(Subnet(id = id, name = request.name, cidr = request.cidr), "req-1")
+
+    override suspend fun getSubnetCidrImpact(
+        id: String,
+        request: SubnetCidrImpactRequest,
+    ) = ApiResult.Success(
+        SubnetCidrImpactResponse(
+            currentCidr = "10.0.0.0/24",
+            newCidr = request.newCidr,
+            affectedDevicesCount = 0,
+        ),
+        "req-1",
+    )
+
+    override suspend fun getSubnetDeletionImpact(id: String) =
+        ApiResult.Success(
+            SubnetDeletionImpactResponse(
+                subnetId = id,
+                impact = SubnetDeletionImpact(affectedDevices = 0, unlinkedTopologyEdges = 0),
+            ),
+            "req-1",
+        )
+
+    override suspend fun deleteSubnet(id: String) =
+        ApiResult.Success(
+            DeleteSubnetResponse(
+                deletedId = id,
+                impact = SubnetDeletionImpact(affectedDevices = 0, unlinkedTopologyEdges = 0),
+            ),
+            "req-1",
+        )
 
     override suspend fun getSetupStatus() = ApiResult.Success(SetupStatus(true, "inst-1"), "req-1")
 
@@ -124,6 +169,8 @@ class UseCasesTest {
         runTest {
             assertIs<ApiResult.Success<*>>(GetSubnetsUseCase(repo)())
             assertIs<ApiResult.Success<*>>(ListSubnetsUseCase(repo)())
+            assertIs<ApiResult.Success<*>>(GetSubnetDeletionImpactUseCase(repo)("sub-1"))
+            assertIs<ApiResult.Success<*>>(DeleteSubnetUseCase(repo)("sub-1"))
         }
 
     @Test

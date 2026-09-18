@@ -256,4 +256,34 @@ class DeviceListViewModelTest {
             }
             vm.clear()
         }
+
+    @Test
+    fun menuDeleteActionTriggersConfirmationAndLoadsPageOnConfirm() =
+        runTest {
+            val repo =
+                FakeDeviceRepository(
+                    getDevicesResult = ApiResult.Success(pagedDevices, requestId = ""),
+                )
+            val vm = makeVm(repo = repo, scope = this)
+            advanceUntilIdle()
+            assertEquals(1, repo.getDevicesCallCount)
+
+            // Menu triggers confirmDeleteDevice
+            vm.confirmDeleteDevice(sampleDevice)
+            assertEquals(
+                "d1",
+                vm.state.value.deviceToDelete
+                    ?.id,
+            )
+
+            // User confirms delete in ImpactConfirmationDialog
+            vm.deleteDevice()
+            advanceUntilIdle()
+
+            assertNull(vm.state.value.deviceToDelete)
+            assertFalse(vm.state.value.isDeleting)
+            assertNotNull(vm.state.value.toastMessage)
+            assertEquals(2, repo.getDevicesCallCount)
+            vm.clear()
+        }
 }

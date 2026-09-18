@@ -40,12 +40,16 @@ type DiscoveryRepository interface {
 	ListSources(ctx context.Context) ([]*dto.DiscoverySourceResponse, error)
 	UpdateSourceStatus(ctx context.Context, id uuid.UUID, status string) (*dto.DiscoverySourceResponse, error)
 	DeleteSource(ctx context.Context, id uuid.UUID) error
+	GetDeletionImpact(ctx context.Context, id uuid.UUID) (*dto.DiscoverySourceDeletionImpact, error)
+	SoftDeleteSource(ctx context.Context, id uuid.UUID) (*dto.DiscoverySourceDeletionImpact, error)
 	UpsertRecord(ctx context.Context, deviceID, sourceID uuid.UUID, matchedBy string, rawPayload map[string]interface{}) (*dto.DiscoveryRecordResponse, error)
 	ListRecordsByDevice(ctx context.Context, deviceID uuid.UUID) ([]*dto.DiscoveryRecordResponse, error)
 	CreateCollectorRun(ctx context.Context, run *db.CreateCollectorRunParams) error
 	ListRunsBySourceID(ctx context.Context, sourceID uuid.UUID, limit int) ([]*dto.CollectorRunResponse, error)
 	ListRunsBySourceIDPaged(ctx context.Context, sourceID uuid.UUID, limit, offset int) ([]*dto.CollectorRunResponse, int64, error)
 	PurgeOldCollectorRuns(ctx context.Context, cutoff time.Time, batchSize int) (int64, error)
+	UpdateSource(ctx context.Context, id uuid.UUID, req *dto.UpdateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error)
+	GetRawCollectorConfigs(ctx context.Context, sourceID uuid.UUID) (map[string]map[string]interface{}, error)
 	ResolveCollectorConfig(ctx context.Context, sourceID uuid.UUID, collectorType string) (sdk.ProviderConfig, error)
 }
 
@@ -222,10 +226,34 @@ func (r *PgDiscoveryRepository) GetSourceByID(ctx context.Context, id uuid.UUID)
 
 	resp.Collectors = make([]dto.CollectorResponse, len(collectors))
 	for i, c := range collectors {
+		var sanitizedConfig map[string]interface{}
+		var configuredSecrets []string
+
+		if c.ConfigEncrypted.Valid && c.ConfigEncrypted.String != "" && r.encryptor != nil {
+			dec, decErr := r.encryptor.Decrypt(c.ConfigEncrypted.String)
+			if decErr == nil && len(dec) > 0 {
+				var rawMap map[string]interface{}
+				if json.Unmarshal(dec, &rawMap) == nil {
+					sanitizedConfig = make(map[string]interface{})
+					for k, v := range rawMap {
+						if dto.IsSecretKey(c.CollectorType, k) {
+							if v != nil && strings.TrimSpace(fmt.Sprint(v)) != "" {
+								configuredSecrets = append(configuredSecrets, k)
+							}
+						} else {
+							sanitizedConfig[k] = v
+						}
+					}
+				}
+			}
+		}
+
 		resp.Collectors[i] = dto.CollectorResponse{
-			ID:            c.ID,
-			CollectorType: c.CollectorType,
-			Enabled:       c.Enabled,
+			ID:                c.ID,
+			CollectorType:     c.CollectorType,
+			Enabled:           c.Enabled,
+			Config:            sanitizedConfig,
+			ConfiguredSecrets: configuredSecrets,
 		}
 	}
 
@@ -308,16 +336,90 @@ func (r *PgDiscoveryRepository) UpdateSourceStatus(ctx context.Context, id uuid.
 	return resp, nil
 }
 
-// DeleteSource removes a discovery source record.
-func (r *PgDiscoveryRepository) DeleteSource(ctx context.Context, id uuid.UUID) error {
-	rows, err := r.queries.DeleteDiscoverySource(ctx, id)
+// GetDeletionImpact returns the impact of deleting a discovery source.
+func (r *PgDiscoveryRepository) GetDeletionImpact(ctx context.Context, id uuid.UUID) (*dto.DiscoverySourceDeletionImpact, error) {
+	_, err := r.queries.GetDiscoverySourceByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("failed to delete discovery source: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("%w: %v", ErrSourceNotFound, id)
+		}
+		return nil, fmt.Errorf("failed to get discovery source: %w", err)
+	}
+
+	collectorsCount, err := r.queries.CountCollectorsBySourceID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count collectors: %w", err)
+	}
+
+	devicesCount, err := r.queries.CountDiscoveredDevicesBySourceID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count discovered devices: %w", err)
+	}
+
+	return &dto.DiscoverySourceDeletionImpact{
+		CollectorsHalted: int(collectorsCount),
+		DevicesUnlinked:  int(devicesCount),
+	}, nil
+}
+
+// SoftDeleteSource marks a discovery source as deleted and deactivates its collectors in a single atomic transaction.
+func (r *PgDiscoveryRepository) SoftDeleteSource(ctx context.Context, id uuid.UUID) (*dto.DiscoverySourceDeletionImpact, error) {
+	beginner, ok := r.database.(TxBeginner)
+	if !ok {
+		return nil, fmt.Errorf("database driver must implement TxBeginner for atomic deletion")
+	}
+
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := r.queries.WithTx(tx)
+
+	_, err = qtx.GetDiscoverySourceByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("%w: %v", ErrSourceNotFound, id)
+		}
+		return nil, fmt.Errorf("failed to get discovery source: %w", err)
+	}
+
+	collectorsCount, err := qtx.CountCollectorsBySourceID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count collectors: %w", err)
+	}
+
+	devicesCount, err := qtx.CountDiscoveredDevicesBySourceID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count discovered devices: %w", err)
+	}
+
+	if _, err := qtx.DeactivateCollectorsBySourceID(ctx, id); err != nil {
+		return nil, fmt.Errorf("failed to deactivate collectors: %w", err)
+	}
+
+	rows, err := qtx.DeleteDiscoverySource(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete discovery source: %w", err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("%w: %v", ErrSourceNotFound, id)
+		return nil, fmt.Errorf("%w: %v", ErrSourceNotFound, id)
 	}
-	return nil
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return &dto.DiscoverySourceDeletionImpact{
+		CollectorsHalted: int(collectorsCount),
+		DevicesUnlinked:  int(devicesCount),
+	}, nil
+}
+
+// DeleteSource removes a discovery source record.
+func (r *PgDiscoveryRepository) DeleteSource(ctx context.Context, id uuid.UUID) error {
+	_, err := r.SoftDeleteSource(ctx, id)
+	return err
 }
 
 // UpsertRecord creates or updates a device discovery observation record.
@@ -722,4 +824,168 @@ func (r *PgDiscoveryRepository) resolveCredentialReference(
 	delete(config, CredentialConfigKey)
 
 	return config, nil
+}
+
+// GetRawCollectorConfigs returns decrypted, un-sanitized configurations for all collectors belonging to a source.
+func (r *PgDiscoveryRepository) GetRawCollectorConfigs(ctx context.Context, sourceID uuid.UUID) (map[string]map[string]interface{}, error) {
+	collectors, err := r.queries.ListCollectorsBySourceID(ctx, sourceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list collectors for discovery source: %w", err)
+	}
+
+	result := make(map[string]map[string]interface{})
+	for _, c := range collectors {
+		if !c.ConfigEncrypted.Valid || c.ConfigEncrypted.String == "" {
+			result[c.CollectorType] = make(map[string]interface{})
+			continue
+		}
+		if r.encryptor == nil {
+			return nil, fmt.Errorf("cannot decrypt collector config for %s: encryptor is not configured", c.CollectorType)
+		}
+		decrypted, err := r.encryptor.Decrypt(c.ConfigEncrypted.String)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt collector config for %s: %w", c.CollectorType, err)
+		}
+		var cfg map[string]interface{}
+		if err := json.Unmarshal(decrypted, &cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse collector config for %s: %w", c.CollectorType, err)
+		}
+		result[c.CollectorType] = cfg
+	}
+	return result, nil
+}
+
+// UpdateSource updates a discovery source and atomically replaces its collectors in a single transaction.
+func (r *PgDiscoveryRepository) UpdateSource(ctx context.Context, id uuid.UUID, req *dto.UpdateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
+	existing, err := r.queries.GetDiscoverySourceByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("%w: %v", ErrSourceNotFound, id)
+		}
+		return nil, fmt.Errorf("failed to query discovery source: %w", err)
+	}
+
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	var cronStr pgtype.Text
+	if req.ScheduleCron != "" {
+		cronStr = pgtype.Text{String: req.ScheduleCron, Valid: true}
+	}
+
+	encryptedConfig := existing.ConfigEncrypted
+	if len(req.Config) > 0 {
+		configBytes, err := json.Marshal(req.Config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal discovery config: %w", err)
+		}
+		if r.encryptor == nil {
+			return nil, fmt.Errorf("discovery config encryption is required but no encryptor is configured")
+		}
+		encStr, err := r.encryptor.Encrypt(configBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt discovery config: %w", err)
+		}
+		encryptedConfig = pgtype.Text{String: encStr, Valid: true}
+	}
+
+	beginner, ok := r.database.(TxBeginner)
+	if !ok {
+		return nil, fmt.Errorf("database driver must implement TxBeginner for atomic source update")
+	}
+
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := r.queries.WithTx(tx)
+
+	row, err := qtx.UpdateDiscoverySource(ctx, db.UpdateDiscoverySourceParams{
+		ID:              id,
+		Name:            req.Name,
+		Enabled:         enabled,
+		ScheduleCron:    cronStr,
+		ConfigEncrypted: encryptedConfig,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update discovery source: %w", err)
+	}
+
+	if _, err := qtx.DeleteCollectorsBySourceID(ctx, id); err != nil {
+		return nil, fmt.Errorf("failed to clear previous collectors: %w", err)
+	}
+
+	collectorResponses := make([]dto.CollectorResponse, 0, len(req.Collectors))
+	for _, col := range req.Collectors {
+		colID := uuid.New()
+		colEnabled := true
+		if col.Enabled != nil {
+			colEnabled = *col.Enabled
+		}
+
+		var encColConfig pgtype.Text
+		var sanitizedConfig map[string]interface{}
+		var configuredSecrets []string
+
+		if len(col.Config) > 0 {
+			colBytes, err := json.Marshal(col.Config)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal collector config for %s: %w", col.Type, err)
+			}
+			if r.encryptor == nil {
+				return nil, fmt.Errorf("collector config encryption is required but no encryptor is configured")
+			}
+			encStr, err := r.encryptor.Encrypt(colBytes)
+			if err != nil {
+				return nil, fmt.Errorf("failed to encrypt collector config for %s: %w", col.Type, err)
+			}
+			encColConfig = pgtype.Text{String: encStr, Valid: true}
+
+			sanitizedConfig = make(map[string]interface{})
+			for k, v := range col.Config {
+				if dto.IsSecretKey(col.Type, k) {
+					if v != nil && strings.TrimSpace(fmt.Sprint(v)) != "" {
+						configuredSecrets = append(configuredSecrets, k)
+					}
+				} else {
+					sanitizedConfig[k] = v
+				}
+			}
+		}
+
+		colRow, err := qtx.CreateDiscoverySourceCollector(ctx, db.CreateDiscoverySourceCollectorParams{
+			ID:              colID,
+			SourceID:        id,
+			CollectorType:   col.Type,
+			ConfigEncrypted: encColConfig,
+			Enabled:         colEnabled,
+			CreatedAt:       pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to recreate collector %s: %w", col.Type, err)
+		}
+
+		collectorResponses = append(collectorResponses, dto.CollectorResponse{
+			ID:                colRow.ID,
+			CollectorType:     colRow.CollectorType,
+			Enabled:           colRow.Enabled,
+			Config:            sanitizedConfig,
+			ConfiguredSecrets: configuredSecrets,
+		})
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit update source transaction: %w", err)
+	}
+
+	resp, err := r.mapSourceToDTO(&row)
+	if err != nil {
+		return nil, err
+	}
+	resp.Collectors = collectorResponses
+	r.attachLastRun(ctx, resp)
+	return resp, nil
 }

@@ -95,4 +95,15 @@ class StatusBadgeTest {
             }
             onNodeWithText("Cancelled").assertIsDisplayed()
         }
+
+    @Test
+    fun previouslyDeletedBadgeShowsPreviouslyDeletedLabel() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    InfraMapPreviouslyDeletedBadge()
+                }
+            }
+            onNodeWithText("Previously Deleted").assertIsDisplayed()
+        }
 }

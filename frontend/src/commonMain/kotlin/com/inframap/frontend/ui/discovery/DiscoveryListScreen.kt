@@ -23,9 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.ImpactConfirmationDialog
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
-import com.inframap.frontend.designsystem.InfraMapConfirmDialog
 import com.inframap.frontend.designsystem.InfraMapEmptyState
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
@@ -33,6 +33,7 @@ import com.inframap.frontend.designsystem.InfraMapSnackbarHost
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.InfraMapTableSkeleton
+import com.inframap.frontend.designsystem.RowOverflowMenu
 import com.inframap.frontend.designsystem.SnackbarType
 import com.inframap.frontend.designsystem.SourceStatus
 import com.inframap.frontend.designsystem.TableColumn
@@ -46,9 +47,11 @@ import com.inframap.frontend.generated.resources.collector_name_proxmox
 import com.inframap.frontend.generated.resources.collector_name_reverse_dns
 import com.inframap.frontend.generated.resources.collector_name_snmp
 import com.inframap.frontend.generated.resources.collector_name_unifi
-import com.inframap.frontend.generated.resources.common_cancel
+import com.inframap.frontend.generated.resources.delete_discovery_source_confirm_message
+import com.inframap.frontend.generated.resources.delete_discovery_source_dialog_title
+import com.inframap.frontend.generated.resources.delete_discovery_source_impact_collectors
+import com.inframap.frontend.generated.resources.delete_discovery_source_impact_devices
 import com.inframap.frontend.generated.resources.devices_retry
-import com.inframap.frontend.generated.resources.discovery_action_delete
 import com.inframap.frontend.generated.resources.discovery_action_execute
 import com.inframap.frontend.generated.resources.discovery_col_actions
 import com.inframap.frontend.generated.resources.discovery_col_cidr
@@ -56,8 +59,6 @@ import com.inframap.frontend.generated.resources.discovery_col_name
 import com.inframap.frontend.generated.resources.discovery_col_schedule
 import com.inframap.frontend.generated.resources.discovery_col_status
 import com.inframap.frontend.generated.resources.discovery_col_type
-import com.inframap.frontend.generated.resources.discovery_delete_confirm_message
-import com.inframap.frontend.generated.resources.discovery_delete_dialog_title
 import com.inframap.frontend.generated.resources.discovery_empty_cta
 import com.inframap.frontend.generated.resources.discovery_empty_subtitle
 import com.inframap.frontend.generated.resources.discovery_empty_title
@@ -113,12 +114,23 @@ fun DiscoveryListScreen(
             modifier = Modifier.align(Alignment.BottomCenter),
         )
 
-        if (state.sourceToDelete != null) {
-            InfraMapConfirmDialog(
-                title = stringResource(Res.string.discovery_delete_dialog_title),
-                message = stringResource(Res.string.discovery_delete_confirm_message, state.sourceToDelete.name),
-                confirmText = stringResource(Res.string.discovery_action_delete),
-                dismissText = stringResource(Res.string.common_cancel),
+        val sourceToDelete = state.sourceToDelete
+        if (sourceToDelete != null) {
+            val impactLines = mutableListOf<String>()
+            val impact = state.deleteImpact
+            if (impact != null) {
+                impactLines.add(
+                    stringResource(Res.string.delete_discovery_source_impact_collectors, impact.collectorsHalted),
+                )
+                impactLines.add(
+                    stringResource(Res.string.delete_discovery_source_impact_devices, impact.devicesUnlinked),
+                )
+            }
+            ImpactConfirmationDialog(
+                title = stringResource(Res.string.delete_discovery_source_dialog_title),
+                description = stringResource(Res.string.delete_discovery_source_confirm_message, sourceToDelete.name),
+                impactLines = impactLines,
+                isLoadingImpact = state.isLoadingDeleteImpact,
                 onConfirm = actions.onConfirmDelete,
                 onDismiss = actions.onCancelDelete,
             )
@@ -235,6 +247,7 @@ private fun DiscoveryTableCard(
                 InfraMapTable(
                     columns = columns,
                     items = state.sources,
+                    onRowClick = { actions.onEditSourceClicked(it.id) },
                     modifier = Modifier.weight(1f),
                 ) { colIndex, item ->
                     DiscoveryRowCell(colIndex = colIndex, item = item, actions = actions)
@@ -334,9 +347,9 @@ private fun DiscoveryActionsCell(
             enabled = item.lastStatus != "running",
         )
         Spacer(modifier = Modifier.width(6.dp))
-        InfraMapOutlinedButton(
-            text = stringResource(Res.string.discovery_action_delete),
-            onClick = { actions.onDeleteSourceClicked(item) },
+        RowOverflowMenu(
+            onEdit = { actions.onEditSourceClicked(item.id) },
+            onDelete = { actions.onDeleteSourceClicked(item) },
         )
     }
 }

@@ -3,6 +3,7 @@ package com.inframap.frontend.ui.devices
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.domain.usecase.device.DeleteDeviceUseCase
 import com.inframap.frontend.domain.usecase.device.GetDeviceByIdUseCase
 import com.inframap.frontend.domain.usecase.device.UpdateDeviceUseCase
 import com.inframap.frontend.fakes.FakeDeviceRepository
@@ -38,6 +39,7 @@ class EditDeviceViewModelTest {
         "d1",
         GetDeviceByIdUseCase(repo),
         UpdateDeviceUseCase(repo),
+        DeleteDeviceUseCase(repo),
         scope = scope,
     )
 
@@ -228,6 +230,68 @@ class EditDeviceViewModelTest {
                 assertFalse(vm.state.value.isSuccess)
                 cancelAndIgnoreRemainingEvents()
             }
+            vm.clear()
+        }
+
+    @Test
+    fun requestDeleteAndDismissDeleteManageDialogState() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            assertFalse(vm.state.value.showDeleteDialog)
+            vm.requestDelete()
+            assertTrue(vm.state.value.showDeleteDialog)
+
+            vm.dismissDelete()
+            assertFalse(vm.state.value.showDeleteDialog)
+            vm.clear()
+        }
+
+    @Test
+    fun confirmDeleteSucceedsAndMarksDeleted() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            var callbackInvoked = false
+            vm.requestDelete()
+            vm.confirmDelete(onSuccess = { callbackInvoked = true })
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertFalse(state.showDeleteDialog)
+            assertFalse(state.isDeleting)
+            assertTrue(state.isDeleted)
+            assertTrue(callbackInvoked)
+            assertNull(state.errorMessage)
+            vm.clear()
+        }
+
+    @Test
+    fun confirmDeleteHandlesApiError() =
+        runTest {
+            val repo =
+                FakeDeviceRepository(
+                    getDeviceByIdResult = ApiResult.Success(sampleDevice, requestId = ""),
+                    deleteDeviceResult =
+                        ApiResult.Error(
+                            code = "DELETE_FAILED",
+                            message = "Failed to delete device",
+                            requestId = "",
+                            httpStatus = 500,
+                        ),
+                )
+            val vm = makeVm(repo = repo, scope = this)
+            advanceUntilIdle()
+
+            vm.confirmDelete()
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertFalse(state.isDeleting)
+            assertFalse(state.isDeleted)
+            assertEquals("Failed to delete device", state.errorMessage?.asStringAsync())
             vm.clear()
         }
 }

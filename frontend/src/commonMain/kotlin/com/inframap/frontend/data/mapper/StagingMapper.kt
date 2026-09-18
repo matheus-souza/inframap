@@ -17,6 +17,8 @@ object StagingMapper {
             deviceType = dto.deviceType,
             discoverySourceId = dto.discoverySourceId,
             status = dto.status,
+            previouslyDeleted = dto.previouslyDeleted,
+            matchedDeviceId = dto.matchedDeviceId,
             createdAt = dto.createdAt,
         )
 

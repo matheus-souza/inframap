@@ -9,6 +9,7 @@ import com.inframap.frontend.ui.devices.DeviceListViewModel
 import com.inframap.frontend.ui.devices.EditDeviceViewModel
 import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
 import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
+import com.inframap.frontend.ui.discovery.EditDiscoverySourceViewModel
 import com.inframap.frontend.ui.login.LoginViewModel
 import com.inframap.frontend.ui.onboarding.OnboardingCoordinator
 import com.inframap.frontend.ui.onboarding.OnboardingViewModel
@@ -16,6 +17,7 @@ import com.inframap.frontend.ui.session.SessionResume
 import com.inframap.frontend.ui.splash.SplashViewModel
 import com.inframap.frontend.ui.staging.StagingViewModel
 import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
+import com.inframap.frontend.ui.subnets.EditSubnetViewModel
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
 import com.inframap.frontend.ui.topology.TopologyViewModel
 import com.inframap.frontend.ui.tour.ProductTourViewModel
@@ -27,17 +29,19 @@ val presentationModule =
         factory { DeviceListViewModel(get(), get()) }
         factory { (deviceId: String) -> DeviceDetailViewModel(deviceId, get(), get()) }
         factory { CreateDeviceViewModel(get()) }
-        factory { (deviceId: String) -> EditDeviceViewModel(deviceId, get(), get()) }
+        factory { (deviceId: String) -> EditDeviceViewModel(deviceId, get(), get(), get()) }
 
         factory { StagingViewModel(get(), get(), get()) }
 
-        factory { SubnetsViewModel(get(), get()) }
+        factory { SubnetsViewModel(get(), get(), get(), get()) }
+        factory { (subnetId: String) -> EditSubnetViewModel(subnetId, get(), get(), get(), get(), get()) }
         factory { (prefilledCidr: String?, prefilledName: String?) ->
             CreateSubnetViewModel(get(), get(), get(), prefilledCidr, prefilledName)
         }
 
-        factory { DiscoveryListViewModel(get(), get(), get()) }
+        factory { DiscoveryListViewModel(get(), get(), get(), get()) }
         factory { CreateDiscoverySourceViewModel(get(), get(), get(), get(), get()) }
+        factory { (sourceId: String) -> EditDiscoverySourceViewModel(sourceId, get(), get(), get(), get(), get()) }
 
         single { AutoSetupCoordinator(get(), get(), get(), get(), get(), get(), get()) }
 

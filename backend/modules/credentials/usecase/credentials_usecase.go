@@ -22,6 +22,16 @@ var (
 	ErrNilRepository = errors.New("credentials repository is required")
 )
 
+// ErrCredentialInUse indicates the credential cannot be deleted because active discovery sources reference it.
+type ErrCredentialInUse struct {
+	DependentSources []dto.DependentSource
+}
+
+func (e *ErrCredentialInUse) Error() string {
+	return "credential is in use by active discovery sources"
+}
+
+
 // UseCase defines business logic contract for managing credentials.
 type UseCase interface {
 	CreateCredential(ctx context.Context, req dto.CreateCredentialRequest) (*dto.CredentialResponse, error)
@@ -130,14 +140,26 @@ func (uc *credentialsUseCase) ListCredentials(ctx context.Context, page, perPage
 	return responses, total, nil
 }
 
-// DeleteCredential parses UUID, removes record, and publishes domain event.
+// DeleteCredential parses UUID, verifies active references, removes record, and publishes domain event.
 func (uc *credentialsUseCase) DeleteCredential(ctx context.Context, idStr string) error {
 	id, err := uuid.Parse(idStr)
 	if err != nil || id == uuid.Nil {
 		return ErrInvalidCredentialID
 	}
 
+	inUse, sources, err := uc.repo.CountActiveReferences(ctx, id)
+	if err != nil {
+		return err
+	}
+	if inUse > 0 {
+		return &ErrCredentialInUse{DependentSources: sources}
+	}
+
 	if err := uc.repo.Delete(ctx, id); err != nil {
+		var repoInUse *repository.ErrCredentialInUse
+		if errors.As(err, &repoInUse) {
+			return &ErrCredentialInUse{DependentSources: repoInUse.DependentSources}
+		}
 		return err
 	}
 
@@ -151,6 +173,7 @@ func (uc *credentialsUseCase) DeleteCredential(ctx context.Context, idStr string
 
 	return nil
 }
+
 
 func (uc *credentialsUseCase) toResponse(cred *db.Credential, secret string) *dto.CredentialResponse {
 	var desc string

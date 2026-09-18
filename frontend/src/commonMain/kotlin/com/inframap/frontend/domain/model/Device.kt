@@ -15,6 +15,7 @@ data class Device(
     /** The host that runs this workload, when it is contained by one. */
     val parentDeviceId: String? = null,
     val metadata: Map<String, String>? = null,
+    val discoverySourceInactive: Boolean = false,
     val createdAt: String? = null,
     val updatedAt: String? = null,
 )
@@ -29,5 +30,7 @@ data class StagingDevice(
     val deviceType: String,
     val discoverySourceId: String? = null,
     val status: String = "pending",
+    val previouslyDeleted: Boolean = false,
+    val matchedDeviceId: String? = null,
     val createdAt: String? = null,
 )

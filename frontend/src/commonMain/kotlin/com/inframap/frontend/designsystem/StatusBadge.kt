@@ -12,9 +12,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.device_discovery_source_inactive
 import com.inframap.frontend.generated.resources.power_state_paused
 import com.inframap.frontend.generated.resources.power_state_running
 import com.inframap.frontend.generated.resources.power_state_stopped
+import com.inframap.frontend.generated.resources.staging_tag_previously_deleted
 import com.inframap.frontend.generated.resources.status_active
 import com.inframap.frontend.generated.resources.status_cancelled
 import com.inframap.frontend.generated.resources.status_error
@@ -110,6 +112,24 @@ fun InfraMapStatusBadge(
             SourceStatus.CANCELLED -> InfraMapOrange to stringResource(Res.string.status_cancelled)
         }
     StatusBadgeContent(backgroundColor = backgroundColor, label = label, modifier = modifier)
+}
+
+@Composable
+fun InfraMapInactiveSourceBadge(modifier: Modifier = Modifier) {
+    StatusBadgeContent(
+        backgroundColor = InfraMapComment,
+        label = stringResource(Res.string.device_discovery_source_inactive),
+        modifier = modifier,
+    )
+}
+
+@Composable
+fun InfraMapPreviouslyDeletedBadge(modifier: Modifier = Modifier) {
+    StatusBadgeContent(
+        backgroundColor = InfraMapTertiary,
+        label = stringResource(Res.string.staging_tag_previously_deleted),
+        modifier = modifier,
+    )
 }
 
 @Composable

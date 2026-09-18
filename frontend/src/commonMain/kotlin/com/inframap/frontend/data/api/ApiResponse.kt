@@ -49,6 +49,7 @@ sealed class ApiResult<out T> {
         val message: String,
         val requestId: String,
         val httpStatus: Int,
+        val detailsJson: String? = null,
     ) : ApiResult<Nothing>()
 
     data class NetworkError(

@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
@@ -30,6 +31,7 @@ type mockInventoryRepository struct {
 	devices  map[uuid.UUID]*db.Device
 	staging  map[uuid.UUID]*db.DeviceStaging
 	subnets  map[uuid.UUID]*db.Subnet
+	inactiveSourceDeviceIDs map[uuid.UUID]bool
 	errToRet error
 
 	lastListDevicesLimit  int32
@@ -45,6 +47,7 @@ func newMockInventoryRepository() *mockInventoryRepository {
 		devices: make(map[uuid.UUID]*db.Device),
 		staging: make(map[uuid.UUID]*db.DeviceStaging),
 		subnets: make(map[uuid.UUID]*db.Subnet),
+		inactiveSourceDeviceIDs: make(map[uuid.UUID]bool),
 	}
 }
 
@@ -121,6 +124,62 @@ func (m *mockInventoryRepository) SoftDeleteDevice(_ context.Context, id uuid.UU
 	return nil
 }
 
+func (m *mockInventoryRepository) RestoreDevice(_ context.Context, params db.RestoreDeviceParams) (*db.Device, error) {
+	if m.errToRet != nil {
+		return nil, m.errToRet
+	}
+	d, exists := m.devices[params.ID]
+	if !exists {
+		d = &db.Device{
+			ID: params.ID,
+		}
+		m.devices[params.ID] = d
+	}
+	d.DeletedAt = pgtype.Timestamptz{Valid: false}
+	d.Status = "active"
+	if params.Hostname != "" {
+		d.Hostname = params.Hostname
+	}
+	if params.IpAddress != nil {
+		d.IpAddress = params.IpAddress
+	}
+	if params.MacAddress != nil {
+		d.MacAddress = params.MacAddress
+	}
+	if params.DeviceType != "" {
+		d.DeviceType = params.DeviceType
+	}
+	return d, nil
+}
+
+func (m *mockInventoryRepository) FindPendingStagingDevice(_ context.Context, _ db.FindPendingStagingDeviceParams) (*db.DeviceStaging, error) {
+	if m.errToRet != nil {
+		return nil, m.errToRet
+	}
+	for _, st := range m.staging {
+		if st.Status == "pending" || st.Status == "discovered" {
+			return st, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockInventoryRepository) UpdateStagingDevice(_ context.Context, params db.UpdateStagingDeviceParams) (*db.DeviceStaging, error) {
+	if m.errToRet != nil {
+		return nil, m.errToRet
+	}
+	st, exists := m.staging[params.ID]
+	if !exists {
+		return nil, repository.ErrStagingDeviceNotFound
+	}
+	st.Hostname = params.Hostname
+	st.IpAddress = params.IpAddress
+	st.MacAddress = params.MacAddress
+	st.DeviceType = params.DeviceType
+	st.RawPayload = params.RawPayload
+	return st, nil
+}
+
 func (m *mockInventoryRepository) CreateStagingDevice(_ context.Context, params db.CreateStagingDeviceParams) (*db.DeviceStaging, error) {
 	if m.errToRet != nil {
 		return nil, m.errToRet
@@ -128,8 +187,11 @@ func (m *mockInventoryRepository) CreateStagingDevice(_ context.Context, params 
 	st := &db.DeviceStaging{
 		ID:         params.ID,
 		Hostname:   params.Hostname,
+		IpAddress:  params.IpAddress,
+		MacAddress: params.MacAddress,
 		DeviceType: params.DeviceType,
 		Status:     params.Status,
+		RawPayload: params.RawPayload,
 		CreatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 	m.staging[params.ID] = st
@@ -202,6 +264,61 @@ func (m *mockInventoryRepository) ListSubnets(_ context.Context) ([]db.Subnet, e
 	return res, nil
 }
 
+func (m *mockInventoryRepository) GetSubnetByID(_ context.Context, id uuid.UUID) (*db.Subnet, error) {
+	if m.errToRet != nil {
+		return nil, m.errToRet
+	}
+	sn, exists := m.subnets[id]
+	if !exists {
+		return nil, repository.ErrSubnetNotFound
+	}
+	return sn, nil
+}
+
+func (m *mockInventoryRepository) UpdateSubnet(_ context.Context, params db.UpdateSubnetParams) (*db.Subnet, error) {
+	if m.errToRet != nil {
+		return nil, m.errToRet
+	}
+	sn, exists := m.subnets[params.ID]
+	if !exists {
+		return nil, repository.ErrSubnetNotFound
+	}
+	sn.Name = params.Name
+	sn.Cidr = params.Cidr
+	sn.GatewayIp = params.GatewayIp
+	sn.Description = params.Description
+	sn.VlanID = params.VlanID
+	sn.DiscoveryEnabled = params.DiscoveryEnabled
+	sn.UpdatedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	return sn, nil
+}
+
+func (m *mockInventoryRepository) SoftDeleteSubnet(_ context.Context, id uuid.UUID) error {
+	if m.errToRet != nil {
+		return m.errToRet
+	}
+	sn, exists := m.subnets[id]
+	if !exists {
+		return repository.ErrSubnetNotFound
+	}
+	sn.DeletedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	delete(m.subnets, id)
+	return nil
+}
+
+func (m *mockInventoryRepository) GetInactiveDiscoverySourceDeviceIDs(_ context.Context, deviceIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if m.errToRet != nil {
+		return nil, m.errToRet
+	}
+	var inactive []uuid.UUID
+	for _, id := range deviceIDs {
+		if m.inactiveSourceDeviceIDs[id] {
+			inactive = append(inactive, id)
+		}
+	}
+	return inactive, nil
+}
+
 func TestInventoryUseCase_Unit(t *testing.T) {
 	mockRepo := newMockInventoryRepository()
 	uc := usecase.NewDefaultInventoryUseCase(mockRepo, nil, nil)
@@ -237,6 +354,43 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 			t.Errorf("expected total >= 0, got %d", total)
 		}
 		_ = items
+	})
+
+	t.Run("ListDevices and GetDeviceByID Marks Inactive Discovery Source", func(t *testing.T) {
+		createReq := dto.CreateDeviceRequest{Hostname: "inactive-src-dev", DeviceType: "server"}
+		created, err := uc.CreateDevice(context.Background(), createReq)
+		if err != nil {
+			t.Fatalf("unexpected error creating device: %v", err)
+		}
+
+		devUUID := uuid.MustParse(created.ID)
+		mockRepo.inactiveSourceDeviceIDs[devUUID] = true
+		defer delete(mockRepo.inactiveSourceDeviceIDs, devUUID)
+
+		dev, err := uc.GetDeviceByID(context.Background(), created.ID, false)
+		if err != nil {
+			t.Fatalf("unexpected error getting device: %v", err)
+		}
+		if !dev.DiscoverySourceInactive {
+			t.Errorf("expected DiscoverySourceInactive to be true, got false")
+		}
+
+		items, _, err := uc.ListDevices(context.Background(), "inactive-src-dev", "", 1, 10, false)
+		if err != nil {
+			t.Fatalf("unexpected error listing devices: %v", err)
+		}
+		found := false
+		for _, item := range items {
+			if item.ID == created.ID {
+				found = true
+				if !item.DiscoverySourceInactive {
+					t.Errorf("expected item.DiscoverySourceInactive to be true in list, got false")
+				}
+			}
+		}
+		if !found {
+			t.Errorf("expected created device to be found in list")
+		}
 	})
 
 	t.Run("UpdateDevice Appends UserLockedFields", func(t *testing.T) {
@@ -346,6 +500,47 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 		}
 	})
 
+	t.Run("ApproveStagingDevice Restores Previously Deleted Device", func(t *testing.T) {
+		origID := uuid.New()
+		mockRepo.devices[origID] = &db.Device{
+			ID:        origID,
+			Hostname:  "original-switch",
+			Status:    "deleted",
+			DeletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		}
+
+		stID := uuid.New()
+		rawPayload, _ := json.Marshal(map[string]interface{}{
+			"previously_deleted": true,
+			"matched_device_id":  origID.String(),
+		})
+		mockRepo.staging[stID] = &db.DeviceStaging{
+			ID:         stID,
+			Hostname:   "original-switch",
+			DeviceType: "switch",
+			Status:     "pending",
+			RawPayload: rawPayload,
+		}
+
+		restored, err := uc.ApproveStagingDevice(context.Background(), stID.String())
+		if err != nil {
+			t.Fatalf("unexpected error approving staging device: %v", err)
+		}
+
+		if restored.ID != origID.String() {
+			t.Errorf("expected original device ID %s, got %s", origID, restored.ID)
+		}
+		if restored.Status != "active" {
+			t.Errorf("expected status active, got %s", restored.Status)
+		}
+		if mockRepo.devices[origID].DeletedAt.Valid {
+			t.Error("expected DeletedAt to be invalid (null) after restore")
+		}
+		if mockRepo.staging[stID].Status != "approved" {
+			t.Errorf("expected staging status approved, got %s", mockRepo.staging[stID].Status)
+		}
+	})
+
 	t.Run("DismissStagingDevice Success", func(t *testing.T) {
 		stID := uuid.New()
 		mockRepo.staging[stID] = &db.DeviceStaging{
@@ -405,7 +600,239 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 			t.Error("expected at least 1 subnet")
 		}
 	})
+
+	t.Run("GetSubnetByID Success and Errors", func(t *testing.T) {
+		created, err := uc.CreateSubnet(context.Background(), dto.CreateSubnetRequest{
+			Name: "Test Net",
+			CIDR: "172.16.0.0/24",
+		})
+		if err != nil {
+			t.Fatalf("failed to create subnet: %v", err)
+		}
+
+		got, err := uc.GetSubnetByID(context.Background(), created.ID)
+		if err != nil {
+			t.Fatalf("unexpected error getting subnet: %v", err)
+		}
+		if got.Name != "Test Net" {
+			t.Errorf("expected 'Test Net', got %s", got.Name)
+		}
+
+		// Invalid UUID
+		_, err = uc.GetSubnetByID(context.Background(), "invalid-uuid")
+		if !errors.Is(err, usecase.ErrInvalidUUID) {
+			t.Errorf("expected ErrInvalidUUID, got %v", err)
+		}
+
+		// Not found
+		_, err = uc.GetSubnetByID(context.Background(), uuid.New().String())
+		if !errors.Is(err, repository.ErrSubnetNotFound) {
+			t.Errorf("expected ErrSubnetNotFound, got %v", err)
+		}
+	})
+
+	t.Run("UpdateSubnet Success and Validations", func(t *testing.T) {
+		created, err := uc.CreateSubnet(context.Background(), dto.CreateSubnetRequest{
+			Name: "Prod Subnet",
+			CIDR: "10.10.0.0/24",
+		})
+		if err != nil {
+			t.Fatalf("failed to create subnet: %v", err)
+		}
+
+		// Success update
+		gw := "10.10.0.1"
+		desc := "Updated production subnet"
+		updated, err := uc.UpdateSubnet(context.Background(), created.ID, dto.UpdateSubnetRequest{
+			Name:        "Prod Subnet Renamed",
+			CIDR:        "10.10.0.0/24",
+			GatewayIP:   &gw,
+			Description: &desc,
+		})
+		if err != nil {
+			t.Fatalf("failed to update subnet: %v", err)
+		}
+		if updated.Name != "Prod Subnet Renamed" || updated.GatewayIP != "10.10.0.1" {
+			t.Errorf("unexpected updated response: %+v", updated)
+		}
+
+		// Gateway not contained (422)
+		invalidGw := "192.168.1.1"
+		_, err = uc.UpdateSubnet(context.Background(), created.ID, dto.UpdateSubnetRequest{
+			Name:      "Invalid GW Net",
+			CIDR:      "10.10.0.0/24",
+			GatewayIP: &invalidGw,
+		})
+		if !errors.Is(err, usecase.ErrGatewayNotContained) {
+			t.Errorf("expected ErrGatewayNotContained, got %v", err)
+		}
+
+		// Conflict with another subnet (409)
+		other, err := uc.CreateSubnet(context.Background(), dto.CreateSubnetRequest{
+			Name: "Other Net",
+			CIDR: "10.20.0.0/24",
+		})
+		if err != nil {
+			t.Fatalf("failed to create second subnet: %v", err)
+		}
+		_, err = uc.UpdateSubnet(context.Background(), other.ID, dto.UpdateSubnetRequest{
+			Name: "Colliding Net",
+			CIDR: "10.10.0.0/24", // clashes with first subnet
+		})
+		if !errors.Is(err, usecase.ErrSubnetConflict) {
+			t.Errorf("expected ErrSubnetConflict, got %v", err)
+		}
+	})
+
+	t.Run("GetSubnetDeletionImpact and SoftDeleteSubnet with Same CIDR Recreation", func(t *testing.T) {
+		created, err := uc.CreateSubnet(context.Background(), dto.CreateSubnetRequest{
+			Name: "To Delete",
+			CIDR: "192.168.100.0/24",
+		})
+		if err != nil {
+			t.Fatalf("failed to create subnet: %v", err)
+		}
+
+		// Create a device inside the subnet
+		_, err = uc.CreateDevice(context.Background(), dto.CreateDeviceRequest{
+			Hostname:  "device-in-to-delete",
+			IPAddress: "192.168.100.15",
+		})
+		if err != nil {
+			t.Fatalf("failed to create device in subnet: %v", err)
+		}
+
+		// Check deletion impact
+		impact, err := uc.GetSubnetDeletionImpact(context.Background(), created.ID)
+		if err != nil {
+			t.Fatalf("failed to get deletion impact: %v", err)
+		}
+		if impact.Impact.AffectedDevices != 1 {
+			t.Errorf("expected 1 affected device, got %d", impact.Impact.AffectedDevices)
+		}
+
+		// Soft-delete subnet
+		deleteResp, err := uc.SoftDeleteSubnet(context.Background(), created.ID)
+		if err != nil {
+			t.Fatalf("failed to soft-delete subnet: %v", err)
+		}
+		if deleteResp.DeletedID != created.ID {
+			t.Errorf("expected deleted_id %s, got %s", created.ID, deleteResp.DeletedID)
+		}
+		if deleteResp.Impact.AffectedDevices != 1 {
+			t.Errorf("expected 1 affected device in delete response, got %d", deleteResp.Impact.AffectedDevices)
+		}
+
+		// Subsequent get should fail with ErrSubnetNotFound
+		_, err = uc.GetSubnetByID(context.Background(), created.ID)
+		if !errors.Is(err, repository.ErrSubnetNotFound) {
+			t.Errorf("expected ErrSubnetNotFound after deletion, got %v", err)
+		}
+
+		// Deleting again should fail with ErrSubnetNotFound
+		_, err = uc.SoftDeleteSubnet(context.Background(), created.ID)
+		if !errors.Is(err, repository.ErrSubnetNotFound) {
+			t.Errorf("expected ErrSubnetNotFound on already deleted subnet, got %v", err)
+		}
+
+		// Recreation of the exact same CIDR should succeed (soft delete frees the unique constraint)
+		recreated, err := uc.CreateSubnet(context.Background(), dto.CreateSubnetRequest{
+			Name: "Recreated Subnet",
+			CIDR: "192.168.100.0/24",
+		})
+		if err != nil {
+			t.Fatalf("expected recreation of same CIDR to succeed, got error: %v", err)
+		}
+		if recreated.ID == created.ID {
+			t.Errorf("recreated subnet should have new ID, got same %s", recreated.ID)
+		}
+	})
+
+	t.Run("GetSubnetCIDRImpact Expansion Reduction and Disjoint", func(t *testing.T) {
+		subnet, err := uc.CreateSubnet(context.Background(), dto.CreateSubnetRequest{
+			Name: "Impact Subnet",
+			CIDR: "10.0.0.0/16",
+		})
+		if err != nil {
+			t.Fatalf("failed to create subnet: %v", err)
+		}
+
+		_, err = uc.CreateDevice(context.Background(), dto.CreateDeviceRequest{
+			Hostname:  "dev-in-block-1",
+			IPAddress: "10.0.1.50",
+		})
+		if err != nil {
+			t.Fatalf("failed to create device 1: %v", err)
+		}
+
+		_, err = uc.CreateDevice(context.Background(), dto.CreateDeviceRequest{
+			Hostname:  "dev-in-block-2",
+			IPAddress: "10.0.2.50",
+		})
+		if err != nil {
+			t.Fatalf("failed to create device 2: %v", err)
+		}
+
+		_, err = uc.CreateDevice(context.Background(), dto.CreateDeviceRequest{
+			Hostname:  "dev-outside",
+			IPAddress: "192.168.1.50",
+		})
+		if err != nil {
+			t.Fatalf("failed to create device 3: %v", err)
+		}
+
+		// Expansion: 0 affected
+		resp, err := uc.GetSubnetCIDRImpact(context.Background(), subnet.ID, dto.SubnetCIDRImpactRequest{
+			NewCIDR: "10.0.0.0/8",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error on expansion: %v", err)
+		}
+		if resp.AffectedDevicesCount != 0 {
+			t.Errorf("expected 0 affected devices on expansion, got %d", resp.AffectedDevicesCount)
+		}
+
+		// Reduction: 1 affected
+		resp, err = uc.GetSubnetCIDRImpact(context.Background(), subnet.ID, dto.SubnetCIDRImpactRequest{
+			NewCIDR: "10.0.1.0/24",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error on reduction: %v", err)
+		}
+		if resp.AffectedDevicesCount != 1 {
+			t.Errorf("expected 1 affected device on reduction, got %d", resp.AffectedDevicesCount)
+		}
+
+		// Disjoint: 2 affected
+		resp, err = uc.GetSubnetCIDRImpact(context.Background(), subnet.ID, dto.SubnetCIDRImpactRequest{
+			NewCIDR: "172.16.0.0/24",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error on disjoint: %v", err)
+		}
+		if resp.AffectedDevicesCount != 2 {
+			t.Errorf("expected 2 affected devices on disjoint, got %d", resp.AffectedDevicesCount)
+		}
+
+		// Invalid CIDR
+		_, err = uc.GetSubnetCIDRImpact(context.Background(), subnet.ID, dto.SubnetCIDRImpactRequest{
+			NewCIDR: "invalid-cidr",
+		})
+		if !errors.Is(err, usecase.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput, got %v", err)
+		}
+
+		// Not found
+		_, err = uc.GetSubnetCIDRImpact(context.Background(), uuid.New().String(), dto.SubnetCIDRImpactRequest{
+			NewCIDR: "10.0.0.0/24",
+		})
+		if !errors.Is(err, repository.ErrSubnetNotFound) {
+			t.Errorf("expected ErrSubnetNotFound, got %v", err)
+		}
+	})
 }
+
+
 
 func waitForEvent(t *testing.T, ch <-chan string, expectedType string) {
 	t.Helper()

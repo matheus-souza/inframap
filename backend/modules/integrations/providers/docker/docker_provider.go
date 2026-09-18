@@ -62,6 +62,7 @@ func (p *Provider) ConfigSchema() sdk.ConfigSchema {
 				Label:       "Docker Socket Path",
 				Type:        "text",
 				Required:    false,
+				IsTarget:    true,
 				Default:     DefaultSocketPath,
 				Description: "Path to Docker daemon UNIX domain socket (e.g. /var/run/docker.sock)",
 			},
@@ -70,6 +71,7 @@ func (p *Provider) ConfigSchema() sdk.ConfigSchema {
 				Label:       "Docker TCP URL",
 				Type:        "text",
 				Required:    false,
+				IsTarget:    true,
 				Description: "Remote Docker daemon TCP/HTTP endpoint (e.g. tcp://192.168.1.100:2376 or http://192.168.1.100:2375)",
 			},
 			{
@@ -77,6 +79,7 @@ func (p *Provider) ConfigSchema() sdk.ConfigSchema {
 				Label:       "TLS Certificate",
 				Type:        "password",
 				Required:    false,
+				IsSecret:    true,
 				Description: "Client TLS certificate in PEM format for mutual TLS authentication",
 			},
 			{
@@ -84,6 +87,7 @@ func (p *Provider) ConfigSchema() sdk.ConfigSchema {
 				Label:       "TLS Private Key",
 				Type:        "password",
 				Required:    false,
+				IsSecret:    true,
 				Description: "Client TLS private key in PEM format for mutual TLS authentication",
 			},
 			{
@@ -91,6 +95,7 @@ func (p *Provider) ConfigSchema() sdk.ConfigSchema {
 				Label:       "TLS CA Certificate",
 				Type:        "password",
 				Required:    false,
+				IsSecret:    true,
 				Description: "CA certificate in PEM format to verify Docker daemon TLS identity",
 			},
 			{

@@ -63,9 +63,14 @@ class NavigatorTest {
                 Route.Devices,
                 Route.Staging,
                 Route.Subnets,
+                Route.EditSubnet("sub-1"),
+                Route.DiscoverySources,
+                Route.CreateDiscoverySource,
+                Route.EditDiscoverySource("src-1"),
                 Route.Topology,
             )
         routes.forEach { route ->
+
             navigator.navigateTo(route)
             assertEquals(route, navigator.currentRoute.value)
         }

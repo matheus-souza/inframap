@@ -16,4 +16,6 @@ class CredentialsRepositoryImpl(
             .map { response ->
                 response.items.map { CredentialSummary(id = it.id, name = it.name, type = it.type) }
             }
+
+    override suspend fun deleteCredential(id: String): ApiResult<Unit> = apiClient.delete("/api/v1/credentials/$id")
 }

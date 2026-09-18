@@ -2,12 +2,15 @@ package com.inframap.frontend.data.dto
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class CollectorDto(
     val id: String = "",
     @SerialName("collector_type") val collectorType: String = "",
     val enabled: Boolean = true,
+    val config: Map<String, JsonElement>? = null,
+    @SerialName("configured_secrets") val configuredSecrets: List<String>? = null,
 )
 
 @Serializable
@@ -73,4 +76,39 @@ data class CreateDiscoverySourceRequest(
     @SerialName("schedule_cron") val scheduleCron: String? = null,
     val config: Map<String, String>? = null,
     val collectors: List<CollectorConfigDto> = emptyList(),
+)
+
+@Serializable
+data class UpdateDiscoverySourceRequest(
+    val name: String,
+    val type: String = "",
+    val enabled: Boolean = true,
+    @SerialName("schedule_cron") val scheduleCron: String? = null,
+    val config: Map<String, String>? = null,
+    val collectors: List<CollectorConfigDto> = emptyList(),
+)
+
+@Serializable
+data class DiscoverySourceHealthResponseDto(
+    @SerialName("provider_id") val providerId: String = "",
+    val status: String = "",
+    val message: String? = null,
+)
+
+@Serializable
+data class DiscoverySourceDeletionImpactDto(
+    @SerialName("collectors_halted") val collectorsHalted: Int = 0,
+    @SerialName("devices_unlinked") val devicesUnlinked: Int = 0,
+)
+
+@Serializable
+data class DiscoverySourceDeletionImpactResponseDto(
+    @SerialName("source_id") val sourceId: String = "",
+    val impact: DiscoverySourceDeletionImpactDto = DiscoverySourceDeletionImpactDto(),
+)
+
+@Serializable
+data class DeleteDiscoverySourceResponseDto(
+    @SerialName("deleted_id") val deletedId: String = "",
+    val impact: DiscoverySourceDeletionImpactDto = DiscoverySourceDeletionImpactDto(),
 )

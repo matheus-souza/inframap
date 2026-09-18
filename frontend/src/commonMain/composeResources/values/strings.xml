@@ -293,6 +293,7 @@
     <string name="staging_col_actions">Ações</string>
     <string name="staging_action_processing">Processando...</string>
     <string name="staging_action_approve">Aprovar</string>
+    <string name="staging_tag_previously_deleted">Previamente Deletado</string>
     <string name="staging_value_empty">-</string>
 
     <!-- Device List Screen -->
@@ -449,4 +450,69 @@
     <string name="draft_restored_notice_secrets">Rascunho restaurado. Por segurança, senhas e chaves não foram salvas e devem ser inseridas novamente.</string>
     <string name="provider_tab_has_errors">Contém erros</string>
     <string name="legend_required_fields">Os campos marcados com * são obrigatórios.</string>
+
+    <!-- Danger Zone & Impact Dialog & Overflow Menu -->
+    <string name="danger_zone_title">Zona de Risco</string>
+    <string name="danger_zone_delete_button">Excluir %1$s</string>
+    <string name="danger_zone_device_description">Este dispositivo será movido para o estado excluído. Ele deixará de ser monitorado ativamente.</string>
+    <string name="danger_zone_subnet_description">Esta sub-rede será removida da listagem ativa. Dispositivos e IPs observados não serão excluídos.</string>
+    <string name="danger_zone_discovery_source_description">Esta fonte será removida da listagem ativa. Os dispositivos já descobertos permanecerão no inventário.</string>
+    <string name="impact_dialog_title">Confirmar Exclusão</string>
+    <string name="impact_dialog_affected_devices">%1$d dispositivo(s) afetado(s)</string>
+    <string name="impact_dialog_collectors_halted">%1$d coletor(es) será(ão) interrompido(s)</string>
+    <string name="impact_dialog_confirm_button">Confirmar Exclusão</string>
+    <string name="impact_dialog_cancel_button">Cancelar</string>
+    <string name="impact_dialog_loading">Calculando impacto…</string>
+    <string name="row_overflow_menu_content_description">Mais opções</string>
+    <string name="row_overflow_menu_edit">Editar</string>
+    <string name="row_overflow_menu_delete">Excluir</string>
+
+    <!-- Edit Subnet -->
+    <string name="edit_subnet_title">Editar Sub-rede</string>
+    <string name="edit_subnet_header_title">Editar Sub-rede</string>
+    <string name="edit_subnet_header_subtitle">Modifique os parâmetros da faixa de sub-rede e configurações de varredura</string>
+    <string name="edit_subnet_form_title">Dados da Sub-rede</string>
+    <string name="edit_subnet_submit_button">Salvar Alterações</string>
+    <string name="edit_subnet_submitting">Salvando…</string>
+    <string name="edit_subnet_error_load">Falha ao carregar sub-rede.</string>
+    <string name="edit_subnet_error_update">Falha ao atualizar sub-rede.</string>
+    <string name="error_subnet_conflict">Conflito de sub-rede: já existe uma sub-rede ativa com esta faixa.</string>
+    <string name="error_gateway_not_contained">O gateway IP deve pertencer ao bloco CIDR informado.</string>
+    <string name="edit_subnet_impact_title">Aviso de Impacto no Bloco CIDR</string>
+    <string name="edit_subnet_impact_warning">A alteração da faixa CIDR deixará %1$d dispositivo(s) fora da nova sub-rede. Deseja prosseguir com a alteração?</string>
+    <string name="delete_subnet_dialog_title">Excluir Sub-rede</string>
+    <string name="delete_subnet_confirm_message">Tem certeza de que deseja excluir a sub-rede \"%1$s\"? Esta ação removerá a sub-rede da listagem ativa.</string>
+    <string name="delete_subnet_impact_devices">%1$d dispositivo(s) contido(s)</string>
+    <string name="delete_subnet_impact_edges">%1$d aresta(s) de topologia vinculada(s)</string>
+    <string name="delete_subnet_success">Sub-rede \"%1$s\" excluída com sucesso.</string>
+    <string name="delete_subnet_error">Falha ao excluir sub-rede.</string>
+
+    <!-- Edit Discovery Source -->
+    <string name="edit_discovery_source_title">Editar Fonte de Descoberta</string>
+    <string name="edit_discovery_source_header_title">Editar Fonte de Descoberta</string>
+    <string name="edit_discovery_source_header_subtitle">Modifique os parâmetros da fonte de descoberta e suas credenciais</string>
+    <string name="edit_discovery_source_form_title">Configuração da Fonte</string>
+    <string name="edit_discovery_source_name_label">Nome da Fonte</string>
+    <string name="edit_discovery_source_schedule_label">Agendamento Cron (Opcional)</string>
+    <string name="edit_discovery_source_secret_hint">Deixe em branco para manter a credencial atual</string>
+    <string name="edit_discovery_source_secret_configured">Credencial já configurada</string>
+    <string name="edit_discovery_source_target_changed_warning">O host/URL de destino foi alterado. Informe novamente a credencial para confirmar.</string>
+    <string name="error_secret_required_on_target_change">O destino foi alterado. Informe a credencial novamente para continuar.</string>
+    <string name="edit_discovery_source_submit_button">Salvar Alterações</string>
+    <string name="edit_discovery_source_submitting">Salvando…</string>
+    <string name="edit_discovery_source_success">Fonte de descoberta atualizada com sucesso.</string>
+    <string name="edit_discovery_source_error_update">Falha ao atualizar fonte de descoberta.</string>
+    <string name="edit_discovery_source_error_load">Falha ao carregar fonte de descoberta.</string>
+    <string name="edit_discovery_source_test_unsaved_warning">Salve as alterações para testar a nova configuração</string>
+    <string name="device_discovery_source_inactive">Origem inativa</string>
+    <string name="delete_discovery_source_dialog_title">Excluir Fonte de Descoberta</string>
+    <string name="delete_discovery_source_confirm_message">Tem certeza de que deseja excluir a fonte \&quot;%1$s\&quot;? Seus coletores e agendamentos serão desativados.</string>
+    <string name="delete_discovery_source_impact_collectors">%1$d coletor(es) a desativar</string>
+    <string name="delete_discovery_source_impact_devices">%1$d dispositivo(s) associado(s)</string>
+    <string name="delete_discovery_source_success">Fonte de descoberta \&quot;%1$s\&quot; excluída com sucesso.</string>
+    <string name="delete_discovery_source_error">Falha ao excluir fonte de descoberta.</string>
+    <string name="error_credential_in_use">Esta credencial está em uso por %1$d fonte(s) de descoberta ativa(s).</string>
 </resources>
+
+
+

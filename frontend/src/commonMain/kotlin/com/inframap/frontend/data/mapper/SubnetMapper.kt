@@ -18,6 +18,7 @@ object SubnetMapper {
             description = dto.description,
             discoveryEnabled = dto.discoveryEnabled,
             createdAt = dto.createdAt,
+            updatedAt = dto.updatedAt,
         )
 
     fun toSummary(dto: SubnetDto): SubnetSummary = toDomain(dto).toSummary()

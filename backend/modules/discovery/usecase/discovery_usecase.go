@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
+	"github.com/matheussouza/inframap/internal/platform/sdk"
 	"github.com/matheussouza/inframap/modules/discovery/collectors"
 	"github.com/matheussouza/inframap/modules/discovery/collectors/mdns"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
@@ -65,20 +66,30 @@ var (
 
 	// ErrInvalidPayload indicates that the raw discovery payload is malformed.
 	ErrInvalidPayload = errors.New("invalid discovery payload format")
+
+	// ErrNoProviderForSource indicates that the source has no integration provider configured.
+	ErrNoProviderForSource = errors.New("source does not have an integration provider configured")
+
+	// ErrProviderNotFound indicates that the requested provider is not registered.
+	ErrProviderNotFound = errors.New("provider not found")
 )
 
 // DiscoveryUseCase contract defines application orchestration for discovery sources and scan ingestion.
 type DiscoveryUseCase interface {
 	CreateSource(ctx context.Context, req *dto.CreateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error)
+	UpdateSource(ctx context.Context, id string, req *dto.UpdateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error)
 	GetSourceByID(ctx context.Context, id string) (*dto.DiscoverySourceResponse, error)
 	ListSources(ctx context.Context) ([]*dto.DiscoverySourceResponse, error)
 	TriggerRun(ctx context.Context, sourceID string) (*dto.DiscoverySourceResponse, error)
 	DeleteSource(ctx context.Context, id string) error
+	GetDeletionImpact(ctx context.Context, id string) (*dto.DiscoverySourceDeletionImpactResponse, error)
+	SoftDeleteSource(ctx context.Context, id string) (*dto.DeleteDiscoverySourceResponse, error)
 	TriggerScan(ctx context.Context, req *dto.TriggerScanRequest) (*dto.ScanResultResponse, error)
 	IngestNormalizedDevice(ctx context.Context, sourceID uuid.UUID, norm *dto.NormalizedDeviceDTO) (*dto.DiscoveryRecordResponse, error)
 	ListRecordsByDevice(ctx context.Context, deviceID string) ([]*dto.DiscoveryRecordResponse, error)
 	PurgeCollectorRuns(ctx context.Context, retentionDays int) (int64, error)
 	ListRunsBySource(ctx context.Context, sourceID string, limit, offset int) ([]*dto.CollectorRunResponse, int64, error)
+	TestHealth(ctx context.Context, sourceID string, providerID string) (*dto.SourceHealthResponse, error)
 }
 
 // DefaultDiscoveryUseCase implements DiscoveryUseCase interface.
@@ -90,6 +101,7 @@ type DefaultDiscoveryUseCase struct {
 	matcher      engine.IdentityMatcher
 	reconciler   engine.FieldReconciler
 	orchestrator engine.Orchestrator
+	providers    map[string]sdk.Provider
 }
 
 // NewDefaultDiscoveryUseCase constructs a DefaultDiscoveryUseCase instance.
@@ -102,14 +114,17 @@ func NewDefaultDiscoveryUseCase(
 	arpReader := collectors.NewProcNetARPReader(os.ReadFile)
 	dnsResolver := collectors.NewNetDNSResolver()
 
+	proxmox := proxmoxprovider.NewProvider()
+	docker := dockerprovider.NewProvider()
+
 	orch := engine.NewDefaultOrchestrator(eventBus)
 	orch.RegisterCollector(collectors.NewICMPCollector(nil))
 	orch.RegisterCollector(collectors.NewARPCollector(arpReader))
 	orch.RegisterCollector(collectors.NewReverseDNSCollector(dnsResolver))
 	orch.RegisterCollector(collectors.NewSNMPCollector(nil, nil))
 	orch.RegisterCollector(mdns.NewMDNSCollector(nil))
-	orch.RegisterCollector(collectors.NewProviderCollector(proxmoxprovider.NewProvider(), discRepo))
-	orch.RegisterCollector(collectors.NewProviderCollector(dockerprovider.NewProvider(), discRepo))
+	orch.RegisterCollector(collectors.NewProviderCollector(proxmox, discRepo))
+	orch.RegisterCollector(collectors.NewProviderCollector(docker, discRepo))
 
 	uc := &DefaultDiscoveryUseCase{
 		discRepo:     discRepo,
@@ -119,6 +134,10 @@ func NewDefaultDiscoveryUseCase(
 		matcher:      engine.NewDefaultIdentityMatcher(),
 		reconciler:   engine.NewDefaultFieldReconciler(),
 		orchestrator: orch,
+		providers: map[string]sdk.Provider{
+			"proxmox": proxmox,
+			"docker":  docker,
+		},
 	}
 
 	orch.SetDeviceCallback(uc.persistDiscoveredDevice)
@@ -155,6 +174,110 @@ func (u *DefaultDiscoveryUseCase) CreateSource(ctx context.Context, req *dto.Cre
 	return src, nil
 }
 
+// UpdateSource updates an existing discovery source after secret preservation and target change validation.
+func (u *DefaultDiscoveryUseCase) UpdateSource(ctx context.Context, idStr string, req *dto.UpdateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, ErrInvalidUUID
+	}
+
+	req.Normalize()
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+
+	// Fetch previous configurations to verify target changes and preserve blank secrets.
+	prevRawConfigs, err := u.discRepo.GetRawCollectorConfigs(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range req.Collectors {
+		col := &req.Collectors[i]
+		prevConfig := prevRawConfigs[col.Type]
+		if prevConfig == nil {
+			prevConfig = make(map[string]interface{})
+		}
+
+		var changedTargetFields []string
+
+		// Check if any incoming target field changed relative to previous config
+		for k, incomingVal := range col.Config {
+			if dto.IsTargetKey(col.Type, k) {
+				prevVal := prevConfig[k]
+				incomingStr := strings.TrimSpace(fmt.Sprint(incomingVal))
+				prevStr := ""
+				if prevVal != nil {
+					prevStr = strings.TrimSpace(fmt.Sprint(prevVal))
+				}
+				if incomingStr != prevStr {
+					changedTargetFields = append(changedTargetFields, k)
+				}
+			}
+		}
+
+		// Also check if any target field that was in prevConfig was deleted / omitted
+		for k, prevVal := range prevConfig {
+			if dto.IsTargetKey(col.Type, k) {
+				if _, exists := col.Config[k]; !exists {
+					prevStr := strings.TrimSpace(fmt.Sprint(prevVal))
+					if prevStr != "" {
+						changedTargetFields = append(changedTargetFields, k)
+					}
+				}
+			}
+		}
+
+		// Check secret fields: if target changed and secret is blank -> 422 error!
+		// If target unchanged and secret is blank -> copy from previous config (secret preservation).
+		for k, prevVal := range prevConfig {
+			if dto.IsSecretKey(col.Type, k) {
+				prevSecret := strings.TrimSpace(fmt.Sprint(prevVal))
+				if prevSecret == "" {
+					continue
+				}
+
+				incomingVal, exists := col.Config[k]
+				incomingSecret := ""
+				if exists && incomingVal != nil {
+					incomingSecret = strings.TrimSpace(fmt.Sprint(incomingVal))
+				}
+
+				if incomingSecret == "" {
+					if len(changedTargetFields) > 0 {
+						return nil, &dto.ErrSecretRequiredOnTargetChange{Fields: changedTargetFields}
+					}
+					if col.Config == nil {
+						col.Config = make(map[string]interface{})
+					}
+					col.Config[k] = prevSecret
+				}
+			}
+		}
+	}
+
+	src, err := u.discRepo.UpdateSource(ctx, id, req)
+	if err != nil {
+		return nil, err
+	}
+
+	payload := map[string]interface{}{
+		"source_id": src.ID.String(),
+		"enabled":   src.Enabled,
+	}
+	if src.ScheduleCron != nil {
+		payload["schedule_cron"] = *src.ScheduleCron
+	}
+	if pubErr := u.eventBus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.updated", payload)); pubErr != nil {
+		u.logger.Error("failed to publish discovery_source.updated event",
+			slog.String("source_id", src.ID.String()),
+			slog.Any("error", pubErr),
+		)
+	}
+
+	return src, nil
+}
+
 // GetSourceByID parses UUID and fetches a discovery source.
 func (u *DefaultDiscoveryUseCase) GetSourceByID(ctx context.Context, idStr string) (*dto.DiscoverySourceResponse, error) {
 	id, err := uuid.Parse(idStr)
@@ -169,19 +292,54 @@ func (u *DefaultDiscoveryUseCase) ListSources(ctx context.Context) ([]*dto.Disco
 	return u.discRepo.ListSources(ctx)
 }
 
-// DeleteSource removes a discovery source and publishes a domain event.
-func (u *DefaultDiscoveryUseCase) DeleteSource(ctx context.Context, idStr string) error {
+// GetDeletionImpact returns the impact summary for deleting a discovery source.
+func (u *DefaultDiscoveryUseCase) GetDeletionImpact(ctx context.Context, idStr string) (*dto.DiscoverySourceDeletionImpactResponse, error) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return ErrInvalidUUID
+		return nil, ErrInvalidUUID
 	}
-	if err := u.discRepo.DeleteSource(ctx, id); err != nil {
-		return err
+
+	impact, err := u.discRepo.GetDeletionImpact(ctx, id)
+	if err != nil {
+		return nil, err
 	}
-	_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.deleted", map[string]interface{}{
-		"source_id": id.String(),
-	}))
-	return nil
+
+	return &dto.DiscoverySourceDeletionImpactResponse{
+		SourceID: idStr,
+		Impact:   *impact,
+	}, nil
+}
+
+// SoftDeleteSource deactivates collectors, soft deletes the discovery source, and publishes a domain event.
+func (u *DefaultDiscoveryUseCase) SoftDeleteSource(ctx context.Context, idStr string) (*dto.DeleteDiscoverySourceResponse, error) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, ErrInvalidUUID
+	}
+
+	impact, err := u.discRepo.SoftDeleteSource(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if u.eventBus != nil {
+		_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("discovery_source.deleted", map[string]interface{}{
+			"source_id":         id.String(),
+			"collectors_halted": impact.CollectorsHalted,
+			"devices_unlinked":  impact.DevicesUnlinked,
+		}))
+	}
+
+	return &dto.DeleteDiscoverySourceResponse{
+		DeletedID: idStr,
+		Impact:    *impact,
+	}, nil
+}
+
+// DeleteSource removes a discovery source and publishes a domain event.
+func (u *DefaultDiscoveryUseCase) DeleteSource(ctx context.Context, idStr string) error {
+	_, err := u.SoftDeleteSource(ctx, idStr)
+	return err
 }
 
 // TriggerRun triggers a manual or scheduled scan sweep for a discovery source.
@@ -242,7 +400,7 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		const pageSize int32 = 1000
 		var offset int32
 		for {
-			devs, total, listErr := u.invRepo.ListDevices(ctx, "", "", pageSize, offset, false)
+			devs, total, listErr := u.invRepo.ListDevices(ctx, "", "", pageSize, offset, true)
 			if listErr != nil {
 				if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 					_, _ = u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "cancelled")
@@ -420,7 +578,7 @@ func (u *DefaultDiscoveryUseCase) TriggerScan(ctx context.Context, req *dto.Trig
 		const pageSize int32 = 1000
 		var offset int32
 		for {
-			devs, total, err := u.invRepo.ListDevices(ctx, "", "", pageSize, offset, false)
+			devs, total, err := u.invRepo.ListDevices(ctx, "", "", pageSize, offset, true)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load active inventory: %w", err)
 			}
@@ -482,7 +640,7 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 	offset := int32(0)
 	limit := int32(1000)
 	for {
-		devices, total, fetchErr := u.invRepo.ListDevices(ctx, "", "", limit, offset, false)
+		devices, total, fetchErr := u.invRepo.ListDevices(ctx, "", "", limit, offset, true)
 		if fetchErr != nil {
 			return nil, fmt.Errorf("failed to list active devices: %w", fetchErr)
 		}
@@ -520,12 +678,31 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 		targetDeviceID = *match.DeviceID
 		matchedBy = match.MatchedBy
 
-		existingDB, fetchErr := u.invRepo.GetDeviceByID(ctx, targetDeviceID, false)
+		existingDB, fetchErr := u.invRepo.GetDeviceByID(ctx, targetDeviceID, true)
 		if fetchErr != nil {
 			if u.logger != nil {
 				u.logger.Error("matched device not found in inventory", slog.String("device_id", targetDeviceID.String()), slog.Any("error", fetchErr))
 			}
 			return nil, fmt.Errorf("failed to fetch matched device %s: %w", targetDeviceID, fetchErr)
+		}
+
+		if existingDB.DeletedAt.Valid {
+			norm.MatchedDeviceID = &existingDB.ID
+			norm.PreviouslyDeleted = true
+			staged, created, stageErr := u.stageDeviceWithIdempotency(ctx, norm, &source.ID)
+			if stageErr != nil {
+				return nil, fmt.Errorf("failed to stage previously deleted device: %w", stageErr)
+			}
+			targetDeviceID = staged.ID
+			if created && u.eventBus != nil {
+				_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.staged", map[string]interface{}{
+					"staging_id":         staged.ID.String(),
+					"source":             effectiveType,
+					"previously_deleted": true,
+					"matched_device_id":  existingDB.ID.String(),
+				}))
+			}
+			return u.discRepo.UpsertRecord(ctx, targetDeviceID, source.ID, "previously_deleted", norm.RawPayload)
 		}
 
 		reconciledDB, changed := u.reconciler.Reconcile(existingDB, norm, effectiveType)
@@ -611,34 +788,12 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 				}))
 			}
 		} else {
-			stageParams := db.CreateStagingDeviceParams{
-				ID:                uuid.New(),
-				Hostname:          norm.Hostname,
-				DeviceType:        norm.DeviceType,
-				DiscoverySourceID: pgtype.UUID{Bytes: source.ID, Valid: true},
-				RawPayload:        rawBytes,
-				Status:            "discovered",
-			}
-			if norm.IPAddress != "" {
-				if addr, err := netip.ParseAddr(norm.IPAddress); err == nil {
-					stageParams.IpAddress = &addr
-				} else if u.logger != nil {
-					u.logger.Warn("invalid IP address in staging payload", slog.String("value", norm.IPAddress), slog.Any("error", err))
-				}
-			}
-			if norm.MACAddress != "" {
-				if hw, err := net.ParseMAC(norm.MACAddress); err == nil {
-					stageParams.MacAddress = hw
-				} else if u.logger != nil {
-					u.logger.Warn("invalid MAC address in staging payload", slog.String("value", norm.MACAddress), slog.Any("error", err))
-				}
-			}
-			staged, stageErr := u.invRepo.CreateStagingDevice(ctx, stageParams)
+			staged, created, stageErr := u.stageDeviceWithIdempotency(ctx, norm, &source.ID)
 			if stageErr != nil {
 				return nil, fmt.Errorf("failed to create staging device: %w", stageErr)
 			}
 			targetDeviceID = staged.ID
-			if u.eventBus != nil {
+			if created && u.eventBus != nil {
 				_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.staged", map[string]interface{}{
 					"staging_id": staged.ID.String(),
 					"source":     effectiveType,
@@ -659,6 +814,93 @@ func (u *DefaultDiscoveryUseCase) ListRecordsByDevice(ctx context.Context, devic
 	return u.discRepo.ListRecordsByDevice(ctx, deviceID)
 }
 
+// stageDeviceWithIdempotency creates or updates a staging device record idempotently.
+// If an unapproved record with the same IP, MAC, or matched_device_id exists, it updates it;
+// otherwise, it inserts a new one.
+func (u *DefaultDiscoveryUseCase) stageDeviceWithIdempotency(ctx context.Context, norm *dto.NormalizedDeviceDTO, sourceID *uuid.UUID) (*db.DeviceStaging, bool, error) {
+	payload := make(map[string]interface{})
+	for k, v := range norm.RawPayload {
+		payload[k] = v
+	}
+	if norm.PreviouslyDeleted {
+		payload["previously_deleted"] = true
+	}
+	if norm.MatchedDeviceID != nil {
+		payload["matched_device_id"] = norm.MatchedDeviceID.String()
+	}
+
+	metaMap, ok := payload["metadata"].(map[string]interface{})
+	if !ok {
+		metaMap = make(map[string]interface{})
+	}
+	if norm.PreviouslyDeleted {
+		metaMap["previously_deleted"] = true
+	}
+	if norm.MatchedDeviceID != nil {
+		metaMap["matched_device_id"] = norm.MatchedDeviceID.String()
+	}
+	payload["metadata"] = metaMap
+
+	rawBytes, _ := json.Marshal(payload)
+
+	var ipAddr *netip.Addr
+	if norm.IPAddress != "" {
+		if addr, parseErr := netip.ParseAddr(norm.IPAddress); parseErr == nil {
+			ipAddr = &addr
+		}
+	}
+	var macAddr net.HardwareAddr
+	if norm.MACAddress != "" {
+		if hw, parseErr := net.ParseMAC(norm.MACAddress); parseErr == nil {
+			macAddr = hw
+		}
+	}
+
+	var matchedIDText pgtype.Text
+	if norm.MatchedDeviceID != nil {
+		matchedIDText = pgtype.Text{String: norm.MatchedDeviceID.String(), Valid: true}
+	}
+
+	existingStaged, err := u.invRepo.FindPendingStagingDevice(ctx, db.FindPendingStagingDeviceParams{
+		IpAddress:       ipAddr,
+		MacAddress:      macAddr,
+		MatchedDeviceID: matchedIDText,
+	})
+	if err == nil && existingStaged != nil {
+		updateParams := db.UpdateStagingDeviceParams{
+			ID:         existingStaged.ID,
+			Hostname:   norm.Hostname,
+			IpAddress:  ipAddr,
+			MacAddress: macAddr,
+			DeviceType: norm.DeviceType,
+			RawPayload: rawBytes,
+		}
+		staged, updateErr := u.invRepo.UpdateStagingDevice(ctx, updateParams)
+		if updateErr != nil {
+			return nil, false, fmt.Errorf("failed to update staging device: %w", updateErr)
+		}
+		return staged, false, nil
+	}
+
+	stageParams := db.CreateStagingDeviceParams{
+		ID:         uuid.New(),
+		Hostname:   norm.Hostname,
+		IpAddress:  ipAddr,
+		MacAddress: macAddr,
+		DeviceType: norm.DeviceType,
+		RawPayload: rawBytes,
+		Status:     "discovered",
+	}
+	if sourceID != nil {
+		stageParams.DiscoverySourceID = pgtype.UUID{Bytes: *sourceID, Valid: true}
+	}
+	staged, createErr := u.invRepo.CreateStagingDevice(ctx, stageParams)
+	if createErr != nil {
+		return nil, false, fmt.Errorf("failed to create staging device: %w", createErr)
+	}
+	return staged, true, nil
+}
+
 // persistDiscoveredDevice is called by the orchestrator for each valid observation.
 // New devices go to staging; matched devices are already reconciled in-memory by the orchestrator.
 func (u *DefaultDiscoveryUseCase) persistDiscoveredDevice(ctx context.Context, norm *dto.NormalizedDeviceDTO, sourceType string, matched bool) {
@@ -672,27 +914,7 @@ func (u *DefaultDiscoveryUseCase) persistDiscoveredDevice(ctx context.Context, n
 		return
 	}
 
-	rawBytes, _ := json.Marshal(norm.RawPayload)
-
-	stageParams := db.CreateStagingDeviceParams{
-		ID:         uuid.New(),
-		Hostname:   norm.Hostname,
-		DeviceType: norm.DeviceType,
-		RawPayload: rawBytes,
-		Status:     "discovered",
-	}
-	if norm.IPAddress != "" {
-		if addr, parseErr := netip.ParseAddr(norm.IPAddress); parseErr == nil {
-			stageParams.IpAddress = &addr
-		}
-	}
-	if norm.MACAddress != "" {
-		if hw, parseErr := net.ParseMAC(norm.MACAddress); parseErr == nil {
-			stageParams.MacAddress = hw
-		}
-	}
-
-	staged, err := u.invRepo.CreateStagingDevice(ctx, stageParams)
+	staged, created, err := u.stageDeviceWithIdempotency(ctx, norm, nil)
 	if err != nil {
 		if u.logger != nil {
 			u.logger.Error("failed to persist discovered device to staging", slog.String("ip", norm.IPAddress), slog.Any("error", err))
@@ -700,12 +922,19 @@ func (u *DefaultDiscoveryUseCase) persistDiscoveredDevice(ctx context.Context, n
 		return
 	}
 
-	if u.eventBus != nil {
-		_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.staged", map[string]interface{}{
+	if created && u.eventBus != nil {
+		eventData := map[string]interface{}{
 			"staging_id":  staged.ID.String(),
 			"ip_address":  norm.IPAddress,
 			"source_type": sourceType,
-		}))
+		}
+		if norm.PreviouslyDeleted {
+			eventData["previously_deleted"] = true
+			if norm.MatchedDeviceID != nil {
+				eventData["matched_device_id"] = norm.MatchedDeviceID.String()
+			}
+		}
+		_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.staged", eventData))
 	}
 }
 
@@ -968,4 +1197,99 @@ func parentProviderRefText(norm *dto.NormalizedDeviceDTO) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: norm.ParentProviderRef.Key(), Valid: true}
+}
+
+// RegisterProvider registers or overrides an integration provider for health checking and collection.
+func (u *DefaultDiscoveryUseCase) RegisterProvider(provider sdk.Provider) {
+	if provider != nil && provider.ID() != "" {
+		if u.providers == nil {
+			u.providers = make(map[string]sdk.Provider)
+		}
+		u.providers[provider.ID()] = provider
+	}
+}
+
+// SanitizeHealthError scrubs sensitive secret values and credentials from health check error messages.
+func SanitizeHealthError(err error, config sdk.ProviderConfig) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	for k, v := range config {
+		if strVal, ok := v.(string); ok && strVal != "" && len(strVal) >= 3 {
+			if dto.IsSecretKey("", k) {
+				msg = strings.ReplaceAll(msg, strVal, "[REDACTED]")
+			}
+		}
+	}
+	return msg
+}
+
+// TestHealth tests connectivity of an integration provider configured for the source using server-side credentials.
+func (u *DefaultDiscoveryUseCase) TestHealth(ctx context.Context, sourceIDStr string, providerID string) (*dto.SourceHealthResponse, error) {
+	sourceUUID, err := uuid.Parse(sourceIDStr)
+	if err != nil {
+		return nil, ErrInvalidUUID
+	}
+
+	source, err := u.discRepo.GetSourceByID(ctx, sourceUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	if providerID == "" {
+		for _, col := range source.Collectors {
+			if _, ok := u.providers[col.CollectorType]; ok {
+				providerID = col.CollectorType
+				break
+			}
+		}
+		if providerID == "" {
+			if _, ok := u.providers[source.Type]; ok {
+				providerID = source.Type
+			}
+		}
+	}
+
+	if providerID == "" {
+		return nil, ErrNoProviderForSource
+	}
+
+	provider, ok := u.providers[providerID]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, providerID)
+	}
+
+	resolvedConfig, err := u.discRepo.ResolveCollectorConfig(ctx, sourceUUID, providerID)
+	if err != nil {
+		u.logger.Error("failed to resolve collector config for health check",
+			slog.String("source_id", sourceIDStr),
+			slog.String("provider_id", providerID),
+			slog.Any("error", err),
+		)
+		return &dto.SourceHealthResponse{
+			ProviderID: providerID,
+			Status:     "error",
+			Message:    SanitizeHealthError(err, nil),
+		}, nil
+	}
+
+	if err := provider.HealthCheck(ctx, resolvedConfig); err != nil {
+		u.logger.Warn("provider health check failed",
+			slog.String("source_id", sourceIDStr),
+			slog.String("provider_id", providerID),
+			slog.Any("error", err),
+		)
+		return &dto.SourceHealthResponse{
+			ProviderID: providerID,
+			Status:     "error",
+			Message:    SanitizeHealthError(err, resolvedConfig),
+		}, nil
+	}
+
+	return &dto.SourceHealthResponse{
+		ProviderID: providerID,
+		Status:     "ok",
+		Message:    "Connection established",
+	}, nil
 }

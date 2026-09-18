@@ -225,7 +225,9 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize credentials repository: %w", err)
 	}
+	credRepo.WithDatabase(pool)
 	credUseCase, err := credentialsuc.NewCredentialsUseCase(credRepo, bus)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize credentials usecase: %w", err)
 	}

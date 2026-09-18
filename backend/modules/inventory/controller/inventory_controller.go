@@ -258,3 +258,142 @@ func (c *InventoryController) CreateSubnet(w http.ResponseWriter, r *http.Reques
 
 	httputil.WriteJSON(w, r, http.StatusCreated, resp)
 }
+
+// GetSubnetByID handles GET /api/v1/subnets/{id}.
+func (c *InventoryController) GetSubnetByID(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	subnet, err := c.useCase.GetSubnetByID(r.Context(), idStr)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
+			httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", "Invalid subnet ID format", nil)
+			return
+		}
+		if errors.Is(err, repository.ErrSubnetNotFound) {
+			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Subnet not found", nil)
+			return
+		}
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get subnet", nil)
+		return
+	}
+
+	httputil.WriteJSON(w, r, http.StatusOK, subnet)
+}
+
+// UpdateSubnet handles PUT /api/v1/subnets/{id}.
+func (c *InventoryController) UpdateSubnet(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	var req dto.UpdateSubnetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", "Invalid JSON payload", nil)
+		return
+	}
+
+	if valErrs := req.Validate(); len(valErrs) > 0 {
+		fieldErrs := make([]httputil.FieldError, len(valErrs))
+		for i, ve := range valErrs {
+			fieldErrs[i] = httputil.FieldError{Field: ve.Field, Issue: ve.Issue}
+		}
+		httputil.WriteError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", "Request validation failed", fieldErrs)
+		return
+	}
+
+	resp, err := c.useCase.UpdateSubnet(r.Context(), idStr, req)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
+			httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", "Invalid subnet ID format", nil)
+			return
+		}
+		if errors.Is(err, repository.ErrSubnetNotFound) {
+			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Subnet not found", nil)
+			return
+		}
+		if errors.Is(err, usecase.ErrGatewayNotContained) {
+			httputil.WriteError(w, r, http.StatusUnprocessableEntity, "UNPROCESSABLE_ENTITY", "Gateway IP is not contained within CIDR prefix", nil)
+			return
+		}
+		if errors.Is(err, usecase.ErrSubnetConflict) {
+			httputil.WriteError(w, r, http.StatusConflict, "CONFLICT", "Subnet CIDR conflicts with an active subnet", nil)
+			return
+		}
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update subnet", nil)
+		return
+	}
+
+	httputil.WriteJSON(w, r, http.StatusOK, resp)
+}
+
+// GetSubnetCIDRImpact handles POST /api/v1/subnets/{id}/cidr-impact.
+func (c *InventoryController) GetSubnetCIDRImpact(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	var req dto.SubnetCIDRImpactRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", "Invalid JSON payload", nil)
+		return
+	}
+
+	if valErrs := req.Validate(); len(valErrs) > 0 {
+		fieldErrs := make([]httputil.FieldError, len(valErrs))
+		for i, ve := range valErrs {
+			fieldErrs[i] = httputil.FieldError{Field: ve.Field, Issue: ve.Issue}
+		}
+		httputil.WriteError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", "Request validation failed", fieldErrs)
+		return
+	}
+
+	resp, err := c.useCase.GetSubnetCIDRImpact(r.Context(), idStr, req)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidUUID) || errors.Is(err, usecase.ErrInvalidInput) {
+			httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", err.Error(), nil)
+			return
+		}
+		if errors.Is(err, repository.ErrSubnetNotFound) {
+			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Subnet not found", nil)
+			return
+		}
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to calculate CIDR impact", nil)
+		return
+	}
+
+	httputil.WriteJSON(w, r, http.StatusOK, resp)
+}
+
+// GetSubnetDeletionImpact handles GET /api/v1/subnets/{id}/deletion-impact.
+func (c *InventoryController) GetSubnetDeletionImpact(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	resp, err := c.useCase.GetSubnetDeletionImpact(r.Context(), idStr)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
+			httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", "Invalid subnet ID format", nil)
+			return
+		}
+		if errors.Is(err, repository.ErrSubnetNotFound) {
+			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Subnet not found", nil)
+			return
+		}
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get deletion impact", nil)
+		return
+	}
+
+	httputil.WriteJSON(w, r, http.StatusOK, resp)
+}
+
+// DeleteSubnet handles DELETE /api/v1/subnets/{id}.
+func (c *InventoryController) DeleteSubnet(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	resp, err := c.useCase.SoftDeleteSubnet(r.Context(), idStr)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
+			httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", "Invalid subnet ID format", nil)
+			return
+		}
+		if errors.Is(err, repository.ErrSubnetNotFound) {
+			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Subnet not found", nil)
+			return
+		}
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete subnet", nil)
+		return
+	}
+
+	httputil.WriteJSON(w, r, http.StatusOK, resp)
+}
+

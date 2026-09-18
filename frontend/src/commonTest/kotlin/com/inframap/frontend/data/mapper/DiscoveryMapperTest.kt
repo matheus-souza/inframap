@@ -4,6 +4,7 @@ import com.inframap.frontend.data.dto.CollectorDto
 import com.inframap.frontend.data.dto.CollectorRunDetailDto
 import com.inframap.frontend.data.dto.CollectorRunSummaryDto
 import com.inframap.frontend.data.dto.DiscoveryListResponse
+import com.inframap.frontend.data.dto.DiscoverySourceDeletionImpactDto
 import com.inframap.frontend.data.dto.DiscoverySourceDto
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -197,6 +198,32 @@ class DiscoveryMapperTest {
     }
 
     @Test
+    fun toDomainMapsCollectorWithConfigAndConfiguredSecrets() {
+        val dto =
+            CollectorDto(
+                id = "col-proxmox",
+                collectorType = "proxmox",
+                enabled = true,
+                config =
+                    mapOf(
+                        "api_url" to kotlinx.serialization.json.JsonPrimitive("https://pve.local:8006"),
+                        "token_id" to kotlinx.serialization.json.JsonPrimitive("root@pam!token"),
+                        "tls_verify" to kotlinx.serialization.json.JsonPrimitive(true),
+                    ),
+                configuredSecrets = listOf("token_secret"),
+            )
+        val domain = DiscoveryMapper.toDomain(dto)
+
+        assertEquals("col-proxmox", domain.id)
+        assertEquals("proxmox", domain.collectorType)
+        assertTrue(domain.enabled)
+        assertEquals("https://pve.local:8006", domain.config["api_url"])
+        assertEquals("root@pam!token", domain.config["token_id"])
+        assertEquals("true", domain.config["tls_verify"])
+        assertEquals(listOf("token_secret"), domain.configuredSecrets)
+    }
+
+    @Test
     fun toPaginatedListMapsResponseCorrectly() {
         val response =
             DiscoveryListResponse(
@@ -226,5 +253,14 @@ class DiscoveryMapperTest {
 
         assertTrue(list.items.isEmpty())
         assertEquals(0, list.total)
+    }
+
+    @Test
+    fun toDomainMapsDiscoverySourceDeletionImpactDtoCorrectly() {
+        val dto = DiscoverySourceDeletionImpactDto(collectorsHalted = 4, devicesUnlinked = 12)
+        val domain = DiscoveryMapper.toDomain(dto)
+
+        assertEquals(4, domain.collectorsHalted)
+        assertEquals(12, domain.devicesUnlinked)
     }
 }

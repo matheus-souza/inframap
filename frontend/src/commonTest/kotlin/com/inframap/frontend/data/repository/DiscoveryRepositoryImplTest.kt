@@ -149,4 +149,122 @@ class DiscoveryRepositoryImplTest {
             assertIs<ApiResult.Error>(result)
             assertEquals("INTERNAL", result.code)
         }
+
+    @Test
+    fun getSourceByIdSuccessMapsToDomainSource() =
+        runTest {
+            val json =
+                """
+                {
+                    "data": {
+                        "id": "src-1",
+                        "name": "Proxmox Lab",
+                        "type": "proxmox",
+                        "enabled": true,
+                        "collectors": [
+                            {
+                                "id": "col-1",
+                                "collector_type": "proxmox",
+                                "enabled": true,
+                                "config": {"api_url": "https://pve1.lab:8006"},
+                                "configured_secrets": ["token_secret"]
+                            }
+                        ]
+                    },
+                    "meta": {"request_id": "req-1"}
+                }
+                """.trimIndent()
+
+            val repo = DiscoveryRepositoryImpl(createMockApiClient(json))
+            val result = repo.getSourceById("src-1")
+
+            assertIs<ApiResult.Success<*>>(result)
+            val src = (result as ApiResult.Success).data
+            assertEquals("src-1", src.id)
+            assertEquals("Proxmox Lab", src.name)
+            assertEquals(1, src.collectors.size)
+            assertEquals("https://pve1.lab:8006", src.collectors[0].config["api_url"])
+            assertEquals(listOf("token_secret"), src.collectors[0].configuredSecrets)
+        }
+
+    @Test
+    fun updateSourceSuccessMapsToDomainSource() =
+        runTest {
+            val json =
+                """
+                {
+                    "data": {
+                        "id": "src-1",
+                        "name": "Updated Proxmox",
+                        "type": "proxmox",
+                        "enabled": true
+                    },
+                    "meta": {"request_id": "req-1"}
+                }
+                """.trimIndent()
+
+            val repo = DiscoveryRepositoryImpl(createMockApiClient(json))
+            val result =
+                repo.updateSource(
+                    "src-1",
+                    com.inframap.frontend.data.dto.UpdateDiscoverySourceRequest(
+                        name = "Updated Proxmox",
+                        type = "proxmox",
+                    ),
+                )
+
+            assertIs<ApiResult.Success<*>>(result)
+            assertEquals("Updated Proxmox", (result as ApiResult.Success).data.name)
+        }
+
+    @Test
+    fun testSourceHealthSuccessMapsToProviderHealth() =
+        runTest {
+            val json =
+                """
+                {
+                    "data": {
+                        "provider_id": "proxmox",
+                        "status": "ok",
+                        "message": "Connection established"
+                    },
+                    "meta": {"request_id": "req-1"}
+                }
+                """.trimIndent()
+
+            val repo = DiscoveryRepositoryImpl(createMockApiClient(json))
+            val result = repo.testSourceHealth("src-1", "proxmox")
+
+            assertIs<ApiResult.Success<*>>(result)
+            val health = (result as ApiResult.Success).data
+            assertEquals("proxmox", health.providerId)
+            assertEquals(true, health.isHealthy)
+            assertEquals("Connection established", health.message)
+        }
+
+    @Test
+    fun getDeletionImpactSuccessMapsToDomain() =
+        runTest {
+            val json =
+                """
+                {
+                    "data": {
+                        "source_id": "src-1",
+                        "impact": {
+                            "collectors_halted": 3,
+                            "devices_unlinked": 8
+                        }
+                    },
+                    "meta": {"request_id": "req-1"}
+                }
+                """.trimIndent()
+
+            val repo = DiscoveryRepositoryImpl(createMockApiClient(json))
+            val result = repo.getDeletionImpact("src-1")
+
+            assertIs<ApiResult.Success<*>>(result)
+            val impact = (result as ApiResult.Success).data
+            assertEquals(3, impact.collectorsHalted)
+            assertEquals(8, impact.devicesUnlinked)
+        }
 }

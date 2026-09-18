@@ -105,6 +105,93 @@ func (q *Queries) GetCredentialByID(ctx context.Context, id uuid.UUID) (Credenti
 	return i, err
 }
 
+const getCredentialByIDForUpdate = `-- name: GetCredentialByIDForUpdate :one
+SELECT id, name, type, encrypted_data, description, created_at, updated_at
+FROM credentials
+WHERE id = $1
+FOR UPDATE
+`
+
+func (q *Queries) GetCredentialByIDForUpdate(ctx context.Context, id uuid.UUID) (Credential, error) {
+	row := q.db.QueryRow(ctx, getCredentialByIDForUpdate, id)
+	var i Credential
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.EncryptedData,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listActiveDiscoveryCollectorsWithConfig = `-- name: ListActiveDiscoveryCollectorsWithConfig :many
+SELECT dsc.source_id, ds.name AS source_name, dsc.config_encrypted
+FROM discovery_source_collectors dsc
+JOIN discovery_sources ds ON ds.id = dsc.source_id
+WHERE ds.deleted_at IS NULL AND dsc.config_encrypted IS NOT NULL
+`
+
+type ListActiveDiscoveryCollectorsWithConfigRow struct {
+	SourceID        uuid.UUID   `json:"source_id"`
+	SourceName      string      `json:"source_name"`
+	ConfigEncrypted pgtype.Text `json:"config_encrypted"`
+}
+
+func (q *Queries) ListActiveDiscoveryCollectorsWithConfig(ctx context.Context) ([]ListActiveDiscoveryCollectorsWithConfigRow, error) {
+	rows, err := q.db.Query(ctx, listActiveDiscoveryCollectorsWithConfig)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveDiscoveryCollectorsWithConfigRow{}
+	for rows.Next() {
+		var i ListActiveDiscoveryCollectorsWithConfigRow
+		if err := rows.Scan(&i.SourceID, &i.SourceName, &i.ConfigEncrypted); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveDiscoverySourcesWithConfig = `-- name: ListActiveDiscoverySourcesWithConfig :many
+SELECT id, name, config_encrypted
+FROM discovery_sources
+WHERE deleted_at IS NULL AND config_encrypted IS NOT NULL
+`
+
+type ListActiveDiscoverySourcesWithConfigRow struct {
+	ID              uuid.UUID   `json:"id"`
+	Name            string      `json:"name"`
+	ConfigEncrypted pgtype.Text `json:"config_encrypted"`
+}
+
+func (q *Queries) ListActiveDiscoverySourcesWithConfig(ctx context.Context) ([]ListActiveDiscoverySourcesWithConfigRow, error) {
+	rows, err := q.db.Query(ctx, listActiveDiscoverySourcesWithConfig)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveDiscoverySourcesWithConfigRow{}
+	for rows.Next() {
+		var i ListActiveDiscoverySourcesWithConfigRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.ConfigEncrypted); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCredentials = `-- name: ListCredentials :many
 SELECT id, name, type, description, created_at, updated_at
 FROM credentials

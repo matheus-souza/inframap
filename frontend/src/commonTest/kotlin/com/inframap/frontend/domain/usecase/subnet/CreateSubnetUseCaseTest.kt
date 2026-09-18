@@ -33,6 +33,64 @@ private class FakeSubnetRepository : SubnetRepository {
             requestId = "req-1",
         )
     }
+
+    override suspend fun getSubnetById(id: String): ApiResult<Subnet> =
+
+        ApiResult.Success(
+            data = Subnet(id = id, name = "fake", cidr = "10.0.0.0/24"),
+            requestId = "req-1",
+        )
+
+    override suspend fun updateSubnet(
+        id: String,
+        request: com.inframap.frontend.data.dto.UpdateSubnetRequest,
+    ): ApiResult<Subnet> =
+        ApiResult.Success(
+            data = Subnet(id = id, name = request.name, cidr = request.cidr),
+            requestId = "req-1",
+        )
+
+    override suspend fun getSubnetCidrImpact(
+        id: String,
+        request: com.inframap.frontend.data.dto.SubnetCidrImpactRequest,
+    ): ApiResult<com.inframap.frontend.data.dto.SubnetCidrImpactResponse> =
+        ApiResult.Success(
+            data =
+                com.inframap.frontend.data.dto.SubnetCidrImpactResponse(
+                    currentCidr = "10.0.0.0/24",
+                    newCidr = request.newCidr,
+                    affectedDevicesCount = 0,
+                ),
+            requestId = "req-1",
+        )
+
+    override suspend fun getSubnetDeletionImpact(id: String): ApiResult<com.inframap.frontend.data.dto.SubnetDeletionImpactResponse> =
+        ApiResult.Success(
+            data =
+                com.inframap.frontend.data.dto.SubnetDeletionImpactResponse(
+                    subnetId = id,
+                    impact =
+                        com.inframap.frontend.data.dto.SubnetDeletionImpact(
+                            affectedDevices = 0,
+                            unlinkedTopologyEdges = 0,
+                        ),
+                ),
+            requestId = "req-1",
+        )
+
+    override suspend fun deleteSubnet(id: String): ApiResult<com.inframap.frontend.data.dto.DeleteSubnetResponse> =
+        ApiResult.Success(
+            data =
+                com.inframap.frontend.data.dto.DeleteSubnetResponse(
+                    deletedId = id,
+                    impact =
+                        com.inframap.frontend.data.dto.SubnetDeletionImpact(
+                            affectedDevices = 0,
+                            unlinkedTopologyEdges = 0,
+                        ),
+                ),
+            requestId = "req-1",
+        )
 }
 
 class CreateSubnetUseCaseTest {

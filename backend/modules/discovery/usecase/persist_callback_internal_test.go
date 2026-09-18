@@ -43,6 +43,15 @@ func (s *stubInvRepo) UpdateDevice(_ context.Context, _ db.UpdateDeviceParams) (
 	return nil, nil
 }
 func (s *stubInvRepo) SoftDeleteDevice(_ context.Context, _ uuid.UUID) error { return nil }
+func (s *stubInvRepo) RestoreDevice(_ context.Context, _ db.RestoreDeviceParams) (*db.Device, error) {
+	return nil, nil
+}
+func (s *stubInvRepo) FindPendingStagingDevice(_ context.Context, _ db.FindPendingStagingDeviceParams) (*db.DeviceStaging, error) {
+	return nil, nil
+}
+func (s *stubInvRepo) UpdateStagingDevice(_ context.Context, _ db.UpdateStagingDeviceParams) (*db.DeviceStaging, error) {
+	return nil, nil
+}
 func (s *stubInvRepo) CreateStagingDevice(_ context.Context, params db.CreateStagingDeviceParams) (*db.DeviceStaging, error) {
 	if s.failCreateStaging {
 		return nil, errors.New("staging insert failed")
@@ -73,6 +82,16 @@ func (s *stubInvRepo) CreateSubnet(_ context.Context, _ db.CreateSubnetParams) (
 	return nil, nil
 }
 func (s *stubInvRepo) ListSubnets(_ context.Context) ([]db.Subnet, error) { return nil, nil }
+func (s *stubInvRepo) GetSubnetByID(_ context.Context, _ uuid.UUID) (*db.Subnet, error) {
+	return nil, inventoryRepo.ErrSubnetNotFound
+}
+func (s *stubInvRepo) UpdateSubnet(_ context.Context, _ db.UpdateSubnetParams) (*db.Subnet, error) {
+	return nil, nil
+}
+func (s *stubInvRepo) SoftDeleteSubnet(_ context.Context, _ uuid.UUID) error { return nil }
+func (s *stubInvRepo) GetInactiveDiscoverySourceDeviceIDs(_ context.Context, _ []uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
 
 func TestPersistDiscoveredDevice(t *testing.T) {
 	t.Run("matched device is skipped", func(_ *testing.T) {

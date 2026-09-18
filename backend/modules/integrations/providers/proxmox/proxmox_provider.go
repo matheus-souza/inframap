@@ -65,6 +65,7 @@ func (p *Provider) ConfigSchema() sdk.ConfigSchema {
 				Label:       "Proxmox API URL",
 				Type:        "text",
 				Required:    true,
+				IsTarget:    true,
 				Description: "Base URL of Proxmox VE API (e.g. https://pve.home.lab:8006)",
 			},
 			{
@@ -79,6 +80,7 @@ func (p *Provider) ConfigSchema() sdk.ConfigSchema {
 				Label:       "API Token Secret",
 				Type:        "password",
 				Required:    true,
+				IsSecret:    true,
 				Description: "Proxmox API Token Secret UUID",
 			},
 			{

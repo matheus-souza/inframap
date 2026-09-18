@@ -23,6 +23,8 @@ type mockDiscoveryUseCase struct {
 	runs    map[uuid.UUID][]*dto.CollectorRunResponse
 
 	failCreateSource        bool
+	failUpdateSource        bool
+	failSSRF                bool
 	failGetSource           bool
 	failListSources         bool
 	failTriggerRun          bool
@@ -30,6 +32,32 @@ type mockDiscoveryUseCase struct {
 	failDeleteSource        bool
 	failListRecordsByDevice bool
 	failListRuns            bool
+	failTestHealth          bool
+	testHealthResp          *dto.SourceHealthResponse
+}
+
+func (m *mockDiscoveryUseCase) UpdateSource(_ context.Context, idStr string, req *dto.UpdateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
+	if m.failUpdateSource {
+		return nil, errors.New("internal update error")
+	}
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, usecase.ErrInvalidUUID
+	}
+	req.Normalize()
+	if err := req.Validate(); err != nil {
+		return nil, usecase.ErrInvalidInput
+	}
+	if m.failSSRF {
+		return nil, &dto.ErrSecretRequiredOnTargetChange{Fields: []string{"api_url"}}
+	}
+	for _, s := range m.sources {
+		if s.ID == id {
+			s.Name = req.Name
+			return s, nil
+		}
+	}
+	return nil, repository.ErrSourceNotFound
 }
 
 
@@ -136,21 +164,55 @@ func (m *mockDiscoveryUseCase) IngestNormalizedDevice(_ context.Context, _ uuid.
 	return nil, nil
 }
 
-func (m *mockDiscoveryUseCase) DeleteSource(_ context.Context, idStr string) error {
+func (m *mockDiscoveryUseCase) GetDeletionImpact(_ context.Context, idStr string) (*dto.DiscoverySourceDeletionImpactResponse, error) {
 	if m.failDeleteSource {
-		return errors.New("internal delete error")
+		return nil, errors.New("internal impact error")
 	}
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return usecase.ErrInvalidUUID
+		return nil, usecase.ErrInvalidUUID
+	}
+	for _, s := range m.sources {
+		if s.ID == id {
+			return &dto.DiscoverySourceDeletionImpactResponse{
+				SourceID: idStr,
+				Impact: dto.DiscoverySourceDeletionImpact{
+					CollectorsHalted: len(s.Collectors),
+					DevicesUnlinked:  2,
+				},
+			}, nil
+		}
+	}
+	return nil, repository.ErrSourceNotFound
+}
+
+func (m *mockDiscoveryUseCase) SoftDeleteSource(_ context.Context, idStr string) (*dto.DeleteDiscoverySourceResponse, error) {
+	if m.failDeleteSource {
+		return nil, errors.New("internal delete error")
+	}
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, usecase.ErrInvalidUUID
 	}
 	for i, s := range m.sources {
 		if s.ID == id {
+			impact := dto.DiscoverySourceDeletionImpact{
+				CollectorsHalted: len(s.Collectors),
+				DevicesUnlinked:  2,
+			}
 			m.sources = append(m.sources[:i], m.sources[i+1:]...)
-			return nil
+			return &dto.DeleteDiscoverySourceResponse{
+				DeletedID: idStr,
+				Impact:    impact,
+			}, nil
 		}
 	}
-	return repository.ErrSourceNotFound
+	return nil, repository.ErrSourceNotFound
+}
+
+func (m *mockDiscoveryUseCase) DeleteSource(ctx context.Context, idStr string) error {
+	_, err := m.SoftDeleteSource(ctx, idStr)
+	return err
 }
 
 func (m *mockDiscoveryUseCase) ListRecordsByDevice(_ context.Context, idStr string) ([]*dto.DiscoveryRecordResponse, error) {
@@ -207,6 +269,38 @@ func (m *mockDiscoveryUseCase) ListRunsBySource(_ context.Context, idStr string,
 	return allRuns, total, nil
 }
 
+func (m *mockDiscoveryUseCase) TestHealth(_ context.Context, idStr string, providerID string) (*dto.SourceHealthResponse, error) {
+	if m.failTestHealth {
+		return nil, errors.New("internal health error")
+	}
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, usecase.ErrInvalidUUID
+	}
+	var src *dto.DiscoverySourceResponse
+	for _, s := range m.sources {
+		if s.ID == id {
+			src = s
+			break
+		}
+	}
+	if src == nil {
+		return nil, repository.ErrSourceNotFound
+	}
+	if m.testHealthResp != nil {
+		return m.testHealthResp, nil
+	}
+	pID := providerID
+	if pID == "" {
+		pID = src.Type
+	}
+	return &dto.SourceHealthResponse{
+		ProviderID: pID,
+		Status:     "ok",
+		Message:    "Connection established",
+	}, nil
+}
+
 func TestDiscoveryController_Unit(t *testing.T) {
 	uc := &mockDiscoveryUseCase{}
 	ctrl := controller.NewDiscoveryController(uc)
@@ -215,6 +309,9 @@ func TestDiscoveryController_Unit(t *testing.T) {
 	mux.HandleFunc("POST /api/v1/discovery/sources", ctrl.CreateSource)
 	mux.HandleFunc("GET /api/v1/discovery/sources", ctrl.ListSources)
 	mux.HandleFunc("GET /api/v1/discovery/sources/{id}", ctrl.GetSourceByID)
+	mux.HandleFunc("PUT /api/v1/discovery/sources/{id}", ctrl.UpdateSource)
+	mux.HandleFunc("POST /api/v1/discovery/sources/{id}/health", ctrl.TestHealth)
+	mux.HandleFunc("GET /api/v1/discovery/sources/{id}/deletion-impact", ctrl.GetDeletionImpact)
 	mux.HandleFunc("POST /api/v1/discovery/sources/{id}/run", ctrl.TriggerRun)
 	mux.HandleFunc("GET /api/v1/discovery/sources/{id}/runs", ctrl.ListRunsBySource)
 	mux.HandleFunc("POST /api/v1/discovery/scan", ctrl.TriggerScan)
@@ -485,6 +582,78 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		uc.failListRecordsByDevice = false
 	})
 
+	t.Run("GetDeletionImpact Success", func(t *testing.T) {
+		impactSrc, _ := uc.CreateSource(context.Background(), &dto.CreateDiscoverySourceRequest{
+			Name: "Impact Source",
+			Type: "proxmox",
+		})
+		req := httptest.NewRequest("GET", "/api/v1/discovery/sources/"+impactSrc.ID.String()+"/deletion-impact", nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+
+		var env map[string]interface{}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		data, ok := env["data"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected data field in response envelope")
+		}
+		if data["source_id"] != impactSrc.ID.String() {
+			t.Errorf("expected source_id %s, got %v", impactSrc.ID.String(), data["source_id"])
+		}
+		impact, ok := data["impact"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected impact field in data")
+		}
+		if _, ok := impact["collectors_halted"]; !ok {
+			t.Errorf("expected collectors_halted in impact")
+		}
+		if _, ok := impact["devices_unlinked"]; !ok {
+			t.Errorf("expected devices_unlinked in impact")
+		}
+	})
+
+	t.Run("GetDeletionImpact Invalid UUID", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/discovery/sources/invalid-uuid/deletion-impact", nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GetDeletionImpact NotFound", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/discovery/sources/"+uuid.New().String()+"/deletion-impact", nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("expected 404 Not Found, got %d", rec.Code)
+		}
+	})
+
+	t.Run("GetDeletionImpact Internal Error", func(t *testing.T) {
+		uc.failDeleteSource = true
+		req := httptest.NewRequest("GET", "/api/v1/discovery/sources/"+uuid.New().String()+"/deletion-impact", nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500 Internal Server Error, got %d", rec.Code)
+		}
+		uc.failDeleteSource = false
+	})
+
 	t.Run("DeleteSource Success", func(t *testing.T) {
 		deleteID := src.ID.String()
 		req := httptest.NewRequest("DELETE", "/api/v1/discovery/sources/"+deleteID, nil)
@@ -493,7 +662,29 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		mux.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
-			t.Errorf("expected 200 OK, got %d", rec.Code)
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+
+		var env map[string]interface{}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		data, ok := env["data"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected data field in response envelope")
+		}
+		if data["deleted_id"] != deleteID {
+			t.Errorf("expected deleted_id %s, got %v", deleteID, data["deleted_id"])
+		}
+		impact, ok := data["impact"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected impact field in data")
+		}
+		if _, ok := impact["collectors_halted"]; !ok {
+			t.Errorf("expected collectors_halted in impact")
+		}
+		if _, ok := impact["devices_unlinked"]; !ok {
+			t.Errorf("expected devices_unlinked in impact")
 		}
 	})
 
@@ -820,7 +1011,250 @@ func TestDiscoveryController_Unit(t *testing.T) {
 			t.Errorf("expected total 0, got %d", envelope.Data.Total)
 		}
 	})
+
+	t.Run("UpdateSource Success", func(t *testing.T) {
+		editSrc, _ := uc.CreateSource(context.Background(), &dto.CreateDiscoverySourceRequest{
+			Name: "Source To Edit",
+			Type: "proxmox",
+		})
+
+		body := map[string]interface{}{
+			"name": "Updated Proxmox Name",
+			"type": "proxmox",
+			"collectors": []map[string]interface{}{
+				{
+					"type": "proxmox",
+					"config": map[string]interface{}{
+						"api_url": "https://pve1.lab:8006",
+					},
+				},
+			},
+		}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("PUT", "/api/v1/discovery/sources/"+editSrc.ID.String(), bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+
+		var env struct {
+			Data dto.DiscoverySourceResponse `json:"data"`
+		}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if env.Data.Name != "Updated Proxmox Name" {
+			t.Errorf("expected name 'Updated Proxmox Name', got %s", env.Data.Name)
+		}
+	})
+
+	t.Run("UpdateSource Invalid JSON", func(t *testing.T) {
+		req := httptest.NewRequest("PUT", "/api/v1/discovery/sources/"+uuid.New().String(), bytes.NewReader([]byte("{invalid-json")))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 Bad Request, got %d", rec.Code)
+		}
+	})
+
+	t.Run("UpdateSource Invalid UUID", func(t *testing.T) {
+		body := map[string]interface{}{"name": "Valid Name", "type": "proxmox"}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("PUT", "/api/v1/discovery/sources/not-a-uuid", bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 Bad Request, got %d", rec.Code)
+		}
+	})
+
+	t.Run("UpdateSource Invalid Input (Empty Name)", func(t *testing.T) {
+		body := map[string]interface{}{"name": "   ", "type": "proxmox"}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("PUT", "/api/v1/discovery/sources/"+uuid.New().String(), bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 Bad Request, got %d", rec.Code)
+		}
+	})
+
+	t.Run("UpdateSource Not Found", func(t *testing.T) {
+		nonExistentID := uuid.New().String()
+		body := map[string]interface{}{"name": "Non Existent", "type": "proxmox"}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("PUT", "/api/v1/discovery/sources/"+nonExistentID, bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404 Not Found, got %d", rec.Code)
+		}
+	})
+
+	t.Run("UpdateSource SSRF Guard Rejection 422", func(t *testing.T) {
+		uc.failSSRF = true
+		defer func() { uc.failSSRF = false }()
+
+		body := map[string]interface{}{
+			"name": "Target Changed Without Secret",
+			"type": "proxmox",
+			"collectors": []map[string]interface{}{
+				{
+					"type": "proxmox",
+					"config": map[string]interface{}{
+						"api_url": "https://new-target.lab:8006",
+					},
+				},
+			},
+		}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("PUT", "/api/v1/discovery/sources/"+uuid.New().String(), bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("expected 422 Unprocessable Entity, got %d", rec.Code)
+		}
+		var errResp struct {
+			Error struct {
+				Code    string `json:"code"`
+				Details []struct {
+					Field string `json:"field"`
+				} `json:"details"`
+			} `json:"error"`
+		}
+		if err := json.NewDecoder(rec.Body).Decode(&errResp); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if errResp.Error.Code != "secret_required_on_target_change" {
+			t.Errorf("expected error code 'secret_required_on_target_change', got %s", errResp.Error.Code)
+		}
+		if len(errResp.Error.Details) == 0 || errResp.Error.Details[0].Field != "api_url" {
+			t.Errorf("expected field 'api_url' in details, got %v", errResp.Error.Details)
+		}
+	})
+
+	t.Run("UpdateSource Internal Error", func(t *testing.T) {
+		uc.failUpdateSource = true
+		defer func() { uc.failUpdateSource = false }()
+
+		body := map[string]interface{}{"name": "Trigger Failure", "type": "proxmox"}
+		jsonBytes, _ := json.Marshal(body)
+		req := httptest.NewRequest("PUT", "/api/v1/discovery/sources/"+uuid.New().String(), bytes.NewReader(jsonBytes))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("expected 500 Internal Server Error, got %d", rec.Code)
+		}
+	})
+
+	healthSrc, _ := uc.CreateSource(context.Background(), &dto.CreateDiscoverySourceRequest{
+		Name: "Health Check Source",
+		Type: "proxmox",
+	})
+
+	t.Run("TestHealth Success without body", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/"+healthSrc.ID.String()+"/health", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+		var env struct {
+			Data dto.SourceHealthResponse `json:"data"`
+		}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if env.Data.Status != "ok" {
+			t.Errorf("expected status ok, got %s", env.Data.Status)
+		}
+	})
+
+	t.Run("TestHealth Success with empty JSON body", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/"+healthSrc.ID.String()+"/health", bytes.NewReader([]byte("{}")))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+	})
+
+	t.Run("TestHealth SSRF Target Parameter Rejected", func(t *testing.T) {
+		body := `{"api_url": "http://169.254.169.254/latest/meta-data"}`
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/"+healthSrc.ID.String()+"/health", bytes.NewReader([]byte(body)))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 Bad Request on SSRF destination attempt, got %d", rec.Code)
+		}
+	})
+
+	t.Run("TestHealth Credential Parameter Rejected", func(t *testing.T) {
+		body := `{"token_secret": "stolen-token"}`
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/"+healthSrc.ID.String()+"/health", bytes.NewReader([]byte(body)))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 Bad Request on credential parameter attempt, got %d", rec.Code)
+		}
+	})
+
+	t.Run("TestHealth Invalid JSON Body", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/"+healthSrc.ID.String()+"/health", bytes.NewReader([]byte("{invalid-json")))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 Bad Request on invalid json, got %d", rec.Code)
+		}
+	})
+
+	t.Run("TestHealth Invalid UUID", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/invalid-uuid/health", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 Bad Request on invalid UUID, got %d", rec.Code)
+		}
+	})
+
+	t.Run("TestHealth NotFound", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/"+uuid.New().String()+"/health", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404 Not Found, got %d", rec.Code)
+		}
+	})
+
+	t.Run("TestHealth Internal Error", func(t *testing.T) {
+		uc.failTestHealth = true
+		defer func() { uc.failTestHealth = false }()
+
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/"+src.ID.String()+"/health", nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("expected 500 Internal Server Error, got %d", rec.Code)
+		}
+	})
 }
+
 
 
 

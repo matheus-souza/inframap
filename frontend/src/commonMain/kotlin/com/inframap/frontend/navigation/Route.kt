@@ -57,12 +57,24 @@ sealed interface Route {
     ) : Route
 
     @Serializable
+    @SerialName("edit_subnet")
+    data class EditSubnet(
+        val id: String,
+    ) : Route
+
+    @Serializable
     @SerialName("discovery_sources")
     data object DiscoverySources : Route
 
     @Serializable
     @SerialName("create_discovery_source")
     data object CreateDiscoverySource : Route
+
+    @Serializable
+    @SerialName("edit_discovery_source")
+    data class EditDiscoverySource(
+        val id: String,
+    ) : Route
 
     @Serializable
     @SerialName("topology")

@@ -33,6 +33,8 @@ type ConfigField struct {
 	Required    bool        `json:"required"`
 	Default     interface{} `json:"default,omitempty"`
 	Description string      `json:"description,omitempty"`
+	IsSecret    bool        `json:"is_secret,omitempty"`   // true if field holds sensitive credentials
+	IsTarget    bool        `json:"is_target,omitempty"`   // true if field specifies destination host/URL/port
 }
 
 // ConfigSchema returns JSON Schema parameters for UI form generation.

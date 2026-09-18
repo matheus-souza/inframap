@@ -19,3 +19,15 @@ data class CredentialListResponse(
 ) {
     val items: List<CredentialDto> get() = _items ?: emptyList()
 }
+
+@Serializable
+data class DependentSourceDto(
+    val id: String,
+    val name: String,
+)
+
+@Serializable
+data class CredentialInUseResponse(
+    val error: String = "",
+    @SerialName("dependent_sources") val dependentSources: List<DependentSourceDto> = emptyList(),
+)

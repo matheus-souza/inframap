@@ -28,6 +28,8 @@ data class ProviderField(
     val placeholder: String,
     val required: Boolean = false,
     val secret: Boolean = false,
+    /** Whether this field specifies a target host/URL/endpoint subject to SSRF protection. */
+    val target: Boolean = false,
     /**
      * Rendered as a checkbox instead of a text input. The value travels as the string "true"
      * or "false", because the collector config is a string map end to end.
@@ -74,6 +76,7 @@ object ProviderForms {
                         label = Res.string.provider_field_proxmox_api_url,
                         placeholder = "https://proxmox.local:8006",
                         required = true,
+                        target = true,
                         persistable = true,
                     ),
                     ProviderField(
@@ -115,12 +118,14 @@ object ProviderForms {
                         key = "socket_path",
                         label = Res.string.provider_field_docker_socket_path,
                         placeholder = "unix:///var/run/docker.sock",
+                        target = true,
                         persistable = true,
                     ),
                     ProviderField(
                         key = "tcp_url",
                         label = Res.string.provider_field_docker_tcp_url,
                         placeholder = "tcp://192.168.1.50:2376",
+                        target = true,
                         persistable = true,
                     ),
                     ProviderField(
@@ -195,6 +200,14 @@ object ProviderForms {
         formFor(providerId)
             ?.fields
             ?.filter { it.secret }
+            ?.map { it.key }
+            .orEmpty()
+
+    /** Keys that specify a target host/URL/endpoint subject to SSRF protection. */
+    fun targetKeys(providerId: String): List<String> =
+        formFor(providerId)
+            ?.fields
+            ?.filter { it.target }
             ?.map { it.key }
             .orEmpty()
 
