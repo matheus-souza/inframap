@@ -864,6 +864,34 @@ func (e *errPacketConn) ReadFrom(_ []byte) (int, net.Addr, error) {
 }
 func (e *errPacketConn) Close() error { return nil }
 
+type blockingPacketConn struct {
+	readBlocked chan struct{}
+	unblock     chan struct{}
+}
+
+func (b *blockingPacketConn) SetReadDeadline(t time.Time) error {
+	if !t.IsZero() && !t.After(time.Now()) {
+		select {
+		case <-b.unblock:
+		default:
+			close(b.unblock)
+		}
+	}
+	return nil
+}
+func (b *blockingPacketConn) SetWriteDeadline(_ time.Time) error { return nil }
+func (b *blockingPacketConn) WriteTo(p []byte, _ net.Addr) (int, error) { return len(p), nil }
+func (b *blockingPacketConn) ReadFrom(_ []byte) (int, net.Addr, error) {
+	select {
+	case <-b.readBlocked:
+	default:
+		close(b.readBlocked)
+	}
+	<-b.unblock
+	return 0, nil, os.ErrDeadlineExceeded
+}
+func (b *blockingPacketConn) Close() error { return nil }
+
 func TestDefaultMDNSClient_ErrorHandling(t *testing.T) {
 	t.Run("write error does not crash and returns observations", func(t *testing.T) {
 		errConn := &errPacketConn{err: errors.New("write failed")}
@@ -876,6 +904,39 @@ func TestDefaultMDNSClient_ErrorHandling(t *testing.T) {
 		}
 		if len(obs) != 0 {
 			t.Errorf("expected 0 observations, got %d", len(obs))
+		}
+	})
+
+	t.Run("context cancellation interrupts blocking ReadFrom immediately", func(t *testing.T) {
+		blkConn := &blockingPacketConn{
+			readBlocked: make(chan struct{}),
+			unblock:     make(chan struct{}),
+		}
+		client := mdns.NewDefaultMDNSClientWithConn(func(_ string, _ *net.UDPAddr) (mdns.PacketConn, error) {
+			return blkConn, nil
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		start := time.Now()
+
+		go func() {
+			_, err := client.Query(ctx, []string{"_workstation._tcp.local."}, 10*time.Second)
+			done <- err
+		}()
+
+		<-blkConn.readBlocked // Wait until ReadFrom is blocking
+		cancel()              // Cancel context
+
+		select {
+		case err := <-done:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("expected context.Canceled error, got %v", err)
+			}
+			if elapsed := time.Since(start); elapsed > 2*time.Second {
+				t.Errorf("expected Query to exit fast on cancellation, took %v", elapsed)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("Query did not unblock within 2s of context cancellation")
 		}
 	})
 }

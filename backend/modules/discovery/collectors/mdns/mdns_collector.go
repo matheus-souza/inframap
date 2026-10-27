@@ -266,6 +266,17 @@ func (c *DefaultMDNSClient) Query(ctx context.Context, services []string, timeou
 	}
 	_ = conn.SetReadDeadline(deadline)
 
+	stopWatcher := make(chan struct{})
+	defer close(stopWatcher)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.SetReadDeadline(time.Now())
+		case <-stopWatcher:
+		}
+	}()
+
 	var observations []collectors.RawObservation
 	buf := make([]byte, 65535)
 
@@ -276,11 +287,11 @@ func (c *DefaultMDNSClient) Query(ctx context.Context, services []string, timeou
 
 		n, remoteAddr, readErr := conn.ReadFrom(buf)
 		if readErr != nil {
-			if errors.Is(readErr, os.ErrDeadlineExceeded) || isTimeout(readErr) {
-				break // Read deadline reached, finish collecting without hanging
-			}
 			if ctx.Err() != nil {
 				return observations, ctx.Err()
+			}
+			if errors.Is(readErr, os.ErrDeadlineExceeded) || isTimeout(readErr) {
+				break // Read deadline reached, finish collecting without hanging
 			}
 			break // other I/O error
 		}
@@ -292,6 +303,10 @@ func (c *DefaultMDNSClient) Query(ctx context.Context, services []string, timeou
 
 		obsList := ParseMDNSPacket(buf[:n], senderIP)
 		observations = append(observations, obsList...)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return observations, err
 	}
 
 	return observations, nil
