@@ -1,4 +1,11 @@
-# ADR-003: Test Infrastructure Decisions
+# ADR-003 — Test Infrastructure Decisions
+
+| Status | Accepted |
+|---|---|
+| Type | Decision log |
+| Created | 2026-08-05 |
+
+---
 
 This document tracks architectural decisions for the frontend test infrastructure (Turbine, Shared Fakes, Koin verify).
 

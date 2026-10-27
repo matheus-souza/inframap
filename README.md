@@ -133,20 +133,20 @@ InfraMap is designed for zero-friction homelab maintenance. Pin a version with `
 
 Every major architectural decision, data model, and API contract is extensively documented in our RFCs and Domain Context:
 
-* [CONTEXT.md](CONTEXT.md) — Domain Glossary & Ubiquitous Language Definition
-* [ADR-001: Architectural Decisions](docs/adr/ADR-001-architectural-decisions.md) — Log of Active Architectural Decisions
+* [CONTEXT.md](CONTEXT.md) — Domain Glossary, engineering guidelines and the **complete index of RFCs and ADRs** with their status
+* [ADR-001: Architectural Decisions](docs/adr/ADR-001-architectural-decisions.md) — Log of foundational backend decisions
 * [RFC-001: Technology Stack](docs/RFC-001-technology-stack.md)
 * [RFC-002: Development Workflow](docs/RFC-002-development-workflow.md)
 * [RFC-003: Quality Gates](docs/RFC-003-quality-gates.md)
 * [RFC-004: Security Policy](docs/RFC-004-security-policy.md)
 * [RFC-005: Architecture](docs/RFC-005-architecture.md)
 * [RFC-006: Data Model](docs/RFC-006-data-model.md)
-* [RFC-007: Discovery Engine](docs/RFC-007-discovery-engine.md)
+* [RFC-018: Discovery Engine](docs/RFC-018-discovery-engine.md) (supersedes RFC-007 and RFC-016)
 * [RFC-008: API Specification](docs/RFC-008-api-specification.md)
 * [RFC-009: Integration SDK & Event Bus](docs/RFC-009-integration-sdk-event-bus.md)
 * [RFC-010: Repository Scaffolding](docs/RFC-010-repository-scaffolding.md)
 
-*See the [docs/](docs/) folder for the full documentation set.*
+*The core specifications above are a starting point; see the index in [CONTEXT.md](CONTEXT.md) for every RFC and ADR.*
 
 <!-- ROADMAP -->
 ## Roadmap

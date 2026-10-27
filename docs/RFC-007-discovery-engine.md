@@ -1,6 +1,6 @@
 # RFC-007 — Discovery & Reconciliation Engine Specification
 
-| Status | Accepted |
+| Status | Superseded by RFC-018 |
 |----------|----------|
 | Owner | InfraMap Team |
 | Created | 2026 |

@@ -1,9 +1,10 @@
-# RFC-024: Proxmox VE & Docker Engine Provider Collectors Integration
+# RFC-024 — Proxmox VE & Docker Engine Provider Collectors Integration
 
-- **Status**: Proposed / Aligned (ADR-013)
-- **Author**: Platform & Discovery Team
-- **Date**: 2026-08-31
-- **Target Release**: v0.4.0
+| Status | Accepted |
+|---|---|
+| Owner | Platform & Discovery Team |
+| Created | 2026-08-31 |
+| Target Release | v0.4.0 |
 
 ---
 

@@ -1,6 +1,13 @@
-# ADR-001: Architectural Decisions Log
+# ADR-001 — Architectural Decisions Log
 
-This document tracks active architectural decisions (ADRs) for the InfraMap project.
+| Status | Accepted |
+|---|---|
+| Type | Decision log |
+| Created | 2026-07-24 |
+
+---
+
+This document is the log of InfraMap's foundational backend decisions (AD-001 to AD-011 and AD-027 to AD-031). Later decisions are recorded in their own ADRs; the complete, current list is the ADR index in `CONTEXT.md`.
 
 | ID | Date | Context / Decision | Rationale | Impact | Status |
 | --- | --- | --- | --- | --- | --- |

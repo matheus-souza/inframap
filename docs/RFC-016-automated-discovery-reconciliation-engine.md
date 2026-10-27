@@ -1,9 +1,10 @@
-# RFC-016: Automated Discovery & Reconciliation Engine Specification
+# RFC-016 — Automated Discovery & Reconciliation Engine Specification
 
-- **Author**: InfraMap Core Engineering
-- **Status**: PROPOSED & READY FOR IMPLEMENTATION
-- **Created**: 2026-07-25
-- **Applies to**: `backend/modules/discovery`
+| Status | Superseded by RFC-018 |
+|---|---|
+| Owner | InfraMap Core Engineering |
+| Created | 2026-07-25 |
+| Applies to | `backend/modules/discovery` |
 
 ---
 

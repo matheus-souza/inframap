@@ -1,55 +1,58 @@
-# RFC-025: Entity Editing, Soft-Delete Lifecycle & Secret-Safe Update Specification
+# RFC-025 — Entity Editing, Soft-Delete Lifecycle & Secret-Safe Update Specification
 
-## Status
-Approved / Ready for Implementation
+| Status | Accepted |
+|---|---|
+| Created | 2026-09-18 |
+
+---
 
 ## Problem Statement
-O InfraMap possui fluxos de criação (`POST`) para Sub-redes, Fontes de Descoberta e Dispositivos, mas o ciclo de vida de edição e remoção permanece incompleto e inconsistente entre os três módulos:
-1. **Semântica de exclusão desigual**: `devices` já possui `deleted_at TIMESTAMPTZ`, mas `subnets` e `discovery_sources` não possuem a coluna — a exclusão de uma fonte de descoberta hoje é um `DELETE` físico (`DiscoveryRepository.DeleteSource`) e não existe nenhum endpoint de exclusão para sub-redes.
-2. **Constraints únicas incondicionais**: `subnets.cidr` está definido como `CIDR NOT NULL UNIQUE`. Uma vez que uma sub-rede é removida (fisicamente hoje, via soft-delete amanhã), o mesmo bloco CIDR não pode ser recadastrado — a constraint não distingue registros ativos de excluídos.
-3. **Edição incompleta**: Não existe `PUT /api/v1/subnets/{id}` nem `PUT /api/v1/discovery/sources/{id}`. A tela `EditDeviceScreen` já existe no frontend, mas não há `EditSubnetScreen` nem `EditDiscoverySourceScreen`, nem as rotas `Route.EditSubnet` / `Route.EditDiscoverySource`.
-4. **Risco de exfiltração de segredo em edição**: `discovery_sources.config_encrypted` armazena o payload de configuração (incluindo segredos como tokens/senhas) cifrado. Sem uma regra explícita de preservação, qualquer formulário de edição que reenvie a configuração obrigaria o operador a redigitar segredos a cada alteração — ou, pior, um cliente malicioso poderia alterar o host/URL de destino mantendo o segredo antigo, redirecionando credenciais válidas para um endpoint arbitrário (SSRF via segredo herdado).
-5. **Ausência de affordance de edição/exclusão nas listagens**: `SubnetsScreen`, `DiscoveryListScreen` e `DeviceListScreen` não possuem linhas clicáveis nem menu de ações (`⋮`) — a única forma de gerenciar um registro é via tela de detalhe, sem uma "Danger Zone" isolada para exclusão nem diálogo de confirmação com resumo de impacto.
-6. **Ressurreição silenciosa em redescoberta**: Nenhuma rota atual trata o caso em que uma varredura automatizada encontra um dispositivo cujo registro já possui `deleted_at IS NOT NULL` — o comportamento não está definido, criando risco de ressurreição silenciosa ou supressão permanente do "zumbi".
+InfraMap has creation flows (`POST`) for Subnets, Discovery Sources and Devices, but the edit and removal lifecycle remains incomplete and inconsistent across the three modules:
+1. **Uneven deletion semantics**: `devices` already has `deleted_at TIMESTAMPTZ`, but `subnets` and `discovery_sources` lack the column — deleting a discovery source is a physical `DELETE` today (`DiscoveryRepository.DeleteSource`), and there is no deletion endpoint for subnets at all.
+2. **Unconditional unique constraints**: `subnets.cidr` is defined as `CIDR NOT NULL UNIQUE`. Once a subnet is removed (physically today, by soft-delete tomorrow), the same CIDR block cannot be registered again — the constraint does not tell active records from deleted ones.
+3. **Incomplete editing**: there is no `PUT /api/v1/subnets/{id}` nor `PUT /api/v1/discovery/sources/{id}`. The `EditDeviceScreen` already exists in the frontend, but there is no `EditSubnetScreen` nor `EditDiscoverySourceScreen`, nor the `Route.EditSubnet` / `Route.EditDiscoverySource` routes.
+4. **Secret exfiltration risk on edit**: `discovery_sources.config_encrypted` stores the configuration payload (including secrets such as tokens and passwords) encrypted. Without an explicit preservation rule, any edit form that re-sends the configuration would force the operator to retype secrets on every change — or, worse, a malicious client could change the destination host/URL while keeping the old secret, redirecting valid credentials to an arbitrary endpoint (SSRF through an inherited secret).
+5. **No edit/delete affordance in the lists**: `SubnetsScreen`, `DiscoveryListScreen` and `DeviceListScreen` have neither clickable rows nor an action menu (`⋮`) — the only way to manage a record is through the detail screen, with no isolated "Danger Zone" for deletion and no confirmation dialog summarizing the impact.
+6. **Silent resurrection on rediscovery**: no current path handles an automated scan finding a device whose record already has `deleted_at IS NOT NULL` — the behavior is undefined, risking silent resurrection or permanent suppression of the "zombie".
 
-Estes pontos foram consolidados nas decisões arquiteturais do [ADR-014](./adr/ADR-014-entity-editing-and-soft-delete-architecture.md) e no guideline **#215** de `CONTEXT.md`.
+These points were consolidated in the architectural decisions of [ADR-014](./adr/ADR-014-entity-editing-and-soft-delete-architecture.md) and in guideline **#215** of `CONTEXT.md`.
 
 ---
 
 ## Solution
-Implementar um ciclo de vida de edição e exclusão uniforme para Sub-redes, Fontes de Descoberta e Dispositivos:
-- **Soft-Delete Canônico**: Migração de banco adicionando `deleted_at` a `subnets` e `discovery_sources`, substituindo constraints únicas incondicionais por índices únicos parciais `WHERE deleted_at IS NULL`.
-- **Ciclo de vida de dependentes**: Cascata lógica na camada de usecase para componentes filhos (coletores, execuções agendadas); bloqueio `409 Conflict` para credenciais compartilhadas em uso; preservação e desvinculação de fatos de rede observados (IPs, dispositivos).
-- **Edição completa de Sub-rede**: `PUT /api/v1/subnets/{id}` com validação de contenção do gateway, detecção de conflito de CIDR e diálogo de confirmação de impacto no frontend.
-- **Preservação de segredo & guarda anti-SSRF**: Segredo em branco na edição preserva o segredo cifrado existente; novo endpoint `POST /api/v1/discovery/sources/{id}/health` reutiliza o segredo já armazenado no servidor; alteração de host/URL/porta de destino exige reentrada obrigatória de credencial (`422 secret_required_on_target_change`).
-- **UI/UX uniforme**: Linhas de tabela clicáveis (edição), menu de ações por linha (`⋮` com Editar/Excluir), "Danger Zone" ao final das telas de edição, e diálogo modal de confirmação com resumo de impacto.
-- **Redescoberta segura**: Observações de varredura que correspondem a um registro com `deleted_at IS NOT NULL` são roteadas para a fila de Staging com a etiqueta **"Previamente Deletado"**, nunca ressuscitando o registro automaticamente.
+Implement a uniform edit and delete lifecycle for Subnets, Discovery Sources and Devices:
+- **Canonical Soft-Delete**: a database migration adding `deleted_at` to `subnets` and `discovery_sources`, replacing unconditional unique constraints with partial unique indexes `WHERE deleted_at IS NULL`.
+- **Dependent record lifecycle**: logical cascade in the use case layer for child components (collectors, scheduled runs); a `409 Conflict` block for shared credentials in use; preservation and unlinking of observed network facts (IPs, devices).
+- **Full Subnet editing**: `PUT /api/v1/subnets/{id}` with gateway containment validation, CIDR conflict detection and an impact confirmation dialog in the frontend.
+- **Secret preservation & anti-SSRF guard**: a blank secret on edit preserves the existing encrypted secret; a new `POST /api/v1/discovery/sources/{id}/health` endpoint reuses the secret already stored on the server; changing the destination host/URL/port requires re-entering the credential (`422 secret_required_on_target_change`).
+- **Uniform UI/UX**: clickable table rows (edit), a per-row action menu (`⋮` with Edit/Delete), a "Danger Zone" at the end of edit screens, and a modal confirmation dialog summarizing the impact.
+- **Safe rediscovery**: scan observations matching a record with `deleted_at IS NOT NULL` are routed to the Staging queue with the **"Previamente Deletado"** (Previously Deleted) tag, never resurrecting the record automatically.
 
 ---
 
 ## User Stories
 
-1. Como administrador de rede, quero editar o CIDR, o gateway e a descrição de uma sub-rede já cadastrada, para corrigir um erro de configuração sem precisar excluir e recriar o registro.
-2. Como administrador de rede, ao alterar o CIDR de uma sub-rede, quero ver um aviso de impacto informando quantos dispositivos/IPs deixarão de estar contidos no novo bloco, para decidir com segurança antes de confirmar.
-3. Como administrador de rede, quero que o backend rejeite (`409 Conflict`) uma edição de CIDR que colida com outra sub-rede ativa, para evitar sobreposições silenciosas de escopo.
-4. Como administrador de rede, quero excluir uma sub-rede e, em seguida, poder recadastrar o mesmo bloco CIDR mais tarde, para reorganizar o inventário sem ficar bloqueado por um registro "fantasma".
-5. Como operador de descoberta, quero editar uma Fonte de Descoberta (nome, agendamento, configuração) sem ser forçado a redigitar a senha/token toda vez, para que o formulário de edição seja rápido e seguro.
-6. Como operador de descoberta, quero que, ao alterar o host/URL de destino de uma fonte, o sistema exija que eu informe novamente a credencial, para impedir que um segredo antigo seja enviado a um destino diferente do original.
-7. Como operador de descoberta, quero clicar em "Testar Conexão" na tela de edição sem que o segredo armazenado seja exposto de volta ao navegador, para validar a conectividade com segurança.
-8. Como operador de descoberta, quero excluir uma Fonte de Descoberta e continuar vendo os dispositivos que ela já descobriu no inventário, apenas marcados como sem origem de descoberta ativa.
-9. Como administrador de credenciais, quero que o sistema bloqueie (`409 Conflict`) a exclusão de uma credencial que ainda está em uso por uma fonte de descoberta ativa, para não quebrar coletores em produção silenciosamente.
-10. Como operador, quero clicar em qualquer linha das listagens de Sub-redes, Fontes de Descoberta ou Dispositivos para ir direto à tela de edição, sem precisar localizar um botão específico.
-11. Como operador, quero um menu de ações (`⋮`) em cada linha com opções explícitas "Editar" e "Excluir", para acessar ações destrutivas sem navegar até o detalhe.
-12. Como operador, quero que a ação de exclusão fique isolada em uma "Danger Zone" ao final da tela de edição, para reduzir o risco de cliques acidentais.
-13. Como operador, ao clicar em excluir, quero ver um diálogo de confirmação com o resumo exato do impacto (quantos coletores serão interrompidos, quantos dispositivos ficarão sem vínculo), para tomar uma decisão informada.
-14. Como operador, quero que um dispositivo previamente excluído e detectado novamente por uma varredura apareça na fila de Staging com a etiqueta "Previamente Deletado", em vez de reaparecer automaticamente no inventário ativo.
+1. As a network administrator, I want to edit the CIDR, gateway and description of a registered subnet, to fix a configuration mistake without deleting and recreating the record.
+2. As a network administrator, when changing a subnet's CIDR, I want an impact warning telling me how many devices/IPs will no longer be contained in the new block, so I can decide safely before confirming.
+3. As a network administrator, I want the backend to reject (`409 Conflict`) a CIDR edit that collides with another active subnet, to avoid silent scope overlaps.
+4. As a network administrator, I want to delete a subnet and later register the same CIDR block again, to reorganize the inventory without being blocked by a "ghost" record.
+5. As a discovery operator, I want to edit a Discovery Source (name, schedule, configuration) without being forced to retype the password/token every time, so the edit form is quick and safe.
+6. As a discovery operator, when I change a source's destination host/URL, I want the system to require the credential again, so an old secret is never sent to a destination other than the original.
+7. As a discovery operator, I want to click "Test Connection" on the edit screen without the stored secret being exposed back to the browser, to validate connectivity safely.
+8. As a discovery operator, I want to delete a Discovery Source and keep seeing the devices it already discovered in the inventory, only marked as having no active discovery origin.
+9. As a credentials administrator, I want the system to block (`409 Conflict`) deleting a credential still used by an active discovery source, so production collectors do not break silently.
+10. As an operator, I want to click any row of the Subnets, Discovery Sources or Devices lists to go straight to the edit screen, without hunting for a specific button.
+11. As an operator, I want an action menu (`⋮`) on each row with explicit "Edit" and "Delete" options, to reach destructive actions without navigating to the detail screen.
+12. As an operator, I want the delete action isolated in a "Danger Zone" at the end of the edit screen, to reduce the risk of accidental clicks.
+13. As an operator, when clicking delete, I want a confirmation dialog with the exact impact summary (how many collectors will be halted, how many devices will be unlinked), to make an informed decision.
+14. As an operator, I want a previously deleted device detected again by a scan to show up in the Staging queue tagged "Previamente Deletado", instead of reappearing automatically in the active inventory.
 
 ---
 
 ## Implementation Decisions
 
 ### 1. Database Migrations (Soft-Delete & Partial Unique Indexes)
-Nova migração `20260914000001_entity_editing_and_soft_delete.sql` (replicada em `backend/migrations/` e `backend/internal/platform/db/migrations/`, seguindo o padrão dual já existente no repositório):
+A new `20260914000001_entity_editing_and_soft_delete.sql` migration (replicated in `backend/migrations/` and `backend/internal/platform/db/migrations/`, following the dual pattern already in the repository):
 
 ```sql
 -- +goose Up
@@ -83,18 +86,18 @@ ALTER TABLE discovery_sources DROP COLUMN IF EXISTS deleted_at;
 ALTER TABLE subnets DROP COLUMN IF EXISTS deleted_at;
 ```
 
-- `sqlc` regenera `db.Subnet` / `db.DiscoverySource` com o campo `DeletedAt pgtype.Timestamptz` e as queries CRUD correspondentes em `internal/platform/db/inventory.sql.go` e `discovery.sql.go`.
-- Todas as queries de listagem/lookup existentes (`ListSubnets`, `ListSources`, containment lookups do agendador) são atualizadas para incluir `WHERE deleted_at IS NULL`, espelhando o padrão já usado em `ListDevices`/`GetDeviceByID(includeDeleted bool)`.
+- `sqlc` regenerates `db.Subnet` / `db.DiscoverySource` with the `DeletedAt pgtype.Timestamptz` field and the corresponding CRUD queries in `internal/platform/db/inventory.sql.go` and `discovery.sql.go`.
+- Every existing list/lookup query (`ListSubnets`, `ListSources`, the scheduler's containment lookups) is updated to include `WHERE deleted_at IS NULL`, mirroring the pattern already used by `ListDevices`/`GetDeviceByID(includeDeleted bool)`.
 
 ### 2. Backend Domain & Usecases — Dependent Records Lifecycle
-A cascata `ON DELETE CASCADE` do PostgreSQL não é acionada por um `UPDATE ... SET deleted_at = NOW()`; a semântica é implementada explicitamente na camada de usecase:
+PostgreSQL's `ON DELETE CASCADE` is not triggered by an `UPDATE ... SET deleted_at = NOW()`; the semantics are implemented explicitly in the use case layer:
 
-| Módulo | Ação ao excluir o pai | Implementação |
+| Module | Action when the parent is deleted | Implementation |
 |---|---|---|
-| `discovery` (`DefaultDiscoveryUseCase.SoftDeleteSource`) | Coletores (`discovery_source_collectors`) e execuções agendadas do source são desativados/soft-deletados (cascata lógica) | Substitui `discRepo.DeleteSource` (hard delete) por `discRepo.SoftDeleteSource`; dispara `discovery_source.deleted` no `eventbus` |
-| `credentials` (`credentialsUseCase.DeleteCredential`) | Bloqueio se referenciada por fonte/coletor ativo | Nova checagem `repo.CountActiveReferences(ctx, credentialID)`; retorna `usecase.ErrCredentialInUse` mapeado para `409 Conflict` com a lista de fontes dependentes |
-| `inventory` (`DefaultInventoryUseCase.SoftDeleteSubnet`) | IPs/dispositivos contidos NÃO são excluídos nem desvinculados de topologia — apenas o registro de sub-rede é marcado | Segue o padrão já existente de `SoftDeleteDevice` |
-| `discovery` (`SoftDeleteSource`) | Dispositivos já descobertos permanecem no inventário; `device_discovery_records` referentes ao source permanecem para histórico, e o dispositivo não perde seu status operacional | Nenhuma mutação em `devices` é feita — apenas o `discovery_sources.deleted_at` é setado |
+| `discovery` (`DefaultDiscoveryUseCase.SoftDeleteSource`) | The source's collectors (`discovery_source_collectors`) and scheduled runs are deactivated/soft-deleted (logical cascade) | Replaces `discRepo.DeleteSource` (hard delete) with `discRepo.SoftDeleteSource`; publishes `discovery_source.deleted` on the `eventbus` |
+| `credentials` (`credentialsUseCase.DeleteCredential`) | Blocked if referenced by an active source/collector | New `repo.CountActiveReferences(ctx, credentialID)` check; returns `usecase.ErrCredentialInUse`, mapped to `409 Conflict` with the list of dependent sources |
+| `inventory` (`DefaultInventoryUseCase.SoftDeleteSubnet`) | Contained IPs/devices are NOT deleted nor unlinked from topology — only the subnet record is marked | Follows the existing `SoftDeleteDevice` pattern |
+| `discovery` (`SoftDeleteSource`) | Already discovered devices stay in the inventory; the source's `device_discovery_records` remain for history, and the device keeps its operational status | No mutation is made to `devices` — only `discovery_sources.deleted_at` is set |
 
 ```go
 // backend/modules/discovery/usecase/discovery_usecase.go
@@ -134,10 +137,10 @@ func (uc *credentialsUseCase) DeleteCredential(ctx context.Context, idStr string
 }
 ```
 
-`ErrCredentialInUse` é mapeado no controller para `409 Conflict` com corpo `{"error":"CREDENTIAL_IN_USE","dependent_sources":[{"id":"...","name":"..."}]}`.
+`ErrCredentialInUse` is mapped by the controller to `409 Conflict` with the body `{"error":"CREDENTIAL_IN_USE","dependent_sources":[{"id":"...","name":"..."}]}`.
 
 ### 3. Subnet CIDR Editability & Containment Validation
-`UpdateSubnetRequest` (novo, `backend/modules/inventory/dto/inventory_dto.go`):
+`UpdateSubnetRequest` (new, `backend/modules/inventory/dto/inventory_dto.go`):
 ```go
 type UpdateSubnetRequest struct {
     Name              string  `json:"name"`
@@ -149,47 +152,47 @@ type UpdateSubnetRequest struct {
 }
 ```
 
-Validações em `DefaultInventoryUseCase.UpdateSubnet`:
-1. `netip.ParsePrefix(req.CIDR)` — formato e máscara válidos.
-2. Se `GatewayIP` informado, `prefix.Contains(gatewayAddr)` deve ser verdadeiro; caso contrário, `ErrGatewayNotContained` → `422 Unprocessable Entity`.
-3. `repo.FindOverlappingSubnet(ctx, prefix, excludeID)` — se outra sub-rede ativa colide/duplica o CIDR, `ErrSubnetConflict` → `409 Conflict`.
-4. Antes de persistir, o usecase calcula `AffectedDeviceCount` (dispositivos ativos com IP fora do novo prefixo) e retorna esse valor no envelope de resposta para alimentar o diálogo de impacto do frontend.
+Validations in `DefaultInventoryUseCase.UpdateSubnet`:
+1. `netip.ParsePrefix(req.CIDR)` — valid format and mask.
+2. If `GatewayIP` is provided, `prefix.Contains(gatewayAddr)` must be true; otherwise `ErrGatewayNotContained` → `422 Unprocessable Entity`.
+3. `repo.FindOverlappingSubnet(ctx, prefix, excludeID)` — if another active subnet collides with or duplicates the CIDR, `ErrSubnetConflict` → `409 Conflict`.
+4. Before persisting, the use case computes `AffectedDeviceCount` (active devices whose IP falls outside the new prefix) and returns it in the response envelope to feed the frontend impact dialog.
 
 ### 4. Discovery Source Secret Preservation & SSRF Target Guard
-`UpdateDiscoverySourceRequest` reaproveita o mesmo formato de `Config map[string]interface{}` de `CreateDiscoverySourceRequest`. A regra de preservação e a guarda de destino residem em `DefaultDiscoveryUseCase.UpdateSource`:
+`UpdateDiscoverySourceRequest` reuses the `Config map[string]interface{}` shape of `CreateDiscoverySourceRequest`. The preservation rule and the target guard live in `DefaultDiscoveryUseCase.UpdateSource`:
 
-1. **Blank-secret preservation**: para cada chave marcada como sensível no schema do provider (ex.: `password`, `token`, `api_token`), se o valor recebido for string vazia ou ausente, o usecase copia o valor já armazenado do `config_encrypted` decifrado antes de recifrar — o segredo nunca precisa ser retransmitido pelo cliente.
-2. **Target Change Guard**: o usecase compara os campos de endereçamento (`host`, `url`, `port`, `socket_path`) do payload recebido com os valores decifrados atuais. Se qualquer um divergir **e** o(s) campo(s) sensível(is) correspondente(s) estiverem em branco, a requisição é rejeitada:
+1. **Blank-secret preservation**: for every key marked as sensitive in the provider schema (e.g. `password`, `token`, `api_token`), if the received value is an empty string or missing, the use case copies the stored value from the decrypted `config_encrypted` before re-encrypting — the client never has to send the secret again.
+2. **Target Change Guard**: the use case compares the addressing fields (`host`, `url`, `port`, `socket_path`) of the received payload with the current decrypted values. If any of them differs **and** the corresponding sensitive field(s) are blank, the request is rejected:
    ```go
    if targetChanged && secretBlank {
        return nil, &ErrSecretRequiredOnTargetChange{Fields: changedTargetFields}
    }
    ```
-   Mapeado pelo controller para `HTTP 422 Unprocessable Entity`:
+   Mapped by the controller to `HTTP 422 Unprocessable Entity`:
    ```json
    {
      "error": "secret_required_on_target_change",
-     "message": "Alterar o host/URL de destino exige reentrada da credencial.",
+     "message": "Changing the destination host/URL requires re-entering the credential.",
      "fields": ["api_url"]
    }
    ```
-3. **Health check endpoint** — `POST /api/v1/discovery/sources/{id}/health`: não recebe nenhum campo de segredo no corpo (`{}` ou parâmetros de override não sensíveis apenas). O usecase resolve e decifra a configuração já persistida no servidor (idêntico ao `ProviderConfigResolver` do RFC-024) e executa o teste de conectividade do provider, devolvendo `{"status": "ok" | "error", "message": "..."}` sem jamais ecoar o segredo de volta.
+3. **Health check endpoint** — `POST /api/v1/discovery/sources/{id}/health`: receives no secret field in the body (`{}` or non-sensitive override parameters only). The use case resolves and decrypts the configuration already persisted on the server (identical to RFC-024's `ProviderConfigResolver`) and runs the provider connectivity test, returning `{"status": "ok" | "error", "message": "..."}` without ever echoing the secret back.
 
 ### 5. REST API Endpoints & Contracts
 
-| Método | Rota | Novo? | Descrição |
+| Method | Route | New? | Description |
 |---|---|---|---|
-| `GET` | `/api/v1/subnets/{id}` | Sim | Detalhe de sub-rede para pré-preencher `EditSubnetScreen` |
-| `PUT` | `/api/v1/subnets/{id}` | Sim | Atualiza CIDR/gateway/nome; `409`/`422` conforme §3 |
-| `DELETE` | `/api/v1/subnets/{id}` | Sim | Soft-delete; corpo de resposta inclui resumo de impacto |
-| `PUT` | `/api/v1/discovery/sources/{id}` | Sim | Atualiza fonte; preserva segredo em branco; `422 secret_required_on_target_change` |
-| `POST` | `/api/v1/discovery/sources/{id}/health` | Sim | Testa conectividade reutilizando segredo do servidor |
-| `DELETE` | `/api/v1/discovery/sources/{id}` | Alterado | Passa de hard delete para soft-delete + cascata lógica de coletores |
-| `DELETE` | `/api/v1/credentials/{id}` | Alterado | Passa a retornar `409 Conflict` se referenciada por fonte ativa |
-| `PUT` | `/api/v1/devices/{id}` | Existente | Sem alteração de contrato |
-| `DELETE` | `/api/v1/devices/{id}` | Existente | Sem alteração de contrato (já soft-delete) |
+| `GET` | `/api/v1/subnets/{id}` | Yes | Subnet detail to pre-fill `EditSubnetScreen` |
+| `PUT` | `/api/v1/subnets/{id}` | Yes | Updates CIDR/gateway/name; `409`/`422` per §3 |
+| `DELETE` | `/api/v1/subnets/{id}` | Yes | Soft-delete; the response body includes an impact summary |
+| `PUT` | `/api/v1/discovery/sources/{id}` | Yes | Updates the source; preserves a blank secret; `422 secret_required_on_target_change` |
+| `POST` | `/api/v1/discovery/sources/{id}/health` | Yes | Tests connectivity reusing the server-side secret |
+| `DELETE` | `/api/v1/discovery/sources/{id}` | Changed | Moves from hard delete to soft-delete + logical collector cascade |
+| `DELETE` | `/api/v1/credentials/{id}` | Changed | Now returns `409 Conflict` if referenced by an active source |
+| `PUT` | `/api/v1/devices/{id}` | Existing | No contract change |
+| `DELETE` | `/api/v1/devices/{id}` | Existing | No contract change (already soft-delete) |
 
-Exemplo de resposta de exclusão com resumo de impacto (`DELETE /api/v1/subnets/{id}`):
+Example deletion response with an impact summary (`DELETE /api/v1/subnets/{id}`):
 ```json
 {
   "deleted_id": "b3f1...",
@@ -200,7 +203,7 @@ Exemplo de resposta de exclusão com resumo de impacto (`DELETE /api/v1/subnets/
 }
 ```
 
-Exemplo de resposta de exclusão de fonte de descoberta (`DELETE /api/v1/discovery/sources/{id}`):
+Example discovery source deletion response (`DELETE /api/v1/discovery/sources/{id}`):
 ```json
 {
   "deleted_id": "9ac2...",
@@ -211,7 +214,7 @@ Exemplo de resposta de exclusão de fonte de descoberta (`DELETE /api/v1/discove
 }
 ```
 
-`routes.go` de ambos os módulos são atualizados:
+Both modules' `routes.go` are updated:
 ```go
 // backend/modules/inventory/routes.go
 mux.HandleFunc("GET /api/v1/subnets/{id}", ctrl.GetSubnetByID)
@@ -225,7 +228,7 @@ mux.HandleFunc("POST /api/v1/discovery/sources/{id}/health", ctrl.HealthCheckSou
 ```
 
 ### 6. Frontend Navigation & Routes
-`Route.kt` ganha duas novas rotas, seguindo o padrão de `EditDevice` já existente:
+`Route.kt` gains two new routes, following the existing `EditDevice` pattern:
 ```kotlin
 @Serializable
 @SerialName("edit_subnet")
@@ -235,31 +238,31 @@ data class EditSubnet(val id: String) : Route
 @SerialName("edit_discovery_source")
 data class EditDiscoverySource(val id: String) : Route
 ```
-`Navigator.kt` e o grafo de navegação (`InfraMapApp.kt` / `MainScaffold.kt`) recebem os `composable` correspondentes, replicando o `NavigatorTest.kt` já existente para `EditDevice` com casos equivalentes para `EditSubnet(id)` e `EditDiscoverySource(id)`.
+`Navigator.kt` and the navigation graph (`InfraMapApp.kt` / `MainScaffold.kt`) get the corresponding `composable` entries, replicating the existing `NavigatorTest.kt` cases for `EditDevice` with equivalent cases for `EditSubnet(id)` and `EditDiscoverySource(id)`.
 
-Novas telas e ViewModels (espelhando `EditDeviceScreen.kt` / `EditDeviceViewModel.kt`):
+New screens and ViewModels (mirroring `EditDeviceScreen.kt` / `EditDeviceViewModel.kt`):
 - `frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/EditSubnetScreen.kt`
 - `frontend/src/commonMain/kotlin/com/inframap/frontend/ui/subnets/EditSubnetViewModel.kt`
 - `frontend/src/commonMain/kotlin/com/inframap/frontend/ui/discovery/EditDiscoverySourceScreen.kt`
 - `frontend/src/commonMain/kotlin/com/inframap/frontend/ui/discovery/EditDiscoverySourceViewModel.kt`
 
-Novos usecases (`domain/usecase/subnet/` e `domain/usecase/discovery/`), espelhando `UpdateDeviceUseCase.kt` / `DeleteDeviceUseCase.kt`:
+New use cases (`domain/usecase/subnet/` and `domain/usecase/discovery/`), mirroring `UpdateDeviceUseCase.kt` / `DeleteDeviceUseCase.kt`:
 - `UpdateSubnetUseCase.kt`, `DeleteSubnetUseCase.kt`, `GetSubnetByIdUseCase.kt`
 - `UpdateDiscoverySourceUseCase.kt`, `DeleteDiscoverySourceUseCase.kt`, `TestDiscoverySourceHealthUseCase.kt`
 
 ### 7. UI Screens & Components
-Três componentes novos e compartilhados em `frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/`, reutilizados pelas três telas de edição (`EditSubnetScreen`, `EditDiscoverySourceScreen`, `EditDeviceScreen`):
+Three new shared components in `frontend/src/commonMain/kotlin/com/inframap/frontend/designsystem/`, reused by the three edit screens (`EditSubnetScreen`, `EditDiscoverySourceScreen`, `EditDeviceScreen`):
 
-- **`DangerZone.kt`**: Card estilizado (borda/tonalidade de erro do `UDS`/M3, `UDSTheme.udsColors.error*` equivalente local) posicionado ao final do formulário de edição, contendo título, descrição do impacto textual e o botão "Excluir [Entidade]".
-- **`ImpactConfirmationDialog.kt`**: `AlertDialog` reutilizável parametrizado por `title`, `entityName`, e uma lista de `ImpactLine(label, count)` — renderiza o resumo (`impact.affected_devices`, `impact.collectors_halted`, etc.) devolvido pelo `DELETE`. Confirma somente após interação explícita (sem default de foco automático no botão destrutivo).
-- **`RowOverflowMenu.kt`**: `IconButton` com ícone `⋮` (`Icons.Default.MoreVert`) abrindo um `DropdownMenu` com itens "Editar" e "Excluir", usado em `SubnetsScreen.kt`, `DiscoveryListScreen.kt` e `DeviceListScreen.kt`.
+- **`DangerZone.kt`**: a styled card (error border/tone from `UDS`/M3, the local `UDSTheme.udsColors.error*` equivalent) placed at the end of the edit form, holding a title, a textual impact description and the "Delete [Entity]" button.
+- **`ImpactConfirmationDialog.kt`**: a reusable `AlertDialog` parameterized by `title`, `entityName` and a list of `ImpactLine(label, count)` — it renders the summary (`impact.affected_devices`, `impact.collectors_halted`, etc.) returned by the `DELETE`. It confirms only after explicit interaction (no automatic default focus on the destructive button).
+- **`RowOverflowMenu.kt`**: an `IconButton` with the `⋮` icon (`Icons.Default.MoreVert`) opening a `DropdownMenu` with "Edit" and "Delete" items, used in `SubnetsScreen.kt`, `DiscoveryListScreen.kt` and `DeviceListScreen.kt`.
 
-Ajustes nas listagens existentes:
-- `SubnetsScreen.kt`, `DiscoveryListScreen.kt`, `DeviceListScreen.kt`: linhas passam a usar `m3ClickableCursor()` (guideline #213) navegando para a rota de edição correspondente; a célula final da linha passa a hospedar `RowOverflowMenu`.
-- Clique na linha e clique no item "Editar" do menu convergem para a mesma navegação; o item "Excluir" abre `ImpactConfirmationDialog` sem navegar.
+Changes to the existing lists:
+- `SubnetsScreen.kt`, `DiscoveryListScreen.kt`, `DeviceListScreen.kt`: rows use `m3ClickableCursor()` (guideline #213) to navigate to the matching edit route; the last cell of the row hosts `RowOverflowMenu`.
+- Clicking the row and clicking the menu's "Edit" item converge on the same navigation; the "Delete" item opens `ImpactConfirmationDialog` without navigating.
 
 ### 8. Localization Keys (PT/EN parity)
-Novas chaves adicionadas em `frontend/src/commonMain/composeResources/values/strings.xml` (PT, autoritativo) e replicadas em `values-en/strings.xml`, seguindo o padrão de nomenclatura já usado por `edit_device_*`:
+New keys added to `frontend/src/commonMain/composeResources/values/strings.xml` (PT, authoritative) and replicated in `values-en/strings.xml`, following the naming pattern already used by `edit_device_*`. The block below shows the authoritative PT values:
 
 ```xml
 <!-- Edit Subnet -->
@@ -301,45 +304,45 @@ Novas chaves adicionadas em `frontend/src/commonMain/composeResources/values/str
 <string name="error_gateway_not_contained">O IP do gateway não pertence ao novo bloco CIDR.</string>
 <string name="error_secret_required_on_target_change">O destino foi alterado. Informe a credencial novamente para continuar.</string>
 ```
-O par `values-en/strings.xml` recebe traduções equivalentes em inglês para cada chave acima, mantendo paridade 1:1 obrigatória (nenhuma chave PT sem correspondente EN e vice-versa) — invariante já verificado pelo pipeline de qualidade existente.
+The `values-en/strings.xml` counterpart receives equivalent English translations for every key above, keeping the mandatory 1:1 parity (no PT key without an EN counterpart and vice versa) — an invariant already checked by the existing quality pipeline.
 
 ### 9. Rescanning Soft-Deleted Devices
-Em `orchestrator.go` / `DefaultDiscoveryUseCase.persistDiscoveredDevice`, ao casar uma observação com um registro existente (`GetDeviceByID(ctx, id, includeDeleted=true)`), se `device.DeletedAt.Valid == true`:
-- A observação **não** é aplicada diretamente ao dispositivo (nenhum `UPDATE devices SET deleted_at = NULL` implícito).
-- É criado um registro de staging (`CreateStagingDevice`) com `metadata.previously_deleted = true` e `matched_device_id` apontando para o registro soft-deletado.
-- O frontend (`StagingScreen`/fila de aprovação) exibe a etiqueta **"Previamente Deletado"** (`staging_tag_previously_deleted`) no card/linha correspondente.
-- A aprovação manual do staging (`ApproveStagingDevice`) é o único caminho que restaura o dispositivo (`deleted_at = NULL`), preservando o controle explícito do operador.
+In `orchestrator.go` / `DefaultDiscoveryUseCase.persistDiscoveredDevice`, when an observation matches an existing record (`GetDeviceByID(ctx, id, includeDeleted=true)`) and `device.DeletedAt.Valid == true`:
+- The observation is **not** applied directly to the device (no implicit `UPDATE devices SET deleted_at = NULL`).
+- A staging record is created (`CreateStagingDevice`) with `metadata.previously_deleted = true` and `matched_device_id` pointing to the soft-deleted record.
+- The frontend (`StagingScreen`/approval queue) shows the **"Previamente Deletado"** tag (`staging_tag_previously_deleted`) on the matching card/row.
+- Manual staging approval (`ApproveStagingDevice`) is the only path that restores the device (`deleted_at = NULL`), preserving the operator's explicit control.
 
 ---
 
 ## Testing Decisions
 - **Backend Unit Tests**:
-  - `inventory_usecase_test.go`: `UpdateSubnet` cobrindo containment do gateway, conflito de CIDR (`409`), e cálculo de `AffectedDeviceCount`; `SoftDeleteSubnet` verificando que dispositivos/IPs não são excluídos nem desvinculados.
-  - `discovery_usecase_test.go`: `UpdateSource` cobrindo preservação de segredo em branco, guarda de destino (`422 secret_required_on_target_change`) com e sem segredo reenviado, e `SoftDeleteSource` verificando desativação lógica de coletores.
-  - `credentials_usecase_test.go`: `DeleteCredential` retornando `409 Conflict` quando referenciada, e sucesso quando não referenciada.
-  - `discovery_usecase_test.go` (rescan): observação casando com dispositivo `deleted_at IS NOT NULL` deve gerar staging com `previously_deleted = true` e **nunca** limpar `deleted_at` diretamente.
-- **Backend Integration Tests** (`internal/platform/db` + Testcontainers, se aplicável ao repositório):
-  - Migração aplicada e revertida (`goose up` / `goose down`) sem erro.
-  - Recriação de um CIDR/nome após soft-delete (índice parcial permite duplicidade "lógica" apenas entre um registro ativo e um excluído).
-  - Query de listagem (`ListSubnets`, `ListSources`) nunca retorna registros com `deleted_at IS NOT NULL`.
+  - `inventory_usecase_test.go`: `UpdateSubnet` covering gateway containment, CIDR conflict (`409`) and the `AffectedDeviceCount` computation; `SoftDeleteSubnet` verifying that devices/IPs are neither deleted nor unlinked.
+  - `discovery_usecase_test.go`: `UpdateSource` covering blank-secret preservation, the target guard (`422 secret_required_on_target_change`) with and without a re-sent secret, and `SoftDeleteSource` verifying the logical deactivation of collectors.
+  - `credentials_usecase_test.go`: `DeleteCredential` returning `409 Conflict` when referenced, and succeeding when not referenced.
+  - `discovery_usecase_test.go` (rescan): an observation matching a `deleted_at IS NOT NULL` device must produce a staging record with `previously_deleted = true` and **never** clear `deleted_at` directly.
+- **Backend Integration Tests** (`internal/platform/db` + Testcontainers, where applicable to the repository):
+  - Migration applied and rolled back (`goose up` / `goose down`) without errors.
+  - Recreating a CIDR/name after soft-delete (the partial index allows a "logical" duplicate only between one active and one deleted record).
+  - List queries (`ListSubnets`, `ListSources`) never return records with `deleted_at IS NOT NULL`.
 - **Frontend ViewModel Tests** (`commonTest`):
-  - `EditSubnetViewModelTest.kt`: estado de erro em `409`/`422`, exibição do aviso de impacto antes da submissão.
-  - `EditDiscoverySourceViewModelTest.kt`: campo de segredo permanece vazio ao carregar (nunca populado pela API), disparo do aviso de reentrada de credencial ao editar host/URL, chamada de `TestDiscoverySourceHealthUseCase` sem enviar segredo no payload.
-  - `SubnetsViewModelTest.kt` / `DiscoveryListViewModelTest.kt` / `DeviceListViewModelTest.kt`: abertura do `ImpactConfirmationDialog` com os valores corretos de impacto antes de disparar `DELETE`.
+  - `EditSubnetViewModelTest.kt`: error state on `409`/`422`, impact warning shown before submission.
+  - `EditDiscoverySourceViewModelTest.kt`: the secret field stays empty on load (never populated by the API), the credential re-entry warning fires when editing host/URL, and `TestDiscoverySourceHealthUseCase` is called without the secret in the payload.
+  - `SubnetsViewModelTest.kt` / `DiscoveryListViewModelTest.kt` / `DeviceListViewModelTest.kt`: `ImpactConfirmationDialog` opens with the correct impact values before the `DELETE` is sent.
 - **Frontend Guard Tests** (`jvmTest`):
-  - Extensão de `CursorGuardTest` (guideline #213) para cobrir `RowOverflowMenu` e as novas linhas clicáveis das três listagens.
-  - Teste de paridade de localização (chave por chave entre `values/strings.xml` e `values-en/strings.xml`) estendido para as novas chaves da seção 8.
-- **Coverage Gate**: Manter cobertura de testes $\ge 85\%$ e zero violações em `ktlintCheck`/`detekt` (frontend) e `golangci-lint` (backend).
+  - Extend `CursorGuardTest` (guideline #213) to cover `RowOverflowMenu` and the new clickable rows of the three lists.
+  - Extend the localization parity test (key by key between `values/strings.xml` and `values-en/strings.xml`) to the new keys of section 8.
+- **Coverage Gate**: keep test coverage $\ge 85\%$ and zero `ktlintCheck`/`detekt` (frontend) and `golangci-lint` (backend) violations.
 
 ---
 
 ## Out of Scope
-- Restauração automática de sub-redes ou fontes de descoberta soft-deletadas via UI (apenas dispositivos possuem fluxo de aprovação/restauração via Staging).
-- Exclusão em lote (bulk delete) de múltiplos registros simultaneamente.
-- Versionamento/histórico de alterações (audit trail de diffs de campo a campo) além dos eventos já publicados no `eventbus`.
-- Purga física (hard delete) definitiva de registros soft-deletados — nenhum job de retenção/expurgo é definido nesta RFC.
+- Automatic restoration of soft-deleted subnets or discovery sources through the UI (only devices have an approval/restore flow, through Staging).
+- Bulk deletion of multiple records at once.
+- Change versioning/history (a field-by-field diff audit trail) beyond the events already published on the `eventbus`.
+- Definitive physical purge (hard delete) of soft-deleted records — this RFC defines no retention/purge job.
 
 ---
 
 ## Further Notes
-Esta especificação consolida as decisões arquiteturais registradas no [ADR-014](./adr/ADR-014-entity-editing-and-soft-delete-architecture.md) e no guideline **#215** de `CONTEXT.md`, e estabelece a base para o fatiamento dos tickets de implementação de edição/soft-delete para Sub-redes, Fontes de Descoberta e reforço de consistência em Dispositivos.
+This specification consolidates the architectural decisions recorded in [ADR-014](./adr/ADR-014-entity-editing-and-soft-delete-architecture.md) and in guideline **#215** of `CONTEXT.md`, and lays the groundwork for slicing the implementation tickets for editing/soft-delete of Subnets, Discovery Sources and the consistency reinforcement on Devices.

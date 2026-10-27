@@ -1,8 +1,9 @@
-# ADR-007: UI Refinement v2 — Onboarding Unification, Collapsible NavRail & i18n
+# ADR-007 — UI Refinement v2 — Onboarding Unification, Collapsible NavRail & i18n
 
-- **Status**: ACCEPTED
-- **Date**: 2026-08-16
-- **Authors**: Matheus Souza
+| Status | Accepted |
+|---|---|
+| Owner | Matheus Souza |
+| Created | 2026-08-16 |
 
 ---
 

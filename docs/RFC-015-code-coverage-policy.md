@@ -1,9 +1,10 @@
-# RFC-015: Code Coverage & Quality Gate Policy
+# RFC-015 — Code Coverage & Quality Gate Policy
 
-- **Author**: InfraMap Core Engineering
-- **Status**: APPROVED & ENFORCED
-- **Created**: 2026-07-25
-- **Applies to**: `main`, `develop`
+| Status | Accepted |
+|---|---|
+| Owner | InfraMap Core Engineering |
+| Created | 2026-07-25 |
+| Applies to | `main`, `develop` |
 
 ---
 

@@ -1,6 +1,10 @@
-# 14. Entity Editing, Soft-Delete Semantics, and Lifecycle Management
+# ADR-014 — Entity Editing, Soft-Delete Semantics, and Lifecycle Management
 
-Date: 2026-09-14
+| Status | Accepted |
+|---|---|
+| Created | 2026-09-14 |
+
+---
 
 ## Context
 

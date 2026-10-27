@@ -1,38 +1,42 @@
-# RFC-026: Multi-Target Discovery Sources Specification
+# RFC-026 — Multi-Target Discovery Sources Specification
 
-## Status
-Proposed
+| Status | Proposed |
+|---|---|
+| Created | 2026-10-27 |
+| Related | ADR-015, ADR-011, RFC-025 |
+
+---
 
 ## Problem Statement
-Uma Fonte de Descoberta é hoje um plano de coletores (ADR-011) apontado para **um único** bloco CIDR. Uma rede com várias sub-redes que devem ser varridas da mesma forma exige uma fonte por sub-rede:
+A Discovery Source is today a plan of collectors (ADR-011) aimed at **a single** CIDR block. A network with several subnets that should be scanned the same way needs one source per subnet:
 
-1. **Configuração duplicada**: cada fonte repete nome, agendamento, coletores e credenciais. Mudar o agendamento ou trocar uma credencial SNMP significa editar N fontes e mantê-las sincronizadas à mão.
-2. **Setup automático multiplica fontes**: `AutoSetupCoordinator` cria uma fonte `ICMP Sweep — <cidr>` por interface detectada; um host com três interfaces começa a vida com três fontes quase idênticas.
-3. **Contrato de alvo único em toda a pilha**: `config.cidr` (string) no JSON cifrado, `DiscoverySourceResponse.ConfigCIDR`, `collectors.DiscoveryTarget{CIDR}` e o campo único de CIDR em `CreateDiscoverySourceScreen` assumem um alvo por fonte.
-4. **Sem vínculo com Sub-redes cadastradas**: o CIDR de uma fonte é texto copiado no momento da criação. Editar o CIDR de uma Sub-rede (RFC-025) não se reflete na fonte, e excluir uma Sub-rede não informa quais fontes ainda a varrem.
-5. **Histórico sem alvo**: `discovery_collector_runs` registra uma linha por coletor e não sabe qual bloco foi varrido; com múltiplos alvos não seria possível saber qual sub-rede falhou.
+1. **Duplicated configuration**: every source repeats name, schedule, collectors and credentials. Changing the schedule or rotating an SNMP credential means editing N sources and keeping them in sync by hand.
+2. **Auto-setup multiplies sources**: `AutoSetupCoordinator` creates one `ICMP Sweep — <cidr>` source per detected interface; a host with three interfaces starts life with three near-identical sources.
+3. **Single-target contract across the stack**: `config.cidr` (a string) in the encrypted JSON, `DiscoverySourceResponse.ConfigCIDR`, `collectors.DiscoveryTarget{CIDR}` and the single CIDR field in `CreateDiscoverySourceScreen` all assume one target per source.
+4. **No link to registered Subnets**: a source's CIDR is text copied at creation time. Editing a Subnet's CIDR (RFC-025) is not reflected in the source, and deleting a Subnet does not report which sources still scan it.
+5. **Run history without a target**: `discovery_collector_runs` records one row per collector and does not know which block was scanned; with multiple targets it would be impossible to tell which subnet failed.
 
 ## Solution
-Uma Fonte de Descoberta passa a ter uma **lista ordenada de alvos** (`targets`). Cada alvo é um CIDR, opcionalmente vinculado a uma Sub-rede cadastrada. Uma execução varre todos os alvos com o mesmo plano de coletores, agendamento e credenciais.
+A Discovery Source gains an **ordered list of targets** (`targets`). Each target is a CIDR, optionally linked to a registered Subnet. One run scans every target with the same collector plan, schedule and credentials.
 
-- A lista é **opcional** quando o plano só contém providers (`collectors.RequiresCIDR`, introduzido na correção de fontes provider-only) e **obrigatória com ao menos um alvo** quando há qualquer varredura de rede.
-- Coletores são classificados por **escopo de alvo**: varreduras por bloco rodam uma vez por alvo; coletores de enlace local rodam uma vez filtrando pela união dos alvos; providers rodam uma vez, sem alvo.
-- Fontes existentes continuam funcionando sem migração de dados: `config.cidr` é lido como uma lista de um alvo.
-- Fontes separadas continuam sendo o modelo correto quando cada bloco precisa de agendamento, credencial ou coletores diferentes.
+- The list is **optional** when the plan contains only providers (`collectors.RequiresCIDR`, introduced by the providers-only source fix) and **required with at least one target** when the plan contains any network sweep.
+- Collectors are classified by **target scope**: per-block sweeps run once per target; link-local collectors run once, filtering by the union of the targets; providers run once, with no target.
+- Existing sources keep working with no data migration: `config.cidr` is read as a one-target list.
+- Separate sources remain the right model when each block needs a different schedule, credential or collector set.
 
 ## User Stories
-1. Como operador, quero que uma única fonte varra `10.0.10.0/24`, `10.0.20.0/24` e `10.0.30.0/24` com o mesmo plano, para não manter três fontes idênticas.
-2. Como operador, quero escolher alvos entre as Sub-redes já cadastradas, para que uma alteração de CIDR na Sub-rede seja seguida pela fonte.
-3. Como operador, quero também informar um CIDR avulso, para varrer um bloco que não cadastrei como Sub-rede.
-4. Como operador, quero ver no histórico de execuções qual alvo falhou, para diagnosticar uma sub-rede inacessível sem perder o resultado das demais.
-5. Como operador, ao excluir uma Sub-rede, quero ver quais fontes a varrem, para entender o impacto antes de confirmar.
-6. Como operador, quero que o setup automático crie **uma** fonte para todas as interfaces detectadas.
-7. Como operador de uma fonte com credencial (SNMP), quero ser obrigado a reinformar a credencial ao **adicionar** um alvo, para que ela não seja enviada a hosts que nunca autorizei.
+1. As an operator, I want one source to scan `10.0.10.0/24`, `10.0.20.0/24` and `10.0.30.0/24` with the same plan, so I do not maintain three identical sources.
+2. As an operator, I want to pick targets from my registered Subnets, so a CIDR change on the Subnet is followed by the source.
+3. As an operator, I also want to enter a free-form CIDR, to scan a block I have not registered as a Subnet.
+4. As an operator, I want the run history to show which target failed, to diagnose an unreachable subnet without losing the results of the others.
+5. As an operator, when deleting a Subnet, I want to see which sources scan it, to understand the impact before confirming.
+6. As an operator, I want auto-setup to create **one** source for all detected interfaces.
+7. As the operator of a source with a credential (SNMP), I want to be required to re-enter the credential when **adding** a target, so it is never sent to hosts I did not authorize.
 
 ## Implementation Decisions
 
-### 1. Modelo de configuração
-`targets` vive no JSON cifrado de configuração da fonte, no mesmo lugar do `cidr` atual:
+### 1. Configuration model
+`targets` lives in the source's encrypted configuration JSON, where `cidr` lives today:
 
 ```json
 {
@@ -44,87 +48,87 @@ Uma Fonte de Descoberta passa a ter uma **lista ordenada de alvos** (`targets`).
 }
 ```
 
-- **Leitura compatível**: se `targets` estiver ausente e `cidr` presente, a fonte é lida como `[{ "cidr": <cidr> }]`. Nenhuma migração de dados é necessária.
-- **Escrita**: todo `POST`/`PUT` grava `targets` e remove `cidr` do payload (migração preguiçosa no próximo salvamento).
-- **Alvo vinculado** (`subnet_id` presente): o CIDR efetivo é resolvido a partir da Sub-rede **no momento da execução**; o `cidr` gravado é apenas um snapshot para exibição. Uma Sub-rede soft-deletada faz o alvo ser ignorado na execução (seção 4).
-- **Alvo avulso** (`subnet_id` ausente): o `cidr` gravado é o alvo.
+- **Compatible read**: if `targets` is absent and `cidr` is present, the source is read as `[{ "cidr": <cidr> }]`. No data migration is needed.
+- **Write**: every `POST`/`PUT` stores `targets` and drops `cidr` from the payload (lazy migration on the next save).
+- **Linked target** (`subnet_id` present): the effective CIDR is resolved from the Subnet **at run time**; the stored `cidr` is only a display snapshot. A soft-deleted Subnet makes the target be skipped (section 4).
+- **Free-form target** (`subnet_id` absent): the stored `cidr` is the target.
 
-### 2. Validação (backend, `CreateSource` e `UpdateSource`)
-| Regra | Erro |
+### 2. Validation (backend, `CreateSource` and `UpdateSource`)
+| Rule | Error |
 |---|---|
-| Plano com varredura e `targets` vazio | `422 error_targets_required` |
-| CIDR inválido ou maior que `/16` (`ParseTargetPrefix`) | `422 error_target_invalid` |
-| Dois alvos iguais ou sobrepostos na mesma fonte | `422 error_targets_overlap` |
-| Soma de hosts de todos os alvos acima de 65 536 (o tamanho de um `/16`, limite atual por alvo) | `422 error_targets_too_large` |
-| `subnet_id` inexistente ou soft-deletado | `422 error_target_subnet_not_found` |
-| Mais de 32 alvos | `422 error_targets_too_many` |
+| Plan with a sweep and empty `targets` | `422 error_targets_required` |
+| Invalid CIDR or larger than `/16` (`ParseTargetPrefix`) | `422 error_target_invalid` |
+| Two equal or overlapping targets in the same source | `422 error_targets_overlap` |
+| Sum of hosts across all targets above 65 536 (the size of one `/16`, today's per-target limit) | `422 error_targets_too_large` |
+| `subnet_id` missing or soft-deleted | `422 error_target_subnet_not_found` |
+| More than 32 targets | `422 error_targets_too_many` |
 
-Alvos sobrepostos são rejeitados, e não deduplicados, para que a contagem de hosts e o histórico por alvo permaneçam inequívocos. Sobreposição **entre fontes diferentes** continua permitida, como hoje.
+Overlapping targets are rejected rather than deduplicated, so host counts and per-target history stay unambiguous. Overlap **across different sources** remains allowed, as today.
 
-### 3. Escopo de alvo dos coletores e orquestração
-Cada tipo de coletor declara um escopo no registro (`collectors`), ao lado de `RequiresCIDR`:
+### 3. Collector target scope and orchestration
+Each collector type declares a scope in the `collectors` registry, next to `RequiresCIDR`:
 
-| Escopo | Coletores | Execução |
+| Scope | Collectors | Execution |
 |---|---|---|
-| `per_target` | `icmp_sweep`, `reverse_dns`, `snmp` | Uma chamada `Collect` por alvo |
-| `union` | `mdns`, `arp_sweep` | Uma chamada; consulta única (multicast / tabela ARP local) filtrando respostas pela união dos alvos |
-| `none` | `proxmox`, `docker`, `unifi` | Uma chamada, sem alvo |
+| `per_target` | `icmp_sweep`, `reverse_dns`, `snmp` | One `Collect` call per target |
+| `union` | `mdns`, `arp_sweep` | One call; a single query (multicast / local ARP table) filtering responses by the union of the targets |
+| `none` | `proxmox`, `docker`, `unifi` | One call, with no target |
 
-- `DiscoveryTarget` ganha `Prefixes []netip.Prefix` para o escopo `union`; `CIDR` continua sendo o alvo do escopo `per_target`.
-- Os alvos são processados **em sequência**; dentro de um alvo, os coletores continuam em paralelo limitados pelo worker pool atual. Isso mantém a carga de rede de uma fonte multi-alvo igual à de uma fonte de alvo único em cada instante.
-- O cancelamento do contexto interrompe o alvo corrente e pula os restantes (registrados como `skipped`).
-- O lock por fonte do agendador (AD-036) não muda: uma execução cobre todos os alvos, e um agendamento que dispare durante uma execução longa continua sendo pulado.
+- `DiscoveryTarget` gains `Prefixes []netip.Prefix` for the `union` scope; `CIDR` remains the target of the `per_target` scope.
+- Targets are processed **sequentially**; within a target, collectors keep running in parallel under the current worker pool. A multi-target source therefore puts no more load on the network at any moment than a single-target source.
+- Context cancellation interrupts the current target and skips the remaining ones (recorded as `skipped`).
+- The scheduler's per-source lock (AD-036) does not change: one run covers every target, and a schedule that fires during a long run is still skipped.
 
-### 4. Histórico de execuções e status agregado
-- Migração: `ALTER TABLE discovery_collector_runs ADD COLUMN target_cidr CIDR NULL`.
-- Escopo `per_target`: uma linha por (coletor, alvo) com `target_cidr` preenchido. Escopos `union` e `none`: uma linha por coletor com `target_cidr` nulo.
-- Alvo vinculado a Sub-rede soft-deletada: linha `skipped` com `error_message = "target subnet deleted"`, sem varredura.
-- Status da fonte agregado sobre todas as linhas, com a mesma regra atual: todas `success` → `idle`; mistura → `partial`; nenhuma `success` → `error`.
+### 4. Run history and aggregated status
+- Migration: `ALTER TABLE discovery_collector_runs ADD COLUMN target_cidr CIDR NULL`.
+- `per_target` scope: one row per (collector, target) with `target_cidr` set. `union` and `none` scopes: one row per collector with a null `target_cidr`.
+- Target linked to a soft-deleted Subnet: `skipped` row with `error_message = "target subnet deleted"`, and no scan.
+- Source status aggregated over all rows with the current rule: all `success` → `idle`; a mix → `partial`; no `success` → `error`.
 
-### 5. Guarda de credencial (extensão da RFC-025 §4)
-Para fontes com segredo configurado, **adicionar** um alvo ou **alterar** o CIDR de um alvo existente é tratado como mudança de destino (`dto.IsTargetKey`): sem o segredo reenviado, o `PUT` é rejeitado com `422 secret_required_on_target_change`. **Remover** alvos não exige o segredo, pois não expõe a credencial a hosts novos.
+### 5. Credential guard (extends RFC-025 §4)
+For sources with a stored secret, **adding** a target or **changing** an existing target's CIDR is treated as a destination change (`dto.IsTargetKey`): without the secret re-sent, the `PUT` is rejected with `422 secret_required_on_target_change`. **Removing** targets does not require the secret, as it exposes the credential to no new host.
 
-### 6. Sub-redes vinculadas
-- `GET /api/v1/subnets/{id}/deletion-impact` passa a incluir `discovery_sources: [{ "id", "name" }]` com as fontes ativas que têm um alvo vinculado à Sub-rede.
-- Excluir a Sub-rede **não** altera as fontes (semântica *preserve & unlink* do ADR-014): o alvo permanece na lista, é ignorado nas execuções (seção 4) e é sinalizado na tela de edição da fonte para remoção manual.
+### 6. Linked Subnets
+- `GET /api/v1/subnets/{id}/deletion-impact` adds `discovery_sources: [{ "id", "name" }]` with the active sources holding a target linked to the Subnet.
+- Deleting the Subnet does **not** change the sources (ADR-014 *preserve & unlink*): the target stays in the list, is skipped on runs (section 4) and is flagged on the source edit screen for manual removal.
 
-### 7. Contrato da API (atualiza RFC-008)
-- **Request** (`POST`/`PUT /api/v1/discovery/sources`): `config.targets` como na seção 1. `config.cidr` continua aceito e é convertido em um alvo.
-- **Response** (`DiscoverySourceResponse`): novo campo `targets: [{ "cidr", "subnet_id", "subnet_name", "subnet_deleted" }]`. `config_cidr` permanece preenchido com o CIDR do primeiro alvo, marcado como **deprecated**, e é removido na versão menor seguinte.
-- **Runs** (`GET /api/v1/discovery/sources/{id}/runs`): cada item ganha `target_cidr`.
-- `POST /api/v1/discovery/scan` (varredura avulsa com `cidr` no corpo) não muda.
+### 7. API contract (updates RFC-008)
+- **Request** (`POST`/`PUT /api/v1/discovery/sources`): `config.targets` as in section 1. `config.cidr` is still accepted and converted into one target.
+- **Response** (`DiscoverySourceResponse`): new `targets: [{ "cidr", "subnet_id", "subnet_name", "subnet_deleted" }]`. `config_cidr` stays filled with the first target's CIDR, marked **deprecated**, and is removed in the next minor version.
+- **Runs** (`GET /api/v1/discovery/sources/{id}/runs`): every item gains `target_cidr`.
+- `POST /api/v1/discovery/scan` (ad-hoc scan with a `cidr` body) is unchanged.
 
 ### 8. Frontend
-- **Criar/Editar Fonte**: o campo único de CIDR vira um editor de alvos:
-  - seleção múltipla das Sub-redes cadastradas (chips);
-  - entrada de CIDR avulso com validação local (mesmas regras da seção 2);
-  - contador de hosts somados.
+- **Create/Edit Source**: the single CIDR field becomes a targets editor:
+  - multi-select of registered Subnets (chips);
+  - free-form CIDR input with local validation (same rules as section 2);
+  - summed host counter.
 
-  O editor fica oculto quando o plano só tem providers (`requiresCidr`), e o rascunho persistido (`CreateDiscoverySourceDraft`) passa a guardar a lista.
-- **Listagem de Fontes**: a coluna CIDR mostra o primeiro alvo e `+N`, com a lista completa em tooltip.
-- **Diagnóstico de execução**: as linhas do histórico exibem o alvo (`target_cidr`).
-- **Setup automático**: cria uma única fonte "Varredura da rede local" com um alvo por interface detectada. Instalações que já passaram pelo setup não são alteradas.
+  The editor is hidden when the plan only has providers (`requiresCidr`), and the persisted draft (`CreateDiscoverySourceDraft`) stores the list.
+- **Sources list**: the CIDR column shows the first target and `+N`, with the full list in a tooltip.
+- **Run diagnostics**: history rows display the target (`target_cidr`).
+- **Auto-setup**: creates a single "Local network sweep" source with one target per detected interface. Installations that already went through auto-setup are not changed.
 
 ### 9. Localization Keys (PT/EN parity)
 `discovery_targets_label`, `discovery_targets_add_subnet`, `discovery_targets_add_cidr`, `discovery_targets_host_count`, `discovery_targets_more` (`+%1$d`), `discovery_target_subnet_deleted`, `error_targets_required`, `error_target_invalid`, `error_targets_overlap`, `error_targets_too_large`, `error_targets_too_many`, `error_target_subnet_not_found`, `delete_subnet_impact_sources`, `auto_setup_local_network_source_name`.
 
 ## Testing Decisions
 - **Backend Unit Tests**:
-  - Leitura compatível: payload com `cidr` legado vira um alvo; payload com `targets` é lido como está; gravação remove `cidr`.
-  - Matriz de validação da seção 2, incluindo sobreposição parcial (`10.0.0.0/23` × `10.0.1.0/24`) e o limite de hosts somados.
-  - Orquestração: coletor `per_target` chamado N vezes com o CIDR de cada alvo; `union` chamado uma vez com todos os prefixos; `none` chamado uma vez sem alvo.
-  - Status agregado: um alvo com erro e os demais com sucesso resulta em `partial`, com `target_cidr` correto em cada linha.
-  - Alvo vinculado a Sub-rede soft-deletada é registrado como `skipped` e não chama nenhum coletor.
-  - Guarda de credencial: adicionar alvo sem segredo → `422`; remover alvo sem segredo → `200`.
-- **Backend Integration Tests**: migração `target_cidr` aplicada e revertida; `deletion-impact` de Sub-rede lista as fontes vinculadas.
-- **Frontend ViewModel Tests**: editor de alvos (adicionar/remover Sub-rede e CIDR avulso, erros de sobreposição e limite), rascunho com lista de alvos sobrevivendo ao F5, editor oculto em plano só de providers.
-- **Coverage Gate**: cobertura $\ge 85\%$, zero violações em `golangci-lint`, `ktlintCheck` e `detekt`.
+  - Compatible read: a legacy `cidr` payload becomes one target; a `targets` payload is read as is; writing drops `cidr`.
+  - The validation matrix of section 2, including partial overlap (`10.0.0.0/23` × `10.0.1.0/24`) and the summed host limit.
+  - Orchestration: a `per_target` collector called N times with each target's CIDR; `union` called once with every prefix; `none` called once with no target.
+  - Aggregated status: one failing target with the others succeeding yields `partial`, with the correct `target_cidr` on each row.
+  - A target linked to a soft-deleted Subnet is recorded as `skipped` and calls no collector.
+  - Credential guard: adding a target without the secret → `422`; removing a target without the secret → `200`.
+- **Backend Integration Tests**: the `target_cidr` migration applied and rolled back; Subnet `deletion-impact` lists the linked sources.
+- **Frontend ViewModel Tests**: targets editor (add/remove Subnet and free-form CIDR, overlap and limit errors), a draft with a target list surviving F5, editor hidden for a providers-only plan.
+- **Coverage Gate**: coverage $\ge 85\%$, zero `golangci-lint`, `ktlintCheck` and `detekt` violations.
 
 ## Out of Scope
-- Agendamento, credencial ou conjunto de coletores **por alvo** (use fontes separadas).
-- Execução de alvos em paralelo.
-- Alvos IPv6.
-- Migração automática que funda fontes existentes de alvo único em uma fonte multi-alvo.
+- Schedule, credential or collector set **per target** (use separate sources).
+- Running targets in parallel.
+- IPv6 targets.
+- Automatic migration merging existing single-target sources into a multi-target source.
 
 ## Further Notes
-As decisões estruturais estão registradas no [ADR-015](./adr/ADR-015-multi-target-discovery-sources.md). Esta RFC depende da correção que permitiu executar fontes compostas apenas por providers (`collectors.RequiresCIDR`, guideline **#218** de `CONTEXT.md`), sobre a qual a obrigatoriedade de alvos da seção 2 é construída.
+The structural decisions are recorded in [ADR-015](./adr/ADR-015-multi-target-discovery-sources.md). This RFC builds on the fix that made providers-only sources runnable (`collectors.RequiresCIDR`, `CONTEXT.md` guideline **#218**), on which the target requirement of section 2 is based.

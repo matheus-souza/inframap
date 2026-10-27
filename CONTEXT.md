@@ -45,28 +45,56 @@
 
 ## Architectural Decision Records (ADRs) & Specifications
 
-- **RFC-001**: System Vision & Technical Architecture Specification
-- **RFC-006**: Core Domain Models & PostgreSQL Schema Definition
-- **RFC-008**: Discovery Engine & Collector Plugin Architecture
-- **RFC-010**: Repository Scaffolding & Developer Environment
-- **RFC-011**: Event Bus, Audit Logger & Crypto Engine
-- **RFC-012**: System Configuration & Onboarding Specification
-- **RFC-013**: Identity, Authentication & RBAC Engine Specification
-- **RFC-014**: Infrastructure Inventory Engine Specification
-- **RFC-015**: Code Coverage & Quality Gate Policy (Patch Coverage >= 85%)
-- **RFC-016**: Automated Discovery & Reconciliation Engine Specification
-- **RFC-017**: Network Topology & Mapping Engine Specification
-- **RFC-018**: Discovery Engine & Active Collectors Architecture Specification
+Generated from the documents' own titles and `Status` fields. Status vocabulary: **Proposed**, **Accepted**, **Superseded by RFC-NNN**.
 
-- **ADR-001**: Backend Architectural Decisions Log (AD-001 to AD-011, AD-027 to AD-030)
-- **ADR-002**: Frontend Clean Architecture Decisions (AD-012 to AD-022)
-- **ADR-003**: Test Infrastructure Decisions (AD-023 to AD-026)
-- **ADR-004**: Session Cookie Transport Security (AD-027 to AD-028)
-- **ADR-005**: Discovery Background Scheduler (AD-032 to AD-041)
-- **ADR-006**: Excalidraw-Inspired Dark Canvas UI/UX Redesign System
-- **ADR-007**: UI Refinement v2 — Onboarding Unification, Collapsible NavRail & i18n (AD-042 to AD-046)
-- **ADR-011**: Discovery Plan — Multi-Collector Sources
-- **ADR-012**: UI/UX Refinement, Progressive Dashboard & Session Lifecycle
+### RFCs (`docs/`)
+
+- **RFC-001** — Technology Stack · _Accepted_
+- **RFC-002** — Development Workflow · _Accepted_
+- **RFC-003** — Quality Gates & CI Policy · _Accepted_
+- **RFC-004** — Security Policy · _Accepted_
+- **RFC-005** — System Architecture · _Accepted_
+- **RFC-006** — Data Model & Database Schema · _Accepted_
+- **RFC-007** — Discovery & Reconciliation Engine Specification · _Superseded by RFC-018_
+- **RFC-008** — API Specification & HTTP Communication Protocol · _Accepted_
+- **RFC-009** — Integration Provider SDK & Internal Event Bus · _Accepted_
+- **RFC-010** — Repository Scaffolding & Developer Environment · _Accepted_
+- **RFC-011** — In-Memory Event Bus, Audit Logger & Secret Encryption Engine · _Accepted_
+- **RFC-012** — System Configuration & Onboarding Specification · _Accepted_
+- **RFC-013** — Identity, Authentication & RBAC Engine Specification · _Accepted_
+- **RFC-014** — Infrastructure Inventory & Asset Engine Specification · _Accepted_
+- **RFC-015** — Code Coverage & Quality Gate Policy · _Accepted_
+- **RFC-016** — Automated Discovery & Reconciliation Engine Specification · _Superseded by RFC-018_
+- **RFC-017** — Network Topology & Mapping Engine Specification · _Accepted_
+- **RFC-018** — Discovery Engine Specification · _Accepted_
+- **RFC-019** — Excalidraw-Inspired Dark Canvas UI/UX Redesign Specification · _Accepted_
+- **RFC-020** — UI Refinement v3 — Excalidraw Slate Dark & Auto-Setup UX Spec · _Accepted_
+- **RFC-021** — Browser E2E Quality Gate & Automated WASM Smoke Test Suite · _Accepted_
+- **RFC-022** — Material Design 3 Design System & Motion Architecture Spec · _Accepted_
+- **RFC-023** — UI/UX Refinement, Progressive Dashboard & Session Lifecycle Specification · _Accepted_
+- **RFC-024** — Proxmox VE & Docker Engine Provider Collectors Integration · _Accepted_
+- **RFC-025** — Entity Editing, Soft-Delete Lifecycle & Secret-Safe Update Specification · _Accepted_
+- **RFC-026** — Multi-Target Discovery Sources Specification · _Proposed_
+
+### ADRs (`docs/adr/`)
+
+- **ADR-001** — Architectural Decisions Log (AD-001 to AD-011, AD-027 to AD-031) · _Accepted_
+- **ADR-002** — Frontend Clean Architecture Decisions (AD-012 to AD-022) · _Accepted_
+- **ADR-003** — Test Infrastructure Decisions (AD-023 to AD-026) · _Accepted_
+- **ADR-004** — Session Cookie Secure Flag Derived from Request Transport (AD-060 to AD-061) · _Accepted_
+- **ADR-005** — Discovery Background Scheduler (AD-032 to AD-041) · _Accepted_
+- **ADR-006** — Excalidraw-Inspired Dark Canvas UI/UX Redesign System · _Accepted_
+- **ADR-007** — UI Refinement v2 — Onboarding Unification, Collapsible NavRail & i18n (AD-042 to AD-046) · _Accepted_
+- **ADR-008** — UI Refinement v3 Architectural Decisions (AD-047 to AD-050, defined in RFC-020) · _Accepted_
+- **ADR-009** — Browser E2E Quality Gate with Playwright for WASM Frontend Stability · _Accepted_
+- **ADR-010** — Material Design 3 Design System & Motion Architecture (AD-054 to AD-059) · _Accepted_
+- **ADR-011** — Discovery Plan — Multi-Collector Sources · _Accepted_
+- **ADR-012** — UI/UX Refinement, Progressive Dashboard & Session Lifecycle · _Accepted_
+- **ADR-013** — Proxmox VE & Docker Engine Provider Collectors Architecture · _Accepted_
+- **ADR-014** — Entity Editing, Soft-Delete Semantics, and Lifecycle Management · _Accepted_
+- **ADR-015** — Multi-Target Discovery Sources · _Proposed_
+
+Decision IDs (`AD-NNN`) are unique across all ADRs; the next free ID is **AD-062**.
 
 All active architecture decisions and technical specifications live in `docs/` and `docs/adr/`.
 

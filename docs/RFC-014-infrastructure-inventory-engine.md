@@ -1,6 +1,6 @@
 # RFC-014 — Infrastructure Inventory & Asset Engine Specification
 
-| Status | Draft / Proposed |
+| Status | Accepted |
 |--------|------------------|
 | Owner | InfraMap Team |
 | Created | 2026 |

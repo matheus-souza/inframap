@@ -1,9 +1,16 @@
-# ADR-004: Session Cookie Secure Flag Derived from Request Transport
+# ADR-004 — Session Cookie Secure Flag Derived from Request Transport
+
+| Status | Accepted |
+|---|---|
+| Type | Decision log |
+| Created | 2026-08-10 |
+
+---
 
 | ID | Date | Context / Decision | Rationale | Impact | Status |
 | --- | --- | --- | --- | --- | --- |
-| AD-027 | 2026-08-10 | Derive `Secure` flag from `r.TLS` and `X-Forwarded-Proto` instead of hardcoding | InfraMap is a self-hosted tool deployed on homelab HTTP, production HTTPS, and reverse-proxied setups. A hardcoded `Secure: true` causes browsers to silently reject cookies over plain HTTP, breaking authentication entirely. | Session cookie `Secure` flag adapts to actual transport, supporting all deployment topologies | Active |
-| AD-028 | 2026-08-10 | Trust `X-Forwarded-Proto` without explicit trusted-proxy allowlist | Standard reverse proxies (Caddy, Nginx, Traefik, AWS ALB) overwrite `X-Forwarded-Proto` by default, stripping client-injected values. A client forging `X-Forwarded-Proto: https` on plain HTTP causes self-denial (browser rejects the Secure cookie), not a security vulnerability. Adding a trusted-proxy allowlist is over-engineering for a self-hosted tool with no multi-tenant threat model. | Simpler configuration; consistent with Go stdlib `httputil.ReverseProxy`, Chi, Gin, and Echo behavior | Active |
+| AD-060 | 2026-08-10 | Derive `Secure` flag from `r.TLS` and `X-Forwarded-Proto` instead of hardcoding | InfraMap is a self-hosted tool deployed on homelab HTTP, production HTTPS, and reverse-proxied setups. A hardcoded `Secure: true` causes browsers to silently reject cookies over plain HTTP, breaking authentication entirely. | Session cookie `Secure` flag adapts to actual transport, supporting all deployment topologies | Active |
+| AD-061 | 2026-08-10 | Trust `X-Forwarded-Proto` without explicit trusted-proxy allowlist | Standard reverse proxies (Caddy, Nginx, Traefik, AWS ALB) overwrite `X-Forwarded-Proto` by default, stripping client-injected values. A client forging `X-Forwarded-Proto: https` on plain HTTP causes self-denial (browser rejects the Secure cookie), not a security vulnerability. Adding a trusted-proxy allowlist is over-engineering for a self-hosted tool with no multi-tenant threat model. | Simpler configuration; consistent with Go stdlib `httputil.ReverseProxy`, Chi, Gin, and Echo behavior | Active |
 
 ## Context
 

@@ -1,54 +1,57 @@
-# RFC-023: UI/UX Refinement, Progressive Dashboard & Session Lifecycle Specification
+# RFC-023 — UI/UX Refinement, Progressive Dashboard & Session Lifecycle Specification
 
-## Status
-Approved / Ready for Implementation
+| Status | Accepted |
+|---|---|
+| Created | 2026-08-31 |
+
+---
 
 ## Problem Statement
-Durante o uso contínuo da aplicação e testes visuais do InfraMap, foram identificados cinco pontos de fricção na experiência do usuário e de ciclo de vida de sessão:
-1. **NavRail**: No estado expandido, rótulos como "Fontes de Descoberta" sofriam quebra de linha ao serem selecionados devido ao deslocamento causado pelo indicador ativo e largura restrita de 200dp. A transição de abertura/fechamento não era animada e a altura dos itens no modo slim (56dp) era maior que no modo expandido (44dp).
-2. **Focus Ring Indesejado**: Ao interagir com o canvas Compose WASM, o navegador exibia uma borda azul ao redor do viewport inteiro.
-3. **Seleção de Texto**: Usuários não conseguiam selecionar e copiar informações textuais técnicas (endereços IP, blocos CIDR, endereços MAC, identificadores).
-4. **Dashboard**: Cards de KPI não eram interativos/clicáveis e o banner de boas-vindas sugeria cadastrar sub-redes mesmo quando o banco de dados já possuía sub-redes configuradas.
-5. **Sessão Expirada (401)**: Quando o token/sessão expirava, a aplicação mantinha o usuário na tela atual com dados defasados e um banner de erro, em vez de redirecioná-lo imediatamente para a tela de autenticação (`/login`).
+Continuous use of the application and visual testing of InfraMap surfaced five friction points in the user experience and the session lifecycle:
+1. **NavRail**: In the expanded state, labels such as "Fontes de Descoberta" (Discovery Sources) wrapped onto a second line when selected, because of the offset introduced by the active indicator and the narrow 200dp width. Opening and closing were not animated, and item height in slim mode (56dp) was larger than in expanded mode (44dp).
+2. **Unwanted Focus Ring**: Interacting with the Compose WASM canvas made the browser draw a blue outline around the entire viewport.
+3. **Text Selection**: Users could not select and copy technical text (IP addresses, CIDR blocks, MAC addresses, identifiers).
+4. **Dashboard**: KPI cards were not interactive or clickable, and the welcome banner suggested registering subnets even when the database already had subnets configured.
+5. **Expired Session (401)**: When the token or session expired, the application kept the user on the current screen with stale data and an error banner, instead of redirecting them immediately to the authentication screen (`/login`).
 
 ---
 
 ## Solution
-Implementar uma suíte coordenada de refinamentos de UI/UX, transições e ciclo de vida de autenticação:
-- **NavRail**: Largura expandida de 220dp, animação fluida (250ms), altura padronizada de 44dp para todos os itens, indicador de seleção sem deslocamento horizontal do ícone e truncamento seguro com elipse.
-- **Canvas Focus Ring & Seleção**: Remoção via CSS de outlines no canvas e encapsulamento do conteúdo principal em `SelectionContainer`.
-- **Dashboard Interativo & Progressivo**: Navegação direta nos cards de métricas e máquina de estados progressiva para sugestões na Dashboard.
-- **Sessão Expirada (401)**: Interceptador global no `ApiClient` com redirecionamento imediato para `Route.Login`.
+Implement a coordinated set of UI/UX, transition and authentication lifecycle refinements:
+- **NavRail**: 220dp expanded width, smooth animation (250ms), a standard 44dp height for every item, a selection indicator that does not shift the icon horizontally, and safe truncation with an ellipsis.
+- **Canvas Focus Ring & Selection**: Remove canvas outlines through CSS and wrap the main content in a `SelectionContainer`.
+- **Interactive & Progressive Dashboard**: Direct navigation from the metric cards and a progressive state machine for the Dashboard suggestions.
+- **Expired Session (401)**: A global interceptor in `ApiClient` with an immediate redirect to `Route.Login`.
 
 ---
 
 ## User Stories
 
-1. Como operador de rede, quero que os itens do menu lateral (NavRail) mantenham seu texto em uma única linha ao serem selecionados, para que a leitura dos menus permaneça limpa e sem quebras visuais.
-2. Como usuário do sistema, quero ver uma animação suave ao expandir e recolher o menu lateral, para que a interface pareça polida e moderna.
-3. Como usuário do sistema, quero que os itens do menu lateral tenham o mesmo espaçamento vertical tanto quando o menu está aberto quanto quando está fechado.
-4. Como usuário do sistema, quero clicar em qualquer parte da aplicação sem que uma borda azul de foco envolva toda a janela do navegador.
-5. Como administrador de infraestrutura, quero selecionar e copiar textos da tela (como IPs, MACs, nomes de host e status) usando o mouse e atalhos de teclado (Ctrl+C / Cmd+C).
-6. Como operador, quero clicar no card de "Dispositivos Ativos" na Dashboard e ser direcionado diretamente para a tela de inventário de dispositivos.
-7. Como operador, quero clicar no card de "Dispositivos em Staging" na Dashboard e ser direcionado diretamente para a fila de staging.
-8. Como operador, quero clicar no card de "Fontes de Descoberta" na Dashboard e ser direcionado para a listagem de fontes de descoberta.
-9. Como novo usuário com sub-redes já cadastradas mas sem fontes de descoberta, quero que a Dashboard sugira a configuração de uma fonte de descoberta em vez de me pedir para cadastrar uma sub-rede novamente.
-10. Como novo usuário com fontes de descoberta cadastradas mas sem dispositivos escaneados, quero que a Dashboard sugira o disparo da primeira varredura.
-11. Como usuário com inventário populado, quero que o banner de boas-vindas na Dashboard desapareça automaticamente para dar destaque total às métricas operacionais.
-12. Como usuário cuja sessão expirou ou token foi revogado, quero ser redirecionado imediatamente para a tela de Login ao tentar carregar dados, para que eu saiba que preciso autenticar novamente e não fique olhando para informações desatualizadas.
+1. As a network operator, I want side menu (NavRail) items to keep their text on a single line when selected, so menus stay clean and free of visual breaks.
+2. As a user, I want a smooth animation when expanding and collapsing the side menu, so the interface feels polished and modern.
+3. As a user, I want side menu items to have the same vertical spacing whether the menu is open or closed.
+4. As a user, I want to click anywhere in the application without a blue focus outline wrapping the whole browser window.
+5. As an infrastructure administrator, I want to select and copy on-screen text (such as IPs, MACs, hostnames and statuses) with the mouse and keyboard shortcuts (Ctrl+C / Cmd+C).
+6. As an operator, I want to click the "Active Devices" card on the Dashboard and be taken straight to the device inventory screen.
+7. As an operator, I want to click the "Staged Devices" card on the Dashboard and be taken straight to the staging queue.
+8. As an operator, I want to click the "Discovery Sources" card on the Dashboard and be taken to the discovery source list.
+9. As a new user with subnets registered but no discovery sources, I want the Dashboard to suggest configuring a discovery source instead of asking me to register a subnet again.
+10. As a new user with discovery sources registered but no scanned devices, I want the Dashboard to suggest triggering the first scan.
+11. As a user with a populated inventory, I want the Dashboard welcome banner to disappear automatically so operational metrics take full focus.
+12. As a user whose session expired or whose token was revoked, I want to be redirected immediately to the Login screen when trying to load data, so I know I need to authenticate again and I am not left looking at outdated information.
 
 ---
 
 ## Implementation Decisions
 
 ### 1. NavRail Component (`NavRail.kt`)
-- `railWidth` gerenciado por `animateDpAsState(if (isExpanded) 220.dp else 56.dp, tween(250, easing = FastOutSlowInEasing))`.
-- `ExpandedNavRailItem` e `SlimNavRailItem` padronizados para altura fixa de `44.dp`.
-- `ExpandedNavRailItemContent` renderiza o indicador ativo (`Box` de 3dp) de forma fixa sem alterar o recuo interno do ícone (12dp).
-- `Text` do item de navegação configurado com `maxLines = 1`, `softWrap = false` e `overflow = TextOverflow.Ellipsis`.
+- `railWidth` managed by `animateDpAsState(if (isExpanded) 220.dp else 56.dp, tween(250, easing = FastOutSlowInEasing))`.
+- `ExpandedNavRailItem` and `SlimNavRailItem` standardized to a fixed `44.dp` height.
+- `ExpandedNavRailItemContent` renders the active indicator (a 3dp `Box`) at a fixed position without changing the icon's inner padding (12dp).
+- The navigation item `Text` is configured with `maxLines = 1`, `softWrap = false` and `overflow = TextOverflow.Ellipsis`.
 
 ### 2. Global Canvas Focus & Text Selection
-- No arquivo `frontend/src/wasmJsMain/resources/index.html` (e `backend/cmd/api/static/index.html`):
+- In `frontend/src/wasmJsMain/resources/index.html` (and `backend/cmd/api/static/index.html`):
   ```css
   canvas, canvas:focus, canvas:focus-visible {
       outline: none !important;
@@ -59,41 +62,41 @@ Implementar uma suíte coordenada de refinamentos de UI/UX, transições e ciclo
       outline: none !important;
   }
   ```
-- No arquivo `MainScaffold.kt`: Envolver `ScaffoldMainContent` com `SelectionContainer`.
+- In `MainScaffold.kt`: wrap `ScaffoldMainContent` in a `SelectionContainer`.
 
 ### 3. Progressive Dashboard (`DashboardScreen.kt` & `DashboardViewModel.kt`)
-- Adicionar parâmetro `onClick: (() -> Unit)? = null` aos cards de métricas (`MetricCard`), aplicando `Modifier.clickable(indication = null)` quando `onClick != null`.
-- Estruturar a máquina de estados de boas-vindas:
-  - Estágio 1 (`totalSubnets == 0`): Banner sugerindo cadastro de sub-rede / auto-setup.
-  - Estágio 2 (`totalSubnets > 0 && totalDiscoverySources == 0`): Banner sugerindo cadastrar Fonte de Descoberta.
-  - Estágio 3 (`totalDiscoverySources > 0 && totalActiveDevices == 0 && totalStagedDevices == 0`): Banner sugerindo executar primeira varredura.
-  - Estágio 4 (`totalActiveDevices > 0 || totalStagedDevices > 0`): Omitir banner de boas-vindas (precedência máxima: qualquer dispositivo ativo ou em staging suprime o banner).
+- Add an `onClick: (() -> Unit)? = null` parameter to the metric cards (`MetricCard`), applying `Modifier.clickable(indication = null)` when `onClick != null`.
+- Structure the welcome state machine:
+  - Stage 1 (`totalSubnets == 0`): banner suggesting subnet registration / auto-setup.
+  - Stage 2 (`totalSubnets > 0 && totalDiscoverySources == 0`): banner suggesting registering a Discovery Source.
+  - Stage 3 (`totalDiscoverySources > 0 && totalActiveDevices == 0 && totalStagedDevices == 0`): banner suggesting running the first scan.
+  - Stage 4 (`totalActiveDevices > 0 || totalStagedDevices > 0`): welcome banner omitted (highest precedence: any active or staged device suppresses the banner).
 
 ### 4. Global 401 Session Interceptor (`ApiClient.kt` & `InfraMapApp.kt`)
-- O `ApiClient` expõe uma propriedade/callback `var onSessionExpired: (() -> Unit)? = null`.
-- Quando `safeCall` recebe `httpStatus == 401` ou código `"UNAUTHORIZED"`, invoca `onSessionExpired?.invoke()`.
-- O ponto de entrada `InfraMapApp` registra o listener no `ApiClient` que limpa o token/estado de sessão e aciona `navigator.navigateTo(Route.Login)`.
+- `ApiClient` exposes a property/callback `var onSessionExpired: (() -> Unit)? = null`.
+- When `safeCall` receives `httpStatus == 401` or the `"UNAUTHORIZED"` code, it invokes `onSessionExpired?.invoke()`.
+- The `InfraMapApp` entry point registers the listener on `ApiClient`, which clears the token/session state and calls `navigator.navigateTo(Route.Login)`.
 
 ---
 
 ## Testing Decisions
 - **Unit Tests (`jvmTest`)**:
-  - `NavRailTest.kt`: Verificar renderização em 220dp e 56dp, altura de 44dp em ambos os modos e formato de texto sem quebra.
-  - `DashboardViewModelTest.kt`: Validar cálculo de estágios de onboarding progressivo com base em sub-redes, fontes e dispositivos.
-  - `ApiClientTest.kt`: Validar disparo do callback `onSessionExpired` em respostas 401.
+  - `NavRailTest.kt`: verify rendering at 220dp and 56dp, a 44dp height in both modes, and non-wrapping text.
+  - `DashboardViewModelTest.kt`: validate the progressive onboarding stage computation from subnets, sources and devices.
+  - `ApiClientTest.kt`: validate that `onSessionExpired` fires on 401 responses.
 - **Coverage Gate**:
-  - Manter cobertura de testes $\ge 85\%$ e zero violações em `ktlintCheck` e `detekt`.
+  - Keep test coverage $\ge 85\%$ and zero `ktlintCheck` and `detekt` violations.
 - **E2E & Visual Testing**:
-  - Playwright visual regression em `tests/e2e-browser/` e `frontend/e2e/tests/navigation.spec.ts`.
+  - Playwright visual regression in `tests/e2e-browser/` and `frontend/e2e/tests/navigation.spec.ts`.
 
 ---
 
 ## Out of Scope
-- Redesenho completo do sistema de permissões RBAC no backend.
-- Suporte a múltiplos temas visuais claros (foco permanece 100% no Dark Theme Dracula/M3).
-- Redimensionamento livre do menu lateral por arraste com o cursor.
+- A full redesign of the backend RBAC permission system.
+- Support for multiple light visual themes (focus remains 100% on the Dracula/M3 Dark Theme).
+- Free resizing of the side menu by dragging with the cursor.
 
 ---
 
 ## Further Notes
-Esta especificação consolida as decisões arquiteturais registradas no [ADR-012](./adr/ADR-012-ui-ux-and-session-lifecycle.md) e estabelece a base para o fatiamento dos tickets de implementação.
+This specification consolidates the architectural decisions recorded in [ADR-012](./adr/ADR-012-ui-ux-and-session-lifecycle.md) and lays the groundwork for slicing the implementation tickets.

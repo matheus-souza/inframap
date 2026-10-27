@@ -1,4 +1,11 @@
-# ADR-005: Discovery Background Scheduler
+# ADR-005 — Discovery Background Scheduler
+
+| Status | Accepted |
+|---|---|
+| Type | Decision log |
+| Created | 2026-08-12 |
+
+---
 
 | ID | Date | Context / Decision | Rationale | Impact | Status |
 | --- | --- | --- | --- | --- | --- |

@@ -1,10 +1,11 @@
-# RFC-021: Browser E2E Quality Gate & Automated WASM Smoke Test Suite
+# RFC-021 — Browser E2E Quality Gate & Automated WASM Smoke Test Suite
 
-> **Status**: Approved  
-> **Authors**: InfraMap Core Team  
-> **Date**: 2026-08-25  
-> **Target Branch**: `develop`  
-> **Reference Decisions**: ADR-009, Guideline #133  
+| Status | Accepted |
+|---|---|
+| Owner | InfraMap Core Team |
+| Created | 2026-08-25 |
+| Related | ADR-009, Guideline #133 |
+| Target Branch | `develop` |
 
 ---
 
