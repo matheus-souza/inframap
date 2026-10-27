@@ -122,7 +122,7 @@ For detailed local development instructions, see [docs/DEVELOPMENT.md](docs/DEVE
 <!-- AUTO-UPDATES & ZERO DATA LOSS -->
 ## Auto-Updates & Zero Data Loss
 
-InfraMap is designed for zero-friction homelab maintenance. You can safely configure auto-updater agents like **Watchtower** or run `docker compose pull` on the `:latest` tag:
+InfraMap is designed for zero-friction homelab maintenance. Pin a version with `INFRAMAP_TAG` and run `docker compose pull`, or follow stable releases on the `:latest` tag with auto-updater agents like **Watchtower** (`:latest` never moves for release candidates — see [Image Tags](docs/DEPLOYMENT.md#image-tags)):
 
 * **Automatic Schema Upgrades:** Upon container restart with a newer version, InfraMap automatically executes any pending Goose database migrations before opening network ports.
 * **Transaction Safety & Rollbacks:** Every migration runs inside a PostgreSQL transaction. If a migration fails, the transaction rolls back cleanly, preventing data corruption and keeping your existing database intact.

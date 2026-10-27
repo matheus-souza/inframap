@@ -13,7 +13,7 @@ InfraMap is packaged as a minimal single-binary container image (<30MB) powered 
 ```yaml
 services:
   inframap:
-    image: ghcr.io/matheus-souza/inframap:latest
+    image: ghcr.io/matheus-souza/inframap:${INFRAMAP_TAG:-latest}
     container_name: inframap
     restart: unless-stopped
     ports:
@@ -54,6 +54,20 @@ volumes:
   inframap-pgdata:
 ```
 
+### Image Tags
+
+Every published image carries its exact version tag; `:latest` is reserved for stable releases.
+
+| Tag | Published when | Channel |
+|---|---|---|
+| `vX.Y.Z-rc.N` | Every merge into `develop` | Pre-release (release candidate) |
+| `vX.Y.Z` | Every merge into `main` | Stable |
+| `latest` | Every merge into `main` only | Stable — **never** moves for release candidates |
+
+> **Important**: while the project only ships release candidates, `:latest` does not exist on GHCR and `docker compose pull` fails with `manifest unknown`. Set `INFRAMAP_TAG` to the release you want to run (see section 2). Pinning an exact tag is recommended in any case: upgrades become an explicit, reversible step instead of whatever `:latest` points to on the next restart.
+
+Available versions are listed on the [Releases page](https://github.com/matheus-souza/inframap/releases) and in the [container registry](https://github.com/matheus-souza/inframap/pkgs/container/inframap). A tag whose release run failed its Trivy scan may still exist on GHCR without a GitHub Release — deploy only versions that have a Release entry.
+
 ---
 
 ## 2. Environment Variables & Master Key Generation
@@ -78,6 +92,9 @@ Create a `.env` file next to your `docker-compose.yml`:
 POSTGRES_PASSWORD=your_secure_postgres_password_here
 DATABASE_URL=postgres://inframap:your_secure_postgres_password_here@postgres:5432/inframap?sslmode=disable
 INFRAMAP_MASTER_KEY=your_exact_32_character_master_key_here
+
+# Image version to run (default: latest — stable releases only, see "Image Tags")
+INFRAMAP_TAG=v1.0.0-rc.92
 
 # Optional: bind-mount PostgreSQL data to a specific host path (default: named Docker volume)
 # POSTGRES_DATA_PATH=/path/to/persistent/storage/inframap/postgres
@@ -111,9 +128,25 @@ inframap.homelab.local {
 
 ---
 
-## 5. Automated Updates with Watchtower
+## 5. Updating InfraMap
 
-InfraMap publishes the `:latest` tag on `ghcr.io` for every official release. You can use **Watchtower** to automate container updates:
+### Manual Update (any channel)
+
+Migrations run automatically on startup, so take a backup first (see section 6), then point `INFRAMAP_TAG` at the new version:
+
+```bash
+docker exec -t inframap-postgres pg_dump -U inframap inframap > inframap_backup_$(date +%F).sql
+sed -i 's/^INFRAMAP_TAG=.*/INFRAMAP_TAG=v1.0.0-rc.92/' .env
+docker compose pull inframap && docker compose up -d inframap
+docker inspect inframap --format '{{.Config.Image}}'   # confirm the running version
+curl -s http://localhost:8055/api/v1/health            # expect "status":"ok"
+```
+
+To roll back, restore the previous `INFRAMAP_TAG` and the backup taken before the upgrade.
+
+### Automated Updates with Watchtower (stable channel only)
+
+InfraMap moves the `:latest` tag on `ghcr.io` for every stable release. With `INFRAMAP_TAG` unset (or set to `latest`), you can use **Watchtower** to automate container updates:
 
 ```yaml
   watchtower:
@@ -122,6 +155,8 @@ InfraMap publishes the `:latest` tag on `ghcr.io` for every official release. Yo
       - /var/run/docker.sock:/var/run/docker.sock
     command: --interval 3600 --cleanup inframap
 ```
+
+Watchtower only follows the tag the container already runs: it never picks up release candidates, and a container pinned to an exact version (`INFRAMAP_TAG=vX.Y.Z-rc.N`) is never updated by it. Release candidates are always upgraded manually.
 
 ---
 
