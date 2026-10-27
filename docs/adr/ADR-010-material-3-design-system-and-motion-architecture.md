@@ -3,7 +3,6 @@
 > **Status**: Accepted  
 > **Date**: 2026-08-27  
 > **Related RFC**: RFC-022 (Material 3 Visual & Motion Design Spec)  
-> **Supervises**: T44–T48 Implementation Cycle  
 
 ---
 

@@ -3,7 +3,6 @@
 - **Status**: ACCEPTED
 - **Date**: 2026-08-16
 - **Authors**: Matheus Souza
-- **Spec Reference**: `.scratch/ui_refinement_v2/spec.md`
 
 ---
 
