@@ -4,8 +4,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import kotlin.test.Test
+import kotlin.test.assertTrue
 
 class EmptyStateTest {
     @OptIn(ExperimentalTestApi::class)
@@ -30,9 +32,13 @@ class EmptyStateTest {
             onNodeWithText("Test Title").assertExists()
             onNodeWithText("Test Description").assertExists()
 
-            // Wait, Compose Multiplatform test APIs might be slightly different or need click.
-            // For simplicity, just asserting they exist is enough since it's a structural test.
             onNodeWithText("Primary").assertExists()
             onNodeWithText("Secondary").assertExists()
+
+            onNodeWithText("Primary").performClick()
+            assertTrue(primaryClicked)
+
+            onNodeWithText("Secondary").performClick()
+            assertTrue(secondaryClicked)
         }
 }
