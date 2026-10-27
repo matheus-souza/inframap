@@ -35,6 +35,9 @@ func (c *DiscoveryController) CreateSource(w http.ResponseWriter, r *http.Reques
 
 	resp, err := c.uc.CreateSource(r.Context(), &req)
 	if err != nil {
+		if writeTargetValidationError(w, r, err) {
+			return
+		}
 		if errors.Is(err, usecase.ErrInvalidInput) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_INPUT", err.Error(), nil)
 			return
@@ -59,6 +62,9 @@ func (c *DiscoveryController) UpdateSource(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		if errors.Is(err, usecase.ErrInvalidUUID) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid discovery source UUID format", nil)
+			return
+		}
+		if writeTargetValidationError(w, r, err) {
 			return
 		}
 		if errors.Is(err, usecase.ErrInvalidInput) {
@@ -86,6 +92,21 @@ func (c *DiscoveryController) UpdateSource(w http.ResponseWriter, r *http.Reques
 	}
 
 	httputil.WriteJSON(w, r, http.StatusOK, resp)
+}
+
+// writeTargetValidationError answers a source target list that breaks a rule of RFC-026 §2
+// with 422 and the rule's error code, and reports whether err was such a violation.
+func writeTargetValidationError(w http.ResponseWriter, r *http.Request, err error) bool {
+	var targetErr *dto.TargetValidationError
+	if !errors.As(err, &targetErr) {
+		return false
+	}
+	var details []httputil.FieldError
+	if targetErr.Field != "" {
+		details = []httputil.FieldError{{Field: targetErr.Field, Issue: targetErr.Message}}
+	}
+	httputil.WriteError(w, r, http.StatusUnprocessableEntity, targetErr.Code, targetErr.Message, details)
+	return true
 }
 
 // GetSourceByID handles GET /api/v1/discovery/sources/{id}
