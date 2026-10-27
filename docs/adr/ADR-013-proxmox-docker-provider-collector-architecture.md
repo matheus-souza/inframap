@@ -1,6 +1,10 @@
-# 13. Proxmox VE & Docker Engine Provider Collectors Architecture
+# ADR-013 — Proxmox VE & Docker Engine Provider Collectors Architecture
 
-Date: 2026-08-31
+| Status | Accepted |
+|---|---|
+| Created | 2026-08-31 |
+
+---
 
 ## Context
 

@@ -1,4 +1,11 @@
-# ADR-002: Frontend Clean Architecture Decisions
+# ADR-002 — Frontend Clean Architecture Decisions
+
+| Status | Accepted |
+|---|---|
+| Type | Decision log |
+| Created | 2026-08-01 |
+
+---
 
 This document tracks architectural decisions for the Kotlin/Compose Multiplatform frontend Clean Architecture migration.
 

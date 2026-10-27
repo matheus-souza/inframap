@@ -1,8 +1,9 @@
-# RFC-022: Material Design 3 Design System & Motion Architecture Spec
+# RFC-022 — Material Design 3 Design System & Motion Architecture Spec
 
-> **Status**: Accepted  
-> **Date**: 2026-08-27  
-> **Related ADR**: ADR-010  
+| Status | Accepted |
+|---|---|
+| Created | 2026-08-27 |
+| Related | ADR-010 |
 
 ---
 

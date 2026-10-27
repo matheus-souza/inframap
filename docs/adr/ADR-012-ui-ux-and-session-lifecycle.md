@@ -1,45 +1,46 @@
-# ADR-012: UI/UX Refinement, Progressive Dashboard & Session Lifecycle
+# ADR-012 — UI/UX Refinement, Progressive Dashboard & Session Lifecycle
 
-Date: 2026-08-29
+| Status | Accepted |
+|---|---|
+| Created | 2026-08-29 |
 
-## Status
-Accepted
+---
 
 ## Context
-O uso contínuo da aplicação e sessões de testes manuais identificaram cinco comportamentos visuais e de ciclo de vida que demandavam padronização e refinamento arquitetural:
-1. **NavRail (Menu Lateral)**: Itens com rótulos mais longos em pt-BR (ex.: "Fontes de Descoberta") sofriam quebra de linha indesejada quando selecionados, devido ao recuo adicional de 12dp introduzido pelo indicador ativo e largura restrita de 200dp. Além disso, a alternância de largura não possuía transição animada e a altura dos itens no estado fechado (56dp) destoava do estado aberto (44dp).
-2. **Focus Outline do HTML5 Canvas**: Em navegadores modernos, ao clicar no canvas onde o Compose WASM é renderizado, uma borda azul de foco padrão envolvia o viewport inteiro.
-3. **Seleção de Texto**: No Compose Multiplatform, elementos de texto sobre Canvas são desenhados sem seleção nativa habilitada por padrão, impedindo o usuário de copiar dados técnicos (IPs, CIDRs, MACs, status).
-4. **Dashboard KPI & Sugestões**: Cards de métricas eram estáticos (sem navegação direta por clique) e o card de onboarding exibia sugestão redundante de cadastrar sub-redes mesmo quando o usuário já possuía sub-redes configuradas.
-5. **Sessão Expirada (401)**: Respostas 401 Unauthorized eram tratadas como erros locais de tela, exibindo banners de erro sobrepostos em dados obsoletos em vez de forçar a re-autenticação imediata.
+Continuous use of the application and manual test sessions identified five visual and lifecycle behaviors that called for standardization and architectural refinement:
+1. **NavRail (Side Menu)**: Items with longer pt-BR labels (e.g. "Fontes de Descoberta") wrapped onto a second line when selected, because of the extra 12dp padding introduced by the active indicator and the narrow 200dp width. In addition, the width toggle had no animated transition, and item height in the collapsed state (56dp) did not match the expanded state (44dp).
+2. **HTML5 Canvas Focus Outline**: In modern browsers, clicking the canvas where Compose WASM renders made a default blue focus outline wrap the entire viewport.
+3. **Text Selection**: In Compose Multiplatform, text drawn on the Canvas has no native selection enabled by default, preventing users from copying technical data (IPs, CIDRs, MACs, statuses).
+4. **Dashboard KPIs & Suggestions**: Metric cards were static (no direct click navigation), and the onboarding card showed a redundant suggestion to register subnets even when the user already had subnets configured.
+5. **Expired Session (401)**: 401 Unauthorized responses were handled as local screen errors, showing error banners over stale data instead of forcing immediate re-authentication.
 
 ## Decision
 
 ### 1. NavRail Layout & Motion
-- A largura do NavRail expandido é fixada em `220.dp` com animação via `animateDpAsState(targetValue = railWidth, animationSpec = tween(250, easing = FastOutSlowInEasing))`.
-- A altura dos itens em ambos os estados (Slim e Expanded) é padronizada em `44.dp`, eliminando inconsistências de espaçamento vertical.
-- O indicador de seleção ativa (`Box` de 3dp) é renderizado como overlay ou margem zero sobre a borda esquerda, sem empurrar o ícone 12dp para a direita.
-- Todos os rótulos de navegação utilizam `maxLines = 1`, `softWrap = false` e `overflow = TextOverflow.Ellipsis`.
+- The expanded NavRail width is fixed at `220.dp`, animated through `animateDpAsState(targetValue = railWidth, animationSpec = tween(250, easing = FastOutSlowInEasing))`.
+- Item height in both states (Slim and Expanded) is standardized at `44.dp`, removing vertical spacing inconsistencies.
+- The active selection indicator (a 3dp `Box`) is rendered as an overlay with zero margin over the left edge, without pushing the icon 12dp to the right.
+- Every navigation label uses `maxLines = 1`, `softWrap = false` and `overflow = TextOverflow.Ellipsis`.
 
 ### 2. Canvas Outline & Selection Container
-- No CSS (`index.html`), remove-se o focus outline do elemento `canvas` e `#inframap-app` (`outline: none !important; box-shadow: none !important;`).
-- No Compose, envolve-se a área principal de conteúdo no `MainScaffold` em `SelectionContainer`, permitindo seleção e cópia de textos e tabelas. Componentes de clique e ação utilizam `DisableSelection` quando necessário.
+- In the CSS (`index.html`), the focus outline is removed from the `canvas` element and `#inframap-app` (`outline: none !important; box-shadow: none !important;`).
+- In Compose, the main content area in `MainScaffold` is wrapped in a `SelectionContainer`, allowing text and tables to be selected and copied. Click and action components use `DisableSelection` where needed.
 
 ### 3. Progressive Dashboard Onboarding & Card Navigation
-- Os cards de KPI tornam-se clicáveis com affordance de hover, navegando diretamente para suas respectivas rotas:
-  - Dispositivos Ativos $\to$ `Route.Devices`
-  - Dispositivos em Staging $\to$ `Route.Staging`
-  - Fontes de Descoberta $\to$ `Route.DiscoverySources`
-- O card de onboarding adota um modelo de máquina de estados progressiva:
-  - `totalSubnets == 0`: Sugere criação de sub-rede / Auto Setup.
-  - `totalSubnets > 0 && totalDiscoverySources == 0`: Sugere criação de Fonte de Descoberta.
-  - `totalDiscoverySources > 0 && totalActiveDevices == 0 && totalStagedDevices == 0`: Sugere disparo da primeira varredura.
-  - `totalActiveDevices > 0 || totalStagedDevices > 0`: Card omitido (precedência máxima: presença de dispositivos suprime o banner).
+- KPI cards become clickable with a hover affordance, navigating directly to their routes:
+  - Active Devices $\to$ `Route.Devices`
+  - Staged Devices $\to$ `Route.Staging`
+  - Discovery Sources $\to$ `Route.DiscoverySources`
+- The onboarding card follows a progressive state machine:
+  - `totalSubnets == 0`: suggests creating a subnet / Auto Setup.
+  - `totalSubnets > 0 && totalDiscoverySources == 0`: suggests creating a Discovery Source.
+  - `totalDiscoverySources > 0 && totalActiveDevices == 0 && totalStagedDevices == 0`: suggests triggering the first scan.
+  - `totalActiveDevices > 0 || totalStagedDevices > 0`: card omitted (highest precedence: the presence of devices suppresses the banner).
 
 ### 4. Global 401 Session Redirection
-- O `ApiClient` emite um sinal global de expiração de sessão (`onSessionExpired`) quando qualquer resposta HTTP for status `401 Unauthorized` ou possuir código de erro `"UNAUTHORIZED"`.
-- O listener global (conectado ao `Navigator`) executa imediatamente `navigator.navigateTo(Route.Login)`, limpando dados, tokens e estado de sessão, prevenindo alertas parciais sobrepostos em dados obsoletos.
+- `ApiClient` emits a global session-expired signal (`onSessionExpired`) whenever an HTTP response has status `401 Unauthorized` or carries the `"UNAUTHORIZED"` error code.
+- The global listener (wired to the `Navigator`) immediately runs `navigator.navigateTo(Route.Login)`, clearing data, tokens and session state, and preventing partial alerts over stale data.
 
 ## Consequences
-- **Positivas**: UX consistente, navegação suave e sem quebras visuais, maior produtividade técnica permitindo cópia de endereços e IDs, segurança reforçada com logout imediato em caso de token expirado.
-- **Neutras**: Testes unitários do `ApiClient`, `DashboardViewModel` e `NavRailTest` devem cobrir os novos fluxos de navegação e listeners.
+- **Positive**: consistent UX, smooth navigation without visual breaks, higher technical productivity by allowing addresses and IDs to be copied, and stronger security with immediate logout when a token expires.
+- **Neutral**: unit tests for `ApiClient`, `DashboardViewModel` and `NavRailTest` must cover the new navigation flows and listeners.

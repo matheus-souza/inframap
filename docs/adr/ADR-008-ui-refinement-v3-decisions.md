@@ -1,8 +1,9 @@
-# ADR-008: UI Refinement v3 Architectural Decisions
+# ADR-008 — UI Refinement v3 Architectural Decisions
 
-> **Status**: Accepted  
-> **Date**: 2026-08-21  
-> **Related RFC**: RFC-020  
+| Status | Accepted |
+|---|---|
+| Created | 2026-08-21 |
+| Related | RFC-020 |
 
 ---
 

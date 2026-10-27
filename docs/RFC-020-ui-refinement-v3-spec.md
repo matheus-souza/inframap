@@ -1,10 +1,11 @@
-# RFC-020: UI Refinement v3 — Excalidraw Slate Dark & Auto-Setup UX Spec
+# RFC-020 — UI Refinement v3 — Excalidraw Slate Dark & Auto-Setup UX Spec
 
-> **Status**: Approved  
-> **Authors**: InfraMap Core Team  
-> **Date**: 2026-08-21  
-> **Target Branch**: `develop`  
-> **Target Framework**: Kotlin Multiplatform / Compose WASM (`wasmJs`)  
+| Status | Accepted |
+|---|---|
+| Owner | InfraMap Core Team |
+| Created | 2026-08-21 |
+| Target Branch | `develop` |
+| Target Framework | Kotlin Multiplatform / Compose WASM (`wasmJs`) |
 
 ---
 

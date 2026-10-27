@@ -1,6 +1,10 @@
-# ADR-009: Browser E2E Quality Gate with Playwright for WASM Frontend Stability
+# ADR-009 — Browser E2E Quality Gate with Playwright for WASM Frontend Stability
 
-Date: 2026-08-25
+| Status | Accepted |
+|---|---|
+| Created | 2026-08-25 |
+
+---
 
 ## Context
 

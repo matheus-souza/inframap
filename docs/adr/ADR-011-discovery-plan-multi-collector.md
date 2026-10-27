@@ -1,6 +1,10 @@
-# 11. Discovery Plan — Multi-Collector Sources
+# ADR-011 — Discovery Plan — Multi-Collector Sources
 
-Date: 2026-08-29
+| Status | Accepted |
+|---|---|
+| Created | 2026-08-29 |
+
+---
 
 ## Context
 

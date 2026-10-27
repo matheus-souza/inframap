@@ -1,10 +1,12 @@
-# RFC-019: Excalidraw-Inspired Dark Canvas UI/UX Redesign Specification
+# RFC-019 — Excalidraw-Inspired Dark Canvas UI/UX Redesign Specification
 
-- **Feature Area**: Frontend UI/UX, Design System, Topology Canvas & Dashboard
-- **Target Release**: v0.6.0
-- **Status**: DRAFT / SPECIFIED
-- **Authors**: Antigravity AI & Matheus Souza
-- **ADR Reference**: ADR-006
+| Status | Accepted |
+|---|---|
+| Owner | Antigravity AI & Matheus Souza |
+| Created | 2026-08-12 |
+| Related | ADR-006 |
+| Feature Area | Frontend UI/UX, Design System, Topology Canvas & Dashboard |
+| Target Release | v0.6.0 |
 
 ---
 

@@ -1,6 +1,10 @@
-# 15. Multi-Target Discovery Sources
+# ADR-015 — Multi-Target Discovery Sources
 
-Date: 2026-10-27
+| Status | Proposed |
+|---|---|
+| Created | 2026-10-27 |
+
+---
 
 ## Context
 

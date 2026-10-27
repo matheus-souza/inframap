@@ -1,9 +1,10 @@
-# ADR-006: Excalidraw-Inspired Dark Canvas UI/UX Redesign System
+# ADR-006 — Excalidraw-Inspired Dark Canvas UI/UX Redesign System
 
-- **Status**: ACCEPTED
-- **Date**: 2026-08-12
-- **Authors**: Antigravity AI & Matheus Souza
-- **RFC Reference**: RFC-019 (UI Redesign Specification)
+| Status | Accepted |
+|---|---|
+| Owner | Antigravity AI & Matheus Souza |
+| Created | 2026-08-12 |
+| Related | RFC-019 (UI Redesign Specification) |
 
 ---
 
