@@ -1,6 +1,6 @@
 services:
   inframap:
-    image: ghcr.io/matheus-souza/inframap:latest
+    image: ghcr.io/matheus-souza/inframap:${INFRAMAP_TAG:-latest}
     container_name: inframap
     restart: unless-stopped
     ports:
