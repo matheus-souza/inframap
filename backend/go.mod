@@ -1,6 +1,6 @@
 module github.com/matheussouza/inframap
 
-go 1.25.13
+go 1.26.10
 
 require (
 	github.com/google/uuid v1.6.0
@@ -8,8 +8,8 @@ require (
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/trustelem/zxcvbn v1.0.1
-	golang.org/x/crypto v0.55.0
-	golang.org/x/net v0.57.0
+	golang.org/x/crypto v0.57.0
+	golang.org/x/net v0.60.0
 )
 
 require (
@@ -22,7 +22,7 @@ require (
 	github.com/sethvargo/go-retry v0.4.0 // indirect
 	github.com/test-go/testify v1.1.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )

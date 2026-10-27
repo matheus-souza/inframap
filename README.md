@@ -23,7 +23,7 @@
     <a href="https://github.com/matheussouza/inframap/issues/new?labels=enhancement">Request Feature</a>
   </p>
   <br />
-  <img src="https://img.shields.io/badge/Go-1.25+-bd93f9?style=flat-square&logo=go&logoColor=white" alt="Go Version">
+  <img src="https://img.shields.io/badge/Go-1.26+-bd93f9?style=flat-square&logo=go&logoColor=white" alt="Go Version">
   <img src="https://img.shields.io/badge/PostgreSQL-17-8be9fd?style=flat-square&logo=postgresql&logoColor=1e1f29" alt="PostgreSQL Version">
   <img src="https://img.shields.io/badge/Compose_Multiplatform-WASM-bd93f9?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin Compose Multiplatform">
   <img src="https://img.shields.io/badge/Container-ghcr.io%2Fmatheus--souza%2Finframap-50fa7b?style=flat-square&logo=docker&logoColor=white" alt="GHCR Container">
@@ -79,7 +79,7 @@ Designed specifically for homelabs and small-scale infrastructure, InfraMap inte
 
 ### Built With
 
-* **Backend:** [Go](https://go.dev/) (1.25+)
+* **Backend:** [Go](https://go.dev/) (1.26+)
 * **Database:** [PostgreSQL 17](https://www.postgresql.org/) (pgx & sqlc for type-safe queries)
 * **Migrations:** [Goose](https://github.com/pressly/goose) (Automated startup migrations)
 * **Frontend:** [Kotlin Compose Multiplatform (WASM)](https://www.jetbrains.com/lp/compose-multiplatform/) embedded via Go `embed.FS`
@@ -99,7 +99,7 @@ InfraMap is fully self-contained. A single command spins up the database, automa
 ### Prerequisites
 
 * [Docker & Docker Compose](https://www.docker.com/)
-* [Go 1.25+](https://go.dev/dl/)
+* [Go 1.26+](https://go.dev/dl/)
 * Make
 
 ### Installation

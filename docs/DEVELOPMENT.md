@@ -9,7 +9,7 @@ This document provides complete instructions for setting up your local environme
 Before getting started, ensure you have installed:
 
 - **mise** (Environment manager): Automatically manages tool versions via `.mise.toml`
-  - **Go**: 1.25.x
+  - **Go**: 1.26.x
   - **JDK**: 21 (Eclipse Temurin)
   - **Node.js**: 22.x
 - **Docker & Docker Compose**: For local PostgreSQL database and container testing
