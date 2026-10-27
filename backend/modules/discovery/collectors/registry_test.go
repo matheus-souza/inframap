@@ -91,12 +91,41 @@ func TestRequiresCIDR(t *testing.T) {
 		{name: "provider mixed with a sweep", types: []string{"proxmox", "mdns"}, want: true},
 		{name: "blank entries are ignored", types: []string{" ", "docker"}, want: false},
 		{name: "only blank entries", types: []string{" "}, want: true},
+		{name: "unknown type is treated as a sweep", types: []string{"something-new"}, want: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := collectors.RequiresCIDR(tt.types); got != tt.want {
 				t.Errorf("RequiresCIDR(%q) = %v, want %v", tt.types, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTargetScopeOf(t *testing.T) {
+	tests := []struct {
+		collectorType string
+		want          collectors.TargetScope
+	}{
+		{collectorType: "icmp_sweep", want: collectors.TargetScopePerTarget},
+		{collectorType: "icmp", want: collectors.TargetScopePerTarget},
+		{collectorType: "reverse_dns", want: collectors.TargetScopePerTarget},
+		{collectorType: "reverse-dns", want: collectors.TargetScopePerTarget},
+		{collectorType: "snmp", want: collectors.TargetScopePerTarget},
+		{collectorType: "mdns", want: collectors.TargetScopeUnion},
+		{collectorType: "arp_sweep", want: collectors.TargetScopeUnion},
+		{collectorType: " ARP ", want: collectors.TargetScopeUnion},
+		{collectorType: "proxmox", want: collectors.TargetScopeNone},
+		{collectorType: "docker", want: collectors.TargetScopeNone},
+		{collectorType: "unifi", want: collectors.TargetScopeNone},
+		{collectorType: "something-new", want: collectors.TargetScopePerTarget},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.collectorType, func(t *testing.T) {
+			if got := collectors.TargetScopeOf(tt.collectorType); got != tt.want {
+				t.Errorf("TargetScopeOf(%q) = %q, want %q", tt.collectorType, got, tt.want)
 			}
 		})
 	}

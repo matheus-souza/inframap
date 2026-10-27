@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/netip"
 	"os"
 	"testing"
 	"time"
@@ -83,6 +84,45 @@ func TestMDNSCollector_SubnetFiltering(t *testing.T) {
 	if !foundIPs["192.168.1.10"] || !foundIPs["192.168.1.20"] {
 		t.Errorf("expected IPs 192.168.1.10 and 192.168.1.20, got %v", foundIPs)
 	}
+}
+
+func TestMDNSCollector_UnionPrefixFiltering(t *testing.T) {
+	client := &mockMDNSClient{
+		observations: []collectors.RawObservation{
+			{IPAddress: "10.0.10.5", Hostname: "host-a", ProtocolSource: "mdns"},
+			{IPAddress: "10.0.20.7", Hostname: "host-b", ProtocolSource: "mdns"},
+			{IPAddress: "::ffff:10.0.20.8", Hostname: "host-mapped", ProtocolSource: "mdns"},
+			{IPAddress: "10.0.30.9", Hostname: "host-outside", ProtocolSource: "mdns"},
+		},
+	}
+	col := mdns.NewMDNSCollector(client)
+
+	target := collectors.DiscoveryTarget{
+		// CIDR is ignored once Prefixes is set: the query is filtered by the union.
+		CIDR:     "10.0.30.0/24",
+		Prefixes: []netip.Prefix{netip.MustParsePrefix("10.0.10.0/24"), netip.MustParsePrefix("10.0.20.0/24")},
+	}
+	results, err := col.Collect(context.Background(), target)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := make(map[string]bool)
+	for _, r := range results {
+		found[r.IPAddress] = true
+	}
+	if len(found) != 3 || !found["10.0.10.5"] || !found["10.0.20.7"] || !found["::ffff:10.0.20.8"] {
+		t.Errorf("expected the three addresses inside the union, got %v", found)
+	}
+
+	t.Run("rejects a prefix larger than /16", func(t *testing.T) {
+		_, err := col.Collect(context.Background(), collectors.DiscoveryTarget{
+			Prefixes: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/24"), netip.MustParsePrefix("10.0.0.0/8")},
+		})
+		if !errors.Is(err, collectors.ErrCIDRTooLarge) {
+			t.Errorf("expected ErrCIDRTooLarge, got %v", err)
+		}
+	})
 }
 
 func TestMDNSCollector_CIDRBounds(t *testing.T) {

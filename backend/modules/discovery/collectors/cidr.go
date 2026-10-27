@@ -16,15 +16,60 @@ func ParseTargetPrefix(cidr string) (netip.Prefix, error) {
 		return netip.Prefix{}, fmt.Errorf("invalid CIDR %q: %w", cidr, err)
 	}
 
-	bits := prefix.Bits()
-	if prefix.Addr().Is4() && bits < 16 {
-		return netip.Prefix{}, fmt.Errorf("%w: /%d", ErrCIDRTooLarge, bits)
-	}
-	if prefix.Addr().Is6() && bits < 112 {
-		return netip.Prefix{}, fmt.Errorf("%w: /%d (IPv6)", ErrCIDRTooLarge, bits)
+	if err := checkPrefixSize(prefix); err != nil {
+		return netip.Prefix{}, err
 	}
 
 	return prefix, nil
+}
+
+// checkPrefixSize enforces the /16 (IPv4) and /112 (IPv6) upper bound on a target block.
+func checkPrefixSize(prefix netip.Prefix) error {
+	bits := prefix.Bits()
+	if prefix.Addr().Is4() && bits < 16 {
+		return fmt.Errorf("%w: /%d", ErrCIDRTooLarge, bits)
+	}
+	if prefix.Addr().Is6() && bits < 112 {
+		return fmt.Errorf("%w: /%d (IPv6)", ErrCIDRTooLarge, bits)
+	}
+	return nil
+}
+
+// TargetPrefixes returns the address blocks a union-scope collector filters its responses
+// by: target.Prefixes when set, otherwise the single target.CIDR. Every block is held to
+// the same size limit as ParseTargetPrefix.
+func TargetPrefixes(target DiscoveryTarget) ([]netip.Prefix, error) {
+	if len(target.Prefixes) == 0 {
+		prefix, err := ParseTargetPrefix(target.CIDR)
+		if err != nil {
+			return nil, err
+		}
+		return []netip.Prefix{prefix}, nil
+	}
+
+	prefixes := make([]netip.Prefix, 0, len(target.Prefixes))
+	for _, prefix := range target.Prefixes {
+		if !prefix.IsValid() {
+			return nil, fmt.Errorf("invalid target prefix %q", prefix)
+		}
+		if err := checkPrefixSize(prefix); err != nil {
+			return nil, err
+		}
+		prefixes = append(prefixes, prefix)
+	}
+	return prefixes, nil
+}
+
+// PrefixesContain reports whether addr falls inside any of the prefixes. IPv4-mapped IPv6
+// addresses are matched as IPv4.
+func PrefixesContain(prefixes []netip.Prefix, addr netip.Addr) bool {
+	addr = addr.Unmap()
+	for _, prefix := range prefixes {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }
 
 // ExpandCIDR expands a CIDR string into all usable host IP addresses.
