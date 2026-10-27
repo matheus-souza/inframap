@@ -174,6 +174,7 @@ All endpoints are prefixed with `/api/v1`.
 - `GET  /api/v1/discovery/sources/:id/runs` — List collector run history for a source (query params: `limit` default 20, `offset` default 0). Returns `{ "data": { "items": [CollectorRunResponse], "total": count } }` with retention default of 7 days (configurable via `INFRAMAP_DISCOVERY_RUN_RETENTION_DAYS`).
 
 #### Supported Collectors (Network phase)
+
 | Collector | Type string | Description |
 |-----------|-------------|-------------|
 | ICMP Sweep | `icmp_sweep` | Ping sweep across subnet CIDR |
@@ -183,6 +184,7 @@ All endpoints are prefixed with `/api/v1`.
 | SNMP | `snmp` | SNMP v1/v2c/v3 device fingerprinting |
 
 #### Provider Integrations (next cycle — rendered as "Em breve" chips)
+
 | Collector | Type string | Description |
 |-----------|-------------|-------------|
 | Proxmox VE | `proxmox` | REST API import of VMs and containers |
