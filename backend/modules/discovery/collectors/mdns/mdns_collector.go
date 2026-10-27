@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"strings"
 	"time"
@@ -79,7 +80,8 @@ func (c *MDNSCollector) ID() string { return "mdns" }
 func (c *MDNSCollector) Name() string { return "mDNS / Bonjour Service Discovery" }
 
 // Collect performs mDNS service discovery on the target network subnet.
-// Only responses originating from IP addresses within the target CIDR are retained.
+// Only responses originating from IP addresses within the target blocks are retained: the
+// union of target.Prefixes when set, otherwise target.CIDR.
 func (c *MDNSCollector) Collect(ctx context.Context, target collectors.DiscoveryTarget) ([]collectors.RawObservation, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("mdns collector: %w", err)
@@ -89,14 +91,10 @@ func (c *MDNSCollector) Collect(ctx context.Context, target collectors.Discovery
 		return []collectors.RawObservation{}, nil
 	}
 
-	// Validate CIDR format and prefix size (/16 max per Guideline #81)
-	if _, err := collectors.ParseTargetPrefix(target.CIDR); err != nil {
-		return nil, fmt.Errorf("mdns collector: %w", err)
-	}
-
-	_, ipNet, err := net.ParseCIDR(target.CIDR)
+	// Validate the target blocks and their size (/16 max per Guideline #81)
+	prefixes, err := collectors.TargetPrefixes(target)
 	if err != nil {
-		return nil, fmt.Errorf("mdns collector: invalid target CIDR %q: %w", target.CIDR, err)
+		return nil, fmt.Errorf("mdns collector: %w", err)
 	}
 
 	rawObservations, err := c.client.Query(ctx, c.services, c.timeout)
@@ -109,7 +107,7 @@ func (c *MDNSCollector) Collect(ctx context.Context, target collectors.Discovery
 		return []collectors.RawObservation{}, nil
 	}
 
-	// Filter observations by target CIDR subnet and deduplicate per IP
+	// Filter observations by the target blocks and deduplicate per IP
 	now := time.Now()
 	byIP := make(map[string]*collectors.RawObservation)
 
@@ -118,9 +116,9 @@ func (c *MDNSCollector) Collect(ctx context.Context, target collectors.Discovery
 			return nil, fmt.Errorf("mdns collector: %w", err)
 		}
 
-		ip := net.ParseIP(obs.IPAddress)
-		if ip == nil || !ipNet.Contains(ip) {
-			continue // ignore IP outside target CIDR
+		addr, parseErr := netip.ParseAddr(obs.IPAddress)
+		if parseErr != nil || !collectors.PrefixesContain(prefixes, addr) {
+			continue // ignore IP outside every target block
 		}
 
 		existing, found := byIP[obs.IPAddress]
