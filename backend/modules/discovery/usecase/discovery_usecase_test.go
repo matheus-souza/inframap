@@ -680,18 +680,58 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 	})
 
 	t.Run("TriggerRun returns error when source has no CIDR", func(t *testing.T) {
-		sources, _ := uc.ListSources(ctx)
-		if len(sources) == 0 {
-			t.Fatal("expected at least 1 source")
+		// A sweep needs an address range. The source is created here rather than picked
+		// from ListSources, whose map-backed order could hand back a provider-only plan.
+		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "Sweep Without CIDR",
+			Type: "icmp_sweep",
+		})
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
 		}
-		srcID := sources[0].ID.String()
 
-		_, err := uc.TriggerRun(ctx, srcID)
+		_, err = uc.TriggerRun(ctx, src.ID.String())
 		if err == nil {
 			t.Fatal("expected error for source without CIDR, got nil")
 		}
-		if sources[0].LastStatus != "error" {
-			t.Errorf("expected source status 'error' after missing CIDR, got %q", sources[0].LastStatus)
+		if !strings.Contains(err.Error(), "no CIDR configured") {
+			t.Errorf("expected missing CIDR error, got %v", err)
+		}
+		if src.LastStatus != "error" {
+			t.Errorf("expected source status 'error' after missing CIDR, got %q", src.LastStatus)
+		}
+	})
+
+	t.Run("TriggerRun runs a provider-only source without CIDR", func(t *testing.T) {
+		// Providers enumerate an API, not an address range: the create form accepts a
+		// Proxmox- or Docker-only plan without a CIDR, so the run must accept it too.
+		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "Provider Only Source",
+			Collectors: []dto.CollectorConfig{
+				{Type: "proxmox"},
+				{Type: "docker"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateSource error: %v", err)
+		}
+		if src.ConfigCIDR != "" {
+			t.Fatalf("expected source without CIDR, got %q", src.ConfigCIDR)
+		}
+
+		_, err = uc.TriggerRun(ctx, src.ID.String())
+		if err != nil && strings.Contains(err.Error(), "no CIDR configured") {
+			t.Fatalf("provider-only source must not require a CIDR, got %v", err)
+		}
+
+		// Reaching the collectors is what proves the CIDR gate let the run through. The
+		// providers are not registered in this harness, so each run records an error.
+		runs, err := discRepo.ListRunsBySourceID(ctx, src.ID, 10)
+		if err != nil {
+			t.Fatalf("ListRunsBySourceID error: %v", err)
+		}
+		if len(runs) != 2 {
+			t.Fatalf("expected 2 collector runs recorded, got %d", len(runs))
 		}
 	})
 
