@@ -32,14 +32,12 @@ class EmptyStateTest {
             onNodeWithText("Test Title").assertExists()
             onNodeWithText("Test Description").assertExists()
 
-            // Wait, Compose Multiplatform test APIs might be slightly different or need click.
-            // For simplicity, just asserting they exist is enough since it's a structural test.
             onNodeWithText("Primary").assertExists()
             onNodeWithText("Secondary").assertExists()
-            
+
             onNodeWithText("Primary").performClick()
             assertTrue(primaryClicked)
-            
+
             onNodeWithText("Secondary").performClick()
             assertTrue(secondaryClicked)
         }
