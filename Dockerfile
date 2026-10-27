@@ -16,7 +16,7 @@ COPY frontend/src/ /app/frontend/src/
 RUN ./gradlew wasmJsBrowserDistribution --no-daemon
 
 # Stage 2: Build Backend Single Binary (Go + Embedded WASM)
-FROM golang:1.25-alpine AS builder-backend
+FROM golang:1.26-alpine AS builder-backend
 ARG APP_VERSION=dev
 WORKDIR /app/backend
 COPY backend/go.mod backend/go.sum ./
