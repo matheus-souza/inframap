@@ -91,26 +91,56 @@ func IsImplemented(raw string) bool {
 	return ImplementedStatus[canonical]
 }
 
-// providerTypes are the collectors that enumerate an external API instead of probing an
-// address range, so they need no target CIDR.
-var providerTypes = map[string]bool{
-	TypeProxmox: true,
-	TypeDocker:  true,
-	TypeUniFi:   true,
+// TargetScope tells the orchestrator how a collector is invoked across the targets of a
+// multi-target run (RFC-026 §3).
+type TargetScope string
+
+const (
+	// TargetScopePerTarget collectors probe one address block per call, so they run once per
+	// target with that target's CIDR.
+	TargetScopePerTarget TargetScope = "per_target"
+	// TargetScopeUnion collectors issue a single link-local query (multicast, local ARP
+	// table), so they run once and filter responses by the union of all targets.
+	TargetScopeUnion TargetScope = "union"
+	// TargetScopeNone collectors enumerate an external API instead of probing an address
+	// range, so they run once with no target.
+	TargetScopeNone TargetScope = "none"
+)
+
+// targetScopes maps canonical collector types to their target scope.
+var targetScopes = map[string]TargetScope{
+	CollectorIDICMP:       TargetScopePerTarget,
+	CollectorIDReverseDNS: TargetScopePerTarget,
+	CollectorIDSNMP:       TargetScopePerTarget,
+	CollectorIDMDNS:       TargetScopeUnion,
+	CollectorIDARP:        TargetScopeUnion,
+	TypeProxmox:           TargetScopeNone,
+	TypeDocker:            TargetScopeNone,
+	TypeUniFi:             TargetScopeNone,
+}
+
+// TargetScopeOf resolves the target scope of a raw collector type, ID or alias. Unknown
+// types are treated as per-target sweeps, the conservative choice: they get a CIDR and are
+// never handed a broader range than the one they were configured for.
+func TargetScopeOf(collectorType string) TargetScope {
+	if scope, ok := targetScopes[CanonicalType(collectorType)]; ok {
+		return scope
+	}
+	return TargetScopePerTarget
 }
 
 // RequiresCIDR reports whether a plan made of the given collector types needs a target
-// CIDR. Any network sweep needs one; a plan made only of providers does not. An empty plan
-// falls back to a sweep and needs one, matching the create form's requiresCidr rule.
+// CIDR. Any network sweep needs one; a plan made only of providers (TargetScopeNone) does
+// not. An empty plan falls back to a sweep and needs one, matching the create form's
+// requiresCidr rule.
 func RequiresCIDR(collectorTypes []string) bool {
 	hasCollector := false
 	for _, raw := range collectorTypes {
-		normalized := strings.ToLower(strings.TrimSpace(raw))
-		if normalized == "" {
+		if strings.TrimSpace(raw) == "" {
 			continue
 		}
 		hasCollector = true
-		if !providerTypes[normalized] {
+		if TargetScopeOf(raw) != TargetScopeNone {
 			return true
 		}
 	}

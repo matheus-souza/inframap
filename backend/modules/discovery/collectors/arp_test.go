@@ -3,6 +3,7 @@ package collectors_test
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"testing"
 
 	"github.com/matheussouza/inframap/modules/discovery/collectors"
@@ -63,6 +64,38 @@ func TestARPCollector_Collect(t *testing.T) {
 		}
 		if obs[0].ObservedAt.IsZero() {
 			t.Error("obs[0].ObservedAt should not be zero")
+		}
+	})
+
+	t.Run("Filters by the union of Prefixes when set", func(t *testing.T) {
+		reader := &fakeARPReader{
+			entries: []collectors.ARPEntry{
+				{IPAddress: "10.0.10.5", MACAddress: "aa:bb:cc:dd:ee:01", Interface: "eth0"},
+				{IPAddress: "10.0.20.7", MACAddress: "aa:bb:cc:dd:ee:02", Interface: "eth1"},
+				{IPAddress: "10.0.30.9", MACAddress: "aa:bb:cc:dd:ee:03", Interface: "eth2"}, // outside every prefix
+			},
+		}
+		c := collectors.NewARPCollector(reader)
+		target := collectors.DiscoveryTarget{
+			// CIDR is ignored once Prefixes is set.
+			CIDR:     "10.0.30.0/24",
+			Prefixes: []netip.Prefix{netip.MustParsePrefix("10.0.10.0/24"), netip.MustParsePrefix("10.0.20.0/24")},
+		}
+
+		obs, err := c.Collect(context.Background(), target)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(obs) != 2 || obs[0].IPAddress != "10.0.10.5" || obs[1].IPAddress != "10.0.20.7" {
+			t.Fatalf("expected the two entries inside the union, got %+v", obs)
+		}
+	})
+
+	t.Run("Rejects an invalid prefix in Prefixes", func(t *testing.T) {
+		c := collectors.NewARPCollector(&fakeARPReader{})
+		_, err := c.Collect(context.Background(), collectors.DiscoveryTarget{Prefixes: []netip.Prefix{{}}})
+		if err == nil {
+			t.Fatal("expected an error for an invalid prefix")
 		}
 	})
 
