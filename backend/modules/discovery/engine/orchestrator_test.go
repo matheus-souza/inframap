@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/netip"
 	"runtime"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -525,4 +528,308 @@ func TestOrchestrator_RunScan_DeduplicatesByProviderRef(t *testing.T) {
 			t.Errorf("TotalDiscovered = %d, want 1", res.TotalDiscovered)
 		}
 	})
+}
+
+// recordingCollector records every target it is invoked with. onCollect, when set, runs
+// before the observations are returned and may replace them or fail the call.
+type recordingCollector struct {
+	id           string
+	observations []collectors.RawObservation
+	onCollect    func(ctx context.Context, target collectors.DiscoveryTarget) error
+
+	mu    sync.Mutex
+	calls []collectors.DiscoveryTarget
+}
+
+func (r *recordingCollector) ID() string   { return r.id }
+func (r *recordingCollector) Name() string { return r.id }
+func (r *recordingCollector) Collect(ctx context.Context, target collectors.DiscoveryTarget) ([]collectors.RawObservation, error) {
+	r.mu.Lock()
+	r.calls = append(r.calls, target)
+	r.mu.Unlock()
+	if r.onCollect != nil {
+		if err := r.onCollect(ctx, target); err != nil {
+			return nil, err
+		}
+	}
+	return r.observations, nil
+}
+
+func (r *recordingCollector) recordedCalls() []collectors.DiscoveryTarget {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]collectors.DiscoveryTarget(nil), r.calls...)
+}
+
+func threeTargets() []collectors.DiscoveryTarget {
+	return []collectors.DiscoveryTarget{
+		{CIDR: "10.0.10.0/24", SubnetID: "sub-10"},
+		{CIDR: "10.0.20.0/24"},
+		{CIDR: "10.0.30.0/24"},
+	}
+}
+
+func detailsFor(res *engine.ScanResult, collectorType string) []engine.CollectorRunDetail {
+	var out []engine.CollectorRunDetail
+	for _, d := range res.Collectors {
+		if d.CollectorType == collectorType {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func TestOrchestrator_RunTargets_Scopes(t *testing.T) {
+	sourceID := uuid.New()
+	credentialID := "cred-1"
+	run := collectors.DiscoveryTarget{SourceID: &sourceID, CredentialSetID: &credentialID, CIDR: "192.0.2.0/24"}
+	targets := threeTargets()
+
+	icmp := &recordingCollector{id: "icmp"}
+	arp := &recordingCollector{id: "arp"}
+	docker := &recordingCollector{id: "docker"}
+
+	orch := engine.NewDefaultOrchestrator(nil)
+	orch.RegisterCollector(icmp)
+	orch.RegisterCollector(arp)
+	orch.RegisterCollector(docker)
+
+	res, err := orch.RunTargets(context.Background(), run, targets, nil, []string{"icmp_sweep", "arp_sweep", "docker"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	t.Run("per_target collector runs once per target with that target's CIDR", func(t *testing.T) {
+		calls := icmp.recordedCalls()
+		if len(calls) != len(targets) {
+			t.Fatalf("icmp called %d times, want %d", len(calls), len(targets))
+		}
+		// Targets run sequentially, so the calls arrive in target order.
+		for i, call := range calls {
+			if call.CIDR != targets[i].CIDR || call.SubnetID != targets[i].SubnetID {
+				t.Errorf("call %d got CIDR %q SubnetID %q, want %q %q", i, call.CIDR, call.SubnetID, targets[i].CIDR, targets[i].SubnetID)
+			}
+			if call.SourceID != &sourceID || call.CredentialSetID != &credentialID {
+				t.Errorf("call %d did not carry the run-wide SourceID and CredentialSetID", i)
+			}
+			if len(call.Prefixes) != 0 {
+				t.Errorf("call %d got Prefixes %v, want none", i, call.Prefixes)
+			}
+		}
+
+		rows := detailsFor(res, "icmp")
+		if len(rows) != len(targets) {
+			t.Fatalf("got %d icmp rows, want %d", len(rows), len(targets))
+		}
+		for i, row := range rows {
+			if row.TargetCIDR != targets[i].CIDR || row.Status != "success" {
+				t.Errorf("row %d = %+v, want success for %q", i, row, targets[i].CIDR)
+			}
+		}
+	})
+
+	t.Run("union collector runs once with every target prefix", func(t *testing.T) {
+		calls := arp.recordedCalls()
+		if len(calls) != 1 {
+			t.Fatalf("arp called %d times, want 1", len(calls))
+		}
+		want := []netip.Prefix{
+			netip.MustParsePrefix("10.0.10.0/24"),
+			netip.MustParsePrefix("10.0.20.0/24"),
+			netip.MustParsePrefix("10.0.30.0/24"),
+		}
+		if !slices.Equal(calls[0].Prefixes, want) {
+			t.Errorf("arp Prefixes = %v, want %v", calls[0].Prefixes, want)
+		}
+		if calls[0].CIDR != "" || calls[0].SourceID != &sourceID {
+			t.Errorf("arp target = %+v, want no CIDR and the run's SourceID", calls[0])
+		}
+		rows := detailsFor(res, "arp")
+		if len(rows) != 1 || rows[0].TargetCIDR != "" {
+			t.Errorf("arp rows = %+v, want one row with no TargetCIDR", rows)
+		}
+	})
+
+	t.Run("none-scope collector runs once with no target", func(t *testing.T) {
+		calls := docker.recordedCalls()
+		if len(calls) != 1 {
+			t.Fatalf("docker called %d times, want 1", len(calls))
+		}
+		if calls[0].CIDR != "" || len(calls[0].Prefixes) != 0 || calls[0].SourceID != &sourceID {
+			t.Errorf("docker target = %+v, want no CIDR, no Prefixes and the run's SourceID", calls[0])
+		}
+		rows := detailsFor(res, "docker")
+		if len(rows) != 1 || rows[0].TargetCIDR != "" {
+			t.Errorf("docker rows = %+v, want one row with no TargetCIDR", rows)
+		}
+	})
+
+	t.Run("result carries the run and its targets", func(t *testing.T) {
+		if len(res.Targets) != len(targets) || res.Targets[0].CIDR != targets[0].CIDR || res.Targets[2].CIDR != targets[2].CIDR {
+			t.Errorf("Targets = %+v, want %+v", res.Targets, targets)
+		}
+		if res.Target.SourceID != &sourceID {
+			t.Errorf("Target.SourceID = %v, want the run's", res.Target.SourceID)
+		}
+		if len(res.Collectors) != 5 {
+			t.Errorf("got %d run details, want 5 (3 icmp + arp + docker)", len(res.Collectors))
+		}
+	})
+}
+
+func TestOrchestrator_RunTargets_NoTargets(t *testing.T) {
+	sourceID := uuid.New()
+	icmp := &recordingCollector{id: "icmp"}
+	docker := &recordingCollector{id: "docker"}
+
+	orch := engine.NewDefaultOrchestrator(nil)
+	orch.RegisterCollector(icmp)
+	orch.RegisterCollector(docker)
+
+	res, err := orch.RunTargets(context.Background(), collectors.DiscoveryTarget{SourceID: &sourceID}, nil, nil, []string{"icmp_sweep", "docker"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(docker.recordedCalls()) != 1 {
+		t.Errorf("docker called %d times, want 1", len(docker.recordedCalls()))
+	}
+	if len(icmp.recordedCalls()) != 0 {
+		t.Errorf("icmp called %d times without a target, want 0", len(icmp.recordedCalls()))
+	}
+	rows := detailsFor(res, "icmp")
+	if len(rows) != 1 || rows[0].Status != "error" || rows[0].ErrorMessage == "" {
+		t.Errorf("icmp rows = %+v, want one error row", rows)
+	}
+}
+
+func TestOrchestrator_RunTargets_Cancellation(t *testing.T) {
+	// snmp blocks on the second target until icmp cancels the run, so both need a slot.
+	t.Setenv("INFRAMAP_SCAN_CONCURRENCY", "2")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	targets := threeTargets()
+	// The run is cancelled while the second target is being scanned.
+	icmp := &recordingCollector{
+		id: "icmp",
+		onCollect: func(ctx context.Context, target collectors.DiscoveryTarget) error {
+			if target.CIDR == targets[1].CIDR {
+				cancel()
+				return ctx.Err()
+			}
+			return nil
+		},
+		observations: []collectors.RawObservation{{IPAddress: "10.0.10.5", ProtocolSource: "icmp", ConfidenceScore: 50}},
+	}
+	snmp := &recordingCollector{
+		id: "snmp",
+		onCollect: func(ctx context.Context, target collectors.DiscoveryTarget) error {
+			if target.CIDR == targets[1].CIDR {
+				<-ctx.Done()
+				return ctx.Err()
+			}
+			return nil
+		},
+	}
+
+	orch := engine.NewDefaultOrchestrator(nil)
+	orch.RegisterCollector(icmp)
+	orch.RegisterCollector(snmp)
+
+	res, err := orch.RunTargets(ctx, collectors.DiscoveryTarget{}, targets, nil, []string{"icmp_sweep", "snmp"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected a cancellation error, got %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected a partial result alongside the cancellation error")
+	}
+
+	for _, col := range []*recordingCollector{icmp, snmp} {
+		for _, call := range col.recordedCalls() {
+			if call.CIDR == targets[2].CIDR {
+				t.Errorf("%s ran against %q after the run was cancelled", col.id, call.CIDR)
+			}
+		}
+
+		rows := detailsFor(res, col.id)
+		if len(rows) != len(targets) {
+			t.Fatalf("got %d %s rows, want one per target", len(rows), col.id)
+		}
+		if rows[0].TargetCIDR != targets[0].CIDR || rows[0].Status != "success" {
+			t.Errorf("%s first row = %+v, want success on %q", col.id, rows[0], targets[0].CIDR)
+		}
+		if rows[1].TargetCIDR != targets[1].CIDR || rows[1].Status == "success" {
+			t.Errorf("%s second row = %+v, want an interrupted run on %q", col.id, rows[1], targets[1].CIDR)
+		}
+		if rows[2].TargetCIDR != targets[2].CIDR || rows[2].Status != "skipped" {
+			t.Errorf("%s third row = %+v, want skipped on %q", col.id, rows[2], targets[2].CIDR)
+		}
+	}
+
+	if res.TotalDiscovered != 0 || res.TotalUpdated != 0 {
+		t.Errorf("a cancelled run must not process observations, got %+v", res)
+	}
+}
+
+func TestOrchestrator_RunTargets_CancelledBeforeStart(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	orch := engine.NewDefaultOrchestrator(nil)
+	orch.RegisterCollector(&recordingCollector{id: "icmp"})
+
+	if _, err := orch.RunTargets(ctx, collectors.DiscoveryTarget{}, threeTargets(), nil, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected a cancellation error, got %v", err)
+	}
+}
+
+func TestOrchestrator_RunTargets_DeduplicatesAcrossTargets(t *testing.T) {
+	// A device reachable from two targets (a multi-homed host answering on both, or the
+	// same MAC learnt on two interfaces) is reported by every per-target call.
+	icmp := &recordingCollector{
+		id: "icmp",
+		observations: []collectors.RawObservation{
+			{IPAddress: "10.0.10.5", MACAddress: "aa:bb:cc:dd:ee:01", ProtocolSource: "icmp", ConfidenceScore: 50},
+		},
+	}
+
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+	orch := engine.NewDefaultOrchestrator(bus)
+	orch.RegisterCollector(icmp)
+
+	var callbacks int
+	orch.SetDeviceCallback(func(_ context.Context, _ *dto.NormalizedDeviceDTO, _ string, _ bool) {
+		callbacks++
+	})
+
+	targets := threeTargets()[:2]
+	res, err := orch.RunTargets(context.Background(), collectors.DiscoveryTarget{}, targets, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.TotalCollected != 2 {
+		t.Errorf("TotalCollected = %d, want 2", res.TotalCollected)
+	}
+	if res.TotalDiscovered != 1 {
+		t.Errorf("TotalDiscovered = %d, want 1", res.TotalDiscovered)
+	}
+	if callbacks != 1 {
+		t.Errorf("device callback invoked %d times, want 1", callbacks)
+	}
+}
+
+func TestOrchestrator_RunTargets_UnionLeavesOutInvalidTargets(t *testing.T) {
+	mdns := &recordingCollector{id: "mdns"}
+	orch := engine.NewDefaultOrchestrator(nil)
+	orch.RegisterCollector(mdns)
+
+	targets := []collectors.DiscoveryTarget{{CIDR: "10.0.10.0/24"}, {CIDR: "not-a-cidr"}}
+	if _, err := orch.RunTargets(context.Background(), collectors.DiscoveryTarget{}, targets, nil, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	calls := mdns.recordedCalls()
+	if len(calls) != 1 || !slices.Equal(calls[0].Prefixes, []netip.Prefix{netip.MustParsePrefix("10.0.10.0/24")}) {
+		t.Errorf("mdns calls = %+v, want one call with the valid prefix only", calls)
+	}
 }
