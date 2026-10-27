@@ -80,14 +80,14 @@ InfraMap successfully completed its foundation redesign (RFC-019) and critical b
 
 ---
 
-## 4. Delivery Slices & Tickets Roadmap
+## 4. Delivery Slices
 
-| Ticket | Scope | Target Package | Dependencies |
+| Slice | Scope | Target Package | Dependencies |
 |---|---|---|---|
-| **T37** | Excalidraw Dark Tokens, Shimmer Skeletons & Toast System | `frontend/designsystem` | — |
-| **T38** | Dashboard Auto-Setup Hero Card with Live Scan Progress | `frontend/ui/dashboard` | T37 |
-| **T39** | Universal Categorized Command Palette (`Ctrl+K`) | `frontend/ui/command` | T37 |
-| **T40** | Uniform Empty States & Monospace Network Data Polish | `frontend/ui/*` | T37, T38 |
+| **1** | Excalidraw Dark Tokens, Shimmer Skeletons & Toast System | `frontend/designsystem` | — |
+| **2** | Dashboard Auto-Setup Hero Card with Live Scan Progress | `frontend/ui/dashboard` | 1 |
+| **3** | Universal Categorized Command Palette (`Ctrl+K`) | `frontend/ui/command` | 1 |
+| **4** | Uniform Empty States & Monospace Network Data Polish | `frontend/ui/*` | 1, 2 |
 
 ---
 

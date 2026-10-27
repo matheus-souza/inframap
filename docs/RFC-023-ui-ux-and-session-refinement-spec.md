@@ -96,4 +96,4 @@ Implementar uma suíte coordenada de refinamentos de UI/UX, transições e ciclo
 ---
 
 ## Further Notes
-Esta especificação consolida as decisões arquiteturais registradas no [ADR-012](./adr/ADR-012-ui-ux-and-session-lifecycle.md) e estabelece a base para o fatiamento dos tickets em `.scratch/ui-ux-auth-refinement/issues/`.
+Esta especificação consolida as decisões arquiteturais registradas no [ADR-012](./adr/ADR-012-ui-ux-and-session-lifecycle.md) e estabelece a base para o fatiamento dos tickets de implementação.

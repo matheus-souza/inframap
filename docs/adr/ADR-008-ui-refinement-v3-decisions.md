@@ -3,7 +3,6 @@
 > **Status**: Accepted  
 > **Date**: 2026-08-21  
 > **Related RFC**: RFC-020  
-> **Supervises**: T37–T40 Implementation Cycle  
 
 ---
 

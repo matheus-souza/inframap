@@ -17,7 +17,7 @@ This RFC establishes the end-to-end architecture, domain contracts, database sch
 
 ## 2. Strategic Decisions Reference (ADR-013)
 
-This RFC builds upon the 8 architectural decisions agreed upon in [ADR-013](file:///Users/matheussouza/git/personal/inframap/docs/adr/ADR-013-proxmox-docker-provider-collector-architecture.md):
+This RFC builds upon the 8 architectural decisions agreed upon in [ADR-013](./adr/ADR-013-proxmox-docker-provider-collector-architecture.md):
 1. **Adapter Pattern**: Use `internal/platform/sdk.Provider` for transport/parsing and wrap it in `ProviderCollector` within `modules/discovery/collectors` (single reconciliation path).
 2. **Pull-Lazy Credentials**: `DiscoveryTarget` carries `SourceID uuid.UUID`; `ProviderConfigResolver` resolves and decrypts secrets lazily at execution time.
 3. **Workload Identity (`ProviderRef`)**: First-class structured identity (`provider:scope:kind:native_id`) and **Tier 0** Matcher precedence.
@@ -289,28 +289,28 @@ be the reason a connection skips certificate validation. See CONTEXT.md guidelin
 
 ---
 
-## 8. Rollout & Task Breakdown (Tickets)
+## 8. Rollout & Delivery Slices
 
-1. **T01 — Schema Migration & Domain Identity Model**:
+1. **Schema Migration & Domain Identity Model**:
    - Migration `20260901000001_provider_collectors_and_topology_hierarchy.sql`.
    - `ProviderRef`, `ParentProviderRef` models in `collectors/collector.go` and `dto/`.
    - `validator.go` relaxation to `ErrMissingIdentity`.
-2. **T02 — Provider Collector Adapter & Pull-Lazy Config Resolver**:
+2. **Provider Collector Adapter & Pull-Lazy Config Resolver**:
    - `ProviderCollector` adapter in `modules/discovery/collectors/provider_collector.go`.
    - `ProviderConfigResolver` implementation in `pg_discovery_repository.go`.
-3. **T03 — Proxmox VE Complete Provider Implementation**:
+3. **Proxmox VE Complete Provider Implementation**:
    - QEMU VMs, LXC Containers, Cluster Nodes, allocated resources, guest-agent IP resolution.
    - Comprehensive unit tests and API mocks.
-4. **T04 — Docker Engine Complete Provider Implementation**:
+4. **Docker Engine Complete Provider Implementation**:
    - Unix socket & TCP/TLS transport, `all=true` containers, port mappings, network attachments.
    - Comprehensive unit tests and daemon API mocks.
-5. **T05 — Matcher Tier 0 & Reconciler Lifecycle Engine**:
+5. **Matcher Tier 0 & Reconciler Lifecycle Engine**:
    - Tier 0 `ProviderRef` matching in `matcher.go`.
    - Hysteresis state machine (1st absence → `offline`, 2nd → `archived`) with scope guard-rails.
-6. **T06 — Topology Containment & VM Migration Reparenting**:
+6. **Topology Containment & VM Migration Reparenting**:
    - Two-pass batch parent resolution and `topology.reparented` event handling in `topology_usecase.go`.
-7. **T07 — Frontend Multi-Provider Plan Form & Health-Check UI**:
+7. **Frontend Multi-Provider Plan Form & Health-Check UI**:
    - Dynamic provider config fields in `CreateDiscoveryPlanScreen.kt`.
    - "Test Connection" button with real-time feedback toast.
-8. **T08 — Topology Graph & Device Detail Badges**:
+8. **Topology Graph & Device Detail Badges**:
    - Rendering `hosted_on` containment links and `power_state` chips in Compose UI.
