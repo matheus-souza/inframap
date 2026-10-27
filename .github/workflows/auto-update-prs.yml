@@ -1,0 +1,83 @@
+name: Auto-Update PR Branches
+
+# Branch protection on develop requires PRs to be up to date before merging (strict), and
+# auto-merge does not update branches by itself: a PR armed for auto-merge that falls behind
+# because another PR landed first sits green and BLOCKED forever. GitHub's merge queue would
+# solve this, but it is only available to organization-owned repositories, so this workflow
+# does its job: whenever develop moves, every open PR targeting it that is behind gets
+# develop merged in, which re-runs CI against the current develop and lets auto-merge proceed.
+#
+# A PR whose branch conflicts with develop cannot be updated automatically. The run fails and
+# names it, so the conflict is resolved by hand instead of the PR silently waiting.
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: auto-update-prs
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  update-behind-prs:
+    name: Update PRs Behind Develop
+    runs-on: ubuntu-latest
+
+    steps:
+      # Updating a branch with GITHUB_TOKEN would push a commit that triggers no workflow
+      # (see CONTEXT.md #194): the PR would be up to date but its CI would never re-run, so
+      # the required checks would stay attached to the old head and auto-merge would not fire.
+      - name: Require AUTOMERGE_PAT
+        if: env.AUTOMERGE_PAT == ''
+        env:
+          AUTOMERGE_PAT: ${{ secrets.AUTOMERGE_PAT }}
+        run: |
+          echo "::error::AUTOMERGE_PAT is not configured. Branches updated with GITHUB_TOKEN do not re-run CI, so PRs would stay blocked."
+          exit 1
+
+      - name: Update branches behind develop
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t PRS < <(gh pr list --repo "$REPO" --base develop --state open --limit 100 \
+            --json number,isDraft,headRefOid \
+            -q '.[] | select(.isDraft | not) | "\(.number) \(.headRefOid)"')
+
+          if [ "${#PRS[@]}" -eq 0 ]; then
+            echo "No open pull requests target develop."
+            exit 0
+          fi
+
+          FAILED=""
+          for entry in "${PRS[@]}"; do
+            read -r NUMBER HEAD <<< "$entry"
+
+            # Commits on develop that the PR head does not contain yet
+            BEHIND=$(gh api "repos/$REPO/compare/$HEAD...develop" -q '.ahead_by')
+            if [ "$BEHIND" -eq 0 ]; then
+              echo "✅ #$NUMBER is up to date with develop"
+              continue
+            fi
+
+            if OUTPUT=$(gh api -X PUT "repos/$REPO/pulls/$NUMBER/update-branch" 2>&1); then
+              echo "🔄 #$NUMBER was $BEHIND commit(s) behind develop — branch updated, CI re-running"
+            else
+              echo "::error title=PR #$NUMBER needs a manual update::$OUTPUT"
+              FAILED="$FAILED #$NUMBER"
+            fi
+          done
+
+          if [ -n "$FAILED" ]; then
+            echo "::error::Could not update:$FAILED. Merge develop into each branch and resolve the conflicts by hand."
+            exit 1
+          fi
