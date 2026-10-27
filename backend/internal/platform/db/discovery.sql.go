@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"net/netip"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -50,10 +51,10 @@ func (q *Queries) CountDiscoveredDevicesBySourceID(ctx context.Context, discover
 
 const createCollectorRun = `-- name: CreateCollectorRun :one
 INSERT INTO discovery_collector_runs (
-    id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
+    id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at, target_cidr
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9
-) RETURNING id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+) RETURNING id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at, target_cidr
 `
 
 type CreateCollectorRunParams struct {
@@ -66,6 +67,7 @@ type CreateCollectorRunParams struct {
 	ErrorMessage  pgtype.Text        `json:"error_message"`
 	StartedAt     pgtype.Timestamptz `json:"started_at"`
 	FinishedAt    pgtype.Timestamptz `json:"finished_at"`
+	TargetCidr    *netip.Prefix      `json:"target_cidr"`
 }
 
 func (q *Queries) CreateCollectorRun(ctx context.Context, arg CreateCollectorRunParams) (DiscoveryCollectorRun, error) {
@@ -79,6 +81,7 @@ func (q *Queries) CreateCollectorRun(ctx context.Context, arg CreateCollectorRun
 		arg.ErrorMessage,
 		arg.StartedAt,
 		arg.FinishedAt,
+		arg.TargetCidr,
 	)
 	var i DiscoveryCollectorRun
 	err := row.Scan(
@@ -91,6 +94,7 @@ func (q *Queries) CreateCollectorRun(ctx context.Context, arg CreateCollectorRun
 		&i.ErrorMessage,
 		&i.StartedAt,
 		&i.FinishedAt,
+		&i.TargetCidr,
 	)
 	return i, err
 }
@@ -300,7 +304,7 @@ func (q *Queries) ListAllDiscoverySourceCollectors(ctx context.Context) ([]Disco
 }
 
 const listCollectorRunsBySource = `-- name: ListCollectorRunsBySource :many
-SELECT id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at FROM discovery_collector_runs
+SELECT id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at, target_cidr FROM discovery_collector_runs
 WHERE source_id = $1
 ORDER BY started_at DESC, id DESC
 LIMIT $2 OFFSET $3
@@ -331,6 +335,7 @@ func (q *Queries) ListCollectorRunsBySource(ctx context.Context, arg ListCollect
 			&i.ErrorMessage,
 			&i.StartedAt,
 			&i.FinishedAt,
+			&i.TargetCidr,
 		); err != nil {
 			return nil, err
 		}
