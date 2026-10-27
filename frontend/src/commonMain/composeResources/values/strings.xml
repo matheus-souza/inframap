@@ -374,6 +374,7 @@
     <string name="discovery_col_name">Nome</string>
     <string name="discovery_col_type">Tipo</string>
     <string name="discovery_col_cidr">CIDR</string>
+    <string name="discovery_targets_more">+%1$d</string>
     <string name="discovery_col_schedule">Agendamento</string>
     <string name="discovery_col_status">Status</string>
     <string name="discovery_col_actions">Ações</string>
