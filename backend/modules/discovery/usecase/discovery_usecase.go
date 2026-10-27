@@ -360,27 +360,6 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		return nil, fmt.Errorf("failed to set discovery status to running: %w", updateErr)
 	}
 
-	cidr := source.ConfigCIDR
-	if cidr == "" {
-		if u.logger != nil {
-			u.logger.Warn("discovery source has no CIDR configured, skipping scan", slog.String("source_id", source.ID.String()))
-		}
-		if _, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error"); errStatusErr != nil {
-			return nil, fmt.Errorf("failed to set error status for missing CIDR: %w", errStatusErr)
-		}
-		return nil, fmt.Errorf("discovery source %s has no CIDR configured", source.ID)
-	}
-
-	if _, err := collectors.ParseTargetPrefix(cidr); err != nil {
-		if u.logger != nil {
-			u.logger.Error("discovery source has invalid CIDR configured", slog.String("source_id", source.ID.String()), slog.Any("error", err))
-		}
-		if _, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error"); errStatusErr != nil {
-			return nil, fmt.Errorf("failed to set error status for invalid CIDR: %w", errStatusErr)
-		}
-		return nil, fmt.Errorf("discovery source %s has invalid CIDR %q: %w", source.ID, cidr, err)
-	}
-
 	// 1. Determine enabled collectors
 	var enabledCollectorTypes []string
 	for _, col := range source.Collectors {
@@ -391,6 +370,31 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 	if len(enabledCollectorTypes) == 0 {
 		if source.Type != "" {
 			enabledCollectorTypes = []string{source.Type}
+		}
+	}
+
+	// A CIDR describes a network sweep. A plan made only of providers enumerates an API and
+	// has no range to scan, so it runs without one; the create form accepts that plan too.
+	cidr := source.ConfigCIDR
+	if cidr == "" && collectors.RequiresCIDR(enabledCollectorTypes) {
+		if u.logger != nil {
+			u.logger.Warn("discovery source has no CIDR configured, skipping scan", slog.String("source_id", source.ID.String()))
+		}
+		if _, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error"); errStatusErr != nil {
+			return nil, fmt.Errorf("failed to set error status for missing CIDR: %w", errStatusErr)
+		}
+		return nil, fmt.Errorf("discovery source %s has no CIDR configured", source.ID)
+	}
+
+	if cidr != "" {
+		if _, err := collectors.ParseTargetPrefix(cidr); err != nil {
+			if u.logger != nil {
+				u.logger.Error("discovery source has invalid CIDR configured", slog.String("source_id", source.ID.String()), slog.Any("error", err))
+			}
+			if _, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error"); errStatusErr != nil {
+				return nil, fmt.Errorf("failed to set error status for invalid CIDR: %w", errStatusErr)
+			}
+			return nil, fmt.Errorf("discovery source %s has invalid CIDR %q: %w", source.ID, cidr, err)
 		}
 	}
 

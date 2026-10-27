@@ -91,6 +91,32 @@ func IsImplemented(raw string) bool {
 	return ImplementedStatus[canonical]
 }
 
+// providerTypes are the collectors that enumerate an external API instead of probing an
+// address range, so they need no target CIDR.
+var providerTypes = map[string]bool{
+	TypeProxmox: true,
+	TypeDocker:  true,
+	TypeUniFi:   true,
+}
+
+// RequiresCIDR reports whether a plan made of the given collector types needs a target
+// CIDR. Any network sweep needs one; a plan made only of providers does not. An empty plan
+// falls back to a sweep and needs one, matching the create form's requiresCidr rule.
+func RequiresCIDR(collectorTypes []string) bool {
+	hasCollector := false
+	for _, raw := range collectorTypes {
+		normalized := strings.ToLower(strings.TrimSpace(raw))
+		if normalized == "" {
+			continue
+		}
+		hasCollector = true
+		if !providerTypes[normalized] {
+			return true
+		}
+	}
+	return !hasCollector
+}
+
 // Registry provides thread-safe collector registration and resolution.
 type Registry struct {
 	mu         sync.RWMutex

@@ -76,6 +76,32 @@ func TestIsImplemented(t *testing.T) {
 	}
 }
 
+func TestRequiresCIDR(t *testing.T) {
+	tests := []struct {
+		name  string
+		types []string
+		want  bool
+	}{
+		{name: "no collectors falls back to a sweep", types: nil, want: true},
+		{name: "network sweep", types: []string{"icmp_sweep"}, want: true},
+		{name: "sweep alias", types: []string{"ARP"}, want: true},
+		{name: "proxmox only", types: []string{"proxmox"}, want: false},
+		{name: "docker and proxmox", types: []string{"docker", "proxmox"}, want: false},
+		{name: "unifi only", types: []string{"unifi"}, want: false},
+		{name: "provider mixed with a sweep", types: []string{"proxmox", "mdns"}, want: true},
+		{name: "blank entries are ignored", types: []string{" ", "docker"}, want: false},
+		{name: "only blank entries", types: []string{" "}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := collectors.RequiresCIDR(tt.types); got != tt.want {
+				t.Errorf("RequiresCIDR(%q) = %v, want %v", tt.types, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRegistry(t *testing.T) {
 	t.Run("DefaultRegistry returns valid registry", func(t *testing.T) {
 		reg := collectors.DefaultRegistry()
