@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -43,6 +44,11 @@ func (o *recordingOrchestrator) RunScan(_ context.Context, target collectors.Dis
 		Duration:       time.Millisecond,
 		Collectors:     details,
 	}, nil
+}
+
+// RunTargets is not used by the interim per-target execution path under test.
+func (o *recordingOrchestrator) RunTargets(context.Context, collectors.DiscoveryTarget, []collectors.DiscoveryTarget, []db.Device, []string) (*engine.ScanResult, error) {
+	return nil, errors.New("RunTargets is not expected in this test")
 }
 
 // stubRunRepo serves one source and records what TriggerRun persists. Methods TriggerRun
