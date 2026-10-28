@@ -110,7 +110,7 @@ For sources with a stored secret, **adding** a target or **changing** an existin
 - **Auto-setup**: creates a single "Local network sweep" source with one target per detected interface. Installations that already went through auto-setup are not changed.
 
 ### 9. Localization Keys (PT/EN parity)
-`discovery_targets_label`, `discovery_targets_add_subnet`, `discovery_targets_add_cidr`, `discovery_targets_host_count`, `discovery_targets_more` (`+%1$d`), `discovery_target_subnet_deleted`, `error_targets_required`, `error_target_invalid`, `error_targets_overlap`, `error_targets_too_large`, `error_targets_too_many`, `error_target_subnet_not_found`, `delete_subnet_impact_sources`, `auto_setup_local_network_source_name`.
+`discovery_targets_label`, `discovery_targets_add_subnet`, `discovery_targets_add_cidr`, `discovery_targets_host_count`, `discovery_targets_more` (`+%1$d`), `discovery_target_subnet_deleted`, `error_targets_required`, `error_target_invalid`, `error_targets_overlap`, `error_targets_too_large`, `error_targets_too_many`, `error_target_subnet_not_found`, `delete_subnet_impact_sources`.
 
 ## Testing Decisions
 - **Backend Unit Tests**:
@@ -142,3 +142,4 @@ Where the implementation refines this specification:
 - **Run diagnostics**: the frontend shows each collector row's `target_cidr` from `last_run.collectors[]` in the source status tooltip; `target_cidr` is also returned by `GET /api/v1/discovery/sources/{id}/runs`.
 - **`config_cidr` deprecation**: documented in the field's comment and in RFC-008 rather than with a `// Deprecated:` marker, which would fail lint on the remaining readers until the field is removed.
 - **Auto-setup limits**: an interface that would break the §2 rules (wider than `/16`, overlapping an earlier one, or beyond the target or address caps) is skipped and the rest are kept.
+- **Auto-setup source name**: "Local network sweep" is a constant in the coordinator rather than a string resource. It is stored server-side as the source name, and resolving a Compose string resource outside the UI fails on headless JVMs.
