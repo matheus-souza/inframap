@@ -38,7 +38,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -53,7 +52,6 @@ import com.inframap.frontend.designsystem.InfraMapFilterChipGroup
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapTextField
-import com.inframap.frontend.designsystem.SubnetSuggestionChips
 import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 import com.inframap.frontend.domain.model.CredentialSummary
 import com.inframap.frontend.generated.resources.Res
@@ -65,7 +63,6 @@ import com.inframap.frontend.generated.resources.collector_name_snmp
 import com.inframap.frontend.generated.resources.collector_section_network
 import com.inframap.frontend.generated.resources.collector_section_providers
 import com.inframap.frontend.generated.resources.common_cancel
-import com.inframap.frontend.generated.resources.create_discovery_source_cidr_label
 import com.inframap.frontend.generated.resources.create_discovery_source_enabled_label
 import com.inframap.frontend.generated.resources.create_discovery_source_name_label
 import com.inframap.frontend.generated.resources.create_discovery_source_schedule_label
@@ -202,25 +199,17 @@ private fun CreateDiscoverySourceFormFields(
             actions = actions,
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Targets describe a network sweep; a plan made only of providers has none (CONTEXT.md guideline #218).
+        if (state.requiresCidr) {
+            Spacer(modifier = Modifier.height(16.dp))
 
-        SubnetSuggestionChips(
-            subnets = state.subnets,
-            onSubnetSelected = actions.onSubnetSelected,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        InfraMapTextField(
-            value = state.configCidr,
-            onValueChange = actions.onConfigCidrChanged,
-            label = stringResource(Res.string.create_discovery_source_cidr_label),
-            required = state.requiresCidr,
-            error = state.validationErrors["cidr"]?.asString(),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-            modifier = Modifier.fillMaxWidth(),
-        )
+            DiscoveryTargetsEditor(
+                state = state.targetsEditor,
+                actions = actions.targets,
+                required = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 

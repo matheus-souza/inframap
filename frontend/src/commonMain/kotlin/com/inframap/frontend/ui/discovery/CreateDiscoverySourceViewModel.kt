@@ -3,6 +3,7 @@ package com.inframap.frontend.ui.discovery
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CollectorConfigDto
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
+import com.inframap.frontend.data.dto.DiscoverySourceConfigDto
 import com.inframap.frontend.data.storage.draft.DraftForm
 import com.inframap.frontend.data.storage.draft.FormDraftStore
 import com.inframap.frontend.domain.model.SubnetSummary
@@ -17,8 +18,6 @@ import com.inframap.frontend.generated.resources.discovery_validation_collector_
 import com.inframap.frontend.generated.resources.provider_test_connection_failed
 import com.inframap.frontend.generated.resources.provider_validation_docker_endpoint_required
 import com.inframap.frontend.generated.resources.provider_validation_field_required
-import com.inframap.frontend.generated.resources.validation_cidr_invalid
-import com.inframap.frontend.generated.resources.validation_cidr_required
 import com.inframap.frontend.generated.resources.validation_discovery_name_required
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
@@ -146,22 +145,57 @@ class CreateDiscoverySourceViewModel(
         editForm { it.copy(scheduleCron = cron) }
     }
 
-    fun onConfigCidrChanged(cidr: String) {
-        editForm { it.copy(configCidr = cidr, validationErrors = it.validationErrors - "cidr") }
+    fun onTargetInputChanged(input: String) {
+        editForm { it.copy(targetInput = input, validationErrors = it.validationErrors - TARGET_INPUT_ERROR_KEY) }
     }
 
-    fun onSubnetSelected(subnet: SubnetSummary) {
+    /** Appends the typed CIDR as a free-form target, or explains why it cannot be added. */
+    fun onAddTargetCidr() {
         editForm { current ->
-            val wasNameBlank = current.name.isBlank()
-            val newName = if (wasNameBlank) "Varredura ${subnet.name}" else current.name
-            var errors = current.validationErrors - "cidr"
-            if (wasNameBlank) {
+            val edit = current.targets.withCidr(current.targetInput)
+            val violation = edit.violation
+            if (violation != null) {
+                current.withError(TARGET_INPUT_ERROR_KEY, violation)
+            } else {
+                current.copy(
+                    targets = edit.targets,
+                    targetInput = "",
+                    validationErrors = current.validationErrors - TARGET_INPUT_ERROR_KEY - TARGETS_ERROR_KEY,
+                )
+            }
+        }
+    }
+
+    /**
+     * Links or unlinks a registered Subnet as a target. The first Subnet picked while the name
+     * is still blank also names the plan after it.
+     */
+    fun onSubnetToggled(subnet: SubnetSummary) {
+        editForm { current ->
+            val edit = current.targets.toggledSubnet(subnet)
+            val violation = edit.violation
+            if (violation != null) {
+                return@editForm current.withError(TARGETS_ERROR_KEY, violation)
+            }
+            val added = edit.targets.size > current.targets.size
+            val namesPlan = added && current.name.isBlank()
+            var errors = current.validationErrors - TARGETS_ERROR_KEY
+            if (namesPlan) {
                 errors = errors - "name"
             }
             current.copy(
-                name = newName,
-                configCidr = subnet.cidr,
+                name = if (namesPlan) "Varredura ${subnet.name}" else current.name,
+                targets = edit.targets,
                 validationErrors = errors,
+            )
+        }
+    }
+
+    fun onRemoveTarget(index: Int) {
+        editForm {
+            it.copy(
+                targets = it.targets.withoutTarget(index),
+                validationErrors = it.validationErrors - TARGETS_ERROR_KEY,
             )
         }
     }
@@ -173,7 +207,6 @@ class CreateDiscoverySourceViewModel(
     fun validate(): Boolean {
         val errors = mutableMapOf<String, UiText>()
         val name = state.value.name.trim()
-        val cidr = state.value.configCidr.trim()
         val selectedCollectors = state.value.selectedCollectors
 
         if (name.isEmpty()) {
@@ -184,16 +217,12 @@ class CreateDiscoverySourceViewModel(
             errors["collectors"] = UiText.Resource(Res.string.discovery_validation_collector_required)
         }
 
-        // A CIDR describes a network sweep. A plan made only of providers has no range to
-        // scan, so demanding one would block a legitimate Docker- or Proxmox-only plan.
+        // Targets describe a network sweep. A plan made only of providers has no range to
+        // scan, so its (hidden) target list is neither required nor sent.
         if (state.value.requiresCidr) {
-            if (cidr.isEmpty()) {
-                errors["cidr"] = UiText.Resource(Res.string.validation_cidr_required)
-            } else if (!isValidCidr(cidr)) {
-                errors["cidr"] = UiText.Resource(Res.string.validation_cidr_invalid)
+            DiscoveryTargetRules.checkList(state.value.targets, required = true)?.let {
+                errors[TARGETS_ERROR_KEY] = it.message
             }
-        } else if (cidr.isNotEmpty() && !isValidCidr(cidr)) {
-            errors["cidr"] = UiText.Resource(Res.string.validation_cidr_invalid)
         }
 
         val providerErrors = providerValidationErrors(state.value)
@@ -216,8 +245,8 @@ class CreateDiscoverySourceViewModel(
         updateState { it.copy(isSubmitting = true, errorMessage = null, isSuccess = false) }
 
         val config =
-            if (stateVal.configCidr.trim().isNotEmpty()) {
-                mapOf("cidr" to stateVal.configCidr.trim())
+            if (stateVal.requiresCidr) {
+                DiscoverySourceConfigDto(targets = stateVal.targets.toRequestTargets())
             } else {
                 null
             }
@@ -248,14 +277,7 @@ class CreateDiscoverySourceViewModel(
                     }
                     onSuccess?.invoke()
                 }
-                is ApiResult.Error -> {
-                    updateState {
-                        it.copy(
-                            isSubmitting = false,
-                            errorMessage = mapError(result, UiText.Resource(Res.string.discovery_error_create)),
-                        )
-                    }
-                }
+                is ApiResult.Error -> onCreateRejected(result)
                 is ApiResult.NetworkError -> {
                     updateState {
                         it.copy(
@@ -265,6 +287,24 @@ class CreateDiscoverySourceViewModel(
                     }
                 }
             }
+        }
+    }
+
+    /** A target rule the backend enforces maps to its localized message, next to the editor too. */
+    private fun onCreateRejected(result: ApiResult.Error) {
+        val violation = TargetRuleViolation.fromCode(result.code)
+        updateState {
+            it.copy(
+                isSubmitting = false,
+                errorMessage =
+                    violation?.message ?: mapError(result, UiText.Resource(Res.string.discovery_error_create)),
+                validationErrors =
+                    if (violation != null) {
+                        it.validationErrors + (TARGETS_ERROR_KEY to violation.message)
+                    } else {
+                        it.validationErrors
+                    },
+            )
         }
     }
 
@@ -315,13 +355,6 @@ class CreateDiscoverySourceViewModel(
             updateState { it.copy(connectionTests = it.connectionTests + (providerId to outcome)) }
         }
     }
-
-    private fun isValidCidr(cidr: String): Boolean {
-        val regex = Regex("""^([0-9]{1,3}\.){3}[0-9]{1,3}\/([0-9]|[12][0-9]|3[0-2])$""")
-        if (!regex.matches(cidr)) return false
-        val ipPart = cidr.substringBefore("/")
-        return ipPart.split(".").all { it.toIntOrNull() in 0..255 }
-    }
 }
 
 /**
@@ -356,3 +389,8 @@ private fun providerValidationErrors(state: CreateDiscoverySourceUiState): Map<S
     }
     return errors
 }
+
+private fun CreateDiscoverySourceUiState.withError(
+    key: String,
+    violation: TargetRuleViolation,
+): CreateDiscoverySourceUiState = copy(validationErrors = validationErrors + (key to violation.message))

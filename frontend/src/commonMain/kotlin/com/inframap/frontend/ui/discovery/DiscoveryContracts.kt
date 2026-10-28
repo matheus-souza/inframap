@@ -5,6 +5,7 @@ package com.inframap.frontend.ui.discovery
 import com.inframap.frontend.domain.model.CredentialSummary
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.DiscoverySourceDeletionImpact
+import com.inframap.frontend.domain.model.DiscoveryTarget
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.ui.base.Paginated
 import com.inframap.frontend.ui.util.UiText
@@ -51,7 +52,10 @@ data class CreateDiscoverySourceUiState(
     val name: String = "",
     val selectedCollectors: Set<String> = setOf("icmp_sweep", "arp_sweep", "mdns", "reverse_dns"),
     val scheduleCron: String = "",
-    val configCidr: String = "",
+    /** Ordered targets of the plan (RFC-026 §1); each is free-form or linked to a Subnet. */
+    val targets: List<DiscoveryTarget> = emptyList(),
+    /** Free-form CIDR typed in the targets editor and not yet added. */
+    val targetInput: String = "",
     val enabled: Boolean = true,
     val isSubmitting: Boolean = false,
     val validationErrors: Map<String, UiText> = emptyMap(),
@@ -83,16 +87,54 @@ data class CreateDiscoverySourceUiState(
      * A CIDR only describes a network sweep. A plan made purely of providers has no range to
      * scan, so requiring one would block a legitimate Docker- or Proxmox-only plan.
      */
-    val requiresCidr: Boolean get() =
-        selectedCollectors.isEmpty() || selectedCollectors.any { it !in ProviderForms.ids }
+    val requiresCidr: Boolean get() = requiresTargets(selectedCollectors)
+
+    val targetsEditor: DiscoveryTargetsEditorState get() =
+        DiscoveryTargetsEditorState(
+            targets = targets,
+            input = targetInput,
+            subnets = subnets,
+            isLoadingSubnets = isLoadingSubnets,
+            inputError = validationErrors[TARGET_INPUT_ERROR_KEY],
+            listError = validationErrors[TARGETS_ERROR_KEY],
+        )
 }
+
+/**
+ * Whether a plan needs at least one target: any network sweep does, a plan made purely of
+ * providers does not (guideline #218). An empty plan is treated as needing one.
+ */
+internal fun requiresTargets(selectedCollectors: Set<String>): Boolean =
+    selectedCollectors.isEmpty() || selectedCollectors.any { it !in ProviderForms.ids }
+
+/** What the targets editor renders, shared by the create and edit screens. */
+data class DiscoveryTargetsEditorState(
+    val targets: List<DiscoveryTarget> = emptyList(),
+    val input: String = "",
+    val subnets: List<SubnetSummary> = emptyList(),
+    val isLoadingSubnets: Boolean = false,
+    val inputError: UiText? = null,
+    val listError: UiText? = null,
+) {
+    val linkedSubnetIds: Set<String> get() = targets.mapNotNull { it.subnetId }.toSet()
+
+    val addressCount: Long get() = DiscoveryTargetRules.addressCount(targets)
+
+    val exceedsAddressLimit: Boolean get() = addressCount > DiscoveryTargetRules.MAX_ADDRESSES
+}
+
+data class DiscoveryTargetsEditorActions(
+    val onInputChanged: (String) -> Unit = {},
+    val onAddCidrClicked: () -> Unit = {},
+    val onSubnetToggled: (SubnetSummary) -> Unit = {},
+    val onRemoveTarget: (index: Int) -> Unit = {},
+)
 
 data class CreateDiscoverySourceActions(
     val onNameChanged: (String) -> Unit,
     val onScheduleCronChanged: (String) -> Unit,
-    val onConfigCidrChanged: (String) -> Unit,
     val onEnabledChanged: (Boolean) -> Unit,
-    val onSubnetSelected: (SubnetSummary) -> Unit,
+    val targets: DiscoveryTargetsEditorActions = DiscoveryTargetsEditorActions(),
     val onCollectorsChanged: (Set<String>) -> Unit = {},
     val onProviderFieldChanged: (providerId: String, key: String, value: String) -> Unit = { _, _, _ -> },
     val onTestConnectionClicked: (providerId: String) -> Unit = {},
@@ -107,7 +149,12 @@ data class EditDiscoverySourceUiState(
     val sourceType: String = "",
     val selectedCollectors: Set<String> = emptySet(),
     val scheduleCron: String = "",
-    val configCidr: String = "",
+    val targets: List<DiscoveryTarget> = emptyList(),
+    /** Targets as loaded; the update carries `config.targets` only when they changed. */
+    val initialTargets: List<DiscoveryTarget> = emptyList(),
+    val targetInput: String = "",
+    val subnets: List<SubnetSummary> = emptyList(),
+    val isLoadingSubnets: Boolean = false,
     val enabled: Boolean = true,
     val isLoading: Boolean = true,
     val isSubmitting: Boolean = false,
@@ -131,6 +178,23 @@ data class EditDiscoverySourceUiState(
     val showsProviderTabs: Boolean get() = selectedProviders.size >= 2
     val currentProviderTab: String? get() =
         activeProviderTab?.takeIf { it in selectedProviders } ?: selectedProviders.firstOrNull()
+
+    /** See [CreateDiscoverySourceUiState.requiresCidr]; the editor is hidden when false. */
+    val requiresCidr: Boolean get() = requiresTargets(selectedCollectors)
+
+    /** Whether the operator added, removed, reordered or replaced a target since loading. */
+    val targetsChanged: Boolean get() =
+        targets.map { it.cidr to it.subnetId } != initialTargets.map { it.cidr to it.subnetId }
+
+    val targetsEditor: DiscoveryTargetsEditorState get() =
+        DiscoveryTargetsEditorState(
+            targets = targets,
+            input = targetInput,
+            subnets = subnets,
+            isLoadingSubnets = isLoadingSubnets,
+            inputError = validationErrors[TARGET_INPUT_ERROR_KEY],
+            listError = validationErrors[TARGETS_ERROR_KEY],
+        )
 
     fun hasPendingTargetOrSecretChanges(providerId: String): Boolean {
         val targetKeys = ProviderForms.targetKeys(providerId)
@@ -156,6 +220,7 @@ data class EditDiscoverySourceActions(
     val onEnabledChanged: (Boolean) -> Unit,
     val onProviderFieldChanged: (providerId: String, key: String, value: String) -> Unit,
     val onProviderTabSelected: (providerId: String) -> Unit,
+    val targets: DiscoveryTargetsEditorActions = DiscoveryTargetsEditorActions(),
     val onTestConnectionClicked: (providerId: String) -> Unit = {},
     val onSubmitClicked: () -> Unit,
     val onDeleteClicked: () -> Unit,

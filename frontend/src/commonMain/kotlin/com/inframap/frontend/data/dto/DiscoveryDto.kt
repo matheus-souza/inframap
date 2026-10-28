@@ -86,15 +86,50 @@ data class CollectorConfigDto(
     val config: Map<String, String>? = null,
 )
 
+/** One target sent on create/update (RFC-026 §1); `subnet_id` links it to a registered Subnet. */
+@Serializable
+data class DiscoveryTargetRequestDto(
+    val cidr: String,
+    @SerialName("subnet_id") val subnetId: String? = null,
+)
+
+/**
+ * Plan-level configuration of a source. [targets] is the current form; [cidr] is the
+ * single-target form the backend still accepts and converts into one target. Both default to
+ * null so an unset key is left out of the body rather than sent as `null`.
+ */
+@Serializable
+data class DiscoverySourceConfigDto(
+    val cidr: String? = null,
+    val targets: List<DiscoveryTargetRequestDto>? = null,
+)
+
 @Serializable
 data class CreateDiscoverySourceRequest(
     val name: String,
     val type: String = "",
     val enabled: Boolean = true,
     @SerialName("schedule_cron") val scheduleCron: String? = null,
-    val config: Map<String, String>? = null,
+    val config: DiscoverySourceConfigDto? = null,
     val collectors: List<CollectorConfigDto> = emptyList(),
-)
+) {
+    /** Single-CIDR shorthand for callers that still build the legacy `{"cidr": ...}` config. */
+    constructor(
+        name: String,
+        type: String = "",
+        enabled: Boolean = true,
+        scheduleCron: String? = null,
+        config: Map<String, String>,
+        collectors: List<CollectorConfigDto> = emptyList(),
+    ) : this(
+        name = name,
+        type = type,
+        enabled = enabled,
+        scheduleCron = scheduleCron,
+        config = DiscoverySourceConfigDto(cidr = config["cidr"]),
+        collectors = collectors,
+    )
+}
 
 @Serializable
 data class UpdateDiscoverySourceRequest(
@@ -102,7 +137,8 @@ data class UpdateDiscoverySourceRequest(
     val type: String = "",
     val enabled: Boolean = true,
     @SerialName("schedule_cron") val scheduleCron: String? = null,
-    val config: Map<String, String>? = null,
+    /** Null leaves the stored targets untouched (the backend keeps them). */
+    val config: DiscoverySourceConfigDto? = null,
     val collectors: List<CollectorConfigDto> = emptyList(),
 )
 
