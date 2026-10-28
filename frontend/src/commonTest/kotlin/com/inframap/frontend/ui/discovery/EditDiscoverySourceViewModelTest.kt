@@ -1,15 +1,22 @@
 package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.DiscoverySourceConfigDto
+import com.inframap.frontend.data.dto.DiscoveryTargetRequestDto
 import com.inframap.frontend.domain.model.DiscoverySource
+import com.inframap.frontend.domain.model.DiscoveryTarget
+import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.ProviderHealth
 import com.inframap.frontend.domain.model.SourceCollector
+import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.domain.usecase.discovery.DeleteDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceByIdUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceDeletionImpactUseCase
 import com.inframap.frontend.domain.usecase.discovery.TestDiscoverySourceHealthUseCase
 import com.inframap.frontend.domain.usecase.discovery.UpdateDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.fakes.FakeDiscoveryRepository
+import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -37,6 +44,32 @@ class EditDiscoverySourceViewModelTest {
     private lateinit var deleteDiscoverySourceUseCase: DeleteDiscoverySourceUseCase
     private lateinit var getDeletionImpactUseCase: GetDiscoverySourceDeletionImpactUseCase
     private lateinit var testDiscoverySourceHealthUseCase: TestDiscoverySourceHealthUseCase
+    private val fakeSubnetRepo =
+        FakeSubnetRepository(
+            getSubnetsResult =
+                ApiResult.Success(
+                    PaginatedList(
+                        items = listOf(Subnet(id = "sub-20", name = "Lab", cidr = "198.51.100.0/24")),
+                        total = 1L,
+                        page = 1,
+                        perPage = 50,
+                    ),
+                    requestId = "",
+                ),
+        )
+
+    private val sweepSource =
+        DiscoverySource(
+            id = "src-lan",
+            name = "LAN sweep",
+            sourceType = "icmp_sweep",
+            collectors = listOf(SourceCollector(id = "col-icmp", collectorType = "icmp_sweep")),
+            targets =
+                listOf(
+                    DiscoveryTarget("10.0.10.0/24", subnetId = "sub-old", subnetName = "Old", subnetDeleted = true),
+                    DiscoveryTarget("192.0.2.0/24"),
+                ),
+        )
 
     private val testSource =
         DiscoverySource(
@@ -87,6 +120,7 @@ class EditDiscoverySourceViewModelTest {
             deleteDiscoverySourceUseCase = deleteDiscoverySourceUseCase,
             getDiscoverySourceDeletionImpactUseCase = getDeletionImpactUseCase,
             testDiscoverySourceHealthUseCase = testDiscoverySourceHealthUseCase,
+            listSubnetsUseCase = ListSubnetsUseCase(fakeSubnetRepo),
             scope = testScope,
         )
 
@@ -372,5 +406,181 @@ class EditDiscoverySourceViewModelTest {
             assertFalse(vm.state.value.showDeleteDialog)
             assertNull(vm.state.value.deleteImpact)
             assertFalse(vm.state.value.isLoadingDeleteImpact)
+        }
+
+    private fun loadSweepSource(): EditDiscoverySourceViewModel {
+        fakeRepo.getSourceByIdResult = ApiResult.Success(sweepSource, requestId = "")
+        return createViewModel(sourceId = "src-lan")
+    }
+
+    @Test
+    fun targetsArePrefilledAndADeletedSubnetIsFlagged() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertTrue(state.requiresCidr)
+            assertEquals(sweepSource.targets, state.targets)
+            assertTrue(state.targets.first().subnetDeleted)
+            assertEquals(listOf("sub-20"), state.subnets.map { it.id })
+            assertFalse(state.targetsChanged)
+            vm.clear()
+        }
+
+    @Test
+    fun unchangedTargetsAreNotSentOnUpdate() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+
+            vm.onNameChanged("Renamed")
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value.isSuccess)
+            assertEquals("Renamed", fakeRepo.lastUpdateSourceRequest?.name)
+            assertNull(fakeRepo.lastUpdateSourceRequest?.config)
+            vm.clear()
+        }
+
+    @Test
+    fun removingTheDeletedSubnetTargetSendsTheRemainingList() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+
+            vm.onRemoveTarget(0)
+            vm.onSubnetToggled(
+                vm.state.value.subnets
+                    .single(),
+            )
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertEquals(
+                DiscoverySourceConfigDto(
+                    targets =
+                        listOf(
+                            DiscoveryTargetRequestDto("192.0.2.0/24"),
+                            DiscoveryTargetRequestDto("198.51.100.0/24", subnetId = "sub-20"),
+                        ),
+                ),
+                fakeRepo.lastUpdateSourceRequest?.config,
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun changedListStillHoldingADeletedSubnetIsBlocked() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+            fakeRepo.lastUpdateSourceRequest = null
+
+            vm.onTargetInputChanged("203.0.113.0/24")
+            vm.onAddTargetCidr()
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertEquals(
+                TargetRuleViolation.SubnetNotFound.message,
+                vm.state.value.validationErrors[TARGETS_ERROR_KEY],
+            )
+            assertNull(fakeRepo.lastUpdateSourceRequest)
+            vm.clear()
+        }
+
+    @Test
+    fun editorRejectsOverlapAndInvalidInput() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+
+            vm.onTargetInputChanged("192.0.2.128/25")
+            vm.onAddTargetCidr()
+            assertEquals(TargetRuleViolation.Overlap.message, vm.state.value.validationErrors[TARGET_INPUT_ERROR_KEY])
+
+            vm.onTargetInputChanged("999.0.0.0/24")
+            assertNull(vm.state.value.validationErrors[TARGET_INPUT_ERROR_KEY])
+            vm.onAddTargetCidr()
+            assertEquals(TargetRuleViolation.Invalid.message, vm.state.value.validationErrors[TARGET_INPUT_ERROR_KEY])
+            assertEquals(2, vm.state.value.targets.size)
+            vm.clear()
+        }
+
+    @Test
+    fun togglingALinkedSubnetUnlinksIt() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+            val subnet =
+                vm.state.value.subnets
+                    .single()
+
+            vm.onSubnetToggled(subnet)
+            assertTrue(
+                vm.state.value.targets
+                    .any { it.subnetId == "sub-20" },
+            )
+            vm.onSubnetToggled(subnet)
+            assertFalse(
+                vm.state.value.targets
+                    .any { it.subnetId == "sub-20" },
+            )
+            assertFalse(vm.state.value.targetsChanged)
+            vm.clear()
+        }
+
+    @Test
+    fun providerOnlySourceSendsNoTargets() =
+        testScope.runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            assertFalse(vm.state.value.requiresCidr)
+            vm.onNameChanged("Proxmox renamed")
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertNull(fakeRepo.lastUpdateSourceRequest?.config)
+            vm.clear()
+        }
+
+    @Test
+    fun backendTargetErrorCodeIsLocalized() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+            fakeRepo.updateSourceResult =
+                ApiResult.Error(
+                    code = "error_targets_overlap",
+                    message = "raw",
+                    requestId = "",
+                    httpStatus = 422,
+                )
+
+            vm.onRemoveTarget(0)
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertEquals(TargetRuleViolation.Overlap.message, vm.state.value.errorMessage)
+            assertEquals(TargetRuleViolation.Overlap.message, vm.state.value.validationErrors[TARGETS_ERROR_KEY])
+            vm.clear()
+        }
+
+    @Test
+    fun subnetLoadFailureLeavesChipsEmpty() =
+        testScope.runTest {
+            fakeSubnetRepo.getSubnetsResult = ApiResult.NetworkError(RuntimeException("down"))
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+
+            assertTrue(
+                vm.state.value.subnets
+                    .isEmpty(),
+            )
+            assertFalse(vm.state.value.isLoadingSubnets)
+            vm.clear()
         }
 }

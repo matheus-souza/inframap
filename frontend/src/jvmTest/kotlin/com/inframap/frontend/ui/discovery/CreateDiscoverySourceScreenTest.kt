@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
+import com.inframap.frontend.domain.model.DiscoveryTarget
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.draft_restored_notice_secrets
@@ -31,9 +32,8 @@ class CreateDiscoverySourceScreenTest {
     private fun defaultActions(
         onNameChanged: (String) -> Unit = {},
         onScheduleCronChanged: (String) -> Unit = {},
-        onConfigCidrChanged: (String) -> Unit = {},
         onEnabledChanged: (Boolean) -> Unit = {},
-        onSubnetSelected: (SubnetSummary) -> Unit = {},
+        targets: DiscoveryTargetsEditorActions = DiscoveryTargetsEditorActions(),
         onCollectorsChanged: (Set<String>) -> Unit = {},
         onProviderFieldChanged: (providerId: String, key: String, value: String) -> Unit = { _, _, _ -> },
         onTestConnectionClicked: (providerId: String) -> Unit = {},
@@ -43,9 +43,8 @@ class CreateDiscoverySourceScreenTest {
     ) = CreateDiscoverySourceActions(
         onNameChanged = onNameChanged,
         onScheduleCronChanged = onScheduleCronChanged,
-        onConfigCidrChanged = onConfigCidrChanged,
         onEnabledChanged = onEnabledChanged,
-        onSubnetSelected = onSubnetSelected,
+        targets = targets,
         onCollectorsChanged = onCollectorsChanged,
         onProviderFieldChanged = onProviderFieldChanged,
         onTestConnectionClicked = onTestConnectionClicked,
@@ -71,7 +70,8 @@ class CreateDiscoverySourceScreenTest {
             onNodeWithText("Discovery Collectors *").assertIsDisplayed()
             onNodeWithText("Network Sweep").assertIsDisplayed()
             onNodeWithText("Infrastructure Providers").assertIsDisplayed()
-            onNodeWithText("Target CIDR (e.g. 192.168.1.0/24) *").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Scan targets *").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Target CIDR (e.g. 192.168.1.0/24)").performScrollTo().assertIsDisplayed()
             onNodeWithText("Schedule").performScrollTo().assertIsDisplayed()
             onNodeWithText("Source enabled").performScrollTo().assertIsDisplayed()
             onNodeWithText("Create Source").performScrollTo().assertIsDisplayed()
@@ -240,7 +240,7 @@ class CreateDiscoverySourceScreenTest {
         }
 
     @Test
-    fun rendersSubnetSuggestionChipsAndTriggersSelection() =
+    fun rendersSubnetChipsAndTogglesSelection() =
         runComposeUiTest {
             val subnets =
                 listOf(
@@ -253,12 +253,15 @@ class CreateDiscoverySourceScreenTest {
                 InfraMapTheme {
                     CreateDiscoverySourceScreen(
                         state = CreateDiscoverySourceUiState(subnets = subnets),
-                        actions = defaultActions(onSubnetSelected = { selectedSubnet = it }),
+                        actions =
+                            defaultActions(
+                                targets = DiscoveryTargetsEditorActions(onSubnetToggled = { selectedSubnet = it }),
+                            ),
                     )
                 }
             }
 
-            onNodeWithText("Registered subnets").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Add registered subnets").performScrollTo().assertIsDisplayed()
             onNodeWithText("Home LAN").performScrollTo().assertIsDisplayed()
             onNodeWithText("192.168.1.0/24").performScrollTo().assertIsDisplayed()
             onNodeWithText("DMZ").performScrollTo().assertIsDisplayed()
@@ -292,7 +295,8 @@ class CreateDiscoverySourceScreenTest {
                 mapOf(
                     "name" to UiText.DynamicString("Source name is required"),
                     "collectors" to UiText.DynamicString("At least one collector required"),
-                    "cidr" to UiText.DynamicString("Invalid CIDR"),
+                    TARGET_INPUT_ERROR_KEY to UiText.DynamicString("Invalid CIDR"),
+                    TARGETS_ERROR_KEY to UiText.DynamicString("Targets overlap"),
                 )
             setContent {
                 InfraMapTheme {
@@ -310,6 +314,7 @@ class CreateDiscoverySourceScreenTest {
             onNodeWithText("Source name is required").performScrollTo().assertIsDisplayed()
             onNodeWithText("At least one collector required").performScrollTo().assertIsDisplayed()
             onNodeWithText("Invalid CIDR").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Targets overlap").performScrollTo().assertIsDisplayed()
             onNodeWithText("Server error").performScrollTo().assertIsDisplayed()
         }
 
@@ -639,5 +644,89 @@ class CreateDiscoverySourceScreenTest {
             onNodeWithText("Socket path *").assertDoesNotExist()
             onNodeWithText("TCP URL").performScrollTo().assertIsDisplayed()
             onNodeWithText("TCP URL *").assertDoesNotExist()
+        }
+
+    @Test
+    fun targetsEditorAddsAndRemovesTargets() =
+        runComposeUiTest {
+            var typed = ""
+            var addClicks = 0
+            var removed = -1
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                targets =
+                                    listOf(
+                                        DiscoveryTarget("10.0.10.0/24", subnetId = "sub-1", subnetName = "Servers"),
+                                        DiscoveryTarget("192.0.2.0/25"),
+                                    ),
+                                targetInput = "198.51.100.0/24",
+                            ),
+                        actions =
+                            defaultActions(
+                                targets =
+                                    DiscoveryTargetsEditorActions(
+                                        onInputChanged = { typed = it },
+                                        onAddCidrClicked = { addClicks++ },
+                                        onRemoveTarget = { removed = it },
+                                    ),
+                            ),
+                    )
+                }
+            }
+
+            onNodeWithText("10.0.10.0/24").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Servers").performScrollTo().assertIsDisplayed()
+            onNodeWithText("192.0.2.0/25").performScrollTo().assertIsDisplayed()
+            onNodeWithTag("discovery_targets_host_count")
+                .performScrollTo()
+                .assertTextContains("384 of 65536 addresses")
+
+            onNodeWithTag("discovery_targets_add_cidr_button").performScrollTo().performClick()
+            assertEquals(1, addClicks)
+
+            onNodeWithTag("discovery_target_remove_1").performScrollTo().performClick()
+            assertEquals(1, removed)
+
+            onNodeWithText("198.51.100.0/24").performTextInput("x")
+            assertTrue(typed.isNotEmpty())
+        }
+
+    @Test
+    fun addCidrButtonIsDisabledWithoutInput() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state = CreateDiscoverySourceUiState(),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("discovery_targets_add_cidr_button").performScrollTo().assertIsNotEnabled()
+            onNodeWithTag("discovery_targets_host_count").assertDoesNotExist()
+        }
+
+    @Test
+    fun providerOnlyPlanHidesTheTargetsEditor() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    CreateDiscoverySourceScreen(
+                        state =
+                            CreateDiscoverySourceUiState(
+                                selectedCollectors = setOf("docker"),
+                                targets = listOf(DiscoveryTarget("192.0.2.0/24")),
+                            ),
+                        actions = defaultActions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("discovery_targets_editor").assertDoesNotExist()
+            onNodeWithText("Scan targets *").assertDoesNotExist()
         }
 }

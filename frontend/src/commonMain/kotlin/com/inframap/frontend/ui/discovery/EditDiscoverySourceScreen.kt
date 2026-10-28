@@ -222,6 +222,16 @@ private fun EditDiscoverySourceFormCard(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
+            if (state.requiresCidr) {
+                DiscoveryTargetsEditor(
+                    state = state.targetsEditor,
+                    actions = actions.targets,
+                    required = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             EditProvidersSection(state = state, actions = actions)
 
             Spacer(modifier = Modifier.height(24.dp))

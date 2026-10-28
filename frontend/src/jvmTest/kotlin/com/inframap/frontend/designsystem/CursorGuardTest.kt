@@ -34,6 +34,24 @@ class CursorGuardTest {
     }
 
     @Test
+    fun discoveryFormsInteractionsComplyWithCursorStandards() {
+        // The source forms and their targets editor: subnet chips, remove and add buttons.
+        val discoveryDir = File("src/commonMain/kotlin/com/inframap/frontend/ui/discovery")
+        assertTrue(discoveryDir.exists(), "discovery UI dir must exist at ${discoveryDir.absolutePath}")
+        assertTrue(
+            File(discoveryDir, "DiscoveryTargetsEditor.kt").exists(),
+            "the targets editor must live in the scanned directory",
+        )
+
+        val violations = scanDirectory(discoveryDir)
+
+        assertTrue(
+            violations.isEmpty(),
+            "Found clickable usages without hand cursor in discovery UI:\n" + violations.joinToString("\n"),
+        )
+    }
+
+    @Test
     fun syntheticNonCompliantSnippetTripsGuard() {
         val tempDir = createTempDirectory("cursor-guard-test")
         try {

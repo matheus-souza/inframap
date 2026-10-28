@@ -71,6 +71,7 @@ import com.inframap.frontend.ui.discovery.CreateDiscoverySourceViewModel
 import com.inframap.frontend.ui.discovery.DiscoveryListActions
 import com.inframap.frontend.ui.discovery.DiscoveryListScreen
 import com.inframap.frontend.ui.discovery.DiscoveryListViewModel
+import com.inframap.frontend.ui.discovery.DiscoveryTargetsEditorActions
 import com.inframap.frontend.ui.discovery.EditDiscoverySourceActions
 import com.inframap.frontend.ui.discovery.EditDiscoverySourceScreen
 import com.inframap.frontend.ui.discovery.EditDiscoverySourceViewModel
@@ -803,9 +804,14 @@ private fun CreateDiscoverySourceRoute(navigator: Navigator) {
         CreateDiscoverySourceActions(
             onNameChanged = viewModel::onNameChanged,
             onScheduleCronChanged = viewModel::onScheduleCronChanged,
-            onConfigCidrChanged = viewModel::onConfigCidrChanged,
             onEnabledChanged = viewModel::onEnabledChanged,
-            onSubnetSelected = viewModel::onSubnetSelected,
+            targets =
+                DiscoveryTargetsEditorActions(
+                    onInputChanged = viewModel::onTargetInputChanged,
+                    onAddCidrClicked = viewModel::onAddTargetCidr,
+                    onSubnetToggled = viewModel::onSubnetToggled,
+                    onRemoveTarget = viewModel::onRemoveTarget,
+                ),
             onCollectorsChanged = viewModel::onCollectorsChanged,
             onProviderFieldChanged = viewModel::onProviderFieldChanged,
             onTestConnectionClicked = viewModel::testConnection,
@@ -853,6 +859,13 @@ private fun EditDiscoverySourceRoute(
             onEnabledChanged = viewModel::onEnabledChanged,
             onProviderFieldChanged = viewModel::onProviderFieldChanged,
             onProviderTabSelected = viewModel::onProviderTabSelected,
+            targets =
+                DiscoveryTargetsEditorActions(
+                    onInputChanged = viewModel::onTargetInputChanged,
+                    onAddCidrClicked = viewModel::onAddTargetCidr,
+                    onSubnetToggled = viewModel::onSubnetToggled,
+                    onRemoveTarget = viewModel::onRemoveTarget,
+                ),
             onTestConnectionClicked = viewModel::testConnection,
             onSubmitClicked = viewModel::onSubmitClicked,
             onDeleteClicked = viewModel::onDeleteClicked,

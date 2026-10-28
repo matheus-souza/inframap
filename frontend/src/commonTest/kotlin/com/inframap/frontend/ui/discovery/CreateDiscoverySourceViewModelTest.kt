@@ -2,10 +2,13 @@ package com.inframap.frontend.ui.discovery
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.DiscoverySourceConfigDto
+import com.inframap.frontend.data.dto.DiscoveryTargetRequestDto
 import com.inframap.frontend.data.storage.SessionOwnerStore
 import com.inframap.frontend.data.storage.draft.DraftForm
 import com.inframap.frontend.data.storage.draft.FormDraftStore
 import com.inframap.frontend.domain.model.DiscoverySource
+import com.inframap.frontend.domain.model.DiscoveryTarget
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.domain.model.SubnetSummary
@@ -111,35 +114,38 @@ class CreateDiscoverySourceViewModelTest {
         }
 
     @Test
-    fun onSubnetSelectedPrefillsCidrAndDefaultNameWhenNameIsBlank() =
+    fun onSubnetToggledAddsLinkedTargetAndDefaultNameWhenNameIsBlank() =
         runTest {
             val vm = makeVm(scope = this)
             advanceUntilIdle()
 
             val summary = SubnetSummary(id = "sub-1", name = "Production", cidr = "192.168.10.0/24")
-            vm.onSubnetSelected(summary)
+            vm.onSubnetToggled(summary)
 
             val state = vm.state.value
             assertEquals("Varredura Production", state.name)
-            assertEquals("192.168.10.0/24", state.configCidr)
-            assertFalse(state.validationErrors.containsKey("cidr"))
+            assertEquals(
+                listOf(DiscoveryTarget("192.168.10.0/24", subnetId = "sub-1", subnetName = "Production")),
+                state.targets,
+            )
+            assertFalse(state.validationErrors.containsKey(TARGETS_ERROR_KEY))
             assertFalse(state.validationErrors.containsKey("name"))
             vm.clear()
         }
 
     @Test
-    fun onSubnetSelectedPreservesExistingCustomName() =
+    fun onSubnetToggledPreservesExistingCustomName() =
         runTest {
             val vm = makeVm(scope = this)
             advanceUntilIdle()
 
             vm.onNameChanged("Custom Dedicated Scanner")
             val summary = SubnetSummary(id = "sub-1", name = "Production", cidr = "192.168.10.0/24")
-            vm.onSubnetSelected(summary)
+            vm.onSubnetToggled(summary)
 
             val state = vm.state.value
             assertEquals("Custom Dedicated Scanner", state.name)
-            assertEquals("192.168.10.0/24", state.configCidr)
+            assertEquals(listOf("192.168.10.0/24"), state.targets.map { it.cidr })
             vm.clear()
         }
 
@@ -198,7 +204,7 @@ class CreateDiscoverySourceViewModelTest {
             val errors = vm.state.value.validationErrors
             assertTrue(errors.containsKey("name"))
             assertTrue(errors.containsKey("collectors"))
-            assertTrue(errors.containsKey("cidr"))
+            assertTrue(errors.containsKey(TARGETS_ERROR_KEY))
             vm.clear()
         }
 
@@ -209,7 +215,7 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.onNameChanged("ICMP Scanner")
             vm.onCollectorsChanged(setOf("icmp_sweep"))
-            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.addCidr("192.168.1.0/24")
 
             assertTrue(vm.validate())
             assertTrue(
@@ -225,12 +231,11 @@ class CreateDiscoverySourceViewModelTest {
             val vm = makeVm(scope = this)
 
             vm.onNameChanged("ICMP Scanner")
-            vm.onConfigCidrChanged("")
 
             assertFalse(vm.validate())
             assertTrue(
                 vm.state.value.validationErrors
-                    .containsKey("cidr"),
+                    .containsKey(TARGETS_ERROR_KEY),
             )
             vm.clear()
         }
@@ -241,13 +246,17 @@ class CreateDiscoverySourceViewModelTest {
             val vm = makeVm(scope = this)
 
             vm.onNameChanged("ICMP Scanner")
-            vm.onConfigCidrChanged("not-a-cidr")
+            vm.addCidr("not-a-cidr")
 
-            assertFalse(vm.validate())
+            assertTrue(
+                vm.state.value.targets
+                    .isEmpty(),
+            )
             assertTrue(
                 vm.state.value.validationErrors
-                    .containsKey("cidr"),
+                    .containsKey(TARGET_INPUT_ERROR_KEY),
             )
+            assertFalse(vm.validate())
             vm.clear()
         }
 
@@ -257,7 +266,7 @@ class CreateDiscoverySourceViewModelTest {
             val vm = makeVm(scope = this)
 
             vm.onNameChanged("ICMP Scanner")
-            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.addCidr("192.168.1.0/24")
 
             assertTrue(vm.validate())
             assertTrue(
@@ -284,8 +293,8 @@ class CreateDiscoverySourceViewModelTest {
             vm.onScheduleCronChanged("0 */6 * * *")
             assertEquals("0 */6 * * *", vm.state.value.scheduleCron)
 
-            vm.onConfigCidrChanged("10.0.0.0/8")
-            assertEquals("10.0.0.0/8", vm.state.value.configCidr)
+            vm.addCidr("10.0.0.0/16")
+            assertEquals(listOf(DiscoveryTarget("10.0.0.0/16")), vm.state.value.targets)
 
             vm.onEnabledChanged(false)
             assertFalse(vm.state.value.enabled)
@@ -333,7 +342,7 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.onNameChanged("ICMP Scanner")
             vm.onCollectorsChanged(setOf("icmp_sweep", "arp_sweep"))
-            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.addCidr("192.168.1.0/24")
             vm.onScheduleCronChanged("0 */6 * * *")
 
             vm.state.test {
@@ -347,7 +356,10 @@ class CreateDiscoverySourceViewModelTest {
                 assertNull(state.errorMessage)
                 assertTrue(onSuccessCalled)
                 assertEquals("0 */6 * * *", discoveryRepo.lastCreateSourceRequest?.scheduleCron)
-                assertEquals("192.168.1.0/24", discoveryRepo.lastCreateSourceRequest?.config?.get("cidr"))
+                assertEquals(
+                    DiscoverySourceConfigDto(targets = listOf(DiscoveryTargetRequestDto("192.168.1.0/24"))),
+                    discoveryRepo.lastCreateSourceRequest?.config,
+                )
                 val collectors =
                     discoveryRepo.lastCreateSourceRequest
                         ?.collectors
@@ -367,7 +379,7 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.onNameChanged("Fast Scanner")
             vm.onCollectorsChanged(setOf("arp_sweep"))
-            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.addCidr("192.168.1.0/24")
             vm.onScheduleCronChanged("*/15 * * * *")
 
             vm.createSource()
@@ -388,7 +400,7 @@ class CreateDiscoverySourceViewModelTest {
             vm.onCollectorsChanged(setOf("docker"))
             // Docker is a configurable provider now, so the plan needs an endpoint to submit.
             vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
-            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.addCidr("192.168.1.0/24")
             vm.onScheduleCronChanged("30 3 * * 1-5")
 
             vm.createSource()
@@ -403,7 +415,7 @@ class CreateDiscoverySourceViewModelTest {
         runTest {
             val vm = makeVm(scope = this)
             vm.onNameChanged("ICMP Scanner")
-            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.addCidr("192.168.1.0/24")
 
             vm.createSource()
             assertTrue(vm.state.value.isSubmitting)
@@ -430,7 +442,7 @@ class CreateDiscoverySourceViewModelTest {
                 )
             val vm = makeVm(discoveryRepo = repo, scope = this)
             vm.onNameChanged("ICMP Scanner")
-            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.addCidr("192.168.1.0/24")
 
             vm.state.test {
                 skipItems(1)
@@ -455,7 +467,7 @@ class CreateDiscoverySourceViewModelTest {
                 )
             val vm = makeVm(discoveryRepo = repo, scope = this)
             vm.onNameChanged("ICMP Scanner")
-            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.addCidr("192.168.1.0/24")
 
             vm.state.test {
                 skipItems(1)
@@ -491,7 +503,7 @@ class CreateDiscoverySourceViewModelTest {
         runTest {
             val vm = makeVm(scope = this)
             vm.onNameChanged("  ")
-            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.addCidr("192.168.1.0/24")
 
             assertFalse(vm.validate())
             assertTrue(
@@ -514,7 +526,7 @@ class CreateDiscoverySourceViewModelTest {
             vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
 
             assertTrue(vm.validate())
-            assertNull(vm.state.value.validationErrors["cidr"])
+            assertNull(vm.state.value.validationErrors[TARGETS_ERROR_KEY])
         }
 
     @Test
@@ -530,7 +542,7 @@ class CreateDiscoverySourceViewModelTest {
             assertFalse(vm.validate())
             assertTrue(
                 vm.state.value.validationErrors
-                    .containsKey("cidr"),
+                    .containsKey(TARGETS_ERROR_KEY),
             )
         }
 
@@ -1044,7 +1056,7 @@ class CreateDiscoverySourceViewModelTest {
             vm.onCollectorsChanged(setOf("proxmox", "docker"))
             vm.onProviderTabSelected("docker")
             vm.onScheduleCronChanged("0 * * * *")
-            vm.onConfigCidrChanged("192.168.1.0/24")
+            vm.addCidr("192.168.1.0/24")
             vm.onEnabledChanged(false)
 
             val loaded = formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer())
@@ -1053,7 +1065,7 @@ class CreateDiscoverySourceViewModelTest {
             assertEquals(setOf("proxmox", "docker"), loaded.selectedCollectors)
             assertEquals("docker", loaded.activeProviderTab)
             assertEquals("0 * * * *", loaded.scheduleCron)
-            assertEquals("192.168.1.0/24", loaded.configCidr)
+            assertEquals(listOf(CreateDiscoverySourceDraftTarget("192.168.1.0/24")), loaded.targets)
             assertFalse(loaded.enabled)
             vm.clear()
         }
@@ -1147,7 +1159,7 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.onNameChanged("Valid Discovery")
             vm.onCollectorsChanged(setOf("icmp_sweep"))
-            vm.onConfigCidrChanged("10.0.0.0/24")
+            vm.addCidr("10.0.0.0/24")
 
             assertNotNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
 
@@ -1177,7 +1189,7 @@ class CreateDiscoverySourceViewModelTest {
 
             vm.onNameChanged("Failed Discovery")
             vm.onCollectorsChanged(setOf("icmp_sweep"))
-            vm.onConfigCidrChanged("10.0.0.0/24")
+            vm.addCidr("10.0.0.0/24")
 
             vm.createSource()
             advanceUntilIdle()
@@ -1229,4 +1241,286 @@ class CreateDiscoverySourceViewModelTest {
             assertNull(formDraftStore.load(DraftForm.CreateDiscoverySource, CreateDiscoverySourceDraft.serializer()))
             vm.clear()
         }
+
+    @Test
+    fun freeCidrIsAddedInOrderAndInputCleared() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.addCidr("192.0.2.0/24")
+            vm.addCidr(" 198.51.100.0/24 ")
+
+            assertEquals(
+                listOf("192.0.2.0/24", "198.51.100.0/24"),
+                vm.state.value.targets
+                    .map { it.cidr },
+            )
+            assertEquals("", vm.state.value.targetInput)
+            assertTrue(
+                vm.state.value.targets
+                    .all { it.subnetId == null },
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun removingATargetKeepsTheOrderOfTheOthers() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.addCidr("10.0.1.0/24")
+            vm.addCidr("10.0.2.0/24")
+            vm.addCidr("10.0.3.0/24")
+            vm.onRemoveTarget(1)
+
+            assertEquals(
+                listOf("10.0.1.0/24", "10.0.3.0/24"),
+                vm.state.value.targets
+                    .map { it.cidr },
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun togglingASubnetTwiceUnlinksIt() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+            val subnet =
+                vm.state.value.subnets
+                    .single()
+
+            vm.onSubnetToggled(subnet)
+            assertEquals(listOf(DiscoveryTarget("10.10.0.0/24", "sub-10", "Office LAN")), vm.state.value.targets)
+
+            vm.onSubnetToggled(subnet)
+            assertTrue(
+                vm.state.value.targets
+                    .isEmpty(),
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun overlappingCidrIsRefusedWithTheOverlapError() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.addCidr("10.0.0.0/23")
+            vm.addCidr("10.0.1.0/24")
+
+            assertEquals(
+                listOf("10.0.0.0/23"),
+                vm.state.value.targets
+                    .map { it.cidr },
+            )
+            assertEquals("10.0.1.0/24", vm.state.value.targetInput)
+            assertEquals(
+                TargetRuleViolation.Overlap.message,
+                vm.state.value.validationErrors[TARGET_INPUT_ERROR_KEY],
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun subnetOverlappingAFreeTargetIsRefused() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.addCidr("10.10.0.0/16")
+            vm.onSubnetToggled(
+                vm.state.value.subnets
+                    .single(),
+            )
+
+            assertEquals(
+                listOf("10.10.0.0/16"),
+                vm.state.value.targets
+                    .map { it.cidr },
+            )
+            assertEquals(TargetRuleViolation.Overlap.message, vm.state.value.validationErrors[TARGETS_ERROR_KEY])
+            vm.clear()
+        }
+
+    @Test
+    fun blockLargerThanSlash16IsInvalid() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.addCidr("10.0.0.0/8")
+
+            assertTrue(
+                vm.state.value.targets
+                    .isEmpty(),
+            )
+            assertEquals(TargetRuleViolation.Invalid.message, vm.state.value.validationErrors[TARGET_INPUT_ERROR_KEY])
+            vm.clear()
+        }
+
+    @Test
+    fun summedAddressLimitIsEnforcedBeforeSubmit() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            vm.addCidr("10.1.0.0/16")
+            assertEquals(65_536L, vm.state.value.targetsEditor.addressCount)
+
+            vm.addCidr("10.2.0.0/24")
+
+            assertEquals(
+                listOf("10.1.0.0/16"),
+                vm.state.value.targets
+                    .map { it.cidr },
+            )
+            assertEquals(
+                TargetRuleViolation.TooLarge.message,
+                vm.state.value.validationErrors[TARGET_INPUT_ERROR_KEY],
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun aThirtyThirdTargetIsRefused() =
+        runTest {
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            repeat(DiscoveryTargetRules.MAX_TARGETS) { vm.addCidr("10.0.$it.0/28") }
+            vm.addCidr("10.0.200.0/28")
+
+            assertEquals(DiscoveryTargetRules.MAX_TARGETS, vm.state.value.targets.size)
+            assertEquals(TargetRuleViolation.TooMany.message, vm.state.value.validationErrors[TARGET_INPUT_ERROR_KEY])
+            vm.clear()
+        }
+
+    @Test
+    fun submitSendsTargetsInOrderWithSubnetLinks() =
+        runTest {
+            val discoveryRepo = FakeDiscoveryRepository()
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Multi target")
+            vm.onCollectorsChanged(setOf("icmp_sweep"))
+            vm.onSubnetToggled(
+                vm.state.value.subnets
+                    .single(),
+            )
+            vm.addCidr("192.0.2.0/24")
+            vm.createSource()
+            advanceUntilIdle()
+
+            val config = assertNotNull(discoveryRepo.lastCreateSourceRequest?.config)
+            assertNull(config.cidr)
+            assertEquals(
+                listOf(
+                    DiscoveryTargetRequestDto("10.10.0.0/24", subnetId = "sub-10"),
+                    DiscoveryTargetRequestDto("192.0.2.0/24"),
+                ),
+                config.targets,
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun providerOnlyPlanHidesTheEditorAndSendsNoTargets() =
+        runTest {
+            val discoveryRepo = FakeDiscoveryRepository()
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.onNameChanged("Docker homelab")
+            vm.addCidr("192.0.2.0/24")
+            vm.onCollectorsChanged(setOf("docker"))
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+
+            assertFalse(vm.state.value.requiresCidr)
+            vm.createSource()
+            advanceUntilIdle()
+
+            assertNotNull(discoveryRepo.lastCreateSourceRequest)
+            assertNull(discoveryRepo.lastCreateSourceRequest?.config)
+            vm.clear()
+        }
+
+    @Test
+    fun backendTargetErrorCodesMapToLocalizedMessages() =
+        runTest {
+            TargetRuleViolation.entries.forEach { violation ->
+                val repo =
+                    FakeDiscoveryRepository(
+                        createSourceResult =
+                            ApiResult.Error(
+                                code = violation.code,
+                                message = "raw backend text",
+                                requestId = "",
+                                httpStatus = 422,
+                            ),
+                    )
+                val vm = makeVm(discoveryRepo = repo, scope = this)
+                advanceUntilIdle()
+                vm.onNameChanged("Scanner")
+                vm.addCidr("192.0.2.0/24")
+
+                vm.createSource()
+                advanceUntilIdle()
+
+                assertEquals(violation.message, vm.state.value.errorMessage)
+                assertEquals(violation.message, vm.state.value.validationErrors[TARGETS_ERROR_KEY])
+                vm.clear()
+            }
+        }
+
+    @Test
+    fun draftWithTargetListSurvivesReload() =
+        runTest {
+            val first = makeVm(scope = this)
+            advanceUntilIdle()
+            first.onSubnetToggled(
+                first.state.value.subnets
+                    .single(),
+            )
+            first.addCidr("192.0.2.0/24")
+            first.onTargetInputChanged("198.51.100.0/24")
+            first.clear()
+
+            val reloaded = makeVm(scope = this)
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(DiscoveryTarget("10.10.0.0/24", "sub-10", "Office LAN"), DiscoveryTarget("192.0.2.0/24")),
+                reloaded.state.value.targets,
+            )
+            assertEquals("198.51.100.0/24", reloaded.state.value.targetInput)
+            assertTrue(reloaded.state.value.restoredFromDraft)
+            reloaded.clear()
+        }
+
+    @Test
+    fun legacyDraftWithSingleCidrIsRestoredAsOneTarget() =
+        runTest {
+            formDraftStore.save(
+                DraftForm.CreateDiscoverySource,
+                CreateDiscoverySourceDraft(name = "Old draft", configCidr = "10.0.0.0/24"),
+                CreateDiscoverySourceDraft.serializer(),
+            )
+
+            val vm = makeVm(scope = this)
+            advanceUntilIdle()
+
+            assertEquals(listOf(DiscoveryTarget("10.0.0.0/24")), vm.state.value.targets)
+            vm.clear()
+        }
+}
+
+/** Types [cidr] into the targets editor and adds it, as the operator would. */
+private fun CreateDiscoverySourceViewModel.addCidr(cidr: String) {
+    onTargetInputChanged(cidr)
+    onAddTargetCidr()
 }

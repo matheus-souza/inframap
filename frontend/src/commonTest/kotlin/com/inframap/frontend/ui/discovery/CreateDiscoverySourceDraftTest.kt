@@ -2,6 +2,7 @@ package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.data.storage.draft.DraftJson
 import com.inframap.frontend.domain.model.CredentialSummary
+import com.inframap.frontend.domain.model.DiscoveryTarget
 import com.inframap.frontend.domain.model.SubnetSummary
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -142,7 +143,8 @@ class CreateDiscoverySourceDraftTest {
                 name = "My Discovery",
                 selectedCollectors = setOf("icmp_sweep", "proxmox"),
                 scheduleCron = "0 0 * * *",
-                configCidr = "10.0.0.0/24",
+                targets = listOf(DiscoveryTarget("10.0.0.0/24", subnetId = "s1", subnetName = "LAN")),
+                targetInput = "192.0.2.0/24",
                 enabled = false,
                 isSubmitting = true,
                 isSuccess = true,
@@ -158,7 +160,9 @@ class CreateDiscoverySourceDraftTest {
         assertEquals("My Discovery", draft.name)
         assertEquals(setOf("icmp_sweep", "proxmox"), draft.selectedCollectors)
         assertEquals("0 0 * * *", draft.scheduleCron)
-        assertEquals("10.0.0.0/24", draft.configCidr)
+        assertEquals(listOf(CreateDiscoverySourceDraftTarget("10.0.0.0/24", "s1", "LAN")), draft.targets)
+        assertEquals("192.0.2.0/24", draft.targetInput)
+        assertEquals("", draft.configCidr)
         assertFalse(draft.enabled)
         assertEquals("proxmox", draft.activeProviderTab)
     }
@@ -280,5 +284,48 @@ class CreateDiscoverySourceDraftTest {
         val restored = draft.applyTo(CreateDiscoverySourceUiState())
         val proxmoxConfig = restored.providerConfigs["proxmox"] ?: emptyMap()
         assertEquals("true", proxmoxConfig["tls_verify"])
+    }
+
+    @Test
+    fun targetListSurvivesSerializationInOrder() {
+        val targets =
+            listOf(
+                DiscoveryTarget("10.0.10.0/24", subnetId = "sub-a", subnetName = "Servers"),
+                DiscoveryTarget("192.0.2.0/24"),
+                DiscoveryTarget("198.51.100.0/24", subnetId = "sub-b", subnetName = "Lab"),
+            )
+        val state = CreateDiscoverySourceUiState(name = "Multi", targets = targets)
+
+        val json = DraftJson.encodeToString(CreateDiscoverySourceDraft.serializer(), state.toDraft())
+        val restored =
+            DraftJson
+                .decodeFromString(CreateDiscoverySourceDraft.serializer(), json)
+                .applyTo(CreateDiscoverySourceUiState())
+
+        assertEquals(targets, restored.targets)
+    }
+
+    @Test
+    fun legacyDraftWithSingleCidrRestoresAsOneFreeFormTarget() {
+        // Drafts saved before sources held a list carry only config_cidr.
+        val legacyJson = """{"name":"Old","selected_collectors":["icmp_sweep"],"config_cidr":"10.0.0.0/24"}"""
+
+        val restored =
+            DraftJson
+                .decodeFromString(CreateDiscoverySourceDraft.serializer(), legacyJson)
+                .applyTo(CreateDiscoverySourceUiState())
+
+        assertEquals(listOf(DiscoveryTarget("10.0.0.0/24")), restored.targets)
+    }
+
+    @Test
+    fun targetListWinsOverLegacyCidr() {
+        val draft =
+            CreateDiscoverySourceDraft(
+                configCidr = "10.0.0.0/24",
+                targets = listOf(CreateDiscoverySourceDraftTarget("192.0.2.0/24")),
+            )
+
+        assertEquals(listOf(DiscoveryTarget("192.0.2.0/24")), draft.applyTo(CreateDiscoverySourceUiState()).targets)
     }
 }
