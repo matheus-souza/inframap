@@ -83,6 +83,7 @@ Each collector type declares a scope in the `collectors` registry, next to `Requ
 - Migration: `ALTER TABLE discovery_collector_runs ADD COLUMN target_cidr CIDR NULL`.
 - `per_target` scope: one row per (collector, target) with `target_cidr` set. `union` and `none` scopes: one row per collector with a null `target_cidr`.
 - Target linked to a soft-deleted Subnet: `skipped` row with `error_message = "target subnet deleted"`, and no scan.
+- Collector the environment does not let scan at all (an error matching `collectors.ErrCollectorUnavailable`, e.g. an ICMP sweep with no ICMP socket and no `ping` binary): `skipped` row with the collector's reason as `error_message`, one per target for a `per_target` collector, so the run never reads as a successful sweep that found nothing.
 - Source status aggregated over all rows with the current rule: all `success` → `idle`; a mix → `partial`; no `success` → `error`.
 
 ### 5. Credential guard (extends RFC-025 §4)
