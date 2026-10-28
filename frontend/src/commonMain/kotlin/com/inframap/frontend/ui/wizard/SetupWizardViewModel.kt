@@ -3,6 +3,8 @@ package com.inframap.frontend.ui.wizard
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
 import com.inframap.frontend.data.dto.CreateSubnetRequest
+import com.inframap.frontend.data.dto.DiscoverySourceConfigDto
+import com.inframap.frontend.data.dto.DiscoveryTargetRequestDto
 import com.inframap.frontend.data.storage.LocalStorage
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.usecase.dashboard.GetStagingSummaryUseCase
@@ -29,6 +31,9 @@ class SetupWizardViewModel(
 ) : BaseViewModel<SetupWizardUiState>(SetupWizardUiState(), scope) {
     private val createdCidrs = mutableSetOf<String>()
     private val createdSourceCidrs = mutableSetOf<String>()
+
+    /** Id of each Subnet the wizard created, keyed by CIDR, so its source target links to it. */
+    private val createdSubnetIds = mutableMapOf<String, String>()
 
     fun checkShouldShow(
         totalSubnets: Long,
@@ -243,7 +248,10 @@ class SetupWizardViewModel(
                         ),
                     )
                 when (result) {
-                    is ApiResult.Success -> createdCidrs.add(iface.cidr)
+                    is ApiResult.Success -> {
+                        createdCidrs.add(iface.cidr)
+                        createdSubnetIds[iface.cidr] = result.data.id
+                    }
                     else -> {
                         updateState {
                             it.copy(
@@ -290,16 +298,7 @@ class SetupWizardViewModel(
         launchJob("create_sources") {
             val newSourceIds = mutableListOf<String>()
             for (cidr in cidrsToCreate) {
-                val result =
-                    createDiscoverySourceUseCase(
-                        CreateDiscoverySourceRequest(
-                            name = "${scanType.label.substringBefore(" —")} — $cidr",
-                            type = scanType.apiType,
-                            enabled = true,
-                            scheduleCron = cron,
-                            config = mapOf("cidr" to cidr),
-                        ),
-                    )
+                val result = createDiscoverySourceUseCase(sourceRequest(cidr, scanType, cron))
                 when (result) {
                     is ApiResult.Success -> {
                         createdSourceCidrs.add(cidr)
@@ -326,6 +325,22 @@ class SetupWizardViewModel(
             }
         }
     }
+
+    /** One source per CIDR, its single target linked to the Subnet created in step 1. */
+    private fun sourceRequest(
+        cidr: String,
+        scanType: ScanType,
+        cron: String?,
+    ) = CreateDiscoverySourceRequest(
+        name = "${scanType.label.substringBefore(" —")} — $cidr",
+        type = scanType.apiType,
+        enabled = true,
+        scheduleCron = cron,
+        config =
+            DiscoverySourceConfigDto(
+                targets = listOf(DiscoveryTargetRequestDto(cidr = cidr, subnetId = createdSubnetIds[cidr])),
+            ),
+    )
 
     companion object {
         const val KEY_WIZARD_DISMISSED = "inframap_wizard_dismissed"

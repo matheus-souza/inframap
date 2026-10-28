@@ -112,24 +112,7 @@ data class CreateDiscoverySourceRequest(
     @SerialName("schedule_cron") val scheduleCron: String? = null,
     val config: DiscoverySourceConfigDto? = null,
     val collectors: List<CollectorConfigDto> = emptyList(),
-) {
-    /** Single-CIDR shorthand for callers that still build the legacy `{"cidr": ...}` config. */
-    constructor(
-        name: String,
-        type: String = "",
-        enabled: Boolean = true,
-        scheduleCron: String? = null,
-        config: Map<String, String>,
-        collectors: List<CollectorConfigDto> = emptyList(),
-    ) : this(
-        name = name,
-        type = type,
-        enabled = enabled,
-        scheduleCron = scheduleCron,
-        config = DiscoverySourceConfigDto(cidr = config["cidr"]),
-        collectors = collectors,
-    )
-}
+)
 
 @Serializable
 data class UpdateDiscoverySourceRequest(

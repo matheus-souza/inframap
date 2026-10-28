@@ -37,8 +37,6 @@ import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.delete_subnet_confirm_message
 import com.inframap.frontend.generated.resources.delete_subnet_dialog_title
-import com.inframap.frontend.generated.resources.delete_subnet_impact_devices
-import com.inframap.frontend.generated.resources.delete_subnet_impact_edges
 import com.inframap.frontend.generated.resources.devices_retry
 import com.inframap.frontend.generated.resources.subnets_col_auto_discovery
 import com.inframap.frontend.generated.resources.subnets_col_cidr
@@ -87,16 +85,10 @@ fun SubnetsScreen(
         }
 
         if (state.subnetToDelete != null) {
-            val impactLines = mutableListOf<String>()
-            val impact = state.deleteImpact
-            if (impact != null) {
-                impactLines.add(stringResource(Res.string.delete_subnet_impact_devices, impact.affectedDevices))
-                impactLines.add(stringResource(Res.string.delete_subnet_impact_edges, impact.unlinkedTopologyEdges))
-            }
             ImpactConfirmationDialog(
                 title = stringResource(Res.string.delete_subnet_dialog_title),
                 description = stringResource(Res.string.delete_subnet_confirm_message, state.subnetToDelete.name),
-                impactLines = impactLines,
+                impactLines = subnetDeletionImpactLines(state.deleteImpact),
                 isLoadingImpact = state.isLoadingDeleteImpact,
                 onConfirm = actions.onConfirmDeleteClicked,
                 onDismiss = actions.onDismissDeleteClicked,
