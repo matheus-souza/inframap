@@ -6,6 +6,9 @@ import com.inframap.frontend.data.dto.CollectorRunSummaryDto
 import com.inframap.frontend.data.dto.DiscoveryListResponse
 import com.inframap.frontend.data.dto.DiscoverySourceDeletionImpactDto
 import com.inframap.frontend.data.dto.DiscoverySourceDto
+import com.inframap.frontend.data.dto.DiscoveryTargetDto
+import com.inframap.frontend.domain.model.DiscoveryTarget
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -262,5 +265,130 @@ class DiscoveryMapperTest {
 
         assertEquals(4, domain.collectorsHalted)
         assertEquals(12, domain.devicesUnlinked)
+    }
+
+    private val json = Json { ignoreUnknownKeys = true }
+
+    @Test
+    fun toDomainMapsTargetsInOrderWhenPresent() {
+        val dto =
+            DiscoverySourceDto(
+                id = "src-targets",
+                configCidr = "10.0.10.0/24",
+                targets =
+                    listOf(
+                        DiscoveryTargetDto(
+                            cidr = "10.0.10.0/24",
+                            subnetId = "subnet-1",
+                            subnetName = "Servers",
+                            subnetDeleted = false,
+                        ),
+                        DiscoveryTargetDto(cidr = "192.0.2.0/24"),
+                        DiscoveryTargetDto(cidr = "198.51.100.0/24", subnetId = "subnet-2", subnetDeleted = true),
+                    ),
+            )
+
+        val domain = DiscoveryMapper.toDomain(dto)
+
+        assertEquals(
+            listOf(
+                DiscoveryTarget(cidr = "10.0.10.0/24", subnetId = "subnet-1", subnetName = "Servers"),
+                DiscoveryTarget(cidr = "192.0.2.0/24"),
+                DiscoveryTarget(cidr = "198.51.100.0/24", subnetId = "subnet-2", subnetDeleted = true),
+            ),
+            domain.targets,
+        )
+    }
+
+    @Test
+    fun toDomainFallsBackToConfigCidrWhenTargetsAreAbsent() {
+        val absent = DiscoveryMapper.toDomain(DiscoverySourceDto(id = "src-legacy", configCidr = "10.0.0.0/24"))
+        val empty =
+            DiscoveryMapper.toDomain(
+                DiscoverySourceDto(id = "src-legacy", configCidr = "10.0.0.0/24", targets = emptyList()),
+            )
+
+        assertEquals(listOf(DiscoveryTarget(cidr = "10.0.0.0/24")), absent.targets)
+        assertEquals(listOf(DiscoveryTarget(cidr = "10.0.0.0/24")), empty.targets)
+    }
+
+    @Test
+    fun toDomainHasNoTargetsWithoutTargetsOrConfigCidr() {
+        assertTrue(DiscoveryMapper.toDomain(DiscoverySourceDto(id = "src-provider")).targets.isEmpty())
+        assertTrue(DiscoveryMapper.toDomain(DiscoverySourceDto(id = "src-blank", configCidr = " ")).targets.isEmpty())
+    }
+
+    @Test
+    fun toDomainDropsTargetsWithoutCidr() {
+        val dto =
+            DiscoverySourceDto(
+                id = "src-partial",
+                targets = listOf(DiscoveryTargetDto(subnetId = "subnet-1"), DiscoveryTargetDto(cidr = "192.0.2.0/24")),
+            )
+
+        assertEquals(listOf(DiscoveryTarget(cidr = "192.0.2.0/24")), DiscoveryMapper.toDomain(dto).targets)
+        assertNull(DiscoveryMapper.toDomain(DiscoveryTargetDto(cidr = "")))
+    }
+
+    @Test
+    fun toDomainMapsRunTargetCidr() {
+        val withTarget =
+            DiscoveryMapper.toDomain(
+                CollectorRunDetailDto(collectorType = "icmp_sweep", status = "success", targetCidr = "192.0.2.0/24"),
+            )
+        val withoutTarget = DiscoveryMapper.toDomain(CollectorRunDetailDto(collectorType = "mdns", status = "success"))
+
+        assertEquals("192.0.2.0/24", withTarget.targetCidr)
+        assertNull(withoutTarget.targetCidr)
+    }
+
+    @Test
+    fun decodesSourcePayloadWithTargetsAndRunTargetCidr() {
+        val payload =
+            """
+            {
+                "id": "src-1", "name": "LAN", "config_cidr": "10.0.10.0/24",
+                "targets": [
+                    {"cidr": "10.0.10.0/24", "subnet_id": "subnet-1", "subnet_name": "Servers", "subnet_deleted": false},
+                    {"cidr": "192.0.2.0/24", "subnet_id": null, "subnet_name": null, "subnet_deleted": null}
+                ],
+                "last_run": {
+                    "status": "partial",
+                    "collectors": [
+                        {"collector_type": "icmp_sweep", "status": "error", "target_cidr": "192.0.2.0/24"},
+                        {"collector_type": "mdns", "status": "success", "target_cidr": null}
+                    ]
+                }
+            }
+            """.trimIndent()
+
+        val domain = DiscoveryMapper.toDomain(json.decodeFromString<DiscoverySourceDto>(payload))
+
+        assertEquals(
+            listOf(
+                DiscoveryTarget(cidr = "10.0.10.0/24", subnetId = "subnet-1", subnetName = "Servers"),
+                DiscoveryTarget(cidr = "192.0.2.0/24"),
+            ),
+            domain.targets,
+        )
+        val rows = assertNotNull(domain.lastRun).collectors
+        assertEquals("192.0.2.0/24", rows[0].targetCidr)
+        assertNull(rows[1].targetCidr)
+    }
+
+    @Test
+    fun decodesLegacySourcePayloadWithoutTargets() {
+        val payload =
+            """
+            {
+                "id": "src-1", "name": "LAN", "config_cidr": "10.0.10.0/24",
+                "last_run": {"status": "idle", "collectors": [{"collector_type": "icmp_sweep", "status": "success"}]}
+            }
+            """.trimIndent()
+
+        val domain = DiscoveryMapper.toDomain(json.decodeFromString<DiscoverySourceDto>(payload))
+
+        assertEquals(listOf(DiscoveryTarget(cidr = "10.0.10.0/24")), domain.targets)
+        assertNull(assertNotNull(domain.lastRun).collectors.single().targetCidr)
     }
 }

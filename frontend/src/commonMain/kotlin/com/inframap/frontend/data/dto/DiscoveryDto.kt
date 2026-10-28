@@ -20,6 +20,8 @@ data class CollectorRunDetailDto(
     @SerialName("devices_found") val devicesFound: Int = 0,
     @SerialName("duration_ms") val durationMs: Long = 0L,
     @SerialName("error_message") val errorMessage: String? = null,
+    /** The target this row ran against; null for collectors that run once per source (RFC-026 §4). */
+    @SerialName("target_cidr") val targetCidr: String? = null,
 )
 
 @Suppress("ConstructorParameterNaming")
@@ -31,6 +33,19 @@ data class CollectorRunSummaryDto(
     val collectors: List<CollectorRunDetailDto> get() = _collectors ?: emptyList()
 }
 
+/**
+ * One network target of a source (RFC-026 §7). `cidr` is the stored value or, for a target
+ * linked to a Subnet, a display snapshot of it. Every field is optional so a partial or
+ * older payload still decodes.
+ */
+@Serializable
+data class DiscoveryTargetDto(
+    val cidr: String? = null,
+    @SerialName("subnet_id") val subnetId: String? = null,
+    @SerialName("subnet_name") val subnetName: String? = null,
+    @SerialName("subnet_deleted") val subnetDeleted: Boolean? = null,
+)
+
 @Suppress("ConstructorParameterNaming")
 @Serializable
 data class DiscoverySourceDto(
@@ -39,7 +54,10 @@ data class DiscoverySourceDto(
     val type: String = "",
     val enabled: Boolean = true,
     @SerialName("schedule_cron") val scheduleCron: String? = null,
+    /** Deprecated by the backend in favour of [targets]; it mirrors the first target's CIDR. */
     @SerialName("config_cidr") val configCidr: String? = null,
+    /** Absent from backends that predate RFC-026; the mapper then falls back to [configCidr]. */
+    val targets: List<DiscoveryTargetDto>? = null,
     @SerialName("collectors") private val _collectors: List<CollectorDto>? = null,
     @SerialName("last_run_at") val lastRunAt: String? = null,
     @SerialName("last_status") val lastStatus: String = "idle",
