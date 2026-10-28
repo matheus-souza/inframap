@@ -164,10 +164,16 @@ func (c *DiscoveryController) ListSources(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// TriggerRun handles POST /api/v1/discovery/sources/{id}/run
+// TriggerRun handles POST /api/v1/discovery/sources/{id}/run. A run that failed but was
+// recorded answers 200 with the source in its final status (last_status "error"), like any
+// other finished run; 500 is kept for a run whose outcome could not be recorded.
 func (c *DiscoveryController) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	resp, err := c.uc.TriggerRun(r.Context(), idStr)
+	if err != nil && errors.Is(err, usecase.ErrRunFailed) && resp != nil {
+		httputil.WriteJSON(w, r, http.StatusOK, resp)
+		return
+	}
 	if err != nil {
 		if errors.Is(err, usecase.ErrInvalidUUID) {
 			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid discovery source UUID format", nil)
@@ -360,5 +366,3 @@ func (c *DiscoveryController) TestHealth(w http.ResponseWriter, r *http.Request)
 
 	httputil.WriteJSON(w, r, http.StatusOK, resp)
 }
-
-
