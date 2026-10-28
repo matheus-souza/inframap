@@ -233,3 +233,40 @@ func SourceTargetsFromResponses(targets []SourceTargetResponse) []SourceTarget {
 	}
 	return out
 }
+
+// SourceTargetsAdded reports whether next holds a target that previous did not, which the
+// credential guard of RFC-026 §5 treats as a destination change. A linked target is known
+// when its Subnet was already linked, so a CIDR that changed only because the Subnet was
+// edited is no change; any target is also known when its block equals one previously stored.
+// Free-form targets are compared by masked prefix, so editing a free-form CIDR adds a target.
+// Removing or reordering targets adds none.
+func SourceTargetsAdded(previous, next []SourceTarget) bool {
+	knownSubnets := make(map[uuid.UUID]bool, len(previous))
+	knownBlocks := make(map[string]bool, len(previous))
+	for _, target := range previous {
+		if target.SubnetID != nil {
+			knownSubnets[*target.SubnetID] = true
+		}
+		knownBlocks[targetBlockKey(target.CIDR)] = true
+	}
+
+	for _, target := range next {
+		if target.SubnetID != nil && knownSubnets[*target.SubnetID] {
+			continue
+		}
+		if !knownBlocks[targetBlockKey(target.CIDR)] {
+			return true
+		}
+	}
+	return false
+}
+
+// targetBlockKey normalizes a target CIDR for comparison. A value that does not parse is
+// compared as written, so it never matches a valid block.
+func targetBlockKey(cidr string) string {
+	cidr = strings.TrimSpace(cidr)
+	if prefix, err := netip.ParsePrefix(cidr); err == nil {
+		return prefix.Masked().String()
+	}
+	return cidr
+}

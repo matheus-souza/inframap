@@ -270,3 +270,40 @@ func TestSourceTargetResponses(t *testing.T) {
 		t.Errorf("unexpected round trip: %+v", roundTrip)
 	}
 }
+
+func TestSourceTargetsAdded(t *testing.T) {
+	subnetA := uuid.New()
+	subnetB := uuid.New()
+	free := func(cidr string) dto.SourceTarget { return dto.SourceTarget{CIDR: cidr} }
+	linked := func(id uuid.UUID, cidr string) dto.SourceTarget { return dto.SourceTarget{CIDR: cidr, SubnetID: &id} }
+
+	cases := []struct {
+		name     string
+		previous []dto.SourceTarget
+		next     []dto.SourceTarget
+		want     bool
+	}{
+		{name: "identical lists", previous: []dto.SourceTarget{free("10.0.0.0/24")}, next: []dto.SourceTarget{free("10.0.0.0/24")}},
+		{name: "both empty"},
+		{name: "first target on an empty list", next: []dto.SourceTarget{free("10.0.0.0/24")}, want: true},
+		{name: "removal", previous: []dto.SourceTarget{free("10.0.0.0/24"), free("10.0.1.0/24")}, next: []dto.SourceTarget{free("10.0.1.0/24")}},
+		{name: "remove all", previous: []dto.SourceTarget{free("10.0.0.0/24")}, next: []dto.SourceTarget{}},
+		{name: "reorder", previous: []dto.SourceTarget{free("10.0.0.0/24"), linked(subnetA, "10.0.1.0/24")}, next: []dto.SourceTarget{linked(subnetA, "10.0.1.0/24"), free("10.0.0.0/24")}},
+		{name: "free target with host bits", previous: []dto.SourceTarget{free("10.0.0.0/24")}, next: []dto.SourceTarget{free("10.0.0.9/24")}},
+		{name: "free target added", previous: []dto.SourceTarget{free("10.0.0.0/24")}, next: []dto.SourceTarget{free("10.0.0.0/24"), free("192.0.2.0/24")}, want: true},
+		{name: "free cidr changed", previous: []dto.SourceTarget{free("10.0.0.0/24")}, next: []dto.SourceTarget{free("10.0.0.0/23")}, want: true},
+		{name: "linked subnet edited", previous: []dto.SourceTarget{linked(subnetA, "10.0.0.0/24")}, next: []dto.SourceTarget{linked(subnetA, "10.0.4.0/24")}},
+		{name: "another subnet linked", previous: []dto.SourceTarget{linked(subnetA, "10.0.0.0/24")}, next: []dto.SourceTarget{linked(subnetB, "10.0.4.0/24")}, want: true},
+		{name: "free target linked with another cidr", previous: []dto.SourceTarget{free("10.0.0.0/24")}, next: []dto.SourceTarget{linked(subnetA, "10.0.4.0/24")}, want: true},
+		{name: "free target linked with the same cidr", previous: []dto.SourceTarget{free("10.0.0.0/24")}, next: []dto.SourceTarget{linked(subnetA, "10.0.0.0/24")}},
+		{name: "linked target unlinked with the same cidr", previous: []dto.SourceTarget{linked(subnetA, "10.0.0.0/24")}, next: []dto.SourceTarget{free("10.0.0.0/24")}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := dto.SourceTargetsAdded(tc.previous, tc.next); got != tc.want {
+				t.Errorf("SourceTargetsAdded = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
