@@ -207,18 +207,28 @@ func (r *UpdateDiscoverySourceRequest) Validate() error {
 
 // DiscoverySourceResponse represents a discovery source returned to API clients.
 type DiscoverySourceResponse struct {
-	ID           uuid.UUID            `json:"id"`
-	Name         string               `json:"name"`
-	Type         string               `json:"type"`
-	Enabled      bool                 `json:"enabled"`
-	ScheduleCron *string              `json:"schedule_cron,omitempty"`
-	ConfigCIDR   string               `json:"config_cidr,omitempty"`
-	Collectors   []CollectorResponse  `json:"collectors"`
-	LastRunAt    *time.Time           `json:"last_run_at,omitempty"`
-	LastStatus   string               `json:"last_status"`
-	LastRun      *CollectorRunSummary `json:"last_run,omitempty"`
-	CreatedAt    time.Time            `json:"created_at"`
-	UpdatedAt    time.Time            `json:"updated_at"`
+	ID           uuid.UUID `json:"id"`
+	Name         string    `json:"name"`
+	Type         string    `json:"type"`
+	Enabled      bool      `json:"enabled"`
+	ScheduleCron *string   `json:"schedule_cron,omitempty"`
+
+	// ConfigCIDR is deprecated: it mirrors the CIDR of the first target for clients that
+	// predate Targets, and is removed in the next minor version (RFC-026 §7). New code reads
+	// Targets. The standard "Deprecated:" marker is left out on purpose: staticcheck SA1019
+	// would then fail the lint gate on every remaining reader until the field is removed.
+	ConfigCIDR string `json:"config_cidr,omitempty"`
+
+	// Targets is the ordered list of address blocks the source scans (RFC-026 §1). It is
+	// empty for a plan made only of providers.
+	Targets []SourceTargetResponse `json:"targets"`
+
+	Collectors []CollectorResponse  `json:"collectors"`
+	LastRunAt  *time.Time           `json:"last_run_at,omitempty"`
+	LastStatus string               `json:"last_status"`
+	LastRun    *CollectorRunSummary `json:"last_run,omitempty"`
+	CreatedAt  time.Time            `json:"created_at"`
+	UpdatedAt  time.Time            `json:"updated_at"`
 }
 
 // NormalizedDeviceDTO represents a normalized device observation parsed from raw scanner payloads.

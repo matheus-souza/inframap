@@ -152,6 +152,16 @@ func (u *DefaultDiscoveryUseCase) CreateSource(ctx context.Context, req *dto.Cre
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
 
+	targets, _, err := dto.ParseSourceTargets(req.Config)
+	if err != nil {
+		return nil, err
+	}
+	targets, err = u.resolveSourceTargets(ctx, targets, planCollectorTypes(req.Collectors, req.Type))
+	if err != nil {
+		return nil, err
+	}
+	req.Config = dto.WithSourceTargets(req.Config, targets)
+
 	src, err := u.discRepo.CreateSource(ctx, req)
 	if err != nil {
 		return nil, err
@@ -185,6 +195,25 @@ func (u *DefaultDiscoveryUseCase) UpdateSource(ctx context.Context, idStr string
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
+
+	targets, present, err := dto.ParseSourceTargets(req.Config)
+	if err != nil {
+		return nil, err
+	}
+	if !present {
+		// A request without targets keeps the stored ones. They are validated against the
+		// new plan and rewritten in the current form, like any other save.
+		existing, getErr := u.discRepo.GetSourceByID(ctx, id)
+		if getErr != nil {
+			return nil, getErr
+		}
+		targets = dto.SourceTargetsFromResponses(existing.Targets)
+	}
+	targets, err = u.resolveSourceTargets(ctx, targets, planCollectorTypes(req.Collectors, req.Type))
+	if err != nil {
+		return nil, err
+	}
+	req.Config = dto.WithSourceTargets(req.Config, targets)
 
 	// Fetch previous configurations to verify target changes and preserve blank secrets.
 	prevRawConfigs, err := u.discRepo.GetRawCollectorConfigs(ctx, id)
@@ -373,10 +402,10 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		}
 	}
 
-	// A CIDR describes a network sweep. A plan made only of providers enumerates an API and
+	// A target describes a network sweep. A plan made only of providers enumerates an API and
 	// has no range to scan, so it runs without one; the create form accepts that plan too.
-	cidr := source.ConfigCIDR
-	if cidr == "" && collectors.RequiresCIDR(enabledCollectorTypes) {
+	cidrs := sourceTargetCIDRs(source)
+	if len(cidrs) == 0 && collectors.RequiresCIDR(enabledCollectorTypes) {
 		if u.logger != nil {
 			u.logger.Warn("discovery source has no CIDR configured, skipping scan", slog.String("source_id", source.ID.String()))
 		}
@@ -386,7 +415,7 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		return nil, fmt.Errorf("discovery source %s has no CIDR configured", source.ID)
 	}
 
-	if cidr != "" {
+	for _, cidr := range cidrs {
 		if _, err := collectors.ParseTargetPrefix(cidr); err != nil {
 			if u.logger != nil {
 				u.logger.Error("discovery source has invalid CIDR configured", slog.String("source_id", source.ID.String()), slog.Any("error", err))
@@ -421,13 +450,8 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		}
 	}
 
-	target := collectors.DiscoveryTarget{
-		CIDR:     cidr,
-		SourceID: &source.ID,
-	}
-
 	startTime := time.Now()
-	scanResult, scanErr := u.orchestrator.RunScan(ctx, target, activeDevices, enabledCollectorTypes)
+	scanResult, scanErr := u.runSourceTargets(ctx, source.ID, cidrs, activeDevices, enabledCollectorTypes)
 	duration := time.Since(startTime)
 
 	// 3. Compute overall source outcome status
@@ -560,6 +584,159 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 	}
 
 	return res, nil
+}
+
+// runSourceTargets runs the plan against every target of a source, one target after another,
+// and folds the results into a single ScanResult so status aggregation and run recording see
+// one run: collector details are concatenated and totals summed. A plan made only of
+// providers with no targets runs once with an empty target.
+//
+// This loop is the interim execution path for multi-target sources (RFC-026 §3). It reuses
+// the single-target Orchestrator.RunScan and is replaced by the engine's multi-target API.
+func (u *DefaultDiscoveryUseCase) runSourceTargets(
+	ctx context.Context,
+	sourceID uuid.UUID,
+	cidrs []string,
+	activeDevices []db.Device,
+	collectorTypes []string,
+) (*engine.ScanResult, error) {
+	if len(cidrs) == 0 {
+		cidrs = []string{""}
+	}
+
+	// Providers ignore the target, so they run with the first target only. Running them once
+	// per target would report every workload several times and advance its absence count
+	// more than once per run.
+	sweepTypes := sweepCollectorTypes(collectorTypes)
+
+	var folded *engine.ScanResult
+	for i, cidr := range cidrs {
+		requested := collectorTypes
+		if i > 0 && len(collectorTypes) > 0 {
+			if len(sweepTypes) == 0 {
+				break
+			}
+			requested = sweepTypes
+		}
+
+		target := collectors.DiscoveryTarget{
+			CIDR:     cidr,
+			SourceID: &sourceID,
+		}
+		result, err := u.orchestrator.RunScan(ctx, target, activeDevices, requested)
+		folded = foldScanResult(folded, result)
+		if err != nil {
+			// RunScan fails only when the run is cancelled, which skips the remaining targets.
+			return folded, err
+		}
+	}
+	return folded, nil
+}
+
+// foldScanResult merges next into acc, concatenating collector details and summing totals.
+// The folded result keeps the first target.
+func foldScanResult(acc, next *engine.ScanResult) *engine.ScanResult {
+	if next == nil {
+		return acc
+	}
+	if acc == nil {
+		first := *next
+		first.Collectors = append([]engine.CollectorRunDetail(nil), next.Collectors...)
+		return &first
+	}
+	acc.TotalCollected += next.TotalCollected
+	acc.TotalValid += next.TotalValid
+	acc.TotalDiscovered += next.TotalDiscovered
+	acc.TotalUpdated += next.TotalUpdated
+	acc.Duration += next.Duration
+	acc.Collectors = append(acc.Collectors, next.Collectors...)
+	return acc
+}
+
+// sweepCollectorTypes keeps the collector types that scan an address range, dropping providers.
+func sweepCollectorTypes(collectorTypes []string) []string {
+	sweeps := make([]string, 0, len(collectorTypes))
+	for _, collectorType := range collectorTypes {
+		if strings.TrimSpace(collectorType) != "" && collectors.RequiresCIDR([]string{collectorType}) {
+			sweeps = append(sweeps, collectorType)
+		}
+	}
+	return sweeps
+}
+
+// sourceTargetCIDRs lists the CIDR of every target of a source, in order. A target linked to
+// a Subnet runs against the CIDR stored with it.
+func sourceTargetCIDRs(source *dto.DiscoverySourceResponse) []string {
+	cidrs := make([]string, 0, len(source.Targets))
+	for _, target := range source.Targets {
+		cidrs = append(cidrs, target.CIDR)
+	}
+	return cidrs
+}
+
+// planCollectorTypes lists the collector types a requested plan runs: its enabled collectors,
+// or the legacy source type when none is enabled. TriggerRun derives the same list from the
+// stored source, so a plan accepted here is a plan that can run (CONTEXT.md guideline #218).
+func planCollectorTypes(planCollectors []dto.CollectorConfig, fallbackType string) []string {
+	var types []string
+	for _, col := range planCollectors {
+		if col.Enabled == nil || *col.Enabled {
+			types = append(types, col.Type)
+		}
+	}
+	if len(types) == 0 && fallbackType != "" {
+		types = []string{fallbackType}
+	}
+	return types
+}
+
+// resolveSourceTargets checks a source's targets against the rules of RFC-026 §2. A target
+// linked to a Subnet must reference an active Subnet, and its CIDR snapshot is refreshed from
+// it before the list is validated.
+func (u *DefaultDiscoveryUseCase) resolveSourceTargets(ctx context.Context, targets []dto.SourceTarget, collectorTypes []string) ([]dto.SourceTarget, error) {
+	requiresCIDR := collectors.RequiresCIDR(collectorTypes)
+
+	// Bound the list before looking Subnets up, so an oversized request costs no queries.
+	if len(targets) > dto.MaxSourceTargets {
+		return nil, dto.ValidateSourceTargets(targets, requiresCIDR)
+	}
+
+	resolved := make([]dto.SourceTarget, len(targets))
+	copy(resolved, targets)
+	for i := range resolved {
+		if resolved[i].SubnetID == nil {
+			continue
+		}
+		subnet, err := u.lookupTargetSubnet(ctx, i, *resolved[i].SubnetID)
+		if err != nil {
+			return nil, err
+		}
+		resolved[i].CIDR = subnet.Cidr.Masked().String()
+	}
+
+	if err := dto.ValidateSourceTargets(resolved, requiresCIDR); err != nil {
+		return nil, err
+	}
+	return resolved, nil
+}
+
+// lookupTargetSubnet fetches the active Subnet a target links to. An unknown or soft-deleted
+// Subnet is a validation error; any other failure is returned as is.
+func (u *DefaultDiscoveryUseCase) lookupTargetSubnet(ctx context.Context, index int, id uuid.UUID) (*db.Subnet, error) {
+	if u.invRepo == nil {
+		return nil, dto.NewTargetSubnetNotFoundError(index, id.String())
+	}
+	subnet, err := u.invRepo.GetSubnetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, inventoryRepo.ErrSubnetNotFound) {
+			return nil, dto.NewTargetSubnetNotFoundError(index, id.String())
+		}
+		return nil, fmt.Errorf("failed to look up target subnet %s: %w", id, err)
+	}
+	if subnet == nil || subnet.DeletedAt.Valid {
+		return nil, dto.NewTargetSubnetNotFoundError(index, id.String())
+	}
+	return subnet, nil
 }
 
 // TriggerScan executes an active discovery scan across a target CIDR network range.

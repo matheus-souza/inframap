@@ -29,6 +29,7 @@ type mockDiscRepo struct {
 	records             []*dto.DiscoveryRecordResponse
 	runs                []*db.CreateCollectorRunParams
 	rawCollectorConfigs map[uuid.UUID]map[string]map[string]interface{}
+	sourceConfigs       map[uuid.UUID]map[string]interface{}
 
 	failGetSource          bool
 	failUpdateSourceStatus bool
@@ -48,6 +49,19 @@ func newMockDiscRepo() *mockDiscRepo {
 		sources:             make(map[uuid.UUID]*dto.DiscoverySourceResponse),
 		runs:                make([]*db.CreateCollectorRunParams, 0),
 		rawCollectorConfigs: make(map[uuid.UUID]map[string]map[string]interface{}),
+		sourceConfigs:       make(map[uuid.UUID]map[string]interface{}),
+	}
+}
+
+// storeSourceConfig keeps the source config the use case handed to the repository and maps
+// its targets onto the response, as the Postgres repository does.
+func (m *mockDiscRepo) storeSourceConfig(resp *dto.DiscoverySourceResponse, config map[string]interface{}) {
+	m.sourceConfigs[resp.ID] = config
+	targets, _, _ := dto.ParseSourceTargets(config)
+	resp.Targets = dto.NewSourceTargetResponses(targets)
+	resp.ConfigCIDR = ""
+	if len(targets) > 0 {
+		resp.ConfigCIDR = targets[0].CIDR
 	}
 }
 
@@ -79,6 +93,7 @@ func (m *mockDiscRepo) CreateSource(_ context.Context, req *dto.CreateDiscoveryS
 		cron := req.ScheduleCron
 		resp.ScheduleCron = &cron
 	}
+	m.storeSourceConfig(resp, req.Config)
 	m.sources[id] = resp
 	return resp, nil
 }
@@ -130,6 +145,9 @@ func (m *mockDiscRepo) UpdateSource(_ context.Context, id uuid.UUID, req *dto.Up
 	}
 	src.Collectors = cols
 	src.UpdatedAt = time.Now()
+	if len(req.Config) > 0 {
+		m.storeSourceConfig(src, req.Config)
+	}
 	return src, nil
 }
 
@@ -332,6 +350,7 @@ type mockInvRepo struct {
 
 	devices []db.Device
 	staged  []db.DeviceStaging
+	subnets map[uuid.UUID]*db.Subnet
 
 	failListDevices         bool
 	failGetDeviceByID       bool
@@ -493,8 +512,11 @@ func (m *mockInvRepo) ListSubnets(_ context.Context) ([]db.Subnet, error) {
 	return nil, nil
 }
 
-func (m *mockInvRepo) GetSubnetByID(_ context.Context, _ uuid.UUID) (*db.Subnet, error) {
-	return nil, nil
+func (m *mockInvRepo) GetSubnetByID(_ context.Context, id uuid.UUID) (*db.Subnet, error) {
+	if subnet, ok := m.subnets[id]; ok {
+		return subnet, nil
+	}
+	return nil, inventoryRepo.ErrSubnetNotFound
 }
 
 func (m *mockInvRepo) UpdateSubnet(_ context.Context, _ db.UpdateSubnetParams) (*db.Subnet, error) {
@@ -554,7 +576,8 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 	t.Run("CreateSource Multi-Collector Plan Round-Trip", func(t *testing.T) {
 		req := &dto.CreateDiscoverySourceRequest{
-			Name: "Homelab Subnet Plan",
+			Name:   "Homelab Subnet Plan",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
 			Collectors: []dto.CollectorConfig{
 				{Type: "icmp_sweep"},
 				{Type: "arp_sweep"},
@@ -596,6 +619,7 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		cronExpr := "*/5 * * * *"
 		req := &dto.CreateDiscoverySourceRequest{
 			Name:         "Cron Source",
+			Config:       map[string]interface{}{"cidr": "192.168.1.0/30"},
 			Type:         "icmp_sweep",
 			ScheduleCron: cronExpr,
 		}
@@ -633,8 +657,9 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		localUC := usecase.NewDefaultDiscoveryUseCase(newMockDiscRepo(), newMockInvRepo(), closedBus, logLogger)
 
 		req := &dto.CreateDiscoverySourceRequest{
-			Name: "Publish Fail Source",
-			Type: "icmp_sweep",
+			Name:   "Publish Fail Source",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
+			Type:   "icmp_sweep",
 		}
 		src, err := localUC.CreateSource(ctx, req)
 		if err != nil {
@@ -682,13 +707,18 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 	t.Run("TriggerRun returns error when source has no CIDR", func(t *testing.T) {
 		// A sweep needs an address range. The source is created here rather than picked
 		// from ListSources, whose map-backed order could hand back a provider-only plan.
+		// CreateSource now rejects a sweep without targets, so the stored state of a source
+		// saved before that rule is reproduced by clearing them afterwards.
 		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
-			Name: "Sweep Without CIDR",
-			Type: "icmp_sweep",
+			Name:   "Sweep Without CIDR",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
+			Type:   "icmp_sweep",
 		})
 		if err != nil {
 			t.Fatalf("CreateSource error: %v", err)
 		}
+		src.Targets = nil
+		src.ConfigCIDR = ""
 
 		_, err = uc.TriggerRun(ctx, src.ID.String())
 		if err == nil {
@@ -715,8 +745,8 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateSource error: %v", err)
 		}
-		if src.ConfigCIDR != "" {
-			t.Fatalf("expected source without CIDR, got %q", src.ConfigCIDR)
+		if src.ConfigCIDR != "" || len(src.Targets) != 0 {
+			t.Fatalf("expected source without targets, got %q / %+v", src.ConfigCIDR, src.Targets)
 		}
 
 		_, err = uc.TriggerRun(ctx, src.ID.String())
@@ -740,7 +770,7 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		if len(sources) == 0 {
 			t.Fatal("expected at least 1 source")
 		}
-		sources[0].ConfigCIDR = "not-a-valid-cidr"
+		sources[0].Targets = []dto.SourceTargetResponse{{CIDR: "not-a-valid-cidr"}}
 
 		_, err := uc.TriggerRun(ctx, sources[0].ID.String())
 		if err == nil {
@@ -753,7 +783,8 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 	t.Run("TriggerRun with All Success resets to idle and records runs", func(t *testing.T) {
 		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
-			Name: "All Success Source",
+			Name:   "All Success Source",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
 			Collectors: []dto.CollectorConfig{
 				{Type: "icmp_sweep"},
 				{Type: "arp_sweep"},
@@ -762,8 +793,6 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateSource error: %v", err)
 		}
-		src.ConfigCIDR = "192.168.1.0/30"
-
 		res, err := uc.TriggerRun(ctx, src.ID.String())
 		if err != nil {
 			t.Fatalf("expected nil error, got %v", err)
@@ -788,7 +817,8 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 	t.Run("TriggerRun with Mixed Success/Error sets partial status and records runs", func(t *testing.T) {
 		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
-			Name: "Partial Success Source",
+			Name:   "Partial Success Source",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
 			Collectors: []dto.CollectorConfig{
 				{Type: "arp_sweep"},
 				{Type: "proxmox"},
@@ -797,8 +827,6 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateSource error: %v", err)
 		}
-		src.ConfigCIDR = "192.168.1.0/30"
-
 		res, err := uc.TriggerRun(ctx, src.ID.String())
 		if err != nil {
 			t.Fatalf("expected nil error on partial status run, got %v", err)
@@ -839,8 +867,6 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateSource error: %v", err)
 		}
-		src.ConfigCIDR = "192.168.1.0/30"
-
 		res, err := uc.TriggerRun(ctx, src.ID.String())
 		if err == nil {
 			t.Fatal("expected error on all-error scan, got nil")
@@ -865,14 +891,13 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 	t.Run("TriggerRun with Context Cancellation sets cancelled status", func(t *testing.T) {
 		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
-			Name: "Cancelled Source",
-			Type: "icmp_sweep",
+			Name:   "Cancelled Source",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
+			Type:   "icmp_sweep",
 		})
 		if err != nil {
 			t.Fatalf("CreateSource error: %v", err)
 		}
-		src.ConfigCIDR = "192.168.1.0/30"
-
 		cancelCtx, cancel := context.WithCancel(ctx)
 		cancel()
 
@@ -887,14 +912,13 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 	t.Run("TriggerRun handles CreateCollectorRun failure gracefully (Guideline #85)", func(t *testing.T) {
 		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
-			Name: "Repo Error Source",
-			Type: "arp_sweep",
+			Name:   "Repo Error Source",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
+			Type:   "arp_sweep",
 		})
 		if err != nil {
 			t.Fatalf("CreateSource error: %v", err)
 		}
-		src.ConfigCIDR = "192.168.1.0/30"
-
 		discRepo.failCreateCollectorRun = true
 		res, err := uc.TriggerRun(ctx, src.ID.String())
 		if err != nil {
@@ -967,7 +991,8 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 	t.Run("IngestNormalizedDevice Auto-Approves Trusted Provider when Collector Configured", func(t *testing.T) {
 		sweepSrc, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
-			Name: "Multi-Collector Plan with Proxmox",
+			Name:   "Multi-Collector Plan with Proxmox",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
 			Collectors: []dto.CollectorConfig{
 				{Type: "icmp_sweep"},
 				{Type: "proxmox"},
@@ -1003,8 +1028,9 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 	t.Run("IngestNormalizedDevice Stages Device When ProtocolSource Not Configured on Source", func(t *testing.T) {
 		icmpSrc, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
-			Name: "ICMP Only Source",
-			Type: "icmp_sweep",
+			Name:   "ICMP Only Source",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
+			Type:   "icmp_sweep",
 		})
 		if err != nil {
 			t.Fatalf("CreateSource error: %v", err)
@@ -1051,8 +1077,9 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 	t.Run("IngestNormalizedDevice Generic Sweep Routes to Staging", func(t *testing.T) {
 		sweepSource, _ := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
-			Name: "ARP Local Sweep",
-			Type: "arp_sweep",
+			Name:   "ARP Local Sweep",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
+			Type:   "arp_sweep",
 		})
 
 		norm := &dto.NormalizedDeviceDTO{
@@ -1105,7 +1132,7 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 		invRepo.failCreateDevice = false
 
 		// Fail create staging device
-		sweepSource, _ := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{Name: "Sweep2", Type: "icmp_sweep"})
+		sweepSource, _ := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{Name: "Sweep2", Type: "icmp_sweep", Config: map[string]interface{}{"cidr": "192.168.1.0/30"}})
 		invRepo.failCreateStagingDevice = true
 		_, err = uc.IngestNormalizedDevice(ctx, sweepSource.ID, &dto.NormalizedDeviceDTO{Hostname: "staged-host"})
 		if err == nil {
@@ -1430,8 +1457,9 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 
 		// 3. Existing source with runs
 		src, createErr := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
-			Name: "History Source",
-			Type: "icmp_sweep",
+			Name:   "History Source",
+			Type:   "icmp_sweep",
+			Config: map[string]interface{}{"cidr": "192.168.1.0/30"},
 		})
 		if createErr != nil {
 			t.Fatalf("failed to create source: %v", createErr)
@@ -1921,4 +1949,3 @@ func TestIngestNormalizedDevice_RediscoverSoftDeletedDevice(t *testing.T) {
 		t.Errorf("idempotency violated: expected 1 staging record after repeated sweep, got %d", len(invRepo.staged))
 	}
 }
-

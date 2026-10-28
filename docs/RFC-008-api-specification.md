@@ -165,8 +165,23 @@ All endpoints are prefixed with `/api/v1`.
 - `POST /api/v1/discovery/sources` — Add new discovery source.
   - **Request body** accepts both legacy `type` field and new `collectors[]` array for backward compatibility.
   - `collectors[]` — Optional array of collector type strings to enable on this source. Supported values: `icmp_sweep`, `arp_sweep`, `mdns`, `reverse_dns`, `snmp`, `proxmox`, `docker`, `unifi`. If omitted, falls back to legacy `type` field.
-- `PUT  /api/v1/discovery/sources/:id` — Update discovery source collectors and config.
+  - `config.targets` — Ordered list of address blocks the source scans ([RFC-026](./RFC-026-multi-target-discovery-sources-spec.md) §1): `[{ "cidr": "10.0.10.0/24", "subnet_id": "<uuid>" }, { "cidr": "192.0.2.0/24" }]`. `subnet_id` is optional and links the target to a registered Subnet; the stored `cidr` of a linked target is refreshed from that Subnet on every save. The list may be empty when every enabled collector is a provider (`proxmox`, `docker`, `unifi`) and needs at least one target otherwise.
+  - `config.cidr` — Legacy single-target form, still accepted and stored as a one-element `targets` list. When both keys are sent, `targets` wins. Every save stores `targets` and drops `cidr` from the encrypted configuration; sources saved before targets existed are read as a one-target list, so no data migration is needed.
+  - **Target validation** (`422`, the code is returned in `error.code` and the offending entry, when there is one, in `error.details[].field`, e.g. `config.targets[1].cidr`):
+
+    | Error code | Rule |
+    | :--- | :--- |
+    | `error_targets_required` | The plan contains a network sweep and `targets` is empty |
+    | `error_target_invalid` | A CIDR is malformed or broader than `/16` |
+    | `error_targets_overlap` | Two targets of the same source are equal or overlap (e.g. `10.0.0.0/23` and `10.0.1.0/24`) |
+    | `error_targets_too_large` | The targets cover more than 65 536 addresses in total |
+    | `error_targets_too_many` | More than 32 targets |
+    | `error_target_subnet_not_found` | `subnet_id` is unknown or the Subnet was soft-deleted |
+
+- `PUT  /api/v1/discovery/sources/:id` — Update discovery source collectors and config. Accepts `config.targets` and `config.cidr` with the same rules and errors as `POST`. A request that carries neither key keeps the stored targets, which are validated against the new plan and rewritten as `targets`.
 - `GET  /api/v1/discovery/sources/:id` — Get single discovery source with collector details and last run summary.
+  - **Response** (`DiscoverySourceResponse`, also returned by `GET /api/v1/discovery/sources`, `POST` and `PUT`): `targets: [{ "cidr", "subnet_id" }]`, in order, with `subnet_id` set to `null` for a free-form target and `targets` set to `[]` for a source without targets.
+  - `config_cidr` — **Deprecated.** Holds the first target's CIDR, kept for clients that predate `targets`; omitted when the source has no targets. Removed in the next minor version.
 - `DELETE /api/v1/discovery/sources/:id` — Remove discovery source.
 - `POST /api/v1/discovery/sources/:id/run` — Manually trigger scan for a source.
   - **Multi-collector execution**: All enabled collectors run in parallel. Per-collector results are stored in `discovery_collector_runs` table.

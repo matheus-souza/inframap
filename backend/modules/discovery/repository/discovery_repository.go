@@ -54,9 +54,25 @@ type DiscoveryRepository interface {
 	ResolveCollectorConfig(ctx context.Context, sourceID uuid.UUID, collectorType string) (sdk.ProviderConfig, error)
 }
 
-// ConfigPayload represents decrypted discovery source configuration.
+// ConfigPayload represents decrypted discovery source configuration (RFC-026 §1).
 type ConfigPayload struct {
-	CIDR string `json:"cidr"`
+	Targets []dto.SourceTarget `json:"targets,omitempty"`
+
+	// CIDR is the single-target form stored before targets existed. It is only read:
+	// every write stores Targets and drops it.
+	CIDR string `json:"cidr,omitempty"`
+}
+
+// SourceTargets returns the configured targets. A payload without targets is read as a
+// one-target list made of its legacy CIDR, so existing sources need no data migration.
+func (p *ConfigPayload) SourceTargets() []dto.SourceTarget {
+	if p.Targets != nil {
+		return p.Targets
+	}
+	if cidr := strings.TrimSpace(p.CIDR); cidr != "" {
+		return []dto.SourceTarget{{CIDR: cidr}}
+	}
+	return []dto.SourceTarget{}
 }
 
 // PgDiscoveryRepository implements DiscoveryRepository backed by PostgreSQL.
@@ -465,6 +481,7 @@ func (r *PgDiscoveryRepository) mapSourceToDTO(row *db.DiscoverySource) (*dto.Di
 		Name:       row.Name,
 		Type:       row.Type,
 		Enabled:    row.Enabled,
+		Targets:    make([]dto.SourceTargetResponse, 0),
 		Collectors: make([]dto.CollectorResponse, 0),
 		LastStatus: row.LastStatus,
 		CreatedAt:  row.CreatedAt.Time,
@@ -488,7 +505,10 @@ func (r *PgDiscoveryRepository) mapSourceToDTO(row *db.DiscoverySource) (*dto.Di
 		if err := json.Unmarshal(decrypted, &cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse source config for %s: %w", row.ID, err)
 		}
-		resp.ConfigCIDR = cfg.CIDR
+		resp.Targets = dto.NewSourceTargetResponses(cfg.SourceTargets())
+		if len(resp.Targets) > 0 {
+			resp.ConfigCIDR = resp.Targets[0].CIDR
+		}
 	}
 	return resp, nil
 }
