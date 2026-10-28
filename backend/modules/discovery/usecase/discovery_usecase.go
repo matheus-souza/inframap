@@ -473,15 +473,24 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 	startTime := time.Now()
 	var scanResult *engine.ScanResult
 	var scanErr error
+	sourceID := source.ID
+	run := collectors.DiscoveryTarget{SourceID: &sourceID}
 	if len(targets) == 0 && len(source.Targets) > 0 && requiresCIDR {
-		// Every target links to a deleted Subnet: there is nothing left to scan. The skipped
-		// rows are still recorded and the run ends in error, even for a plan whose union
-		// collectors leave no per-target row behind.
-		scanResult = &engine.ScanResult{}
-		scanErr = fmt.Errorf("discovery source %s has no target left to scan: %s", source.ID, targetSubnetDeletedMessage)
+		// Every target links to a deleted Subnet: no sweep has a range left to scan.
+		if providerTypes := collectorTypesOfScope(enabledCollectorTypes, collectors.TargetScopeNone); len(providerTypes) > 0 {
+			// The providers need no target, so they still run, alone. A union collector has
+			// no prefix left to filter on and is recorded as skipped, like the per_target
+			// collectors of each deleted target.
+			scanResult, scanErr = u.orchestrator.RunTargets(ctx, run, nil, activeDevices, providerTypes)
+			skippedTargets = append(skippedTargets, skippedScopeRuns(enabledCollectorTypes, collectors.TargetScopeUnion, "")...)
+		} else {
+			// A sweep-only plan has nothing left to run. The skipped rows are still recorded
+			// and the run ends in error, even for a plan whose union collectors leave no
+			// per-target row behind.
+			scanResult = &engine.ScanResult{}
+			scanErr = fmt.Errorf("discovery source %s has no target left to scan: %s", source.ID, targetSubnetDeletedMessage)
+		}
 	} else {
-		sourceID := source.ID
-		run := collectors.DiscoveryTarget{SourceID: &sourceID}
 		scanResult, scanErr = u.orchestrator.RunTargets(ctx, run, targets, activeDevices, enabledCollectorTypes)
 	}
 	if len(skippedTargets) > 0 {
@@ -659,7 +668,7 @@ func (u *DefaultDiscoveryUseCase) resolveRunTargets(
 					slog.String("target_cidr", target.CIDR),
 				)
 			}
-			skipped = append(skipped, deletedSubnetRuns(collectorTypes, target.CIDR)...)
+			skipped = append(skipped, skippedScopeRuns(collectorTypes, collectors.TargetScopePerTarget, target.CIDR)...)
 			continue
 		}
 		targets = append(targets, collectors.DiscoveryTarget{
@@ -689,25 +698,37 @@ func (u *DefaultDiscoveryUseCase) lookupRunSubnet(ctx context.Context, id uuid.U
 	return subnet, nil
 }
 
-// deletedSubnetRuns builds the skipped rows of a target whose Subnet was deleted: one per
-// per_target collector of the plan, as the engine would have recorded had it scanned it.
-func deletedSubnetRuns(collectorTypes []string, snapshotCIDR string) []engine.CollectorRunDetail {
+// skippedScopeRuns builds the skipped rows left by Subnets that were deleted: one per
+// collector of the plan with the given scope, as the engine would have recorded had it run
+// it. A per_target row carries the deleted target's snapshot as targetCIDR; a union row
+// stands for the whole run and has none.
+func skippedScopeRuns(collectorTypes []string, scope collectors.TargetScope, targetCIDR string) []engine.CollectorRunDetail {
 	var runs []engine.CollectorRunDetail
-	seen := make(map[string]bool)
-	for _, collectorType := range collectorTypes {
-		canonical := collectors.CanonicalType(collectorType)
-		if canonical == "" || seen[canonical] || collectors.TargetScopeOf(canonical) != collectors.TargetScopePerTarget {
-			continue
-		}
-		seen[canonical] = true
+	for _, collectorType := range collectorTypesOfScope(collectorTypes, scope) {
 		runs = append(runs, engine.CollectorRunDetail{
 			CollectorType: collectorType,
-			TargetCIDR:    snapshotCIDR,
+			TargetCIDR:    targetCIDR,
 			Status:        "skipped",
 			ErrorMessage:  targetSubnetDeletedMessage,
 		})
 	}
 	return runs
+}
+
+// collectorTypesOfScope keeps the collector types of a plan whose target scope is scope,
+// once per collector even when the plan names it through several aliases.
+func collectorTypesOfScope(collectorTypes []string, scope collectors.TargetScope) []string {
+	var kept []string
+	seen := make(map[string]bool)
+	for _, collectorType := range collectorTypes {
+		canonical := collectors.CanonicalType(collectorType)
+		if canonical == "" || seen[canonical] || collectors.TargetScopeOf(canonical) != scope {
+			continue
+		}
+		seen[canonical] = true
+		kept = append(kept, collectorType)
+	}
+	return kept
 }
 
 // interruptedByCancellation reports whether a collector row failed because the run was
