@@ -200,20 +200,26 @@ func (u *DefaultDiscoveryUseCase) UpdateSource(ctx context.Context, idStr string
 	if err != nil {
 		return nil, err
 	}
+	existing, err := u.discRepo.GetSourceByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	storedTargets := dto.SourceTargetsFromResponses(existing.Targets)
 	if !present {
 		// A request without targets keeps the stored ones. They are validated against the
 		// new plan and rewritten in the current form, like any other save.
-		existing, getErr := u.discRepo.GetSourceByID(ctx, id)
-		if getErr != nil {
-			return nil, getErr
-		}
-		targets = dto.SourceTargetsFromResponses(existing.Targets)
+		targets = storedTargets
 	}
 	targets, err = u.resolveSourceTargets(ctx, targets, planCollectorTypes(req.Collectors, req.Type))
 	if err != nil {
 		return nil, err
 	}
 	req.Config = dto.WithSourceTargets(req.Config, targets)
+
+	// Adding a target sends every sweep's credential to hosts it was never used against, so
+	// it counts as a destination change for each collector that scans the targets
+	// (RFC-026 §5). Providers reach their own API URL and are guarded by their keys alone.
+	targetsAdded := present && dto.SourceTargetsAdded(storedTargets, targets)
 
 	// Fetch previous configurations to verify target changes and preserve blank secrets.
 	prevRawConfigs, err := u.discRepo.GetRawCollectorConfigs(ctx, id)
@@ -255,6 +261,10 @@ func (u *DefaultDiscoveryUseCase) UpdateSource(ctx context.Context, idStr string
 					}
 				}
 			}
+		}
+
+		if targetsAdded && collectors.TargetScopeOf(col.Type) != collectors.TargetScopeNone {
+			changedTargetFields = append(changedTargetFields, dto.ConfigKeyTargets)
 		}
 
 		// Check secret fields: if target changed and secret is blank -> 422 error!

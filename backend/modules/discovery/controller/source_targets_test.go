@@ -130,6 +130,30 @@ func TestDiscoveryController_SourceTargets(t *testing.T) {
 		}
 	})
 
+	t.Run("adding targets without the credential answers 422 secret_required_on_target_change", func(t *testing.T) {
+		uc.err = &dto.ErrSecretRequiredOnTargetChange{Fields: []string{dto.ConfigKeyTargets}}
+		defer func() { uc.err = nil }()
+
+		rec := send(http.MethodPut, "/api/v1/discovery/sources/"+uuid.New().String(), map[string]interface{}{
+			"name":       "SNMP sweep",
+			"collectors": []map[string]interface{}{{"type": "snmp", "config": map[string]interface{}{"community": ""}}},
+			"config":     map[string]interface{}{"targets": []map[string]interface{}{{"cidr": "192.0.2.0/24"}}},
+		})
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+		}
+		var env errorEnvelope
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode error: %v", err)
+		}
+		if env.Error.Code != "secret_required_on_target_change" {
+			t.Errorf("error code = %q, want secret_required_on_target_change", env.Error.Code)
+		}
+		if len(env.Error.Details) != 1 || env.Error.Details[0].Field != dto.ConfigKeyTargets {
+			t.Errorf("expected the targets field in details, got %+v", env.Error.Details)
+		}
+	})
+
 	t.Run("legacy config.cidr request returns targets and config_cidr", func(t *testing.T) {
 		rec := send(http.MethodPost, "/api/v1/discovery/sources", map[string]interface{}{
 			"name":   "Legacy",
