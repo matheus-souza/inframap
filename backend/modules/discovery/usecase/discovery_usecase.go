@@ -404,8 +404,8 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 
 	// A target describes a network sweep. A plan made only of providers enumerates an API and
 	// has no range to scan, so it runs without one; the create form accepts that plan too.
-	cidrs := sourceTargetCIDRs(source)
-	if len(cidrs) == 0 && collectors.RequiresCIDR(enabledCollectorTypes) {
+	requiresCIDR := collectors.RequiresCIDR(enabledCollectorTypes)
+	if len(source.Targets) == 0 && requiresCIDR {
 		if u.logger != nil {
 			u.logger.Warn("discovery source has no CIDR configured, skipping scan", slog.String("source_id", source.ID.String()))
 		}
@@ -415,15 +415,25 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		return nil, fmt.Errorf("discovery source %s has no CIDR configured", source.ID)
 	}
 
-	for _, cidr := range cidrs {
-		if _, err := collectors.ParseTargetPrefix(cidr); err != nil {
+	targets, skippedTargets, resolveErr := u.resolveRunTargets(ctx, source, enabledCollectorTypes)
+	if resolveErr != nil {
+		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			_, _ = u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "cancelled")
+			return nil, ctx.Err()
+		}
+		_, _ = u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error")
+		return nil, resolveErr
+	}
+
+	for _, target := range targets {
+		if _, err := collectors.ParseTargetPrefix(target.CIDR); err != nil {
 			if u.logger != nil {
 				u.logger.Error("discovery source has invalid CIDR configured", slog.String("source_id", source.ID.String()), slog.Any("error", err))
 			}
 			if _, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error"); errStatusErr != nil {
 				return nil, fmt.Errorf("failed to set error status for invalid CIDR: %w", errStatusErr)
 			}
-			return nil, fmt.Errorf("discovery source %s has invalid CIDR %q: %w", source.ID, cidr, err)
+			return nil, fmt.Errorf("discovery source %s has invalid CIDR %q: %w", source.ID, target.CIDR, err)
 		}
 	}
 
@@ -451,7 +461,25 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 	}
 
 	startTime := time.Now()
-	scanResult, scanErr := u.runSourceTargets(ctx, source.ID, cidrs, activeDevices, enabledCollectorTypes)
+	var scanResult *engine.ScanResult
+	var scanErr error
+	if len(targets) == 0 && len(source.Targets) > 0 && requiresCIDR {
+		// Every target links to a deleted Subnet: there is nothing left to scan. The skipped
+		// rows are still recorded and the run ends in error, even for a plan whose union
+		// collectors leave no per-target row behind.
+		scanResult = &engine.ScanResult{}
+		scanErr = fmt.Errorf("discovery source %s has no target left to scan: %s", source.ID, targetSubnetDeletedMessage)
+	} else {
+		sourceID := source.ID
+		run := collectors.DiscoveryTarget{SourceID: &sourceID}
+		scanResult, scanErr = u.orchestrator.RunTargets(ctx, run, targets, activeDevices, enabledCollectorTypes)
+	}
+	if len(skippedTargets) > 0 {
+		if scanResult == nil {
+			scanResult = &engine.ScanResult{}
+		}
+		scanResult.Collectors = append(scanResult.Collectors, skippedTargets...)
+	}
 	duration := time.Since(startTime)
 
 	// 3. Compute overall source outcome status
@@ -493,7 +521,7 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 			}
 
 			runStatus := c.Status
-			if isCancelled && runStatus != "success" {
+			if isCancelled && interruptedByCancellation(c) {
 				runStatus = "timeout"
 			}
 			dbColType := normalizeToDBCollectorType(c.CollectorType)
@@ -520,6 +548,7 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 				DevicesFound:  int32(devicesFound), //nolint:gosec // clamped to MaxInt32 above
 				DurationMs:    int32(durationMs),   //nolint:gosec // clamped to MaxInt32 above
 				ErrorMessage:  errMsg,
+				TargetCidr:    targetCIDRColumn(c.TargetCIDR),
 				StartedAt:     pgtype.Timestamptz{Time: startTime, Valid: true},
 				FinishedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			}
@@ -586,92 +615,114 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 	return res, nil
 }
 
-// runSourceTargets runs the plan against every target of a source, one target after another,
-// and folds the results into a single ScanResult so status aggregation and run recording see
-// one run: collector details are concatenated and totals summed. A plan made only of
-// providers with no targets runs once with an empty target.
-//
-// This loop is the interim execution path for multi-target sources (RFC-026 §3). It reuses
-// the single-target Orchestrator.RunScan and is replaced by the engine's multi-target API.
-func (u *DefaultDiscoveryUseCase) runSourceTargets(
+// targetSubnetDeletedMessage is recorded on the rows of a target whose linked Subnet no
+// longer exists (RFC-026 §4).
+const targetSubnetDeletedMessage = "target subnet deleted"
+
+// resolveRunTargets turns a source's targets into the targets a run scans (RFC-026 §1). A
+// free-form target runs against its stored CIDR. A target linked to a Subnet runs against the
+// Subnet's current CIDR, so a Subnet edit is followed without saving the source again; the
+// stored cidr is only a display snapshot. A target whose Subnet is missing or soft-deleted
+// is not scanned: it yields one skipped row per per_target collector of the plan, carrying
+// the snapshot as its target (RFC-026 §4).
+func (u *DefaultDiscoveryUseCase) resolveRunTargets(
 	ctx context.Context,
-	sourceID uuid.UUID,
-	cidrs []string,
-	activeDevices []db.Device,
+	source *dto.DiscoverySourceResponse,
 	collectorTypes []string,
-) (*engine.ScanResult, error) {
-	if len(cidrs) == 0 {
-		cidrs = []string{""}
-	}
-
-	// Providers ignore the target, so they run with the first target only. Running them once
-	// per target would report every workload several times and advance its absence count
-	// more than once per run.
-	sweepTypes := sweepCollectorTypes(collectorTypes)
-
-	var folded *engine.ScanResult
-	for i, cidr := range cidrs {
-		requested := collectorTypes
-		if i > 0 && len(collectorTypes) > 0 {
-			if len(sweepTypes) == 0 {
-				break
-			}
-			requested = sweepTypes
-		}
-
-		target := collectors.DiscoveryTarget{
-			CIDR:     cidr,
-			SourceID: &sourceID,
-		}
-		result, err := u.orchestrator.RunScan(ctx, target, activeDevices, requested)
-		folded = foldScanResult(folded, result)
-		if err != nil {
-			// RunScan fails only when the run is cancelled, which skips the remaining targets.
-			return folded, err
-		}
-	}
-	return folded, nil
-}
-
-// foldScanResult merges next into acc, concatenating collector details and summing totals.
-// The folded result keeps the first target.
-func foldScanResult(acc, next *engine.ScanResult) *engine.ScanResult {
-	if next == nil {
-		return acc
-	}
-	if acc == nil {
-		first := *next
-		first.Collectors = append([]engine.CollectorRunDetail(nil), next.Collectors...)
-		return &first
-	}
-	acc.TotalCollected += next.TotalCollected
-	acc.TotalValid += next.TotalValid
-	acc.TotalDiscovered += next.TotalDiscovered
-	acc.TotalUpdated += next.TotalUpdated
-	acc.Duration += next.Duration
-	acc.Collectors = append(acc.Collectors, next.Collectors...)
-	return acc
-}
-
-// sweepCollectorTypes keeps the collector types that scan an address range, dropping providers.
-func sweepCollectorTypes(collectorTypes []string) []string {
-	sweeps := make([]string, 0, len(collectorTypes))
-	for _, collectorType := range collectorTypes {
-		if strings.TrimSpace(collectorType) != "" && collectors.RequiresCIDR([]string{collectorType}) {
-			sweeps = append(sweeps, collectorType)
-		}
-	}
-	return sweeps
-}
-
-// sourceTargetCIDRs lists the CIDR of every target of a source, in order. A target linked to
-// a Subnet runs against the CIDR stored with it.
-func sourceTargetCIDRs(source *dto.DiscoverySourceResponse) []string {
-	cidrs := make([]string, 0, len(source.Targets))
+) ([]collectors.DiscoveryTarget, []engine.CollectorRunDetail, error) {
+	targets := make([]collectors.DiscoveryTarget, 0, len(source.Targets))
+	var skipped []engine.CollectorRunDetail
 	for _, target := range source.Targets {
-		cidrs = append(cidrs, target.CIDR)
+		if target.SubnetID == nil {
+			targets = append(targets, collectors.DiscoveryTarget{CIDR: target.CIDR})
+			continue
+		}
+		subnet, err := u.lookupRunSubnet(ctx, *target.SubnetID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if subnet == nil {
+			if u.logger != nil {
+				u.logger.Warn("discovery target links to a deleted subnet, skipping it",
+					slog.String("source_id", source.ID.String()),
+					slog.String("subnet_id", target.SubnetID.String()),
+					slog.String("target_cidr", target.CIDR),
+				)
+			}
+			skipped = append(skipped, deletedSubnetRuns(collectorTypes, target.CIDR)...)
+			continue
+		}
+		targets = append(targets, collectors.DiscoveryTarget{
+			CIDR:     subnet.Cidr.Masked().String(),
+			SubnetID: subnet.ID.String(),
+		})
 	}
-	return cidrs
+	return targets, skipped, nil
+}
+
+// lookupRunSubnet fetches the Subnet a target links to, returning nil when it is missing or
+// soft-deleted. Without an inventory the Subnet cannot be confirmed, so it counts as missing.
+func (u *DefaultDiscoveryUseCase) lookupRunSubnet(ctx context.Context, id uuid.UUID) (*db.Subnet, error) {
+	if u.invRepo == nil {
+		return nil, nil
+	}
+	subnet, err := u.invRepo.GetSubnetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, inventoryRepo.ErrSubnetNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to look up target subnet %s: %w", id, err)
+	}
+	if subnet == nil || subnet.DeletedAt.Valid {
+		return nil, nil
+	}
+	return subnet, nil
+}
+
+// deletedSubnetRuns builds the skipped rows of a target whose Subnet was deleted: one per
+// per_target collector of the plan, as the engine would have recorded had it scanned it.
+func deletedSubnetRuns(collectorTypes []string, snapshotCIDR string) []engine.CollectorRunDetail {
+	var runs []engine.CollectorRunDetail
+	seen := make(map[string]bool)
+	for _, collectorType := range collectorTypes {
+		canonical := collectors.CanonicalType(collectorType)
+		if canonical == "" || seen[canonical] || collectors.TargetScopeOf(canonical) != collectors.TargetScopePerTarget {
+			continue
+		}
+		seen[canonical] = true
+		runs = append(runs, engine.CollectorRunDetail{
+			CollectorType: collectorType,
+			TargetCIDR:    snapshotCIDR,
+			Status:        "skipped",
+			ErrorMessage:  targetSubnetDeletedMessage,
+		})
+	}
+	return runs
+}
+
+// interruptedByCancellation reports whether a collector row failed because the run was
+// cancelled while it ran. Rows the engine skipped, or that failed for another reason, keep
+// their status when a cancelled run is recorded.
+func interruptedByCancellation(detail engine.CollectorRunDetail) bool {
+	if detail.Status != "error" {
+		return false
+	}
+	return strings.Contains(detail.ErrorMessage, context.Canceled.Error()) ||
+		strings.Contains(detail.ErrorMessage, context.DeadlineExceeded.Error())
+}
+
+// targetCIDRColumn adapts a run detail's target to the nullable target_cidr column: nil for
+// rows of union and none collectors, which have no single target.
+func targetCIDRColumn(cidr string) *netip.Prefix {
+	if cidr == "" {
+		return nil
+	}
+	prefix, err := netip.ParsePrefix(cidr)
+	if err != nil {
+		return nil
+	}
+	prefix = prefix.Masked()
+	return &prefix
 }
 
 // planCollectorTypes lists the collector types a requested plan runs: its enabled collectors,
