@@ -3,52 +3,75 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/netip"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/modules/discovery/collectors"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 	"github.com/matheussouza/inframap/modules/discovery/engine"
 	"github.com/matheussouza/inframap/modules/discovery/repository"
+	inventoryRepo "github.com/matheussouza/inframap/modules/inventory/repository"
 )
 
-// scanCall is one RunScan invocation seen by recordingOrchestrator.
-type scanCall struct {
-	cidr       string
+// targetsCall is one RunTargets invocation seen by recordingOrchestrator.
+type targetsCall struct {
+	run        collectors.DiscoveryTarget
+	targets    []collectors.DiscoveryTarget
 	collectors []string
 }
 
-// recordingOrchestrator records every RunScan call and reports each requested collector as
-// a success, with one observation per collector.
+// recordingOrchestrator records every RunTargets call. By default it reports each requested
+// collector as a success the way the engine lays rows out: one row per target for a
+// per_target collector, carrying that target's CIDR, and one row without a target otherwise.
 type recordingOrchestrator struct {
-	calls     []scanCall
-	failOnRun int // 1-based call that returns a cancellation error; 0 never fails
+	calls   []targetsCall
+	respond func(targets []collectors.DiscoveryTarget, requested []string) (*engine.ScanResult, error)
 }
 
 func (o *recordingOrchestrator) RegisterCollector(collectors.Collector) {}
 
-func (o *recordingOrchestrator) RunScan(_ context.Context, target collectors.DiscoveryTarget, _ []db.Device, requested []string) (*engine.ScanResult, error) {
-	o.calls = append(o.calls, scanCall{cidr: target.CIDR, collectors: append([]string(nil), requested...)})
-	if o.failOnRun == len(o.calls) {
-		return nil, context.Canceled
-	}
-	details := make([]engine.CollectorRunDetail, len(requested))
-	for i, collectorType := range requested {
-		details[i] = engine.CollectorRunDetail{CollectorType: collectorType, Status: "success", DevicesFound: 1}
-	}
-	return &engine.ScanResult{
-		Target:         target,
-		TotalCollected: len(requested),
-		Duration:       time.Millisecond,
-		Collectors:     details,
-	}, nil
+// RunScan serves the ad-hoc scan only, which TriggerRun must not use.
+func (o *recordingOrchestrator) RunScan(context.Context, collectors.DiscoveryTarget, []db.Device, []string) (*engine.ScanResult, error) {
+	return nil, errors.New("RunScan is not expected from TriggerRun")
 }
 
-// RunTargets is not used by the interim per-target execution path under test.
-func (o *recordingOrchestrator) RunTargets(context.Context, collectors.DiscoveryTarget, []collectors.DiscoveryTarget, []db.Device, []string) (*engine.ScanResult, error) {
-	return nil, errors.New("RunTargets is not expected in this test")
+func (o *recordingOrchestrator) RunTargets(_ context.Context, run collectors.DiscoveryTarget, targets []collectors.DiscoveryTarget, _ []db.Device, requested []string) (*engine.ScanResult, error) {
+	o.calls = append(o.calls, targetsCall{
+		run:        run,
+		targets:    append([]collectors.DiscoveryTarget(nil), targets...),
+		collectors: append([]string(nil), requested...),
+	})
+	if o.respond != nil {
+		return o.respond(targets, requested)
+	}
+	return successResult(targets, requested, nil), nil
+}
+
+// successResult reports every requested collector as a success, one row per target for
+// per_target collectors. A CIDR listed in failing makes its per_target rows fail instead.
+func successResult(targets []collectors.DiscoveryTarget, requested []string, failing map[string]bool) *engine.ScanResult {
+	var details []engine.CollectorRunDetail
+	for _, collectorType := range requested {
+		if collectors.TargetScopeOf(collectorType) != collectors.TargetScopePerTarget {
+			details = append(details, engine.CollectorRunDetail{CollectorType: collectorType, Status: "success", DevicesFound: 1})
+			continue
+		}
+		for _, target := range targets {
+			detail := engine.CollectorRunDetail{CollectorType: collectorType, TargetCIDR: target.CIDR, Status: "success", DevicesFound: 1}
+			if failing[target.CIDR] {
+				detail.Status = "error"
+				detail.DevicesFound = 0
+				detail.ErrorMessage = "network unreachable"
+			}
+			details = append(details, detail)
+		}
+	}
+	return &engine.ScanResult{TotalCollected: len(details), Duration: time.Millisecond, Collectors: details}
 }
 
 // stubRunRepo serves one source and records what TriggerRun persists. Methods TriggerRun
@@ -75,10 +98,38 @@ func (s *stubRunRepo) CreateCollectorRun(_ context.Context, run *db.CreateCollec
 	return nil
 }
 
-func newRunTargetsUseCase(source *dto.DiscoverySourceResponse) (*DefaultDiscoveryUseCase, *recordingOrchestrator, *stubRunRepo) {
+// subnetInvRepo serves Subnets by ID on top of stubInvRepo.
+type subnetInvRepo struct {
+	*stubInvRepo
+	subnets   map[uuid.UUID]*db.Subnet
+	lookupErr error
+}
+
+func (s *subnetInvRepo) GetSubnetByID(_ context.Context, id uuid.UUID) (*db.Subnet, error) {
+	if s.lookupErr != nil {
+		return nil, s.lookupErr
+	}
+	if subnet, ok := s.subnets[id]; ok {
+		return subnet, nil
+	}
+	return nil, inventoryRepo.ErrSubnetNotFound
+}
+
+func (s *subnetInvRepo) addSubnet(cidr string, deleted bool) uuid.UUID {
+	id := uuid.New()
+	subnet := &db.Subnet{ID: id, Name: "lab-" + cidr, Cidr: netip.MustParsePrefix(cidr)}
+	if deleted {
+		subnet.DeletedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	}
+	s.subnets[id] = subnet
+	return id
+}
+
+func newRunTargetsUseCase(source *dto.DiscoverySourceResponse) (*DefaultDiscoveryUseCase, *recordingOrchestrator, *stubRunRepo, *subnetInvRepo) {
 	orch := &recordingOrchestrator{}
 	repo := &stubRunRepo{source: source}
-	return &DefaultDiscoveryUseCase{discRepo: repo, orchestrator: orch}, orch, repo
+	inv := &subnetInvRepo{stubInvRepo: &stubInvRepo{}, subnets: make(map[uuid.UUID]*db.Subnet)}
+	return &DefaultDiscoveryUseCase{discRepo: repo, invRepo: inv, orchestrator: orch}, orch, repo, inv
 }
 
 func sourceWithTargets(collectorTypes []string, cidrs ...string) *dto.DiscoverySourceResponse {
@@ -95,90 +146,268 @@ func sourceWithTargets(collectorTypes []string, cidrs ...string) *dto.DiscoveryS
 	return source
 }
 
+func targetCIDRs(targets []collectors.DiscoveryTarget) []string {
+	cidrs := make([]string, len(targets))
+	for i, target := range targets {
+		cidrs[i] = target.CIDR
+	}
+	return cidrs
+}
+
+// runKey identifies a recorded row by collector and target, for order-free assertions.
+func runKey(run *db.CreateCollectorRunParams) string {
+	target := "-"
+	if run.TargetCidr != nil {
+		target = run.TargetCidr.String()
+	}
+	return run.CollectorType + "@" + target
+}
+
+func runsByKey(runs []*db.CreateCollectorRunParams) map[string]*db.CreateCollectorRunParams {
+	byKey := make(map[string]*db.CreateCollectorRunParams, len(runs))
+	for _, run := range runs {
+		byKey[runKey(run)] = run
+	}
+	return byKey
+}
+
 func TestTriggerRun_Targets(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("two targets run the plan once per target, in order", func(t *testing.T) {
+	t.Run("two free targets run in one engine call and each row carries its target", func(t *testing.T) {
 		source := sourceWithTargets([]string{"icmp_sweep", "arp_sweep"}, "10.0.10.0/24", "10.0.20.0/24")
-		uc, orch, repo := newRunTargetsUseCase(source)
+		uc, orch, repo, _ := newRunTargetsUseCase(source)
 
 		res, err := uc.TriggerRun(ctx, source.ID.String())
 		if err != nil {
 			t.Fatalf("TriggerRun failed: %v", err)
 		}
 
-		if len(orch.calls) != 2 {
-			t.Fatalf("expected 2 RunScan calls, got %d", len(orch.calls))
+		if len(orch.calls) != 1 {
+			t.Fatalf("expected 1 RunTargets call, got %d", len(orch.calls))
 		}
-		if orch.calls[0].cidr != "10.0.10.0/24" || orch.calls[1].cidr != "10.0.20.0/24" {
-			t.Errorf("expected one call per target CIDR, got %+v", orch.calls)
+		call := orch.calls[0]
+		if got := targetCIDRs(call.targets); fmt.Sprint(got) != "[10.0.10.0/24 10.0.20.0/24]" {
+			t.Errorf("expected both targets in order, got %v", got)
 		}
-		for _, call := range orch.calls {
-			if len(call.collectors) != 2 {
-				t.Errorf("expected every sweep to run for each target, got %v", call.collectors)
+		if call.run.SourceID == nil || *call.run.SourceID != source.ID {
+			t.Errorf("expected the run to carry the source ID, got %+v", call.run)
+		}
+		if call.run.CIDR != "" {
+			t.Errorf("expected the run-wide target to carry no CIDR, got %q", call.run.CIDR)
+		}
+
+		byKey := runsByKey(repo.runs)
+		if len(repo.runs) != 3 {
+			t.Fatalf("expected 3 rows (icmp per target + arp once), got %d: %v", len(repo.runs), byKey)
+		}
+		for _, key := range []string{"icmp_sweep@10.0.10.0/24", "icmp_sweep@10.0.20.0/24", "arp_sweep@-"} {
+			if _, ok := byKey[key]; !ok {
+				t.Errorf("expected row %s, got %v", key, byKey)
 			}
-		}
-		// Folded results: every collector of every target is recorded and aggregated.
-		if len(repo.runs) != 4 {
-			t.Errorf("expected 4 collector runs recorded, got %d", len(repo.runs))
 		}
 		if res.LastStatus != "idle" {
 			t.Errorf("expected status idle, got %q", res.LastStatus)
 		}
 	})
 
-	t.Run("a linked target runs against its stored CIDR", func(t *testing.T) {
+	t.Run("a linked target runs against the Subnet's current CIDR", func(t *testing.T) {
 		source := sourceWithTargets([]string{"icmp_sweep"})
-		subnetID := uuid.New()
+		uc, orch, repo, inv := newRunTargetsUseCase(source)
+		// The Subnet was edited after the source was saved: the stored cidr is a stale snapshot.
+		subnetID := inv.addSubnet("10.0.31.0/24", false)
 		source.Targets = []dto.SourceTargetResponse{{CIDR: "10.0.30.0/24", SubnetID: &subnetID}}
-		uc, orch, _ := newRunTargetsUseCase(source)
 
 		if _, err := uc.TriggerRun(ctx, source.ID.String()); err != nil {
 			t.Fatalf("TriggerRun failed: %v", err)
 		}
-		if len(orch.calls) != 1 || orch.calls[0].cidr != "10.0.30.0/24" {
-			t.Fatalf("expected one call with the stored CIDR, got %+v", orch.calls)
+		if len(orch.calls) != 1 || len(orch.calls[0].targets) != 1 {
+			t.Fatalf("expected one call with one target, got %+v", orch.calls)
+		}
+		target := orch.calls[0].targets[0]
+		if target.CIDR != "10.0.31.0/24" || target.SubnetID != subnetID.String() {
+			t.Errorf("expected the Subnet's current CIDR and ID, got %+v", target)
+		}
+		if len(repo.runs) != 1 || runKey(repo.runs[0]) != "icmp_sweep@10.0.31.0/24" {
+			t.Errorf("expected the row to carry the resolved CIDR, got %v", runsByKey(repo.runs))
 		}
 	})
 
-	t.Run("providers run with the first target only", func(t *testing.T) {
-		source := sourceWithTargets([]string{"icmp_sweep", "proxmox"}, "10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24")
-		uc, orch, repo := newRunTargetsUseCase(source)
+	t.Run("a target linked to a deleted Subnet is skipped without scanning it", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep", "reverse_dns", "arp_sweep"}, "10.0.10.0/24")
+		uc, orch, repo, inv := newRunTargetsUseCase(source)
+		deletedID := inv.addSubnet("10.0.40.0/24", true)
+		missingID := uuid.New()
+		source.Targets = append(source.Targets,
+			dto.SourceTargetResponse{CIDR: "10.0.40.0/24", SubnetID: &deletedID},
+			dto.SourceTargetResponse{CIDR: "10.0.50.0/24", SubnetID: &missingID},
+		)
 
-		if _, err := uc.TriggerRun(ctx, source.ID.String()); err != nil {
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if err != nil {
 			t.Fatalf("TriggerRun failed: %v", err)
 		}
-		if len(orch.calls) != 3 {
-			t.Fatalf("expected 3 RunScan calls, got %d", len(orch.calls))
+		if len(orch.calls) != 1 {
+			t.Fatalf("expected 1 RunTargets call, got %d", len(orch.calls))
 		}
-		if got := orch.calls[0].collectors; len(got) != 2 {
-			t.Errorf("expected the first target to run the whole plan, got %v", got)
+		if got := targetCIDRs(orch.calls[0].targets); fmt.Sprint(got) != "[10.0.10.0/24]" {
+			t.Errorf("expected only the free target to reach the engine, got %v", got)
 		}
-		for _, call := range orch.calls[1:] {
-			if len(call.collectors) != 1 || call.collectors[0] != "icmp_sweep" {
-				t.Errorf("expected later targets to run only the sweep, got %v", call.collectors)
+
+		byKey := runsByKey(repo.runs)
+		for _, cidr := range []string{"10.0.40.0/24", "10.0.50.0/24"} {
+			for _, collectorType := range []string{"icmp_sweep", "reverse_dns"} {
+				run, ok := byKey[collectorType+"@"+cidr]
+				if !ok {
+					t.Errorf("expected a skipped %s row for %s, got %v", collectorType, cidr, byKey)
+					continue
+				}
+				if run.Status != "skipped" || run.ErrorMessage.String != "target subnet deleted" {
+					t.Errorf("expected skipped with the deleted subnet message, got %s / %q", run.Status, run.ErrorMessage.String)
+				}
+			}
+			if _, ok := byKey["arp_sweep@"+cidr]; ok {
+				t.Errorf("a union collector must not get a per-target row for %s", cidr)
 			}
 		}
-		if len(repo.runs) != 4 {
-			t.Errorf("expected 4 collector runs recorded (3 sweeps + 1 provider), got %d", len(repo.runs))
+		if len(repo.runs) != 3+4 {
+			t.Errorf("expected 3 scanned rows and 4 skipped rows, got %d", len(repo.runs))
+		}
+		if res.LastStatus != "partial" {
+			t.Errorf("expected skipped rows to make the run partial, got %q", res.LastStatus)
 		}
 	})
 
-	t.Run("provider-only plan with no targets runs once with an empty target", func(t *testing.T) {
+	t.Run("every target linked to a deleted Subnet ends in error without scanning", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep", "proxmox"})
+		uc, orch, repo, inv := newRunTargetsUseCase(source)
+		deletedID := inv.addSubnet("10.0.40.0/24", true)
+		source.Targets = []dto.SourceTargetResponse{{CIDR: "10.0.40.0/24", SubnetID: &deletedID}}
+
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if err == nil {
+			t.Fatal("expected an error when no target is left to scan")
+		}
+		if len(orch.calls) != 0 {
+			t.Errorf("expected no engine call, got %+v", orch.calls)
+		}
+		if len(repo.runs) != 1 || repo.runs[0].Status != "skipped" || runKey(repo.runs[0]) != "icmp_sweep@10.0.40.0/24" {
+			t.Errorf("expected one skipped row for the deleted target, got %v", runsByKey(repo.runs))
+		}
+		if res == nil || res.LastStatus != "error" {
+			t.Errorf("expected status error, got %+v", res)
+		}
+	})
+
+	t.Run("a union-only plan whose every target was deleted still ends in error", func(t *testing.T) {
+		source := sourceWithTargets([]string{"arp_sweep"})
+		uc, orch, repo, inv := newRunTargetsUseCase(source)
+		deletedID := inv.addSubnet("10.0.40.0/24", true)
+		source.Targets = []dto.SourceTargetResponse{{CIDR: "10.0.40.0/24", SubnetID: &deletedID}}
+
+		if _, err := uc.TriggerRun(ctx, source.ID.String()); err == nil {
+			t.Fatal("expected an error when no target is left to scan")
+		}
+		if len(orch.calls) != 0 || len(repo.runs) != 0 {
+			t.Errorf("expected no scan and no rows, got %+v / %d rows", orch.calls, len(repo.runs))
+		}
+		if source.LastStatus != "error" {
+			t.Errorf("expected status error, got %q", source.LastStatus)
+		}
+	})
+
+	t.Run("one failing target and one succeeding target yield partial", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep"}, "10.0.10.0/24", "10.0.20.0/24")
+		uc, orch, repo, _ := newRunTargetsUseCase(source)
+		orch.respond = func(targets []collectors.DiscoveryTarget, requested []string) (*engine.ScanResult, error) {
+			return successResult(targets, requested, map[string]bool{"10.0.20.0/24": true}), nil
+		}
+
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if err != nil {
+			t.Fatalf("expected a partial run to succeed, got %v", err)
+		}
+		if res.LastStatus != "partial" {
+			t.Errorf("expected status partial, got %q", res.LastStatus)
+		}
+		byKey := runsByKey(repo.runs)
+		if run := byKey["icmp_sweep@10.0.10.0/24"]; run == nil || run.Status != "success" {
+			t.Errorf("expected the first target to succeed, got %v", byKey)
+		}
+		if run := byKey["icmp_sweep@10.0.20.0/24"]; run == nil || run.Status != "error" {
+			t.Errorf("expected the second target to fail, got %v", byKey)
+		}
+	})
+
+	t.Run("cancellation records the partial rows and keeps skipped rows skipped", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep", "docker"}, "10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24")
+		uc, orch, repo, inv := newRunTargetsUseCase(source)
+		const scope = "lab-cluster"
+		gone := deviceWithRef(t, "docker:lab-cluster:container:gone")
+		inv.devicesByProviderScope = map[string][]db.Device{scope: {gone}}
+		orch.respond = func([]collectors.DiscoveryTarget, []string) (*engine.ScanResult, error) {
+			return &engine.ScanResult{Collectors: []engine.CollectorRunDetail{
+				{CollectorType: "icmp", TargetCIDR: "10.0.10.0/24", Status: "success", DevicesFound: 2},
+				{
+					CollectorType: "docker", Status: "success", DevicesFound: 1,
+					Scopes: []engine.ProviderScopeObservation{{Scope: scope, ObservedRefs: []string{"docker:lab-cluster:container:present"}}},
+				},
+				{CollectorType: "icmp", TargetCIDR: "10.0.20.0/24", Status: "error", ErrorMessage: "icmp sweep: context canceled"},
+				{CollectorType: "icmp", TargetCIDR: "10.0.30.0/24", Status: "skipped", ErrorMessage: "run cancelled before the collector started"},
+			}}, fmt.Errorf("orchestrator scan aborted: %w", context.Canceled)
+		}
+
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected the cancellation to be returned, got %v", err)
+		}
+		if res.LastStatus != "cancelled" {
+			t.Errorf("expected status cancelled, got %q", res.LastStatus)
+		}
+
+		byKey := runsByKey(repo.runs)
+		want := map[string]string{
+			"icmp_sweep@10.0.10.0/24": "success",
+			"docker@-":                "success",
+			"icmp_sweep@10.0.20.0/24": "timeout",
+			"icmp_sweep@10.0.30.0/24": "skipped",
+		}
+		if len(repo.runs) != len(want) {
+			t.Errorf("expected %d rows, got %v", len(want), byKey)
+		}
+		for key, status := range want {
+			if run := byKey[key]; run == nil || run.Status != status {
+				t.Errorf("row %s: expected %s, got %v", key, status, run)
+			}
+		}
+		if len(inv.absenceCalls) != 0 {
+			t.Errorf("a cancelled run must not apply the lifecycle hysteresis, got %v", inv.absenceCalls)
+		}
+	})
+
+	t.Run("provider-only plan with no targets runs with an empty target list", func(t *testing.T) {
 		source := sourceWithTargets([]string{"proxmox", "docker"})
-		uc, orch, _ := newRunTargetsUseCase(source)
+		uc, orch, repo, _ := newRunTargetsUseCase(source)
 
 		if _, err := uc.TriggerRun(ctx, source.ID.String()); err != nil {
 			t.Fatalf("TriggerRun failed: %v", err)
 		}
-		if len(orch.calls) != 1 || orch.calls[0].cidr != "" {
-			t.Fatalf("expected one call without a target, got %+v", orch.calls)
+		if len(orch.calls) != 1 || len(orch.calls[0].targets) != 0 {
+			t.Fatalf("expected one call without targets, got %+v", orch.calls)
+		}
+		if fmt.Sprint(orch.calls[0].collectors) != "[proxmox docker]" {
+			t.Errorf("expected the whole plan once, got %v", orch.calls[0].collectors)
+		}
+		for _, run := range repo.runs {
+			if run.TargetCidr != nil {
+				t.Errorf("expected provider rows without a target, got %s", runKey(run))
+			}
 		}
 	})
 
 	t.Run("sweep plan with no targets fails without scanning", func(t *testing.T) {
 		source := sourceWithTargets([]string{"icmp_sweep"})
-		uc, orch, repo := newRunTargetsUseCase(source)
+		uc, orch, repo, _ := newRunTargetsUseCase(source)
 
 		if _, err := uc.TriggerRun(ctx, source.ID.String()); err == nil {
 			t.Fatal("expected an error for a sweep without targets")
@@ -193,7 +422,7 @@ func TestTriggerRun_Targets(t *testing.T) {
 
 	t.Run("an invalid stored target fails before any scan", func(t *testing.T) {
 		source := sourceWithTargets([]string{"icmp_sweep"}, "10.0.10.0/24", "not-a-cidr")
-		uc, orch, _ := newRunTargetsUseCase(source)
+		uc, orch, _, _ := newRunTargetsUseCase(source)
 
 		if _, err := uc.TriggerRun(ctx, source.ID.String()); err == nil {
 			t.Fatal("expected an error for an invalid stored target")
@@ -203,58 +432,68 @@ func TestTriggerRun_Targets(t *testing.T) {
 		}
 	})
 
-	t.Run("cancellation skips the remaining targets and keeps earlier results", func(t *testing.T) {
-		source := sourceWithTargets([]string{"icmp_sweep"}, "10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24")
-		uc, orch, repo := newRunTargetsUseCase(source)
-		orch.failOnRun = 2
+	t.Run("a linked Subnet grown past the target limit fails before any scan", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep"})
+		uc, orch, _, inv := newRunTargetsUseCase(source)
+		subnetID := inv.addSubnet("10.0.0.0/8", false)
+		source.Targets = []dto.SourceTargetResponse{{CIDR: "10.0.10.0/24", SubnetID: &subnetID}}
 
-		res, err := uc.TriggerRun(ctx, source.ID.String())
-		if err == nil {
-			t.Fatal("expected the cancellation to be returned")
+		if _, err := uc.TriggerRun(ctx, source.ID.String()); err == nil {
+			t.Fatal("expected the resolved CIDR to be checked")
 		}
-		if len(orch.calls) != 2 {
-			t.Errorf("expected the third target to be skipped, got %d calls", len(orch.calls))
+		if len(orch.calls) != 0 {
+			t.Errorf("expected no scan, got %+v", orch.calls)
 		}
-		if res.LastStatus != "cancelled" {
-			t.Errorf("expected status cancelled, got %q", res.LastStatus)
+		if source.LastStatus != "error" {
+			t.Errorf("expected status error, got %q", source.LastStatus)
 		}
-		if len(repo.runs) != 1 {
-			t.Errorf("expected the first target's run to be recorded, got %d", len(repo.runs))
+	})
+
+	t.Run("a failed Subnet lookup fails the run without scanning", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep"})
+		uc, orch, repo, inv := newRunTargetsUseCase(source)
+		inv.lookupErr = errors.New("connection reset")
+		subnetID := uuid.New()
+		source.Targets = []dto.SourceTargetResponse{{CIDR: "10.0.10.0/24", SubnetID: &subnetID}}
+
+		if _, err := uc.TriggerRun(ctx, source.ID.String()); err == nil {
+			t.Fatal("expected the lookup failure to be returned")
+		}
+		if len(orch.calls) != 0 || len(repo.runs) != 0 {
+			t.Errorf("expected no scan and no rows, got %+v / %d rows", orch.calls, len(repo.runs))
+		}
+		if source.LastStatus != "error" {
+			t.Errorf("expected status error, got %q", source.LastStatus)
 		}
 	})
 }
 
-func TestFoldScanResult(t *testing.T) {
-	first := &engine.ScanResult{
-		Target:         collectors.DiscoveryTarget{CIDR: "10.0.10.0/24"},
-		TotalCollected: 2, TotalValid: 2, TotalDiscovered: 1, TotalUpdated: 1,
-		Duration:   time.Second,
-		Collectors: []engine.CollectorRunDetail{{CollectorType: "icmp", Status: "success"}},
+func TestInterruptedByCancellation(t *testing.T) {
+	cases := []struct {
+		detail engine.CollectorRunDetail
+		want   bool
+	}{
+		{engine.CollectorRunDetail{Status: "error", ErrorMessage: "ping: context canceled"}, true},
+		{engine.CollectorRunDetail{Status: "error", ErrorMessage: "context deadline exceeded"}, true},
+		{engine.CollectorRunDetail{Status: "error", ErrorMessage: "collector \"unifi\" is not implemented in this wave"}, false},
+		{engine.CollectorRunDetail{Status: "skipped", ErrorMessage: "context canceled"}, false},
+		{engine.CollectorRunDetail{Status: "success"}, false},
 	}
-	second := &engine.ScanResult{
-		Target:         collectors.DiscoveryTarget{CIDR: "10.0.20.0/24"},
-		TotalCollected: 3, TotalValid: 1, TotalDiscovered: 1, TotalUpdated: 0,
-		Duration:   2 * time.Second,
-		Collectors: []engine.CollectorRunDetail{{CollectorType: "icmp", Status: "error"}},
+	for _, tc := range cases {
+		if got := interruptedByCancellation(tc.detail); got != tc.want {
+			t.Errorf("interruptedByCancellation(%+v) = %v, want %v", tc.detail, got, tc.want)
+		}
 	}
+}
 
-	folded := foldScanResult(nil, first)
-	folded = foldScanResult(folded, nil)
-	folded = foldScanResult(folded, second)
-
-	if folded.TotalCollected != 5 || folded.TotalValid != 3 || folded.TotalDiscovered != 2 || folded.TotalUpdated != 1 {
-		t.Errorf("expected totals to be summed, got %+v", folded)
+func TestTargetCIDRColumn(t *testing.T) {
+	if targetCIDRColumn("") != nil {
+		t.Error("expected an empty target to map to NULL")
 	}
-	if folded.Duration != 3*time.Second {
-		t.Errorf("expected durations to be summed, got %v", folded.Duration)
+	if targetCIDRColumn("not-a-cidr") != nil {
+		t.Error("expected an unparsable target to map to NULL")
 	}
-	if len(folded.Collectors) != 2 || folded.Collectors[1].Status != "error" {
-		t.Errorf("expected collector details to be concatenated, got %+v", folded.Collectors)
-	}
-	if folded.Target.CIDR != "10.0.10.0/24" {
-		t.Errorf("expected the folded result to keep the first target, got %q", folded.Target.CIDR)
-	}
-	if len(first.Collectors) != 1 {
-		t.Error("folding must not modify the first result")
+	if got := targetCIDRColumn("10.0.10.7/24"); got == nil || got.String() != "10.0.10.0/24" {
+		t.Errorf("expected the masked prefix, got %v", got)
 	}
 }
