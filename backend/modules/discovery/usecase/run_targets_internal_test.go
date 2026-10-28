@@ -278,8 +278,8 @@ func TestTriggerRun_Targets(t *testing.T) {
 		}
 	})
 
-	t.Run("every target linked to a deleted Subnet ends in error without scanning", func(t *testing.T) {
-		source := sourceWithTargets([]string{"icmp_sweep", "proxmox"})
+	t.Run("a sweep-only plan whose every target was deleted ends in error without scanning", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep", "arp_sweep"})
 		uc, orch, repo, inv := newRunTargetsUseCase(source)
 		deletedID := inv.addSubnet("10.0.40.0/24", true)
 		source.Targets = []dto.SourceTargetResponse{{CIDR: "10.0.40.0/24", SubnetID: &deletedID}}
@@ -296,6 +296,70 @@ func TestTriggerRun_Targets(t *testing.T) {
 		}
 		if res == nil || res.LastStatus != "error" {
 			t.Errorf("expected status error, got %+v", res)
+		}
+	})
+
+	t.Run("a mixed plan whose every target was deleted still runs its providers", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep", "arp_sweep", "proxmox", "docker"})
+		uc, orch, repo, inv := newRunTargetsUseCase(source)
+		deletedID := inv.addSubnet("10.0.40.0/24", true)
+		missingID := uuid.New()
+		source.Targets = []dto.SourceTargetResponse{
+			{CIDR: "10.0.40.0/24", SubnetID: &deletedID},
+			{CIDR: "10.0.50.0/24", SubnetID: &missingID},
+		}
+		const scope = "lab-cluster"
+		gone := deviceWithRef(t, "docker:lab-cluster:container:gone")
+		inv.devicesByProviderScope = map[string][]db.Device{scope: {gone}}
+		orch.respond = func(_ []collectors.DiscoveryTarget, requested []string) (*engine.ScanResult, error) {
+			details := make([]engine.CollectorRunDetail, 0, len(requested))
+			for _, collectorType := range requested {
+				detail := engine.CollectorRunDetail{CollectorType: collectorType, Status: "success", DevicesFound: 1}
+				if collectorType == "docker" {
+					detail.Scopes = []engine.ProviderScopeObservation{{Scope: scope, ObservedRefs: []string{"docker:lab-cluster:container:present"}}}
+				}
+				details = append(details, detail)
+			}
+			return &engine.ScanResult{Collectors: details}, nil
+		}
+
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if err != nil {
+			t.Fatalf("expected the providers to carry the run, got %v", err)
+		}
+		if len(orch.calls) != 1 {
+			t.Fatalf("expected the providers to run once, got %d calls", len(orch.calls))
+		}
+		if call := orch.calls[0]; len(call.targets) != 0 || fmt.Sprint(call.collectors) != "[proxmox docker]" {
+			t.Errorf("expected only the providers, without targets, got %+v", call)
+		}
+
+		byKey := runsByKey(repo.runs)
+		want := map[string]string{
+			"proxmox@-":               "success",
+			"docker@-":                "success",
+			"icmp_sweep@10.0.40.0/24": "skipped",
+			"icmp_sweep@10.0.50.0/24": "skipped",
+			"arp_sweep@-":             "skipped",
+		}
+		if len(repo.runs) != len(want) {
+			t.Errorf("expected %d rows, got %v", len(want), byKey)
+		}
+		for key, status := range want {
+			run := byKey[key]
+			if run == nil || run.Status != status {
+				t.Errorf("row %s: expected %s, got %v", key, status, run)
+				continue
+			}
+			if status == "skipped" && run.ErrorMessage.String != "target subnet deleted" {
+				t.Errorf("row %s: expected the deleted subnet message, got %q", key, run.ErrorMessage.String)
+			}
+		}
+		if res.LastStatus != "partial" {
+			t.Errorf("expected providers plus skipped rows to make the run partial, got %q", res.LastStatus)
+		}
+		if len(inv.absenceCalls) != 1 || inv.absenceCalls[0] != gone.ID {
+			t.Errorf("expected the hysteresis on the provider scope that completed, got %v", inv.absenceCalls)
 		}
 	})
 

@@ -31,7 +31,7 @@ var ValidDiscoveryTypes = map[string]bool{
 	"unifi":       true,
 }
 
-// ErrSecretRequiredOnTargetChange is returned when a target host/URL was modified without re-supplying the required credentials.
+// ErrSecretRequiredOnTargetChange is returned when a target host/URL was modified, or source targets were added, without re-supplying the required credentials.
 type ErrSecretRequiredOnTargetChange struct {
 	Fields []string
 }
