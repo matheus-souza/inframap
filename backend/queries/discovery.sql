@@ -89,9 +89,9 @@ DELETE FROM discovery_source_collectors WHERE source_id = $1;
 
 -- name: CreateCollectorRun :one
 INSERT INTO discovery_collector_runs (
-    id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at
+    id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at, target_cidr
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 ) RETURNING *;
 
 -- name: ListCollectorRunsBySource :many

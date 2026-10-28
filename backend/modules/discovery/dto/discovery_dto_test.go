@@ -3,6 +3,7 @@ package dto_test
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -319,4 +320,37 @@ func TestScanResultResponse_Serialization(t *testing.T) {
 	if !ok || len(cols) != 2 {
 		t.Fatalf("expected 2 collector run details, got %v", parsed["collectors"])
 	}
+}
+
+func TestCollectorRunResponse_TargetCIDRJSON(t *testing.T) {
+	t.Run("absent target serializes as null", func(t *testing.T) {
+		raw, err := json.Marshal(dto.CollectorRunResponse{ID: uuid.New(), Status: "success"})
+		if err != nil {
+			t.Fatalf("marshal failed: %v", err)
+		}
+		if !strings.Contains(string(raw), `"target_cidr":null`) {
+			t.Errorf("expected target_cidr null in %s", raw)
+		}
+	})
+
+	t.Run("present target serializes as string", func(t *testing.T) {
+		target := "192.0.2.0/24"
+		raw, err := json.Marshal(dto.CollectorRunResponse{ID: uuid.New(), Status: "success", TargetCIDR: &target})
+		if err != nil {
+			t.Fatalf("marshal failed: %v", err)
+		}
+		if !strings.Contains(string(raw), `"target_cidr":"192.0.2.0/24"`) {
+			t.Errorf("expected target_cidr string in %s", raw)
+		}
+	})
+
+	t.Run("last run collector detail serializes absent target as null", func(t *testing.T) {
+		raw, err := json.Marshal(dto.CollectorRunDetail{CollectorType: "proxmox", Status: "success"})
+		if err != nil {
+			t.Fatalf("marshal failed: %v", err)
+		}
+		if !strings.Contains(string(raw), `"target_cidr":null`) {
+			t.Errorf("expected target_cidr null in %s", raw)
+		}
+	})
 }
