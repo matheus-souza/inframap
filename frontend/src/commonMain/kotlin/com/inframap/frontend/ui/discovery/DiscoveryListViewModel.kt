@@ -1,6 +1,8 @@
 package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.sse.SSEClient
+import com.inframap.frontend.data.sse.SSEEvent
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.usecase.discovery.DeleteDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceDeletionImpactUseCase
@@ -15,16 +17,34 @@ import com.inframap.frontend.generated.resources.discovery_run_triggered
 import com.inframap.frontend.ui.base.BaseListViewModel
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.takeWhile
+import kotlinx.coroutines.isActive
 
+/**
+ * The Discovery Sources list. A run started elsewhere (scheduler, API, another tab) changes a
+ * row's status without this screen asking, so the list follows it two ways: it refreshes when
+ * a `discovery_source.*` event arrives, and while a row shows `running` it polls until no row
+ * does, so the status settles even when no event reaches the browser.
+ */
+@Suppress("TooManyFunctions")
 class DiscoveryListViewModel(
     private val getSourcesUseCase: GetDiscoverySourcesUseCase,
     private val triggerRunUseCase: TriggerDiscoveryRunUseCase,
     private val deleteSourceUseCase: DeleteDiscoverySourceUseCase,
     private val getDeletionImpactUseCase: GetDiscoverySourceDeletionImpactUseCase,
+    private val sseClient: SSEClient? = null,
     scope: CoroutineScope? = null,
 ) : BaseListViewModel<DiscoveryListUiState>(DiscoveryListUiState(), scope = scope) {
+    /** Conflated, so a burst of events while a refresh is pending collapses into that refresh. */
+    private val refreshRequests = Channel<Unit>(Channel.CONFLATED)
+    private var pollingRunningSources = false
+
     init {
         loadPage(1)
+        startRefreshOnRequest()
+        startSseListening()
     }
 
     override fun loadPage(
@@ -45,6 +65,7 @@ class DiscoveryListViewModel(
                             errorMessage = null,
                         )
                     }
+                    pollWhileRunning()
                 }
                 is ApiResult.Error -> {
                     updateState {
@@ -86,6 +107,7 @@ class DiscoveryListViewModel(
                             toastMessage = UiText.Resource(Res.string.discovery_run_triggered),
                         )
                     }
+                    pollWhileRunning()
                 }
                 is ApiResult.Error -> {
                     updateState {
@@ -188,5 +210,90 @@ class DiscoveryListViewModel(
 
     fun dismissToast() {
         updateState { it.copy(toastMessage = null) }
+    }
+
+    /** Asks for a quiet refresh of the list; a burst of requests costs one fetch per window. */
+    fun requestRefresh() {
+        refreshRequests.trySend(Unit)
+    }
+
+    private fun startRefreshOnRequest() {
+        launchJob("refresh_requests") {
+            while (isActive) {
+                refreshRequests.receive()
+                delay(REFRESH_DEBOUNCE_MS)
+                // Requests made while waiting are answered by this fetch; one made while it
+                // runs may have seen newer data, so it is kept for the next round.
+                refreshRequests.tryReceive()
+                refreshSources()
+            }
+        }
+    }
+
+    private fun startSseListening() {
+        val client = sseClient ?: return
+        launchJob("sse_listening") {
+            while (isActive) {
+                client
+                    .connect("/api/v1/events/stream")
+                    .takeWhile { it !is SSEEvent.Disconnected }
+                    .collect { event ->
+                        if (event is SSEEvent.DiscoverySourceChanged) requestRefresh()
+                    }
+                client.disconnect()
+                delay(SSE_RECONNECT_DELAY_MS)
+            }
+        }
+    }
+
+    /**
+     * Polls while a row shows `running`, ending when none does or after
+     * [MAX_RUNNING_POLL_ATTEMPTS], so a run that never reports back cannot poll forever.
+     */
+    private fun pollWhileRunning() {
+        if (pollingRunningSources || currentState.sources.none { it.isRunning }) return
+        pollingRunningSources = true
+        launchJob("poll_running") {
+            try {
+                var attempts = 0
+                while (attempts < MAX_RUNNING_POLL_ATTEMPTS && currentState.sources.any { it.isRunning }) {
+                    delay(RUNNING_POLL_INTERVAL_MS)
+                    attempts++
+                    refreshSources()
+                }
+            } finally {
+                pollingRunningSources = false
+            }
+        }
+    }
+
+    /**
+     * Fetches the list without the loading state, so the rows stay on screen. A failure keeps
+     * the rows already shown; the next event or poll tries again.
+     */
+    private suspend fun refreshSources() {
+        val result = getSourcesUseCase()
+        if (result is ApiResult.Success) {
+            updateState {
+                it.copy(
+                    sources = result.data.items,
+                    totalItems = result.data.total,
+                    currentPage = result.data.page,
+                )
+            }
+            pollWhileRunning()
+        }
+    }
+
+    private val DiscoverySource.isRunning: Boolean get() = lastStatus == RUNNING_STATUS
+
+    private companion object {
+        const val RUNNING_STATUS = "running"
+        const val REFRESH_DEBOUNCE_MS = 500L
+        const val SSE_RECONNECT_DELAY_MS = 5_000L
+        const val RUNNING_POLL_INTERVAL_MS = 5_000L
+
+        /** Thirty minutes of polling at [RUNNING_POLL_INTERVAL_MS]. */
+        const val MAX_RUNNING_POLL_ATTEMPTS = 360
     }
 }

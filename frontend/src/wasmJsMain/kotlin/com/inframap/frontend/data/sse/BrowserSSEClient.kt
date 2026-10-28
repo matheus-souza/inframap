@@ -8,14 +8,11 @@ import kotlinx.coroutines.launch
 
 @JsFun(
     """
-function(url, onOpen, onError, onEvent) {
+function(url, eventTypes, onOpen, onError, onEvent) {
     var es = new EventSource(url);
     es.onopen = function() { onOpen(); };
     es.onerror = function() { onError(); };
-    var types = [
-        'discovery.progress', 'topology.updated',
-        'system.notification', 'device.created', 'device.updated'
-    ];
+    var types = eventTypes.split(',');
     for (var i = 0; i < types.length; i++) {
         (function(type) {
             es.addEventListener(type, function(e) {
@@ -29,6 +26,7 @@ function(url, onOpen, onError, onEvent) {
 )
 private external fun jsCreateEventSource(
     url: String,
+    eventTypes: String,
     onOpen: () -> Unit,
     onError: () -> Unit,
     onEvent: (String, String, String) -> Unit,
@@ -53,6 +51,8 @@ class BrowserSSEClient(
         eventSource =
             jsCreateEventSource(
                 connectUrl,
+                // A named SSE event reaches only the listeners registered for its name.
+                SSEEventParser.EVENT_TYPES.joinToString(","),
                 onOpen = {
                     scope.launch { eventFlow.emit(SSEEvent.Connected()) }
                 },

@@ -2,6 +2,7 @@ package com.inframap.frontend.ui.discovery
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.sse.SSEEvent
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.usecase.discovery.DeleteDiscoverySourceUseCase
@@ -9,9 +10,12 @@ import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceDeletion
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
 import com.inframap.frontend.fakes.FakeDiscoveryRepository
+import com.inframap.frontend.fakes.FakeSSEClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,13 +44,21 @@ class DiscoveryListViewModelTest {
                 getSourcesResult = ApiResult.Success(pagedSources, requestId = ""),
             ),
         scope: CoroutineScope? = null,
+        sse: FakeSSEClient? = null,
     ) = DiscoveryListViewModel(
         GetDiscoverySourcesUseCase(repo),
         TriggerDiscoveryRunUseCase(repo),
         DeleteDiscoverySourceUseCase(repo),
         GetDiscoverySourceDeletionImpactUseCase(repo),
+        sseClient = sse,
         scope = scope,
     )
+
+    private fun sourcesResult(vararg sources: DiscoverySource): ApiResult<PaginatedList<DiscoverySource>> =
+        ApiResult.Success(
+            PaginatedList(items = sources.toList(), total = sources.size.toLong(), page = 1, perPage = 50),
+            requestId = "",
+        )
 
     @Test
     fun loadSourcesPopulatesListSuccessfully() =
@@ -128,7 +140,8 @@ class DiscoveryListViewModelTest {
                 awaitItem()
 
                 vm.triggerRun("src-1")
-                advanceUntilIdle()
+                // Only the trigger: advancing further would let the running poll fetch the list.
+                runCurrent()
 
                 val state = expectMostRecentItem()
                 assertEquals("running", state.sources.first().lastStatus)
@@ -295,6 +308,162 @@ class DiscoveryListViewModelTest {
                 assertNull(vm.state.value.toastMessage)
                 cancelAndIgnoreRemainingEvents()
             }
+            vm.clear()
+        }
+
+    @Test
+    fun aBurstOfDiscoverySourceEventsRefreshesTheListOnce() =
+        runTest {
+            val repo = FakeDiscoveryRepository(getSourcesResult = sourcesResult(sampleSource))
+            val sse = FakeSSEClient()
+            val vm = makeVm(repo = repo, scope = this, sse = sse)
+            runCurrent()
+            assertEquals(1, repo.getSourcesCallCount)
+
+            repo.getSourcesResult = sourcesResult(sampleSource.copy(lastStatus = "success"))
+            repeat(5) {
+                sse.events.emit(SSEEvent.DiscoverySourceChanged("evt-$it", "discovery_source.run_finished", "{}"))
+            }
+            advanceTimeBy(2_000)
+            runCurrent()
+
+            assertEquals(2, repo.getSourcesCallCount)
+            assertEquals(
+                "success",
+                vm.state.value.sources
+                    .single()
+                    .lastStatus,
+            )
+            assertFalse(vm.state.value.isLoading)
+            vm.clear()
+        }
+
+    @Test
+    fun eventsOfOtherModulesDoNotRefreshTheList() =
+        runTest {
+            val repo = FakeDiscoveryRepository(getSourcesResult = sourcesResult(sampleSource))
+            val sse = FakeSSEClient()
+            val vm = makeVm(repo = repo, scope = this, sse = sse)
+            runCurrent()
+
+            sse.events.emit(SSEEvent.DeviceCreated("evt-1", "{}"))
+            sse.events.emit(SSEEvent.TopologyUpdated("evt-2", "{}"))
+            advanceTimeBy(2_000)
+            runCurrent()
+
+            assertEquals(1, repo.getSourcesCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun aRefreshThatFailsKeepsTheRowsShown() =
+        runTest {
+            val repo = FakeDiscoveryRepository(getSourcesResult = sourcesResult(sampleSource))
+            val sse = FakeSSEClient()
+            val vm = makeVm(repo = repo, scope = this, sse = sse)
+            runCurrent()
+
+            repo.getSourcesResult = ApiResult.NetworkError(RuntimeException("down"))
+            sse.events.emit(SSEEvent.DiscoverySourceChanged("evt-1", "discovery_source.updated", "{}"))
+            advanceTimeBy(2_000)
+            runCurrent()
+
+            assertEquals(2, repo.getSourcesCallCount)
+            assertEquals(
+                listOf(sampleSource.id),
+                vm.state.value.sources
+                    .map { it.id },
+            )
+            assertNull(vm.state.value.errorMessage)
+            vm.clear()
+        }
+
+    @Test
+    fun aRunningRowIsPolledUntilItSettles() =
+        runTest {
+            val repo = FakeDiscoveryRepository(getSourcesResult = sourcesResult(sampleSource.copy(lastStatus = "running")))
+            val vm = makeVm(repo = repo, scope = this)
+            runCurrent()
+            assertEquals(
+                "running",
+                vm.state.value.sources
+                    .single()
+                    .lastStatus,
+            )
+
+            advanceTimeBy(5_001)
+            assertEquals(2, repo.getSourcesCallCount)
+            assertEquals(
+                "running",
+                vm.state.value.sources
+                    .single()
+                    .lastStatus,
+            )
+
+            repo.getSourcesResult = sourcesResult(sampleSource.copy(lastStatus = "success"))
+            advanceTimeBy(5_000)
+            assertEquals(3, repo.getSourcesCallCount)
+            assertEquals(
+                "success",
+                vm.state.value.sources
+                    .single()
+                    .lastStatus,
+            )
+
+            advanceUntilIdle()
+            assertEquals(3, repo.getSourcesCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun triggeringARunPollsUntilItFinishes() =
+        runTest {
+            val repo =
+                FakeDiscoveryRepository(
+                    getSourcesResult = sourcesResult(sampleSource),
+                    triggerRunResult = ApiResult.Success(sampleSource.copy(lastStatus = "running"), requestId = ""),
+                )
+            val vm = makeVm(repo = repo, scope = this)
+            runCurrent()
+
+            vm.triggerRun("src-1")
+            runCurrent()
+            assertEquals(
+                "running",
+                vm.state.value.sources
+                    .single()
+                    .lastStatus,
+            )
+
+            repo.getSourcesResult = sourcesResult(sampleSource.copy(lastStatus = "success"))
+            advanceUntilIdle()
+
+            assertEquals(
+                "success",
+                vm.state.value.sources
+                    .single()
+                    .lastStatus,
+            )
+            assertEquals(2, repo.getSourcesCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun pollingARunThatNeverEndsIsBounded() =
+        runTest {
+            val repo = FakeDiscoveryRepository(getSourcesResult = sourcesResult(sampleSource.copy(lastStatus = "running")))
+            val vm = makeVm(repo = repo, scope = this)
+
+            advanceUntilIdle()
+
+            // The initial load plus thirty minutes of polls every five seconds.
+            assertEquals(1 + 360, repo.getSourcesCallCount)
+            assertEquals(
+                "running",
+                vm.state.value.sources
+                    .single()
+                    .lastStatus,
+            )
             vm.clear()
         }
 }
