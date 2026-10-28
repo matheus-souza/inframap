@@ -20,7 +20,8 @@ type ARPTableReader interface {
 	ReadEntries(ctx context.Context) ([]ARPEntry, error)
 }
 
-// ARPCollector reads the OS ARP table and returns observations for IPs within the target CIDR.
+// ARPCollector reads the OS ARP table and returns observations for IPs within the target
+// blocks: the union of target.Prefixes when set, otherwise target.CIDR.
 type ARPCollector struct {
 	reader ARPTableReader
 }
@@ -36,7 +37,8 @@ func (c *ARPCollector) ID() string { return "arp" }
 // Name returns the human-readable collector name.
 func (c *ARPCollector) Name() string { return "ARP Table Reader" }
 
-// Collect reads the ARP table and returns observations for entries within the target CIDR.
+// Collect reads the ARP table once and returns observations for entries within the target
+// blocks (see TargetPrefixes).
 func (c *ARPCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]RawObservation, error) {
 	if c.reader == nil {
 		return nil, nil
@@ -46,8 +48,7 @@ func (c *ARPCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]R
 		return nil, fmt.Errorf("arp collector: %w", err)
 	}
 
-
-	prefix, err := ParseTargetPrefix(target.CIDR)
+	prefixes, err := TargetPrefixes(target)
 	if err != nil {
 		return nil, fmt.Errorf("arp collector: %w", err)
 	}
@@ -66,13 +67,12 @@ func (c *ARPCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]R
 		}
 
 		addr, parseErr := netip.ParseAddr(entry.IPAddress)
-
 		if parseErr != nil {
 			continue // skip unparseable IPs
 		}
 
-		if !prefix.Contains(addr) {
-			continue // skip entries outside target CIDR
+		if !PrefixesContain(prefixes, addr) {
+			continue // skip entries outside every target block
 		}
 
 		observations = append(observations, RawObservation{

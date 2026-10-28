@@ -3,6 +3,7 @@ package collectors
 
 import (
 	"context"
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,8 +18,13 @@ type ProviderRef = sdk.ProviderRef
 
 // DiscoveryTarget defines the parameters for a collector run.
 type DiscoveryTarget struct {
-	CIDR            string
-	SubnetID        string
+	// CIDR is the address block a per-target collector probes (RFC-026 §3).
+	CIDR     string
+	SubnetID string
+	// Prefixes is the union of every target of a multi-target run, handed to union-scope
+	// collectors (mDNS, ARP) so their single query is filtered by all targets at once. When
+	// empty, those collectors fall back to CIDR.
+	Prefixes        []netip.Prefix
 	CredentialSetID *string
 	SourceID        *uuid.UUID
 }

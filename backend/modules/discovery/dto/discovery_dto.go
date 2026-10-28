@@ -281,6 +281,8 @@ type CollectorRunResponse struct {
 	ErrorMessage  string    `json:"error_message,omitempty"`
 	StartedAt     time.Time `json:"started_at"`
 	FinishedAt    time.Time `json:"finished_at"`
+	// TargetCIDR is the target this run scanned (RFC-026 §4); null for union and none scopes.
+	TargetCIDR *string `json:"target_cidr"`
 }
 
 // CollectorRunDetail represents the execution metrics and outcome of an individual collector in a scan.
@@ -290,6 +292,8 @@ type CollectorRunDetail struct {
 	DevicesFound  int    `json:"devices_found"`
 	DurationMs    int64  `json:"duration_ms"`
 	ErrorMessage  string `json:"error_message,omitempty"`
+	// TargetCIDR is the target this run scanned (RFC-026 §4); null for union and none scopes.
+	TargetCIDR *string `json:"target_cidr"`
 }
 
 // TriggerScanRequest represents the request payload to initiate an active network scan.
