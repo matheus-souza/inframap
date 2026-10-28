@@ -1,6 +1,7 @@
 package com.inframap.frontend.ui.wizard
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.CollectorConfigDto
 import com.inframap.frontend.data.dto.DiscoverySourceConfigDto
 import com.inframap.frontend.data.dto.DiscoveryTargetRequestDto
 import com.inframap.frontend.domain.model.DiscoverySource
@@ -19,6 +20,7 @@ import com.inframap.frontend.fakes.FakeDiscoveryRepository
 import com.inframap.frontend.fakes.FakeLocalStorage
 import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
+import com.inframap.frontend.ui.dashboard.AutoSetupCoordinator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -463,7 +465,8 @@ class SetupWizardViewModelTest {
             advanceUntilIdle()
 
             val request = assertNotNull(discoveryRepo.lastCreateSourceRequest)
-            assertEquals(ScanType.ICMP.apiType, request.type)
+            assertEquals(AutoSetupCoordinator.LOCAL_NETWORK_SOURCE_NAME, request.name)
+            assertEquals(listOf(CollectorConfigDto(type = "icmp_sweep")), request.collectors)
             assertEquals(ScheduleFrequency.EVERY_6_HOURS.cron, request.scheduleCron)
             assertEquals(
                 DiscoverySourceConfigDto(
@@ -475,7 +478,7 @@ class SetupWizardViewModelTest {
         }
 
     @Test
-    fun step2CreatesOneSourcePerSubnet() =
+    fun step2CreatesOneSourceWithATargetPerSubnet() =
         runTest {
             val discoveryRepo =
                 FakeDiscoveryRepository(
@@ -494,10 +497,51 @@ class SetupWizardViewModelTest {
             advanceUntilIdle()
 
             assertEquals(3, vm.state.value.currentStep)
-            assertEquals(2, discoveryRepo.createSourceCallCount)
-            assertEquals(2, vm.state.value.createdSourceIds.size)
+            assertEquals(1, discoveryRepo.createSourceCallCount)
+            assertEquals(listOf("src-1"), vm.state.value.createdSourceIds)
+            val request = assertNotNull(discoveryRepo.lastCreateSourceRequest)
+            assertEquals(
+                listOf("192.168.18.0/24", "10.0.0.0/24"),
+                request.config?.targets?.map { it.cidr },
+            )
             vm.clear()
         }
+
+    @Test
+    fun step2DoesNotCreateASecondSourceAfterGoingBack() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                )
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.nextStep()
+            advanceUntilIdle()
+            vm.nextStep()
+            advanceUntilIdle()
+            assertEquals(3, vm.state.value.currentStep)
+
+            vm.previousStep()
+            vm.nextStep()
+            advanceUntilIdle()
+
+            assertEquals(3, vm.state.value.currentStep)
+            assertEquals(1, discoveryRepo.createSourceCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun everyScanTypeCreatesBackendCollectorTypes() {
+        val backendTypes = setOf("icmp_sweep", "arp_sweep", "mdns", "reverse_dns", "snmp")
+        for (scanType in ScanType.entries) {
+            assertTrue(scanType.collectorTypes.isNotEmpty(), "$scanType has no collectors")
+            assertTrue(backendTypes.containsAll(scanType.collectorTypes), "$scanType: ${scanType.collectorTypes}")
+        }
+        assertEquals(listOf("icmp_sweep", "arp_sweep", "reverse_dns"), ScanType.FULL.collectorTypes)
+    }
 
     @Test
     fun step2HandlesCreateSourceError() =
