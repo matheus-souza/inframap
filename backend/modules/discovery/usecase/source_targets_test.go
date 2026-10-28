@@ -348,3 +348,218 @@ func TestUpdateSource_Targets(t *testing.T) {
 		}
 	})
 }
+
+func TestUpdateSource_TargetCredentialGuard(t *testing.T) {
+	ctx := context.Background()
+	const community = "lab-community"
+
+	linkedTarget := func(id uuid.UUID, cidr string) map[string]interface{} {
+		return map[string]interface{}{"cidr": cidr, "subnet_id": id.String()}
+	}
+	snmp := func(secret string) dto.CollectorConfig {
+		return dto.CollectorConfig{Type: "snmp", Config: map[string]interface{}{"version": "2c", "community": secret}}
+	}
+
+	// seed creates an SNMP sweep with a stored community and the given targets.
+	seed := func(t *testing.T, uc *usecase.DefaultDiscoveryUseCase, targets ...map[string]interface{}) uuid.UUID {
+		t.Helper()
+		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name:       "SNMP sweep",
+			Collectors: []dto.CollectorConfig{snmp(community)},
+			Config:     targetsConfig(targets...),
+		})
+		if err != nil {
+			t.Fatalf("CreateSource failed: %v", err)
+		}
+		return src.ID
+	}
+	update := func(uc *usecase.DefaultDiscoveryUseCase, id uuid.UUID, secret string, targets ...map[string]interface{}) error {
+		_, err := uc.UpdateSource(ctx, id.String(), &dto.UpdateDiscoverySourceRequest{
+			Name:       "SNMP sweep",
+			Collectors: []dto.CollectorConfig{snmp(secret)},
+			Config:     targetsConfig(targets...),
+		})
+		return err
+	}
+	requireGuard := func(t *testing.T, err error) {
+		t.Helper()
+		var guardErr *dto.ErrSecretRequiredOnTargetChange
+		if !errors.As(err, &guardErr) {
+			t.Fatalf("expected ErrSecretRequiredOnTargetChange, got %v", err)
+		}
+		if len(guardErr.Fields) != 1 || guardErr.Fields[0] != dto.ConfigKeyTargets {
+			t.Errorf("expected the targets field to be reported, got %v", guardErr.Fields)
+		}
+	}
+	storedSecret := func(t *testing.T, repo *mockDiscRepo, id uuid.UUID, collectorType, key string) interface{} {
+		t.Helper()
+		configs, err := repo.GetRawCollectorConfigs(ctx, id)
+		if err != nil {
+			t.Fatalf("failed to read collector configs: %v", err)
+		}
+		return configs[collectorType][key]
+	}
+
+	t.Run("adding a free target without the community is rejected", func(t *testing.T) {
+		uc, repo, _ := newTargetsTestUseCase(t)
+		id := seed(t, uc, freeTarget("10.0.10.0/24"))
+
+		err := update(uc, id, "", freeTarget("10.0.10.0/24"), freeTarget("192.0.2.0/24"))
+		requireGuard(t, err)
+		if targets := storedTargets(t, repo, id); len(targets) != 1 {
+			t.Errorf("expected the stored targets untouched, got %+v", targets)
+		}
+	})
+
+	t.Run("adding a free target with the community is accepted", func(t *testing.T) {
+		uc, repo, _ := newTargetsTestUseCase(t)
+		id := seed(t, uc, freeTarget("10.0.10.0/24"))
+
+		if err := update(uc, id, "new-community", freeTarget("10.0.10.0/24"), freeTarget("192.0.2.0/24")); err != nil {
+			t.Fatalf("expected the update to succeed, got %v", err)
+		}
+		if got := storedSecret(t, repo, id, "snmp", "community"); got != "new-community" {
+			t.Errorf("expected the re-sent community to be stored, got %v", got)
+		}
+		if targets := storedTargets(t, repo, id); len(targets) != 2 {
+			t.Errorf("expected two stored targets, got %+v", targets)
+		}
+	})
+
+	t.Run("removing a target without the community preserves it", func(t *testing.T) {
+		uc, repo, _ := newTargetsTestUseCase(t)
+		id := seed(t, uc, freeTarget("10.0.10.0/24"), freeTarget("192.0.2.0/24"))
+
+		if err := update(uc, id, "", freeTarget("192.0.2.0/24")); err != nil {
+			t.Fatalf("expected removing a target to need no secret, got %v", err)
+		}
+		if got := storedSecret(t, repo, id, "snmp", "community"); got != community {
+			t.Errorf("expected the community to be preserved, got %v", got)
+		}
+	})
+
+	t.Run("reordering targets needs no community", func(t *testing.T) {
+		uc, _, _ := newTargetsTestUseCase(t)
+		id := seed(t, uc, freeTarget("10.0.10.0/24"), freeTarget("192.0.2.0/24"))
+
+		if err := update(uc, id, "", freeTarget("192.0.2.0/24"), freeTarget("10.0.10.0/24")); err != nil {
+			t.Fatalf("expected a reorder to need no secret, got %v", err)
+		}
+	})
+
+	t.Run("an unnormalized free target matching a stored one is no change", func(t *testing.T) {
+		uc, _, _ := newTargetsTestUseCase(t)
+		id := seed(t, uc, freeTarget("10.0.10.0/24"))
+
+		if err := update(uc, id, "", freeTarget("10.0.10.7/24")); err != nil {
+			t.Fatalf("expected the same block to need no secret, got %v", err)
+		}
+	})
+
+	t.Run("a linked target whose subnet was edited is no change", func(t *testing.T) {
+		uc, _, inv := newTargetsTestUseCase(t)
+		subnetID := addSubnet(inv, "10.0.30.0/24", false)
+		id := seed(t, uc, linkedTarget(subnetID, "10.0.30.0/24"))
+		inv.subnets[subnetID].Cidr = netip.MustParsePrefix("10.0.31.0/24")
+
+		if err := update(uc, id, "", linkedTarget(subnetID, "10.0.30.0/24")); err != nil {
+			t.Fatalf("expected a subnet edit to need no secret, got %v", err)
+		}
+	})
+
+	t.Run("changing a free target CIDR is rejected", func(t *testing.T) {
+		uc, _, _ := newTargetsTestUseCase(t)
+		id := seed(t, uc, freeTarget("10.0.10.0/24"))
+
+		requireGuard(t, update(uc, id, "", freeTarget("10.0.11.0/24")))
+	})
+
+	t.Run("linking a free target to a subnet with another CIDR is rejected", func(t *testing.T) {
+		uc, _, inv := newTargetsTestUseCase(t)
+		subnetID := addSubnet(inv, "10.0.40.0/24", false)
+		id := seed(t, uc, freeTarget("10.0.10.0/24"))
+
+		requireGuard(t, update(uc, id, "", linkedTarget(subnetID, "10.0.40.0/24")))
+	})
+
+	t.Run("linking a free target to a subnet with the same CIDR is no change", func(t *testing.T) {
+		uc, _, inv := newTargetsTestUseCase(t)
+		subnetID := addSubnet(inv, "10.0.10.0/24", false)
+		id := seed(t, uc, freeTarget("10.0.10.0/24"))
+
+		if err := update(uc, id, "", linkedTarget(subnetID, "10.0.10.0/24")); err != nil {
+			t.Fatalf("expected the same block to need no secret, got %v", err)
+		}
+	})
+
+	t.Run("a request without targets keeps them and needs no community", func(t *testing.T) {
+		uc, repo, _ := newTargetsTestUseCase(t)
+		id := seed(t, uc, freeTarget("10.0.10.0/24"))
+
+		_, err := uc.UpdateSource(ctx, id.String(), &dto.UpdateDiscoverySourceRequest{
+			Name:       "Renamed",
+			Collectors: []dto.CollectorConfig{snmp("")},
+		})
+		if err != nil {
+			t.Fatalf("expected an update without targets to need no secret, got %v", err)
+		}
+		if got := storedSecret(t, repo, id, "snmp", "community"); got != community {
+			t.Errorf("expected the community to be preserved, got %v", got)
+		}
+	})
+
+	t.Run("a provider secret is not demanded when targets are added", func(t *testing.T) {
+		uc, repo, _ := newTargetsTestUseCase(t)
+		proxmox := func(secret string) dto.CollectorConfig {
+			return dto.CollectorConfig{Type: "proxmox", Config: map[string]interface{}{
+				"api_url":      "https://pve.example.test:8006",
+				"token_id":     "inframap@pve!scan",
+				"token_secret": secret,
+			}}
+		}
+		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name:       "Mixed",
+			Collectors: []dto.CollectorConfig{proxmox("pve-token"), {Type: "icmp_sweep"}},
+			Config:     targetsConfig(freeTarget("10.0.10.0/24")),
+		})
+		if err != nil {
+			t.Fatalf("CreateSource failed: %v", err)
+		}
+
+		_, err = uc.UpdateSource(ctx, src.ID.String(), &dto.UpdateDiscoverySourceRequest{
+			Name:       "Mixed",
+			Collectors: []dto.CollectorConfig{proxmox(""), {Type: "icmp_sweep"}},
+			Config:     targetsConfig(freeTarget("10.0.10.0/24"), freeTarget("198.51.100.0/24")),
+		})
+		if err != nil {
+			t.Fatalf("expected the provider secret not to be demanded, got %v", err)
+		}
+		if got := storedSecret(t, repo, src.ID, "proxmox", "token_secret"); got != "pve-token" {
+			t.Errorf("expected the proxmox secret to be preserved, got %v", got)
+		}
+	})
+
+	t.Run("a provider target change still demands its secret", func(t *testing.T) {
+		uc, _, _ := newTargetsTestUseCase(t)
+		src, err := uc.CreateSource(ctx, &dto.CreateDiscoverySourceRequest{
+			Name: "Proxmox",
+			Collectors: []dto.CollectorConfig{{Type: "proxmox", Config: map[string]interface{}{
+				"api_url": "https://pve.example.test:8006", "token_secret": "pve-token",
+			}}},
+		})
+		if err != nil {
+			t.Fatalf("CreateSource failed: %v", err)
+		}
+
+		_, err = uc.UpdateSource(ctx, src.ID.String(), &dto.UpdateDiscoverySourceRequest{
+			Name: "Proxmox",
+			Collectors: []dto.CollectorConfig{{Type: "proxmox", Config: map[string]interface{}{
+				"api_url": "https://pve2.example.test:8006", "token_secret": "",
+			}}},
+		})
+		var guardErr *dto.ErrSecretRequiredOnTargetChange
+		if !errors.As(err, &guardErr) || len(guardErr.Fields) != 1 || guardErr.Fields[0] != "api_url" {
+			t.Fatalf("expected the api_url guard, got %v", err)
+		}
+	})
+}

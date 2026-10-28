@@ -176,6 +176,7 @@ Validations in `DefaultInventoryUseCase.UpdateSubnet`:
      "fields": ["api_url"]
    }
    ```
+   Adding a source target or changing a free-form target's CIDR is also a destination change for every collector that scans the targets (RFC-026 §5); removing or reordering targets is not, and providers are guarded by their own addressing fields only.
 3. **Health check endpoint** — `POST /api/v1/discovery/sources/{id}/health`: receives no secret field in the body (`{}` or non-sensitive override parameters only). The use case resolves and decrypts the configuration already persisted on the server (identical to RFC-024's `ProviderConfigResolver`) and runs the provider connectivity test, returning `{"status": "ok" | "error", "message": "..."}` without ever echoing the secret back.
 
 ### 5. REST API Endpoints & Contracts
