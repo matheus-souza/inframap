@@ -21,13 +21,14 @@ data class SetupWizardUiState(
     val discoveredDeviceCount: Int = 0,
 )
 
+/** A scan preset and the collector plan it creates; each entry is a backend collector type. */
 enum class ScanType(
     val label: String,
-    val apiType: String,
+    val collectorTypes: List<String>,
 ) {
-    ICMP("Varredura ICMP (ping) — rápida, básica", "icmp"),
-    ARP_DNS("ARP + DNS — mais detalhes, mais lento", "arp_dns"),
-    FULL("Completo (ICMP+ARP+DNS) — recomendado", "full"),
+    ICMP("Varredura ICMP (ping) — rápida, básica", listOf("icmp_sweep")),
+    ARP_DNS("ARP + DNS — mais detalhes, mais lento", listOf("arp_sweep", "reverse_dns")),
+    FULL("Completo (ICMP+ARP+DNS) — recomendado", listOf("icmp_sweep", "arp_sweep", "reverse_dns")),
 }
 
 enum class ScheduleFrequency(

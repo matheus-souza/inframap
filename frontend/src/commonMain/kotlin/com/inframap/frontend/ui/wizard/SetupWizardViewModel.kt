@@ -1,6 +1,7 @@
 package com.inframap.frontend.ui.wizard
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.CollectorConfigDto
 import com.inframap.frontend.data.dto.CreateDiscoverySourceRequest
 import com.inframap.frontend.data.dto.CreateSubnetRequest
 import com.inframap.frontend.data.dto.DiscoverySourceConfigDto
@@ -14,6 +15,7 @@ import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
 import com.inframap.frontend.ui.base.BaseViewModel
+import com.inframap.frontend.ui.dashboard.AutoSetupCoordinator
 import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -30,7 +32,6 @@ class SetupWizardViewModel(
     scope: CoroutineScope? = null,
 ) : BaseViewModel<SetupWizardUiState>(SetupWizardUiState(), scope) {
     private val createdCidrs = mutableSetOf<String>()
-    private val createdSourceCidrs = mutableSetOf<String>()
 
     /** Id of each Subnet the wizard created, keyed by CIDR, so its source target links to it. */
     private val createdSubnetIds = mutableMapOf<String, String>()
@@ -274,72 +275,60 @@ class SetupWizardViewModel(
         }
     }
 
+    /**
+     * Creates the single local network source (RFC-026 §8), with one target per network
+     * selected and created in step 1, each linked to its Subnet. Once it exists, going back and
+     * forward again does not create a second one.
+     */
     @Suppress("ReturnCount")
     private fun createSourcesAndAdvance() {
         if (currentState.isLoading) return
-
-        val activeCidrs = createdCidrs.intersect(currentState.selectedCidrs)
-        val cidrsToCreate = activeCidrs.filter { it !in createdSourceCidrs }
-        if (cidrsToCreate.isEmpty() && createdSourceCidrs.isNotEmpty()) {
+        if (currentState.createdSourceIds.isNotEmpty()) {
             updateState { it.copy(currentStep = 3) }
             return
         }
-        if (cidrsToCreate.isEmpty()) {
+
+        val interfaces =
+            currentState.detectedInterfaces
+                .filter { it.cidr in createdCidrs && it.cidr in currentState.selectedCidrs }
+                .distinctBy { it.cidr }
+        val targets = AutoSetupCoordinator.localNetworkTargets(interfaces, createdSubnetIds)
+        if (targets.isEmpty()) {
             updateState {
                 it.copy(errorMessage = UiText.DynamicString("Nenhuma rede configurada."))
             }
             return
         }
 
-        val scanType = currentState.scanType
-        val cron = currentState.scheduleFrequency.cron
+        val request = sourceRequest(targets, currentState.scanType, currentState.scheduleFrequency.cron)
         updateState { it.copy(isLoading = true, errorMessage = null) }
 
         launchJob("create_sources") {
-            val newSourceIds = mutableListOf<String>()
-            for (cidr in cidrsToCreate) {
-                val result = createDiscoverySourceUseCase(sourceRequest(cidr, scanType, cron))
-                when (result) {
-                    is ApiResult.Success -> {
-                        createdSourceCidrs.add(cidr)
-                        newSourceIds.add(result.data.id)
+            when (val result = createDiscoverySourceUseCase(request)) {
+                is ApiResult.Success ->
+                    updateState {
+                        it.copy(
+                            isLoading = false,
+                            createdSourceIds = listOf(result.data.id),
+                            currentStep = 3,
+                        )
                     }
-                    else -> {
-                        updateState {
-                            it.copy(
-                                isLoading = false,
-                                createdSourceIds = it.createdSourceIds + newSourceIds,
-                                errorMessage = mapError(result),
-                            )
-                        }
-                        return@launchJob
-                    }
-                }
-            }
-            updateState {
-                it.copy(
-                    isLoading = false,
-                    createdSourceIds = it.createdSourceIds + newSourceIds,
-                    currentStep = 3,
-                )
+                else ->
+                    updateState { it.copy(isLoading = false, errorMessage = mapError(result)) }
             }
         }
     }
 
-    /** One source per CIDR, its single target linked to the Subnet created in step 1. */
     private fun sourceRequest(
-        cidr: String,
+        targets: List<DiscoveryTargetRequestDto>,
         scanType: ScanType,
         cron: String?,
     ) = CreateDiscoverySourceRequest(
-        name = "${scanType.label.substringBefore(" —")} — $cidr",
-        type = scanType.apiType,
+        name = AutoSetupCoordinator.LOCAL_NETWORK_SOURCE_NAME,
         enabled = true,
         scheduleCron = cron,
-        config =
-            DiscoverySourceConfigDto(
-                targets = listOf(DiscoveryTargetRequestDto(cidr = cidr, subnetId = createdSubnetIds[cidr])),
-            ),
+        config = DiscoverySourceConfigDto(targets = targets),
+        collectors = scanType.collectorTypes.map { CollectorConfigDto(type = it) },
     )
 
     companion object {
