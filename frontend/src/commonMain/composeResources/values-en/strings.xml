@@ -448,7 +448,6 @@
     <string name="topology_hosted_on">Hosted on</string>
     <string name="topology_inspector_power_state">Power state</string>
     <string name="device_detail_power_state">Power state</string>
-    <string name="subnet_chips_title">Registered subnets</string>
     <string name="subnet_chips_empty">No registered subnets for suggestions.</string>
 
     <!-- Collector and Provider Tooltips -->
@@ -499,6 +498,7 @@
     <string name="delete_subnet_confirm_message">Are you sure you want to delete subnet \"%1$s\"? This action will remove the subnet from active listings.</string>
     <string name="delete_subnet_impact_devices">%1$d contained device(s)</string>
     <string name="delete_subnet_impact_edges">%1$d linked topology edge(s)</string>
+    <string name="delete_subnet_impact_sources">%1$d discovery source(s) scanning this subnet: %2$s. The sources are kept and this target will be skipped on their next runs.</string>
     <string name="delete_subnet_success">Subnet \"%1$s\" successfully deleted.</string>
     <string name="delete_subnet_error">Failed to delete subnet.</string>
 

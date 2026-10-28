@@ -1,6 +1,8 @@
 package com.inframap.frontend.ui.wizard
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.DiscoverySourceConfigDto
+import com.inframap.frontend.data.dto.DiscoveryTargetRequestDto
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.PaginatedList
@@ -438,6 +440,37 @@ class SetupWizardViewModelTest {
             assertFalse(state.isLoading)
             assertNull(state.errorMessage)
             assertEquals(1, discoveryRepo.createSourceCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun step2SendsTheCidrAsATargetLinkedToTheCreatedSubnet() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Success(sampleSource, requestId = ""),
+                )
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+            vm.show()
+            advanceUntilIdle()
+
+            vm.toggleInterface(wlan0)
+            vm.selectScanType(ScanType.ICMP)
+            vm.selectFrequency(ScheduleFrequency.EVERY_6_HOURS)
+            vm.nextStep()
+            advanceUntilIdle()
+            vm.nextStep()
+            advanceUntilIdle()
+
+            val request = assertNotNull(discoveryRepo.lastCreateSourceRequest)
+            assertEquals(ScanType.ICMP.apiType, request.type)
+            assertEquals(ScheduleFrequency.EVERY_6_HOURS.cron, request.scheduleCron)
+            assertEquals(
+                DiscoverySourceConfigDto(
+                    targets = listOf(DiscoveryTargetRequestDto(cidr = "192.168.18.0/24", subnetId = "sub1")),
+                ),
+                request.config,
+            )
             vm.clear()
         }
 

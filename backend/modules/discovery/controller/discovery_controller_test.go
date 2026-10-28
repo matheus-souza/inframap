@@ -1124,8 +1124,10 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		var errResp struct {
 			Error struct {
 				Code    string `json:"code"`
+				Message string `json:"message"`
 				Details []struct {
 					Field string `json:"field"`
+					Issue string `json:"issue"`
 				} `json:"details"`
 			} `json:"error"`
 		}
@@ -1136,7 +1138,13 @@ func TestDiscoveryController_Unit(t *testing.T) {
 			t.Errorf("expected error code 'secret_required_on_target_change', got %s", errResp.Error.Code)
 		}
 		if len(errResp.Error.Details) == 0 || errResp.Error.Details[0].Field != "api_url" {
-			t.Errorf("expected field 'api_url' in details, got %v", errResp.Error.Details)
+			t.Fatalf("expected field 'api_url' in details, got %v", errResp.Error.Details)
+		}
+		if issue := errResp.Error.Details[0].Issue; issue != "target host/URL changed without supplying credentials" {
+			t.Errorf("expected the issue to name the host/URL change, got %q", issue)
+		}
+		if errResp.Error.Message != "Alterar o host/URL de destino exige reentrada da credencial." {
+			t.Errorf("expected the message to name the host/URL change, got %q", errResp.Error.Message)
 		}
 	})
 

@@ -68,20 +68,21 @@ class DashboardViewModel(
     }
 
     private suspend fun executeAutoSetup(interfaces: List<com.inframap.frontend.domain.model.NetworkInterface>) {
-        when (val result = autoSetupCoordinator.createSubnets(interfaces)) {
-            is ApiResult.Success -> Unit
-            else -> {
-                updateAutoSetupError(mapError(result))
-                return
+        val subnetIds =
+            when (val result = autoSetupCoordinator.createSubnets(interfaces)) {
+                is ApiResult.Success -> result.data
+                else -> {
+                    updateAutoSetupError(mapError(result))
+                    return
+                }
             }
-        }
 
         updateState {
             it.copy(autoSetup = it.autoSetup.copy(phase = AutoSetupPhase.CREATING_SOURCES))
         }
 
         val sourceIds =
-            when (val result = autoSetupCoordinator.createSourcesAndTriggerScan(interfaces)) {
+            when (val result = autoSetupCoordinator.createSourceAndTriggerScan(interfaces, subnetIds)) {
                 is ApiResult.Success -> result.data
                 else -> {
                     updateAutoSetupError(mapError(result))

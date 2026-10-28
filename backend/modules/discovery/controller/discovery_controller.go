@@ -77,14 +77,8 @@ func (c *DiscoveryController) UpdateSource(w http.ResponseWriter, r *http.Reques
 		}
 		var errSSRF *dto.ErrSecretRequiredOnTargetChange
 		if errors.As(err, &errSSRF) {
-			fieldErrors := make([]httputil.FieldError, len(errSSRF.Fields))
-			for i, f := range errSSRF.Fields {
-				fieldErrors[i] = httputil.FieldError{
-					Field: f,
-					Issue: "target host/URL changed without supplying credentials",
-				}
-			}
-			httputil.WriteError(w, r, http.StatusUnprocessableEntity, "secret_required_on_target_change", "Alterar o host/URL de destino exige reentrada da credencial.", fieldErrors)
+			message, fieldErrors := secretRequiredOnTargetChange(errSSRF.Fields)
+			httputil.WriteError(w, r, http.StatusUnprocessableEntity, "secret_required_on_target_change", message, fieldErrors)
 			return
 		}
 		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update discovery source", nil)
@@ -92,6 +86,33 @@ func (c *DiscoveryController) UpdateSource(w http.ResponseWriter, r *http.Reques
 	}
 
 	httputil.WriteJSON(w, r, http.StatusOK, resp)
+}
+
+// secretRequiredOnTargetChange describes a destination change made without re-sending the
+// stored credential. A changed host/URL field and added source targets (RFC-026 §2) both
+// count as one, so each field and the message name the change that was made.
+func secretRequiredOnTargetChange(fields []string) (string, []httputil.FieldError) {
+	fieldErrors := make([]httputil.FieldError, len(fields))
+	var hostChanged, targetsAdded bool
+	for i, f := range fields {
+		issue := "target host/URL changed without supplying credentials"
+		if f == dto.ConfigKeyTargets {
+			issue = "targets added without supplying credentials"
+			targetsAdded = true
+		} else {
+			hostChanged = true
+		}
+		fieldErrors[i] = httputil.FieldError{Field: f, Issue: issue}
+	}
+
+	switch {
+	case targetsAdded && hostChanged:
+		return "Alterar o host/URL de destino ou adicionar alvos exige reentrada da credencial.", fieldErrors
+	case targetsAdded:
+		return "Adicionar alvos exige reentrada da credencial.", fieldErrors
+	default:
+		return "Alterar o host/URL de destino exige reentrada da credencial.", fieldErrors
+	}
 }
 
 // writeTargetValidationError answers a source target list that breaks a rule of RFC-026 §2
