@@ -255,7 +255,16 @@ func TestSourceTargetResponses(t *testing.T) {
 	if value, present := second["subnet_id"]; !present || value != nil {
 		t.Errorf("expected subnet_id to be null for a free-form target, got %v (present=%v)", value, present)
 	}
+	if value, present := second["subnet_name"]; !present || value != nil {
+		t.Errorf("expected subnet_name to be null for a free-form target, got %v (present=%v)", value, present)
+	}
+	if value, present := second["subnet_deleted"]; !present || value != false {
+		t.Errorf("expected subnet_deleted to be false for a free-form target, got %v (present=%v)", value, present)
+	}
 
+	name := "Lab"
+	responses[0].SubnetName = &name
+	responses[0].SubnetDeleted = true
 	roundTrip := dto.SourceTargetsFromResponses(responses)
 	if len(roundTrip) != 2 || roundTrip[0].CIDR != "10.0.10.0/24" || *roundTrip[0].SubnetID != subnetID || roundTrip[1].SubnetID != nil {
 		t.Errorf("unexpected round trip: %+v", roundTrip)

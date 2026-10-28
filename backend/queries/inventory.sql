@@ -168,6 +168,10 @@ SELECT * FROM subnets WHERE deleted_at IS NULL ORDER BY name ASC;
 -- name: GetSubnetByID :one
 SELECT * FROM subnets WHERE id = $1 AND deleted_at IS NULL;
 
+-- name: ListSubnetsByIDs :many
+-- Includes soft-deleted subnets, so a reference to a deleted Subnet can still be named.
+SELECT * FROM subnets WHERE id = ANY($1::uuid[]);
+
 -- name: UpdateSubnet :one
 UPDATE subnets
 SET name = $2,

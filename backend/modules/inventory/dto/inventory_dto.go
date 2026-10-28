@@ -195,9 +195,18 @@ type SubnetCIDRImpactResponse struct {
 }
 
 // SubnetDeletionImpact contains counts of entities affected by a subnet deletion.
+// DiscoverySources lists the active discovery sources holding a target linked to the
+// subnet (RFC-026 §6); it is always an array, empty when none does.
 type SubnetDeletionImpact struct {
-	AffectedDevices        int `json:"affected_devices"`
-	UnlinkedTopologyEdges int `json:"unlinked_topology_edges"`
+	AffectedDevices       int                     `json:"affected_devices"`
+	UnlinkedTopologyEdges int                     `json:"unlinked_topology_edges"`
+	DiscoverySources      []SubnetDiscoverySource `json:"discovery_sources"`
+}
+
+// SubnetDiscoverySource is a discovery source that scans a subnet through a linked target.
+type SubnetDiscoverySource struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // SubnetDeletionImpactResponse represents the impact of deleting a subnet.

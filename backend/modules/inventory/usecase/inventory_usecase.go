@@ -58,11 +58,22 @@ type InventoryUseCase interface {
 
 
 
+// SubnetSourceFinder lists the active discovery sources holding a target linked to a
+// subnet (RFC-026 §6). Declared here rather than imported so the inventory module does not
+// depend on the discovery module, which owns the encrypted source configurations.
+type SubnetSourceFinder interface {
+	ListSourcesLinkedToSubnet(ctx context.Context, subnetID uuid.UUID) ([]dto.SubnetDiscoverySource, error)
+}
+
 // DefaultInventoryUseCase implements InventoryUseCase.
 type DefaultInventoryUseCase struct {
 	repo     repository.InventoryRepository
 	eventBus eventbus.EventBus
 	logger   *slog.Logger
+
+	// sources reports the discovery sources linked to a subnet in its deletion impact.
+	// Optional: when absent, the impact lists no sources.
+	sources SubnetSourceFinder
 }
 
 // NewDefaultInventoryUseCase creates a new DefaultInventoryUseCase.
@@ -72,6 +83,13 @@ func NewDefaultInventoryUseCase(repo repository.InventoryRepository, bus eventbu
 		eventBus: bus,
 		logger:   logger,
 	}
+}
+
+// WithSubnetSourceFinder enables listing the discovery sources linked to a subnet in its
+// deletion impact.
+func (uc *DefaultInventoryUseCase) WithSubnetSourceFinder(finder SubnetSourceFinder) *DefaultInventoryUseCase {
+	uc.sources = finder
+	return uc
 }
 
 // CreateDevice registers a new active device and publishes 'device.created' domain event.
@@ -676,11 +694,23 @@ func (uc *DefaultInventoryUseCase) GetSubnetDeletionImpact(ctx context.Context, 
 		}
 	}
 
+	// Deleting the subnet leaves these sources unchanged (ADR-014 "preserve & unlink"): the
+	// linked target stays and is skipped on runs, so the operator is told which sources scan it.
+	linkedSources := make([]dto.SubnetDiscoverySource, 0)
+	if uc.sources != nil {
+		found, findErr := uc.sources.ListSourcesLinkedToSubnet(ctx, id)
+		if findErr != nil {
+			return nil, fmt.Errorf("failed to list discovery sources linked to subnet: %w", findErr)
+		}
+		linkedSources = append(linkedSources, found...)
+	}
+
 	return &dto.SubnetDeletionImpactResponse{
 		SubnetID: idStr,
 		Impact: dto.SubnetDeletionImpact{
-			AffectedDevices:        affectedCount,
+			AffectedDevices:       affectedCount,
 			UnlinkedTopologyEdges: 0,
+			DiscoverySources:      linkedSources,
 		},
 	}, nil
 }

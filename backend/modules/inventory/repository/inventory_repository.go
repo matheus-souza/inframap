@@ -316,6 +316,21 @@ func (r *PgInventoryRepository) GetSubnetByID(ctx context.Context, id uuid.UUID)
 	return &subnet, nil
 }
 
+// ListSubnetsByIDs fetches the subnets with the given ids in one query, soft-deleted ones
+// included, so a reference to a deleted Subnet can still show its name. Unknown ids are
+// absent from the result.
+func (r *PgInventoryRepository) ListSubnetsByIDs(ctx context.Context, ids []uuid.UUID) ([]db.Subnet, error) {
+	if len(ids) == 0 {
+		return []db.Subnet{}, nil
+	}
+	queries := db.New(r.pool)
+	subnets, err := queries.ListSubnetsByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list subnets by id: %w", err)
+	}
+	return subnets, nil
+}
+
 // UpdateSubnet updates an existing subnet.
 func (r *PgInventoryRepository) UpdateSubnet(ctx context.Context, params db.UpdateSubnetParams) (*db.Subnet, error) {
 	queries := db.New(r.pool)
