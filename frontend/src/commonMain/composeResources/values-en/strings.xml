@@ -281,7 +281,7 @@
 
     <!-- Staging Screen -->
     <string name="staging_dismiss_error_prefix">Error dismissing: %1$s\n\nDo you want to retry?</string>
-    <string name="staging_dismiss_confirm_message">Are you sure you want to dismiss device \'%1$s\' from the staging queue?</string>
+    <string name="staging_dismiss_confirm_message">Are you sure you want to dismiss device '%1$s' from the staging queue?</string>
     <string name="staging_dismiss_dialog_title">Dismiss Staged Device</string>
     <string name="staging_dismiss_processing">Dismissing...</string>
     <string name="staging_dismiss_action">Dismiss</string>
@@ -300,7 +300,7 @@
     <!-- Device List Screen -->
     <string name="devices_search_placeholder">Search by hostname...</string>
     <string name="devices_delete_dialog_title">Delete Device</string>
-    <string name="devices_delete_confirm_message">Are you sure you want to delete device \'%1$s\'? This action marks the device as deleted.</string>
+    <string name="devices_delete_confirm_message">Are you sure you want to delete device '%1$s'? This action marks the device as deleted.</string>
     <string name="devices_delete_error_retry">Error deleting: %1$s\n\nDo you want to retry?</string>
     <string name="devices_delete_processing">Deleting...</string>
     <string name="devices_delete_action">Delete</string>
@@ -318,7 +318,7 @@
 
     <!-- Device Detail Screen -->
     <string name="device_detail_delete_dialog_title">Delete Device</string>
-    <string name="device_detail_delete_confirm">Are you sure you want to delete device \'%1$s\'?</string>
+    <string name="device_detail_delete_confirm">Are you sure you want to delete device '%1$s'?</string>
     <string name="device_detail_delete_processing">Deleting...</string>
     <string name="device_detail_delete_action">Delete</string>
     <string name="device_detail_back">Back</string>
@@ -371,7 +371,7 @@
     <!-- Discovery List Screen -->
     <string name="discovery_new_button">+ New Source</string>
     <string name="discovery_delete_dialog_title">Delete Discovery Source</string>
-    <string name="discovery_delete_confirm_message">Are you sure you want to delete source \'%1$s\'? Associated schedules will be removed.</string>
+    <string name="discovery_delete_confirm_message">Are you sure you want to delete source '%1$s'? Associated schedules will be removed.</string>
     <string name="discovery_col_name">Name</string>
     <string name="discovery_col_type">Type</string>
     <string name="discovery_col_cidr">CIDR</string>
@@ -495,11 +495,11 @@
     <string name="edit_subnet_impact_title">CIDR Block Impact Warning</string>
     <string name="edit_subnet_impact_warning">Changing the CIDR range will leave %1$d device(s) outside the new subnet. Do you wish to proceed?</string>
     <string name="delete_subnet_dialog_title">Delete Subnet</string>
-    <string name="delete_subnet_confirm_message">Are you sure you want to delete subnet \"%1$s\"? This action will remove the subnet from active listings.</string>
+    <string name="delete_subnet_confirm_message">Are you sure you want to delete subnet "%1$s"? This action will remove the subnet from active listings.</string>
     <string name="delete_subnet_impact_devices">%1$d contained device(s)</string>
     <string name="delete_subnet_impact_edges">%1$d linked topology edge(s)</string>
     <string name="delete_subnet_impact_sources">%1$d discovery source(s) scanning this subnet: %2$s. The sources are kept and this target will be skipped on their next runs.</string>
-    <string name="delete_subnet_success">Subnet \"%1$s\" successfully deleted.</string>
+    <string name="delete_subnet_success">Subnet "%1$s" successfully deleted.</string>
     <string name="delete_subnet_error">Failed to delete subnet.</string>
 
     <!-- Edit Discovery Source -->
@@ -521,10 +521,10 @@
     <string name="edit_discovery_source_test_unsaved_warning">Save changes to test the updated configuration</string>
     <string name="device_discovery_source_inactive">Inactive source</string>
     <string name="delete_discovery_source_dialog_title">Delete Discovery Source</string>
-    <string name="delete_discovery_source_confirm_message">Are you sure you want to delete source \&quot;%1$s\&quot;? Its collectors and schedules will be deactivated.</string>
+    <string name="delete_discovery_source_confirm_message">Are you sure you want to delete source "%1$s"? Its collectors and schedules will be deactivated.</string>
     <string name="delete_discovery_source_impact_collectors">%1$d collector(s) to deactivate</string>
     <string name="delete_discovery_source_impact_devices">%1$d associated device(s)</string>
-    <string name="delete_discovery_source_success">Discovery source \&quot;%1$s\&quot; successfully deleted.</string>
+    <string name="delete_discovery_source_success">Discovery source "%1$s" successfully deleted.</string>
     <string name="delete_discovery_source_error">Failed to delete discovery source.</string>
     <string name="error_credential_in_use">This credential is in use by %1$d active discovery source(s).</string>
 </resources>
