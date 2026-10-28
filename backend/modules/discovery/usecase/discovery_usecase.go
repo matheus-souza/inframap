@@ -72,6 +72,11 @@ var (
 
 	// ErrProviderNotFound indicates that the requested provider is not registered.
 	ErrProviderNotFound = errors.New("provider not found")
+
+	// ErrRunFailed indicates that a discovery run ended in error and that outcome was recorded:
+	// the source's final status is persisted and TriggerRun returns its response next to the
+	// error. It is a result of the run, not a failure to run it (RFC-008 §5).
+	ErrRunFailed = errors.New("discovery run failed")
 )
 
 // DiscoveryUseCase contract defines application orchestration for discovery sources and scan ingestion.
@@ -381,7 +386,10 @@ func (u *DefaultDiscoveryUseCase) DeleteSource(ctx context.Context, idStr string
 	return err
 }
 
-// TriggerRun triggers a manual or scheduled scan sweep for a discovery source.
+// TriggerRun triggers a manual or scheduled scan sweep for a discovery source. A run that
+// ends in error once its status is persisted returns the source response together with an
+// error wrapping ErrRunFailed. A cancelled run returns the cancellation error. Any other
+// error means the run or its outcome could not be recorded, and comes with no response.
 func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) (*dto.DiscoverySourceResponse, error) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -419,10 +427,11 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		if u.logger != nil {
 			u.logger.Warn("discovery source has no CIDR configured, skipping scan", slog.String("source_id", source.ID.String()))
 		}
-		if _, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error"); errStatusErr != nil {
+		res, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error")
+		if errStatusErr != nil {
 			return nil, fmt.Errorf("failed to set error status for missing CIDR: %w", errStatusErr)
 		}
-		return nil, fmt.Errorf("discovery source %s has no CIDR configured", source.ID)
+		return res, fmt.Errorf("%w: discovery source %s has no CIDR configured", ErrRunFailed, source.ID)
 	}
 
 	targets, skippedTargets, resolveErr := u.resolveRunTargets(ctx, source, enabledCollectorTypes)
@@ -440,10 +449,11 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 			if u.logger != nil {
 				u.logger.Error("discovery source has invalid CIDR configured", slog.String("source_id", source.ID.String()), slog.Any("error", err))
 			}
-			if _, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error"); errStatusErr != nil {
+			res, errStatusErr := u.discRepo.UpdateSourceStatus(persistCtx, source.ID, "error")
+			if errStatusErr != nil {
 				return nil, fmt.Errorf("failed to set error status for invalid CIDR: %w", errStatusErr)
 			}
-			return nil, fmt.Errorf("discovery source %s has invalid CIDR %q: %w", source.ID, target.CIDR, err)
+			return res, fmt.Errorf("%w: discovery source %s has invalid CIDR %q: %w", ErrRunFailed, source.ID, target.CIDR, err)
 		}
 	}
 
@@ -624,11 +634,13 @@ func (u *DefaultDiscoveryUseCase) TriggerRun(ctx context.Context, idStr string) 
 		}
 		return res, ctx.Err()
 	}
+	// The run was recorded with its final status: a run that failed is a result, reported with
+	// ErrRunFailed next to the response, unlike a failure to record it above.
 	if finalStatus == "error" {
 		if scanErr != nil {
-			return res, scanErr
+			return res, fmt.Errorf("%w: %w", ErrRunFailed, scanErr)
 		}
-		return res, fmt.Errorf("discovery scan failed for source %s: all collectors failed", source.ID)
+		return res, fmt.Errorf("%w: discovery scan failed for source %s: all collectors failed", ErrRunFailed, source.ID)
 	}
 
 	return res, nil

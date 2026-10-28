@@ -697,9 +697,12 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 	t.Run("TriggerRun status update failure", func(t *testing.T) {
 		sources, _ := uc.ListSources(ctx)
 		discRepo.failUpdateSourceStatus = true
-		_, err := uc.TriggerRun(ctx, sources[0].ID.String())
-		if err == nil {
-			t.Fatal("expected error when UpdateSourceStatus fails")
+		res, err := uc.TriggerRun(ctx, sources[0].ID.String())
+		if err == nil || errors.Is(err, usecase.ErrRunFailed) {
+			t.Fatalf("expected a failure to run when UpdateSourceStatus fails, got %v", err)
+		}
+		if res != nil {
+			t.Errorf("expected no response when the status cannot be persisted, got %+v", res)
 		}
 		discRepo.failUpdateSourceStatus = false
 	})
@@ -868,8 +871,8 @@ func TestDiscoveryUseCase_Unit(t *testing.T) {
 			t.Fatalf("CreateSource error: %v", err)
 		}
 		res, err := uc.TriggerRun(ctx, src.ID.String())
-		if err == nil {
-			t.Fatal("expected error on all-error scan, got nil")
+		if !errors.Is(err, usecase.ErrRunFailed) {
+			t.Fatalf("expected a recorded run failure on all-error scan, got %v", err)
 		}
 		if res.LastStatus != "error" {
 			t.Errorf("expected status 'error', got %q", res.LastStatus)

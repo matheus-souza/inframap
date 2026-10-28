@@ -300,7 +300,8 @@ func (r *PgDiscoveryRepository) GetSourceByID(ctx context.Context, id uuid.UUID)
 	return resp, nil
 }
 
-// ListSources retrieves all discovery sources ordered by creation date descending with their collectors.
+// ListSources retrieves all discovery sources ordered by creation date descending with their
+// collectors and the summary of their latest run.
 func (r *PgDiscoveryRepository) ListSources(ctx context.Context) ([]*dto.DiscoverySourceResponse, error) {
 	rows, err := r.queries.ListDiscoverySources(ctx)
 	if err != nil {
@@ -334,6 +335,7 @@ func (r *PgDiscoveryRepository) ListSources(ctx context.Context) ([]*dto.Discove
 		mapped.Collectors = cols
 		items[i] = mapped
 	}
+	r.attachLastRun(ctx, items...)
 	r.attachTargetSubnets(ctx, items...)
 	return items, nil
 }
@@ -731,34 +733,23 @@ func (r *PgDiscoveryRepository) ListRunsBySourceID(ctx context.Context, sourceID
 	return items, nil
 }
 
+// buildLastRunSummary aggregates the rows of one run into its summary. The rows must all
+// belong to the same run: every row counts, whatever its collector or target, so a run with a
+// row per (collector, target) is summarized whole (RFC-026 §4).
 func buildLastRunSummary(runs []db.DiscoveryCollectorRun) *dto.CollectorRunSummary {
 	if len(runs) == 0 {
 		return nil
 	}
-	latestTime := runs[0].StartedAt.Time
-	var batch []db.DiscoveryCollectorRun
-	for _, r := range runs {
-		diff := latestTime.Sub(r.StartedAt.Time)
-		if diff < 0 {
-			diff = -diff
-		}
-		if diff <= 5*time.Second {
-			batch = append(batch, r)
-		}
-	}
-	if len(batch) == 0 {
-		batch = runs[:1]
-	}
 
 	summary := &dto.CollectorRunSummary{
-		StartedAt:  batch[0].StartedAt.Time,
-		FinishedAt: batch[0].FinishedAt.Time,
-		Collectors: make([]dto.CollectorRunDetail, 0, len(batch)),
+		StartedAt:  runs[0].StartedAt.Time,
+		FinishedAt: runs[0].FinishedAt.Time,
+		Collectors: make([]dto.CollectorRunDetail, 0, len(runs)),
 	}
 
 	successCount := 0
 	errorCount := 0
-	for _, r := range batch {
+	for _, r := range runs {
 		var errMsg string
 		if r.ErrorMessage.Valid {
 			errMsg = r.ErrorMessage.String
@@ -799,24 +790,41 @@ func buildLastRunSummary(runs []db.DiscoveryCollectorRun) *dto.CollectorRunSumma
 	return summary
 }
 
-func (r *PgDiscoveryRepository) attachLastRun(ctx context.Context, resp *dto.DiscoverySourceResponse) {
-	if resp == nil {
+// attachLastRun fills LastRun on every given source with the summary of its latest run, read
+// with one query for all of them: the rows sharing the source's newest started_at, which
+// TriggerRun writes once for every row of a run. A failed query is logged and only leaves
+// LastRun empty, so a source listing never fails on its run history (guideline #158).
+func (r *PgDiscoveryRepository) attachLastRun(ctx context.Context, sources ...*dto.DiscoverySourceResponse) {
+	ids := make([]uuid.UUID, 0, len(sources))
+	for _, src := range sources {
+		if src != nil {
+			ids = append(ids, src.ID)
+		}
+	}
+	if len(ids) == 0 {
 		return
 	}
-	runs, err := r.queries.ListCollectorRunsBySource(ctx, db.ListCollectorRunsBySourceParams{
-		SourceID: resp.ID,
-		Limit:    10,
-		Offset:   0,
-	})
+
+	rows, err := r.queries.ListLatestCollectorRunsBySources(ctx, ids)
 	if err != nil {
-		slog.Warn("failed to list recent collector runs for discovery source",
-			slog.String("source_id", resp.ID.String()),
+		slog.Warn("failed to list the latest collector runs of discovery sources",
+			slog.Int("sources", len(ids)),
 			slog.Any("error", err),
 		)
 		return
 	}
-	if len(runs) > 0 {
-		resp.LastRun = buildLastRunSummary(runs)
+
+	runsBySource := make(map[uuid.UUID][]db.DiscoveryCollectorRun, len(ids))
+	for _, row := range rows {
+		runsBySource[row.SourceID] = append(runsBySource[row.SourceID], row)
+	}
+	for _, src := range sources {
+		if src == nil {
+			continue
+		}
+		if runs := runsBySource[src.ID]; len(runs) > 0 {
+			src.LastRun = buildLastRunSummary(runs)
+		}
 	}
 }
 

@@ -489,6 +489,57 @@ func (q *Queries) ListDiscoverySources(ctx context.Context) ([]DiscoverySource, 
 	return items, nil
 }
 
+const listLatestCollectorRunsBySources = `-- name: ListLatestCollectorRunsBySources :many
+SELECT id, source_id, collector_type, status, devices_found, duration_ms, error_message, started_at, finished_at, target_cidr FROM discovery_collector_runs
+WHERE (source_id, started_at) IN (
+    SELECT latest.source_id, latest.started_at
+    FROM unnest($1::uuid[]) AS ids(source_id)
+    CROSS JOIN LATERAL (
+        SELECT runs.source_id, runs.started_at
+        FROM discovery_collector_runs runs
+        WHERE runs.source_id = ids.source_id
+        ORDER BY runs.started_at DESC
+        LIMIT 1
+    ) latest
+)
+ORDER BY source_id, started_at DESC, id DESC
+`
+
+// Every row of the latest run of each listed source. TriggerRun stamps all rows of one run
+// with the same started_at, so the rows sharing a source's newest started_at are that run.
+// The lateral lookup reads one index entry per source (idx_discovery_collector_runs_source_started)
+// instead of scanning each source's whole history.
+func (q *Queries) ListLatestCollectorRunsBySources(ctx context.Context, sourceIds []uuid.UUID) ([]DiscoveryCollectorRun, error) {
+	rows, err := q.db.Query(ctx, listLatestCollectorRunsBySources, sourceIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DiscoveryCollectorRun{}
+	for rows.Next() {
+		var i DiscoveryCollectorRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceID,
+			&i.CollectorType,
+			&i.Status,
+			&i.DevicesFound,
+			&i.DurationMs,
+			&i.ErrorMessage,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.TargetCidr,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const purgeOldCollectorRunsChunk = `-- name: PurgeOldCollectorRunsChunk :execrows
 DELETE FROM discovery_collector_runs
 WHERE id IN (

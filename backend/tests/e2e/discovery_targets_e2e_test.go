@@ -176,6 +176,34 @@ func TestE2E_DiscoverySourceTargets(t *testing.T) {
 		}
 	})
 
+	t.Run("a target with host bits is stored as its masked prefix", func(t *testing.T) {
+		hostCIDR := fmt.Sprintf("10.%d.%d.5/24", second, third+2)
+		maskedCIDR := fmt.Sprintf("10.%d.%d.0/24", second, third+2)
+		status, env := apiCall(t, ts, token, http.MethodPost, "/api/v1/discovery/sources", map[string]any{
+			"name":   name("Host bits sweep"),
+			"type":   "icmp_sweep",
+			"config": map[string]any{"targets": []map[string]any{{"cidr": hostCIDR}}},
+		})
+		if status != http.StatusCreated {
+			t.Fatalf("expected 201, got %d: %v", status, env)
+		}
+		if targets := responseTargets(t, env); len(targets) != 1 || targets[0]["cidr"] != maskedCIDR {
+			t.Fatalf("expected the masked target %s, got %v", maskedCIDR, targets)
+		}
+		if cidr := env["data"].(map[string]any)["config_cidr"]; cidr != maskedCIDR {
+			t.Errorf("expected config_cidr %s, got %v", maskedCIDR, cidr)
+		}
+
+		id, _ := env["data"].(map[string]any)["id"].(string)
+		status, env = apiCall(t, ts, token, http.MethodGet, "/api/v1/discovery/sources/"+id, nil)
+		if status != http.StatusOK {
+			t.Fatalf("expected 200, got %d", status)
+		}
+		if targets := responseTargets(t, env); len(targets) != 1 || targets[0]["cidr"] != maskedCIDR {
+			t.Fatalf("expected the masked target to be stored, got %v", targets)
+		}
+	})
+
 	t.Run("provider-only plan needs no target", func(t *testing.T) {
 		status, env := apiCall(t, ts, token, http.MethodPost, "/api/v1/discovery/sources", map[string]any{
 			"name":       name("Providers only"),

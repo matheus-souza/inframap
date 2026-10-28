@@ -100,6 +100,25 @@ WHERE source_id = $1
 ORDER BY started_at DESC, id DESC
 LIMIT $2 OFFSET $3;
 
+-- name: ListLatestCollectorRunsBySources :many
+-- Every row of the latest run of each listed source. TriggerRun stamps all rows of one run
+-- with the same started_at, so the rows sharing a source's newest started_at are that run.
+-- The lateral lookup reads one index entry per source (idx_discovery_collector_runs_source_started)
+-- instead of scanning each source's whole history.
+SELECT * FROM discovery_collector_runs
+WHERE (source_id, started_at) IN (
+    SELECT latest.source_id, latest.started_at
+    FROM unnest(@source_ids::uuid[]) AS ids(source_id)
+    CROSS JOIN LATERAL (
+        SELECT runs.source_id, runs.started_at
+        FROM discovery_collector_runs runs
+        WHERE runs.source_id = ids.source_id
+        ORDER BY runs.started_at DESC
+        LIMIT 1
+    ) latest
+)
+ORDER BY source_id, started_at DESC, id DESC;
+
 -- name: CountCollectorRunsBySource :one
 SELECT COUNT(*) FROM discovery_collector_runs
 WHERE source_id = $1;
