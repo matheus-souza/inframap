@@ -3,6 +3,7 @@ package engine_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"runtime"
@@ -831,5 +832,102 @@ func TestOrchestrator_RunTargets_UnionLeavesOutInvalidTargets(t *testing.T) {
 	calls := mdns.recordedCalls()
 	if len(calls) != 1 || !slices.Equal(calls[0].Prefixes, []netip.Prefix{netip.MustParsePrefix("10.0.10.0/24")}) {
 		t.Errorf("mdns calls = %+v, want one call with the valid prefix only", calls)
+	}
+}
+
+// unavailablePinger stands for an environment that allows no ICMP at all, counting the
+// addresses it was asked to probe.
+type unavailablePinger struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (p *unavailablePinger) Ping(_ context.Context, _ netip.Addr) (time.Duration, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls++
+	return 0, collectors.ErrICMPUnavailable
+}
+
+func TestOrchestrator_RunTargets_UnavailableICMPIsSkipped(t *testing.T) {
+	pinger := &unavailablePinger{}
+	docker := &recordingCollector{
+		id: "docker",
+		observations: []collectors.RawObservation{
+			{IPAddress: "10.0.10.9", ProtocolSource: "docker", ConfidenceScore: 90},
+		},
+	}
+
+	orch := engine.NewDefaultOrchestrator(nil)
+	orch.RegisterCollector(collectors.NewICMPCollector(pinger))
+	orch.RegisterCollector(docker)
+
+	targets := threeTargets()
+	res, err := orch.RunTargets(context.Background(), collectors.DiscoveryTarget{}, targets, nil, []string{"icmp_sweep", "docker"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rows := detailsFor(res, "icmp")
+	if len(rows) != len(targets) {
+		t.Fatalf("got %d icmp rows, want one per target (%d)", len(rows), len(targets))
+	}
+	for i, row := range rows {
+		if row.Status != "skipped" || row.TargetCIDR != targets[i].CIDR {
+			t.Errorf("row %d = %+v, want skipped for %q", i, row, targets[i].CIDR)
+		}
+		if row.ErrorMessage != collectors.ErrICMPUnavailable.Error() {
+			t.Errorf("row %d ErrorMessage = %q, want %q", i, row.ErrorMessage, collectors.ErrICMPUnavailable.Error())
+		}
+		if row.DevicesFound != 0 {
+			t.Errorf("row %d DevicesFound = %d, want 0", i, row.DevicesFound)
+		}
+	}
+	// Unavailability is known from the first address: no target probes the rest of its /24.
+	if pinger.calls != len(targets) {
+		t.Errorf("pinger called %d times, want once per target (%d)", pinger.calls, len(targets))
+	}
+
+	if providerRows := detailsFor(res, "docker"); len(providerRows) != 1 || providerRows[0].Status != "success" {
+		t.Errorf("docker rows = %+v, want one success row beside the skipped sweep", providerRows)
+	}
+	if res.TotalCollected != 1 {
+		t.Errorf("TotalCollected = %d, want 1 (the provider's observation only)", res.TotalCollected)
+	}
+}
+
+func TestOrchestrator_RunScan_UnavailableICMPIsSkipped(t *testing.T) {
+	orch := engine.NewDefaultOrchestrator(nil)
+	orch.RegisterCollector(collectors.NewICMPCollector(&unavailablePinger{}))
+
+	res, err := orch.RunScan(context.Background(), collectors.DiscoveryTarget{CIDR: "192.0.2.0/24"}, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	rows := detailsFor(res, "icmp")
+	if len(rows) != 1 || rows[0].Status != "skipped" || rows[0].ErrorMessage != collectors.ErrICMPUnavailable.Error() {
+		t.Errorf("icmp rows = %+v, want one skipped row carrying the unavailability reason", rows)
+	}
+}
+
+func TestOrchestrator_RunScan_CollectorUnavailableIsSkippedNotError(t *testing.T) {
+	// Any collector can report that its environment lets it scan nothing; a plain failure
+	// stays an error.
+	unavailable := &fakeCollector{id: "snmp", err: fmt.Errorf("snmp: %w", collectors.ErrCollectorUnavailable)}
+	failing := &fakeCollector{id: "arp", err: errors.New("read /proc/net/arp: permission denied")}
+
+	orch := engine.NewDefaultOrchestrator(nil)
+	orch.RegisterCollector(unavailable)
+	orch.RegisterCollector(failing)
+
+	res, err := orch.RunScan(context.Background(), collectors.DiscoveryTarget{CIDR: "192.0.2.0/24"}, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rows := detailsFor(res, "snmp"); len(rows) != 1 || rows[0].Status != "skipped" {
+		t.Errorf("snmp rows = %+v, want one skipped row", rows)
+	}
+	if rows := detailsFor(res, "arp"); len(rows) != 1 || rows[0].Status != "error" {
+		t.Errorf("arp rows = %+v, want one error row", rows)
 	}
 }

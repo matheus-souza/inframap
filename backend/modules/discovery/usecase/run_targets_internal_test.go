@@ -81,6 +81,9 @@ type stubRunRepo struct {
 	source   *dto.DiscoverySourceResponse
 	runs     []*db.CreateCollectorRunParams
 	statuses []string
+
+	// failStatus makes persisting that status fail, as a lost database connection would.
+	failStatus string
 }
 
 func (s *stubRunRepo) GetSourceByID(_ context.Context, _ uuid.UUID) (*dto.DiscoverySourceResponse, error) {
@@ -88,6 +91,9 @@ func (s *stubRunRepo) GetSourceByID(_ context.Context, _ uuid.UUID) (*dto.Discov
 }
 
 func (s *stubRunRepo) UpdateSourceStatus(_ context.Context, _ uuid.UUID, status string) (*dto.DiscoverySourceResponse, error) {
+	if s.failStatus != "" && status == s.failStatus {
+		return nil, errors.New("connection reset")
+	}
 	s.statuses = append(s.statuses, status)
 	s.source.LastStatus = status
 	return s.source, nil
@@ -285,8 +291,8 @@ func TestTriggerRun_Targets(t *testing.T) {
 		source.Targets = []dto.SourceTargetResponse{{CIDR: "10.0.40.0/24", SubnetID: &deletedID}}
 
 		res, err := uc.TriggerRun(ctx, source.ID.String())
-		if err == nil {
-			t.Fatal("expected an error when no target is left to scan")
+		if !errors.Is(err, ErrRunFailed) {
+			t.Fatalf("expected a recorded run failure when no target is left to scan, got %v", err)
 		}
 		if len(orch.calls) != 0 {
 			t.Errorf("expected no engine call, got %+v", orch.calls)
@@ -369,8 +375,12 @@ func TestTriggerRun_Targets(t *testing.T) {
 		deletedID := inv.addSubnet("10.0.40.0/24", true)
 		source.Targets = []dto.SourceTargetResponse{{CIDR: "10.0.40.0/24", SubnetID: &deletedID}}
 
-		if _, err := uc.TriggerRun(ctx, source.ID.String()); err == nil {
-			t.Fatal("expected an error when no target is left to scan")
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if !errors.Is(err, ErrRunFailed) {
+			t.Fatalf("expected a recorded run failure when no target is left to scan, got %v", err)
+		}
+		if res == nil || res.LastStatus != "error" {
+			t.Errorf("expected the source response in status error, got %+v", res)
 		}
 		if len(orch.calls) != 0 || len(repo.runs) != 0 {
 			t.Errorf("expected no scan and no rows, got %+v / %d rows", orch.calls, len(repo.runs))
@@ -422,7 +432,7 @@ func TestTriggerRun_Targets(t *testing.T) {
 		}
 
 		res, err := uc.TriggerRun(ctx, source.ID.String())
-		if !errors.Is(err, context.Canceled) {
+		if !errors.Is(err, context.Canceled) || errors.Is(err, ErrRunFailed) {
 			t.Fatalf("expected the cancellation to be returned, got %v", err)
 		}
 		if res.LastStatus != "cancelled" {
@@ -473,8 +483,12 @@ func TestTriggerRun_Targets(t *testing.T) {
 		source := sourceWithTargets([]string{"icmp_sweep"})
 		uc, orch, repo, _ := newRunTargetsUseCase(source)
 
-		if _, err := uc.TriggerRun(ctx, source.ID.String()); err == nil {
-			t.Fatal("expected an error for a sweep without targets")
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if !errors.Is(err, ErrRunFailed) {
+			t.Fatalf("expected a recorded run failure for a sweep without targets, got %v", err)
+		}
+		if res == nil || res.LastStatus != "error" {
+			t.Errorf("expected the source response in status error, got %+v", res)
 		}
 		if len(orch.calls) != 0 {
 			t.Errorf("expected no scan, got %+v", orch.calls)
@@ -488,8 +502,12 @@ func TestTriggerRun_Targets(t *testing.T) {
 		source := sourceWithTargets([]string{"icmp_sweep"}, "10.0.10.0/24", "not-a-cidr")
 		uc, orch, _, _ := newRunTargetsUseCase(source)
 
-		if _, err := uc.TriggerRun(ctx, source.ID.String()); err == nil {
-			t.Fatal("expected an error for an invalid stored target")
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if !errors.Is(err, ErrRunFailed) {
+			t.Fatalf("expected a recorded run failure for an invalid stored target, got %v", err)
+		}
+		if res == nil || res.LastStatus != "error" {
+			t.Errorf("expected the source response in status error, got %+v", res)
 		}
 		if len(orch.calls) != 0 {
 			t.Errorf("expected no scan, got %+v", orch.calls)
@@ -520,14 +538,68 @@ func TestTriggerRun_Targets(t *testing.T) {
 		subnetID := uuid.New()
 		source.Targets = []dto.SourceTargetResponse{{CIDR: "10.0.10.0/24", SubnetID: &subnetID}}
 
-		if _, err := uc.TriggerRun(ctx, source.ID.String()); err == nil {
-			t.Fatal("expected the lookup failure to be returned")
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if err == nil || errors.Is(err, ErrRunFailed) {
+			t.Fatalf("expected the lookup failure to be returned as a failure to run, got %v", err)
+		}
+		if res != nil {
+			t.Errorf("expected no response when the run could not start, got %+v", res)
 		}
 		if len(orch.calls) != 0 || len(repo.runs) != 0 {
 			t.Errorf("expected no scan and no rows, got %+v / %d rows", orch.calls, len(repo.runs))
 		}
 		if source.LastStatus != "error" {
 			t.Errorf("expected status error, got %q", source.LastStatus)
+		}
+	})
+
+	t.Run("every collector failing is a recorded run failure with the final response", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep"}, "10.0.10.0/24", "10.0.20.0/24")
+		uc, orch, repo, _ := newRunTargetsUseCase(source)
+		orch.respond = func(targets []collectors.DiscoveryTarget, requested []string) (*engine.ScanResult, error) {
+			return successResult(targets, requested, map[string]bool{"10.0.10.0/24": true, "10.0.20.0/24": true}), nil
+		}
+
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if !errors.Is(err, ErrRunFailed) {
+			t.Fatalf("expected a recorded run failure, got %v", err)
+		}
+		if res == nil || res.LastStatus != "error" {
+			t.Errorf("expected the source response in status error, got %+v", res)
+		}
+		if len(repo.runs) != 2 {
+			t.Errorf("expected both failed rows recorded, got %d", len(repo.runs))
+		}
+	})
+
+	t.Run("a final status that cannot be persisted is a failure to run, without a response", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep"}, "10.0.10.0/24")
+		uc, orch, repo, _ := newRunTargetsUseCase(source)
+		repo.failStatus = "error"
+		orch.respond = func(targets []collectors.DiscoveryTarget, requested []string) (*engine.ScanResult, error) {
+			return successResult(targets, requested, map[string]bool{"10.0.10.0/24": true}), nil
+		}
+
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if err == nil || errors.Is(err, ErrRunFailed) {
+			t.Fatalf("expected an unrecorded failure, got %v", err)
+		}
+		if res != nil {
+			t.Errorf("expected no response, got %+v", res)
+		}
+	})
+
+	t.Run("a sweep without targets whose error status cannot be persisted returns no response", func(t *testing.T) {
+		source := sourceWithTargets([]string{"icmp_sweep"})
+		uc, _, repo, _ := newRunTargetsUseCase(source)
+		repo.failStatus = "error"
+
+		res, err := uc.TriggerRun(ctx, source.ID.String())
+		if err == nil || errors.Is(err, ErrRunFailed) {
+			t.Fatalf("expected an unrecorded failure, got %v", err)
+		}
+		if res != nil {
+			t.Errorf("expected no response, got %+v", res)
 		}
 	})
 }

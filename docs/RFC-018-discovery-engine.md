@@ -60,7 +60,7 @@ Discovery Source (CIDR / Subnet Range / Provider Config)
 Collectors are lightweight, single-responsibility workers that execute targeted fact-gathering protocols:
 
 1. **ICMP Collector**: Tests IPv4/IPv6 reachability and measures RTT latency.
-   - *Resilience Strategy*: Attempts native ICMP socket (`golang.org/x/net/icmp`). If OS permissions are restricted, falls back to system `ping` command (`exec.CommandContext(ctx, "ping", ...)`). If neither is available (e.g. Distroless non-root container), logs `slog.Warn` and gracefully bypasses ICMP without halting discovery.
+   - *Resilience Strategy*: Attempts a native ICMP socket (`golang.org/x/net/icmp`): an unprivileged datagram socket first (allowed when the process group is within `net.ipv4.ping_group_range`), then a raw socket (`CAP_NET_RAW`). Only when no socket can be opened does it fall back to the system `ping` command (`exec.CommandContext(ctx, "ping", ...)`); a socket that opens but gets no reply is an unreachable host, not a restricted environment. If neither a socket nor the binary is available (e.g. a Distroless non-root container without the sysctl), the collector returns `ErrICMPUnavailable` from the first address, which matches `collectors.ErrCollectorUnavailable`: the engine records the run as `skipped` with that message instead of a successful sweep with no devices, and the rest of discovery is not halted. See `docs/DEPLOYMENT.md` for the container setting.
 2. **ARP Collector**: Reads OS ARP table (`/proc/net/arp` on Linux, `sysctl`/`arp -an` on BSD/macOS). Operates with zero privileges (unprivileged OS read) to map local L2 `IP → MAC`.
 3. **Reverse DNS Collector**: Performs asynchronous PTR lookups against configured DNS resolvers to obtain canonical hostnames (FQDN).
 4. **SNMP Collector**: Queries standard MIB OIDs (`sysName`, `sysDescr`, `sysObjectID`, `ifTable`, `ipAddrTable`) using credentials resolved via Credential Sets. Returns hardware vendor, OS version, serial numbers, and interface mappings.
@@ -162,6 +162,6 @@ The Discovery Engine integrates directly with PostgreSQL tables defined in RFC-0
 # 6. Quality Gates & Test Requirements
 
 - **Unit Test Coverage**: `discovery/engine`, `discovery/collectors`, `discovery/usecase` MUST maintain >= 85% patch coverage.
-- **Resilience Verification**: ICMP Collector unit tests MUST verify fallback behavior (Native ICMP → OS Ping → Graceful bypass) using mocks.
+- **Resilience Verification**: ICMP Collector unit tests MUST verify fallback behavior (Native ICMP → OS Ping → `ErrICMPUnavailable`, recorded as `skipped`) using mocks.
 - **Deterministic Concurrency Tests**: Tests exercising worker pools MUST use bounded channels and deterministic time controls.
 - **Zero Raw Error Leakage**: All HTTP endpoints serving discovery state MUST return opaque client errors while logging detailed root cause via `slog.Error`.

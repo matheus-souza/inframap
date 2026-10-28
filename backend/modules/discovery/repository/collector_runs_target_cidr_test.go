@@ -90,11 +90,12 @@ func TestPgDiscoveryRepository_CollectorRunsTargetCIDR(t *testing.T) {
 			TargetCidr:    &target,
 		},
 		{
+			// TriggerRun stamps every row of one run with the same started_at.
 			ID:            withoutTargetID,
 			SourceID:      sourceID,
 			CollectorType: "proxmox",
 			Status:        "success",
-			StartedAt:     pgtype.Timestamptz{Time: startedAt.Add(-time.Second), Valid: true},
+			StartedAt:     pgtype.Timestamptz{Time: startedAt, Valid: true},
 			FinishedAt:    pgtype.Timestamptz{Time: startedAt.Add(time.Second), Valid: true},
 		},
 	}
@@ -140,14 +141,18 @@ func TestPgDiscoveryRepository_CollectorRunsTargetCIDR(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListRunsBySourceID failed: %v", err)
 		}
-		if len(items) != 2 || items[0].ID != withTargetID {
-			t.Fatalf("expected the targeted run first, got %d items", len(items))
+		if len(items) != 2 {
+			t.Fatalf("expected 2 runs, got %d items", len(items))
 		}
-		if items[0].TargetCIDR == nil || *items[0].TargetCIDR != "192.0.2.0/24" {
-			t.Errorf("expected target_cidr 192.0.2.0/24, got %v", items[0].TargetCIDR)
+		byID := map[uuid.UUID]*string{}
+		for _, item := range items {
+			byID[item.ID] = item.TargetCIDR
 		}
-		if items[1].TargetCIDR != nil {
-			t.Errorf("expected nil target_cidr, got %q", *items[1].TargetCIDR)
+		if got := byID[withTargetID]; got == nil || *got != "192.0.2.0/24" {
+			t.Errorf("expected target_cidr 192.0.2.0/24, got %v", got)
+		}
+		if got := byID[withoutTargetID]; got != nil {
+			t.Errorf("expected nil target_cidr, got %q", *got)
 		}
 	})
 

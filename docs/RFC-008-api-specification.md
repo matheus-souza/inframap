@@ -164,11 +164,11 @@ All endpoints are prefixed with `/api/v1`.
 - `GET /api/v1/topology/links` — List topology connection links.
 
 ### 6. Discovery Engine (`discovery`)
-- `GET  /api/v1/discovery/sources` — List configured scanners/providers.
+- `GET  /api/v1/discovery/sources` — List configured scanners/providers. Every item carries the same `last_run` summary as `GET /api/v1/discovery/sources/:id`, read for the whole list in one query.
 - `POST /api/v1/discovery/sources` — Add new discovery source.
   - **Request body** accepts both legacy `type` field and new `collectors[]` array for backward compatibility.
   - `collectors[]` — Optional array of collector type strings to enable on this source. Supported values: `icmp_sweep`, `arp_sweep`, `mdns`, `reverse_dns`, `snmp`, `proxmox`, `docker`, `unifi`. If omitted, falls back to legacy `type` field.
-  - `config.targets` — Ordered list of address blocks the source scans ([RFC-026](./RFC-026-multi-target-discovery-sources-spec.md) §1): `[{ "cidr": "10.0.10.0/24", "subnet_id": "<uuid>" }, { "cidr": "192.0.2.0/24" }]`. `subnet_id` is optional and links the target to a registered Subnet; the stored `cidr` of a linked target is refreshed from that Subnet on every save, and responses return the Subnet's current CIDR (the stored one only while the Subnet is deleted), with `config_cidr` following the first target. The list may be empty when every enabled collector is a provider (`proxmox`, `docker`, `unifi`) and needs at least one target otherwise.
+  - `config.targets` — Ordered list of address blocks the source scans ([RFC-026](./RFC-026-multi-target-discovery-sources-spec.md) §1): `[{ "cidr": "10.0.10.0/24", "subnet_id": "<uuid>" }, { "cidr": "192.0.2.0/24" }]`. `subnet_id` is optional and links the target to a registered Subnet; the stored `cidr` of a linked target is refreshed from that Subnet on every save, and responses return the Subnet's current CIDR (the stored one only while the Subnet is deleted), with `config_cidr` following the first target. The list may be empty when every enabled collector is a provider (`proxmox`, `docker`, `unifi`) and needs at least one target otherwise. Every target `cidr` is stored and returned as its masked prefix: `10.0.10.5/24` is saved, shown and scanned as `10.0.10.0/24`.
   - `config.cidr` — Legacy single-target form, still accepted and stored as a one-element `targets` list. When both keys are sent, `targets` wins. Every save stores `targets` and drops `cidr` from the encrypted configuration; sources saved before targets existed are read as a one-target list, so no data migration is needed.
   - **Target validation** (`422`, the code is returned in `error.code` and the offending entry, when there is one, in `error.details[].field`, e.g. `config.targets[1].cidr`):
 
@@ -183,6 +183,7 @@ All endpoints are prefixed with `/api/v1`.
 
 - `PUT  /api/v1/discovery/sources/:id` — Update discovery source collectors and config. Accepts `config.targets` and `config.cidr` with the same rules and errors as `POST`. A request that carries neither key keeps the stored targets, which are validated against the new plan and rewritten as `targets`.
 - `GET  /api/v1/discovery/sources/:id` — Get single discovery source with collector details and last run summary.
+  - **`last_run`**: summary of the source's latest run, omitted before the first one. It covers every row of that run, the rows sharing its `started_at` (one per (collector, target) for `per_target` collectors, RFC-026 §4), with `collectors[]` listing each row and `status` aggregated over all of them: `success` when every row succeeded, `partial` for a mix, `error` when none did.
   - **Response** (`DiscoverySourceResponse`, also returned by `GET /api/v1/discovery/sources`, `POST` and `PUT`): `targets: [{ "cidr", "subnet_id", "subnet_name", "subnet_deleted" }]`, in order, with `targets` set to `[]` for a source without targets ([RFC-026](./RFC-026-multi-target-discovery-sources-spec.md) §7).
     - Free-form target: `subnet_id` and `subnet_name` are `null`, `subnet_deleted` is `false`.
     - Linked target: `subnet_name` is the Subnet's current name. `subnet_deleted` is `true` when the Subnet was soft-deleted or no longer exists; the target stays in the list (ADR-014 *preserve & unlink*), `subnet_name` still holds the deleted Subnet's name when it is known, and the target is skipped on runs until it is removed.
@@ -192,6 +193,7 @@ All endpoints are prefixed with `/api/v1`.
 - `POST /api/v1/discovery/sources/:id/run` — Manually trigger scan for a source.
   - **Multi-collector execution**: All enabled collectors run in parallel. Per-collector results are stored in `discovery_collector_runs` table.
   - **Partial status**: Response `last_status` is `"partial"` when some collectors succeed and some fail; `"idle"` when all succeed; `"error"` when all fail; `"cancelled"` on context cancellation.
+  - **Recorded failures**: a run that ends in error once its outcome is recorded (every collector failed, no target left to scan, a stored target that no longer parses) answers `200` with the source response in `last_status: "error"` and its `last_run`, like any other finished run. `500 INTERNAL_ERROR` is kept for a run that could not start or whose status could not be persisted.
 - `GET  /api/v1/discovery/sources/:id/runs` — List collector run history for a source (query params: `limit` default 20, `offset` default 0). Returns `{ "data": { "items": [CollectorRunResponse], "total": count } }` with retention default of 7 days (configurable via `INFRAMAP_DISCOVERY_RUN_RETENTION_DAYS`).
   - **`target_cidr`** (RFC-026 §4, §7): every item carries the target the run scanned. Collectors with the `per_target` scope record one row per (collector, target) with `target_cidr` set; `union`- and `none`-scoped collectors record one row per collector with `target_cidr: null`. The same field appears on each `last_run.collectors[]` entry of the source response.
   - **Example item**:
