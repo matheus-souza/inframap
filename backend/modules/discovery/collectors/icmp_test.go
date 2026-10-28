@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,11 +13,13 @@ import (
 
 // fakeICMPPinger implements collectors.ICMPPinger for testing.
 type fakeICMPPinger struct {
-	rtts map[netip.Addr]time.Duration
-	err  error
+	rtts  map[netip.Addr]time.Duration
+	err   error
+	calls int
 }
 
 func (f *fakeICMPPinger) Ping(_ context.Context, ip netip.Addr) (time.Duration, error) {
+	f.calls++
 	if f.err != nil {
 		return 0, f.err
 	}
@@ -84,17 +87,26 @@ func TestICMPCollector_Collect(t *testing.T) {
 		}
 	})
 
-	t.Run("Handles ErrICMPUnavailable gracefully without error", func(t *testing.T) {
+	t.Run("Reports ErrICMPUnavailable instead of an empty sweep", func(t *testing.T) {
 		pinger := &fakeICMPPinger{err: collectors.ErrICMPUnavailable}
 		c := collectors.NewICMPCollector(pinger)
-		target := collectors.DiscoveryTarget{CIDR: "192.168.1.0/24", SubnetID: "sub-1"}
+		target := collectors.DiscoveryTarget{CIDR: "192.0.2.0/24", SubnetID: "sub-1"}
 
 		obs, err := c.Collect(context.Background(), target)
-		if err != nil {
-			t.Fatalf("expected nil error on ErrICMPUnavailable fallback, got %v", err)
+		if !errors.Is(err, collectors.ErrICMPUnavailable) {
+			t.Fatalf("expected ErrICMPUnavailable, got %v", err)
+		}
+		if !errors.Is(err, collectors.ErrCollectorUnavailable) {
+			t.Errorf("expected the error to match ErrCollectorUnavailable, got %v", err)
+		}
+		if !strings.HasPrefix(err.Error(), "ICMP unavailable: ") {
+			t.Errorf("expected the error to read as its own reason, got %q", err.Error())
 		}
 		if len(obs) != 0 {
-			t.Fatalf("expected empty observations on fallback, got %d", len(obs))
+			t.Fatalf("expected no observations, got %d", len(obs))
+		}
+		if pinger.calls != 1 {
+			t.Errorf("expected unavailability to be detected on the first address, pinger called %d times", pinger.calls)
 		}
 	})
 
@@ -183,8 +195,6 @@ func TestICMPCollector_Collect(t *testing.T) {
 	})
 }
 
-
-
 func TestParsePingRTT(t *testing.T) {
 	t.Run("Parses Linux ping output", func(t *testing.T) {
 		out := "64 bytes from 192.168.1.1: icmp_seq=1 ttl=64 time=12.4 ms\n"
@@ -216,5 +226,3 @@ func TestParsePingRTT(t *testing.T) {
 		}
 	})
 }
-
-

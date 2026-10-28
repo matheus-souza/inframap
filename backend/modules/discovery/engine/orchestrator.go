@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/netip"
@@ -452,7 +453,8 @@ func skippedResults(jobs []collectorJob) []collectorResult {
 }
 
 // foldCollectorResults turns collector results into run details and gathers the
-// observations of the collectors that succeeded.
+// observations of the collectors that succeeded. A collector that reports
+// collectors.ErrCollectorUnavailable is recorded as "skipped" with that error as the reason.
 func foldCollectorResults(results []collectorResult) ([]CollectorRunDetail, []collectors.RawObservation) {
 	details := make([]CollectorRunDetail, 0, len(results))
 	var observations []collectors.RawObservation
@@ -467,6 +469,12 @@ func foldCollectorResults(results []collectorResult) ([]CollectorRunDetail, []co
 		case res.skipped:
 			detail.Status = "skipped"
 			detail.ErrorMessage = "run cancelled before the collector started"
+		case errors.Is(res.err, collectors.ErrCollectorUnavailable):
+			// The environment let the collector scan nothing: record that it did not run,
+			// so the source is not reported healthy on a sweep that never happened.
+			slog.Warn("collector unavailable during discovery run", "collector_id", res.collectorID, "target_cidr", res.targetCIDR, "error", res.err)
+			detail.Status = "skipped"
+			detail.ErrorMessage = res.err.Error()
 		case res.err != nil:
 			slog.Warn("collector failed during discovery run", "collector_id", res.collectorID, "target_cidr", res.targetCIDR, "error", res.err)
 			detail.Status = "error"

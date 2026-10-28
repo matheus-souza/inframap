@@ -22,6 +22,10 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
       INFRAMAP_PORT: "8055"
       INFRAMAP_MASTER_KEY: ${INFRAMAP_MASTER_KEY:?INFRAMAP_MASTER_KEY must be set}
+    # Lets the image's non-root user send ICMP echo requests over an unprivileged socket,
+    # which ICMP sweeps need (docs/DEPLOYMENT.md, "ICMP Sweeps").
+    sysctls:
+      net.ipv4.ping_group_range: "0 2147483647"
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +57,21 @@ networks:
 volumes:
   inframap-pgdata:
 ```
+
+### ICMP Sweeps (`ping_group_range`)
+
+The image runs as the non-root user `65532:65532` and ships no `ping` binary, so the ICMP sweep sends its echo requests over an **unprivileged ICMP socket**. Linux opens that socket only for a process whose group is within `net.ipv4.ping_group_range`, a per-network-namespace sysctl. Docker Engine 20.10 and later already widen it for containers with their own network, but older engines, other container runtimes and hardened hosts can leave the kernel default `1 0`, which admits no group at all. The `sysctls` entry above sets the range explicitly, so ICMP sweeps do not depend on the engine's defaults.
+
+Without it, every ICMP sweep is recorded as `skipped` with the message *"ICMP unavailable: unprivileged ICMP sockets are not permitted for this process (net.ipv4.ping_group_range), raw sockets need CAP_NET_RAW, and no ping binary is installed"*, and the source ends `partial` (or `error` when nothing else in the run succeeded) instead of reporting a sweep that never happened as a success.
+
+Check the value the running container sees (expect `0	2147483647`):
+
+```bash
+docker run --rm --network container:inframap busybox cat /proc/sys/net/ipv4/ping_group_range
+```
+
+- **Alternative — raw sockets (`CAP_NET_RAW`)**: Docker hands added capabilities only to the container's root user, so `cap_add: [NET_RAW]` alone does nothing for the image's non-root user. It works together with `user: "0:0"`, which gives up the non-root hardening; prefer the sysctl.
+- **`network_mode: host`**: Docker rejects `net.*` sysctls in the host's network namespace, and the host's own value applies. Set it on the host instead (`sysctl -w net.ipv4.ping_group_range="0 2147483647"`, persisted in a file under `/etc/sysctl.d/`).
 
 ### Image Tags
 
