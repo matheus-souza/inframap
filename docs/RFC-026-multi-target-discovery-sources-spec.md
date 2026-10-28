@@ -50,7 +50,7 @@ A Discovery Source gains an **ordered list of targets** (`targets`). Each target
 
 - **Compatible read**: if `targets` is absent and `cidr` is present, the source is read as `[{ "cidr": <cidr> }]`. No data migration is needed.
 - **Write**: every `POST`/`PUT` stores `targets` and drops `cidr` from the payload (lazy migration on the next save).
-- **Linked target** (`subnet_id` present): the effective CIDR is resolved from the Subnet **at run time**; the stored `cidr` is only a display snapshot. A soft-deleted Subnet makes the target be skipped (section 4).
+- **Linked target** (`subnet_id` present): the effective CIDR is resolved from the Subnet **at run time**; the stored `cidr` is only a snapshot. A soft-deleted Subnet makes the target be skipped (section 4).
 - **Free-form target** (`subnet_id` absent): the stored `cidr` is the target.
 
 ### 2. Validation (backend, `CreateSource` and `UpdateSource`)
@@ -143,4 +143,5 @@ Where the implementation refines this specification:
 - **`config_cidr` deprecation**: documented in the field's comment and in RFC-008 rather than with a `// Deprecated:` marker, which would fail lint on the remaining readers until the field is removed.
 - **Auto-setup limits**: an interface that would break the §2 rules (wider than `/16`, overlapping an earlier one, or beyond the target or address caps) is skipped and the rest are kept.
 - **Setup wizard**: the first-run wizard follows the same rule as the Dashboard auto-setup. It creates one "Local network sweep" source whose targets are the networks selected in its first step, each linked to the Subnet created there, and whose collectors come from the chosen scan preset.
+- **Linked target display**: source responses show an active linked Subnet's current CIDR, not the stored snapshot, so the screens match what the next run scans right after a Subnet edit. The snapshot is shown only once the Subnet is deleted.
 - **Auto-setup source name**: "Local network sweep" is a constant in the coordinator rather than a string resource. It is stored server-side as the source name, and resolving a Compose string resource outside the UI fails on headless JVMs.

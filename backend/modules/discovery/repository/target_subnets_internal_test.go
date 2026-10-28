@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -117,6 +118,37 @@ func TestAttachTargetSubnets(t *testing.T) {
 			if target.SubnetName != nil || target.SubnetDeleted {
 				t.Errorf("expected no subnet details after a failed lookup, got %+v", target)
 			}
+		}
+	})
+
+	t.Run("an active subnet's current cidr replaces the stored snapshot", func(t *testing.T) {
+		lookup := &countingSubnetLookup{subnets: map[uuid.UUID]db.Subnet{
+			activeID:  {ID: activeID, Name: "Lab", Cidr: netip.MustParsePrefix("10.0.10.0/25")},
+			deletedID: {ID: deletedID, Name: "Retired", Cidr: netip.MustParsePrefix("10.0.20.0/25"), DeletedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+		}}
+		repo := &PgDiscoveryRepository{subnets: lookup}
+		source := &dto.DiscoverySourceResponse{
+			ConfigCIDR: "10.0.10.0/24",
+			Targets: []dto.SourceTargetResponse{
+				linkedTarget("10.0.10.0/24", activeID),
+				linkedTarget("10.0.20.0/24", deletedID),
+				{CIDR: "192.0.2.0/24"},
+			},
+		}
+
+		repo.attachTargetSubnets(ctx, source)
+
+		if got := source.Targets[0].CIDR; got != "10.0.10.0/25" {
+			t.Errorf("expected the linked target to show the subnet's current cidr, got %q", got)
+		}
+		if source.ConfigCIDR != "10.0.10.0/25" {
+			t.Errorf("expected config_cidr to follow the first target, got %q", source.ConfigCIDR)
+		}
+		if got := source.Targets[1].CIDR; got != "10.0.20.0/24" {
+			t.Errorf("expected a deleted subnet's target to keep its snapshot, got %q", got)
+		}
+		if got := source.Targets[2].CIDR; got != "192.0.2.0/24" {
+			t.Errorf("expected a free-form target to be unchanged, got %q", got)
 		}
 	})
 

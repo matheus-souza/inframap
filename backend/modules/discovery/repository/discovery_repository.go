@@ -370,8 +370,10 @@ func (r *PgDiscoveryRepository) ListSourcesLinkedToSubnet(ctx context.Context, s
 }
 
 // attachTargetSubnets fills the Subnet name and deleted flag of every linked target across
-// sources with one lookup. A Subnet the lookup does not return is reported as deleted; a
-// failed lookup only leaves the details empty, like attachLastRun.
+// sources with one lookup, and shows an active Subnet's current CIDR in place of the stored
+// snapshot, which is only refreshed when the source is saved: it is the CIDR the next run
+// scans (RFC-026 §1). A Subnet the lookup does not return is reported as deleted; a failed
+// lookup only leaves the details empty, like attachLastRun.
 func (r *PgDiscoveryRepository) attachTargetSubnets(ctx context.Context, sources ...*dto.DiscoverySourceResponse) {
 	if r.subnets == nil {
 		return
@@ -425,6 +427,12 @@ func (r *PgDiscoveryRepository) attachTargetSubnets(ctx context.Context, sources
 			name := subnet.Name
 			target.SubnetName = &name
 			target.SubnetDeleted = subnet.DeletedAt.Valid
+			if !target.SubnetDeleted && subnet.Cidr.IsValid() {
+				target.CIDR = subnet.Cidr.String()
+			}
+		}
+		if len(src.Targets) > 0 {
+			src.ConfigCIDR = src.Targets[0].CIDR
 		}
 	}
 }
