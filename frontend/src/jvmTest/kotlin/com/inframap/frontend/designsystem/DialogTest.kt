@@ -1,9 +1,12 @@
 package com.inframap.frontend.designsystem
 
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.runComposeUiTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -97,5 +100,27 @@ class DialogTest {
             }
             onNodeWithText("Cancel").performClick()
             assertEquals(true, dismissed)
+        }
+
+    @Test
+    fun mouseClickInsideASelectionContainerCallsOnConfirm() =
+        runComposeUiTest {
+            var confirmed = false
+            setContent {
+                InfraMapTheme {
+                    // Screens live in a SelectionContainer (MainScaffold); see ImpactConfirmationDialogTest.
+                    SelectionContainer {
+                        InfraMapConfirmDialog(
+                            title = "Title",
+                            message = "Message",
+                            onConfirm = { confirmed = true },
+                            onDismiss = {},
+                        )
+                    }
+                }
+            }
+            onNodeWithText("Message").performMouseInput { click(center) }
+            onNodeWithText("Confirm").performMouseInput { click(center) }
+            assertEquals(true, confirmed)
         }
 }
