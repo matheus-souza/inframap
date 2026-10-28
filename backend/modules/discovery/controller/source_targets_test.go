@@ -150,7 +150,45 @@ func TestDiscoveryController_SourceTargets(t *testing.T) {
 			t.Errorf("error code = %q, want secret_required_on_target_change", env.Error.Code)
 		}
 		if len(env.Error.Details) != 1 || env.Error.Details[0].Field != dto.ConfigKeyTargets {
-			t.Errorf("expected the targets field in details, got %+v", env.Error.Details)
+			t.Fatalf("expected the targets field in details, got %+v", env.Error.Details)
+		}
+		if issue := env.Error.Details[0].Issue; issue != "targets added without supplying credentials" {
+			t.Errorf("expected the issue to name the added targets, got %q", issue)
+		}
+		if env.Error.Message != "Adicionar alvos exige reentrada da credencial." {
+			t.Errorf("expected the message to name the added targets, got %q", env.Error.Message)
+		}
+	})
+
+	t.Run("a host change together with added targets names both in the 422", func(t *testing.T) {
+		uc.err = &dto.ErrSecretRequiredOnTargetChange{Fields: []string{"api_url", dto.ConfigKeyTargets}}
+		defer func() { uc.err = nil }()
+
+		rec := send(http.MethodPut, "/api/v1/discovery/sources/"+uuid.New().String(), map[string]interface{}{"name": "Proxmox"})
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+		}
+		var env errorEnvelope
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode error: %v", err)
+		}
+		if env.Error.Code != "secret_required_on_target_change" {
+			t.Errorf("error code = %q, want secret_required_on_target_change", env.Error.Code)
+		}
+		want := map[string]string{
+			"api_url":            "target host/URL changed without supplying credentials",
+			dto.ConfigKeyTargets: "targets added without supplying credentials",
+		}
+		if len(env.Error.Details) != len(want) {
+			t.Fatalf("expected %d details, got %+v", len(want), env.Error.Details)
+		}
+		for _, detail := range env.Error.Details {
+			if want[detail.Field] != detail.Issue {
+				t.Errorf("field %s: expected issue %q, got %q", detail.Field, want[detail.Field], detail.Issue)
+			}
+		}
+		if env.Error.Message != "Alterar o host/URL de destino ou adicionar alvos exige reentrada da credencial." {
+			t.Errorf("expected the message to name both changes, got %q", env.Error.Message)
 		}
 	})
 
