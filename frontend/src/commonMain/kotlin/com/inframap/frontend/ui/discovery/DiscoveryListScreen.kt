@@ -1,5 +1,6 @@
 package com.inframap.frontend.ui.discovery
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -26,18 +29,25 @@ import androidx.compose.ui.unit.dp
 import com.inframap.frontend.designsystem.ImpactConfirmationDialog
 import com.inframap.frontend.designsystem.InfraMapButton
 import com.inframap.frontend.designsystem.InfraMapCard
+import com.inframap.frontend.designsystem.InfraMapComment
 import com.inframap.frontend.designsystem.InfraMapEmptyState
+import com.inframap.frontend.designsystem.InfraMapGreen
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
+import com.inframap.frontend.designsystem.InfraMapRed
 import com.inframap.frontend.designsystem.InfraMapSnackbarHost
 import com.inframap.frontend.designsystem.InfraMapStatusBadge
 import com.inframap.frontend.designsystem.InfraMapTable
 import com.inframap.frontend.designsystem.InfraMapTableSkeleton
+import com.inframap.frontend.designsystem.InfraMapTooltip
 import com.inframap.frontend.designsystem.RowOverflowMenu
 import com.inframap.frontend.designsystem.SnackbarType
 import com.inframap.frontend.designsystem.SourceStatus
 import com.inframap.frontend.designsystem.TableColumn
+import com.inframap.frontend.domain.model.CollectorRunDetail
+import com.inframap.frontend.domain.model.CollectorRunSummary
 import com.inframap.frontend.domain.model.DiscoverySource
+import com.inframap.frontend.domain.model.DiscoveryTarget
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.collector_name_arp_sweep
 import com.inframap.frontend.generated.resources.collector_name_docker
@@ -65,6 +75,7 @@ import com.inframap.frontend.generated.resources.discovery_empty_title
 import com.inframap.frontend.generated.resources.discovery_new_button
 import com.inframap.frontend.generated.resources.discovery_schedule_manual
 import com.inframap.frontend.generated.resources.discovery_subtitle
+import com.inframap.frontend.generated.resources.discovery_targets_more
 import com.inframap.frontend.generated.resources.discovery_title
 import org.jetbrains.compose.resources.stringResource
 
@@ -271,20 +282,14 @@ private fun DiscoveryRowCell(
                 color = MaterialTheme.colorScheme.onSurface,
             )
         1 -> DiscoveryCollectorsCell(item = item)
-        2 ->
-            Text(
-                text = item.configCidr ?: "-",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                fontFamily = FontFamily.Monospace,
-            )
+        2 -> DiscoveryTargetsCell(targets = item.targets)
         3 ->
             Text(
                 text = item.scheduleCron ?: stringResource(Res.string.discovery_schedule_manual),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
             )
-        4 -> DiscoveryStatusCell(lastStatus = item.lastStatus)
+        4 -> DiscoveryStatusCell(lastStatus = item.lastStatus, lastRun = item.lastRun)
         5 -> DiscoveryActionsCell(item = item, actions = actions)
     }
 }
@@ -319,8 +324,64 @@ private fun DiscoveryCollectorsCell(item: DiscoverySource) {
     }
 }
 
+/**
+ * The first target, with `+N` for the rest and the full list on hover (RFC-026 §8). A
+ * providers-only source has no target and shows a dash.
+ */
 @Composable
-private fun DiscoveryStatusCell(lastStatus: String) {
+private fun DiscoveryTargetsCell(targets: List<DiscoveryTarget>) {
+    val first = targets.firstOrNull()
+    if (first == null) {
+        Text(
+            text = "-",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+        )
+        return
+    }
+    val summary: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = first.cidr,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                fontFamily = FontFamily.Monospace,
+            )
+            if (targets.size > 1) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = stringResource(Res.string.discovery_targets_more, targets.size - 1),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+    if (targets.size > 1) {
+        InfraMapTooltip(
+            tooltip = {
+                Text(
+                    text = targets.joinToString(separator = "\n") { it.cidr },
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                )
+            },
+            content = summary,
+        )
+    } else {
+        summary()
+    }
+}
+
+/**
+ * The source's aggregated status. When the last run recorded per-collector rows, hovering the
+ * badge lists them, so a `partial` status points at the collector and target that failed.
+ */
+@Composable
+private fun DiscoveryStatusCell(
+    lastStatus: String,
+    lastRun: CollectorRunSummary?,
+) {
     val sourceStatus =
         when (lastStatus.lowercase()) {
             "running" -> SourceStatus.RUNNING
@@ -329,7 +390,66 @@ private fun DiscoveryStatusCell(lastStatus: String) {
             "cancelled" -> SourceStatus.CANCELLED
             else -> SourceStatus.IDLE
         }
-    InfraMapStatusBadge(status = sourceStatus)
+    val runRows = lastRun?.collectors.orEmpty()
+    if (runRows.isEmpty()) {
+        InfraMapStatusBadge(status = sourceStatus)
+    } else {
+        InfraMapTooltip(
+            tooltip = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    runRows.forEach { DiscoveryRunRow(detail = it) }
+                }
+            },
+            content = { InfraMapStatusBadge(status = sourceStatus) },
+        )
+    }
+}
+
+/**
+ * One collector row of a run: its outcome, the collector, the target it ran against when it
+ * ran per target (RFC-026 §4) and the backend's error message, if any.
+ */
+@Composable
+internal fun DiscoveryRunRow(
+    detail: CollectorRunDetail,
+    modifier: Modifier = Modifier,
+) {
+    val outcomeColor =
+        when (detail.status.lowercase()) {
+            "success" -> InfraMapGreen
+            "skipped" -> InfraMapComment
+            else -> InfraMapRed
+        }
+    // The tooltip caps its width, so the error message takes its own line and the target
+    // wraps under the collector name instead of being squeezed to nothing.
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(modifier = Modifier.padding(top = 4.dp).size(8.dp).background(outcomeColor, CircleShape))
+        Column {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = formatCollectorName(detail.collectorType),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                detail.targetCidr?.let { cidr ->
+                    Text(
+                        text = cidr,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
+            detail.errorMessage?.takeIf { it.isNotBlank() }?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
 }
 
 @Composable
