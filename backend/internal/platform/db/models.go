@@ -90,6 +90,7 @@ type DiscoveryCollectorRun struct {
 	ErrorMessage  pgtype.Text        `json:"error_message"`
 	StartedAt     pgtype.Timestamptz `json:"started_at"`
 	FinishedAt    pgtype.Timestamptz `json:"finished_at"`
+	TargetCidr    *netip.Prefix      `json:"target_cidr"`
 }
 
 type DiscoverySource struct {

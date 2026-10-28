@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -559,7 +560,17 @@ func mapCollectorRunToResponse(row db.DiscoveryCollectorRun) *dto.CollectorRunRe
 		ErrorMessage:  errMsg,
 		StartedAt:     row.StartedAt.Time,
 		FinishedAt:    row.FinishedAt.Time,
+		TargetCIDR:    targetCIDRString(row.TargetCidr),
 	}
+}
+
+// targetCIDRString renders a nullable run target as a JSON-friendly pointer, nil when unset.
+func targetCIDRString(p *netip.Prefix) *string {
+	if p == nil {
+		return nil
+	}
+	s := p.String()
+	return &s
 }
 
 // ListRunsBySourceID retrieves the latest collector execution records for a source.
@@ -638,6 +649,7 @@ func buildLastRunSummary(runs []db.DiscoveryCollectorRun) *dto.CollectorRunSumma
 			DevicesFound:  int(r.DevicesFound),
 			DurationMs:    int64(r.DurationMs),
 			ErrorMessage:  errMsg,
+			TargetCIDR:    targetCIDRString(r.TargetCidr),
 		})
 	}
 

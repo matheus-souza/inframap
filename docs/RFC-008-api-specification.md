@@ -187,6 +187,21 @@ All endpoints are prefixed with `/api/v1`.
   - **Multi-collector execution**: All enabled collectors run in parallel. Per-collector results are stored in `discovery_collector_runs` table.
   - **Partial status**: Response `last_status` is `"partial"` when some collectors succeed and some fail; `"idle"` when all succeed; `"error"` when all fail; `"cancelled"` on context cancellation.
 - `GET  /api/v1/discovery/sources/:id/runs` — List collector run history for a source (query params: `limit` default 20, `offset` default 0). Returns `{ "data": { "items": [CollectorRunResponse], "total": count } }` with retention default of 7 days (configurable via `INFRAMAP_DISCOVERY_RUN_RETENTION_DAYS`).
+  - **`target_cidr`** (RFC-026 §4, §7): every item carries the target the run scanned. Collectors with the `per_target` scope record one row per (collector, target) with `target_cidr` set; `union`- and `none`-scoped collectors record one row per collector with `target_cidr: null`. The same field appears on each `last_run.collectors[]` entry of the source response.
+  - **Example item**:
+    ```json
+    {
+      "id": "0192f0a1-7c3e-7b6a-9d2e-1f4b5c6d7e8f",
+      "source_id": "0192f0a1-6b2d-7a59-8c1d-0e3a4b5c6d7e",
+      "collector_type": "icmp_sweep",
+      "status": "success",
+      "devices_found": 12,
+      "duration_ms": 4210,
+      "started_at": "2026-10-27T12:00:00Z",
+      "finished_at": "2026-10-27T12:00:04Z",
+      "target_cidr": "192.0.2.0/24"
+    }
+    ```
 
 #### Supported Collectors (Network phase)
 
