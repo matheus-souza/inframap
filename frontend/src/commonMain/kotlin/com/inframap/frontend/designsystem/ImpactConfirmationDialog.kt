@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -53,57 +54,63 @@ fun ImpactConfirmationDialog(
     val confirmInteractionSource = remember { MutableInteractionSource() }
     val dismissInteractionSource = remember { MutableInteractionSource() }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = modifier,
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        },
-        text = {
-            ImpactDialogBody(
-                description = description,
-                isLoadingImpact = isLoadingImpact,
-                impactLines = impactLines,
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                modifier = Modifier.m3Clickable(confirmInteractionSource),
-                enabled = !isLoadingImpact,
-                interactionSource = confirmInteractionSource,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
-            ) {
+    // The app wraps its screens in a SelectionContainer, and a dialog inherits its selection
+    // registrar while living in a separate layout hierarchy: a click on the dialog then fails
+    // with "layouts are not part of the same hierarchy" and freezes the frame. Selection is
+    // disabled inside the dialog, like RowOverflowMenu and InfraMapTooltip do.
+    DisableSelection {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            modifier = modifier,
+            title = {
                 Text(
-                    text = confirmButtonText,
-                    style = MaterialTheme.typography.labelLarge,
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                modifier = Modifier.m3Clickable(dismissInteractionSource),
-                interactionSource = dismissInteractionSource,
-            ) {
-                Text(
-                    text = cancelButtonText,
-                    style = MaterialTheme.typography.labelLarge,
+            },
+            text = {
+                ImpactDialogBody(
+                    description = description,
+                    isLoadingImpact = isLoadingImpact,
+                    impactLines = impactLines,
                 )
-            }
-        },
-        shape = InfraMapShapeExtraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp,
-    )
+            },
+            confirmButton = {
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier.m3Clickable(confirmInteractionSource),
+                    enabled = !isLoadingImpact,
+                    interactionSource = confirmInteractionSource,
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                ) {
+                    Text(
+                        text = confirmButtonText,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.m3Clickable(dismissInteractionSource),
+                    interactionSource = dismissInteractionSource,
+                ) {
+                    Text(
+                        text = cancelButtonText,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            },
+            shape = InfraMapShapeExtraLarge,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 6.dp,
+        )
+    }
 }
 
 @Composable

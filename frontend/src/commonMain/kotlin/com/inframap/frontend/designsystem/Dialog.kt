@@ -1,5 +1,6 @@
 package com.inframap.frontend.designsystem
 
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,30 +29,36 @@ fun InfraMapConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        },
-        text = {
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        confirmButton = {
-            InfraMapButton(text = confirmText, onClick = onConfirm)
-        },
-        dismissButton = {
-            InfraMapOutlinedButton(text = dismissText, onClick = onDismiss)
-        },
-        shape = InfraMapShapeExtraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp,
-    )
+    // The app wraps its screens in a SelectionContainer, and a dialog inherits its selection
+    // registrar while living in a separate layout hierarchy: a click on the dialog then fails
+    // with "layouts are not part of the same hierarchy" and freezes the frame. Selection is
+    // disabled inside the dialog, like RowOverflowMenu and InfraMapTooltip do.
+    DisableSelection {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            },
+            text = {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            confirmButton = {
+                InfraMapButton(text = confirmText, onClick = onConfirm)
+            },
+            dismissButton = {
+                InfraMapOutlinedButton(text = dismissText, onClick = onDismiss)
+            },
+            shape = InfraMapShapeExtraLarge,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 6.dp,
+        )
+    }
 }
