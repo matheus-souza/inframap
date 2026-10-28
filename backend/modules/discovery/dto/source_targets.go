@@ -47,11 +47,22 @@ type SourceTarget struct {
 	SubnetID *uuid.UUID `json:"subnet_id,omitempty"`
 }
 
-// SourceTargetResponse is a target of a discovery source returned to API clients.
-// SubnetID is null for a free-form target.
+// SourceTargetResponse is a target of a discovery source returned to API clients
+// (RFC-026 §7). SubnetID and SubnetName are null for a free-form target. A linked target
+// reports SubnetDeleted when its Subnet was soft-deleted or no longer exists: the target is
+// kept (ADR-014 "preserve & unlink") and SubnetName still holds the deleted Subnet's name
+// when it is known.
 type SourceTargetResponse struct {
-	CIDR     string     `json:"cidr"`
-	SubnetID *uuid.UUID `json:"subnet_id"`
+	CIDR          string     `json:"cidr"`
+	SubnetID      *uuid.UUID `json:"subnet_id"`
+	SubnetName    *string    `json:"subnet_name"`
+	SubnetDeleted bool       `json:"subnet_deleted"`
+}
+
+// SourceRef identifies a discovery source by id and name.
+type SourceRef struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
 }
 
 // TargetValidationError reports a source target list that breaks a rule of RFC-026 §2.
@@ -203,20 +214,22 @@ func WithSourceTargets(config map[string]interface{}, targets []SourceTarget) ma
 	return out
 }
 
-// NewSourceTargetResponses maps stored targets to their API representation.
+// NewSourceTargetResponses maps stored targets to their API representation. The Subnet
+// details of linked targets are filled in later, by a lookup across all targets of a response.
 func NewSourceTargetResponses(targets []SourceTarget) []SourceTargetResponse {
 	out := make([]SourceTargetResponse, len(targets))
 	for i, target := range targets {
-		out[i] = SourceTargetResponse(target)
+		out[i] = SourceTargetResponse{CIDR: target.CIDR, SubnetID: target.SubnetID}
 	}
 	return out
 }
 
-// SourceTargetsFromResponses maps the targets of a source response back to the stored form.
+// SourceTargetsFromResponses maps the targets of a source response back to the stored form,
+// dropping the Subnet details that are only shown to clients.
 func SourceTargetsFromResponses(targets []SourceTargetResponse) []SourceTarget {
 	out := make([]SourceTarget, len(targets))
 	for i, target := range targets {
-		out[i] = SourceTarget(target)
+		out[i] = SourceTarget{CIDR: target.CIDR, SubnetID: target.SubnetID}
 	}
 	return out
 }

@@ -634,6 +634,42 @@ func (q *Queries) ListSubnets(ctx context.Context) ([]Subnet, error) {
 	return items, nil
 }
 
+const listSubnetsByIDs = `-- name: ListSubnetsByIDs :many
+SELECT id, name, cidr, vlan_id, gateway_ip, description, discovery_enabled, created_at, updated_at, deleted_at FROM subnets WHERE id = ANY($1::uuid[])
+`
+
+// Includes soft-deleted subnets, so a reference to a deleted Subnet can still be named.
+func (q *Queries) ListSubnetsByIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]Subnet, error) {
+	rows, err := q.db.Query(ctx, listSubnetsByIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Subnet{}
+	for rows.Next() {
+		var i Subnet
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Cidr,
+			&i.VlanID,
+			&i.GatewayIp,
+			&i.Description,
+			&i.DiscoveryEnabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markDeviceAbsent = `-- name: MarkDeviceAbsent :one
 UPDATE devices
 SET absence_count = absence_count + 1,

@@ -85,6 +85,18 @@ type PgDiscoveryRepository struct {
 	// carrying its secrets inline. Optional: when absent, a config referencing a credential
 	// fails loudly rather than silently authenticating with nothing.
 	credentials CredentialResolver
+
+	// subnets names the Subnets that linked targets point at. Optional: when absent, linked
+	// targets are returned without subnet_name and with subnet_deleted false.
+	subnets SubnetLookup
+}
+
+// SubnetLookup fetches Subnets by id in one call, soft-deleted ones included, so a source
+// response can name the Subnet behind each linked target and flag deleted ones (RFC-026 §7).
+// Declared here rather than imported so the discovery module does not depend on the
+// inventory module's concrete repository.
+type SubnetLookup interface {
+	ListSubnetsByIDs(ctx context.Context, ids []uuid.UUID) ([]db.Subnet, error)
 }
 
 // CredentialResolver looks up a stored credential and returns its decrypted payload.
@@ -107,6 +119,13 @@ func NewPgDiscoveryRepository(database db.DBTX, encryptor crypto.Encryptor) *PgD
 // credential by id (ADR-013 section 2).
 func (r *PgDiscoveryRepository) WithCredentialResolver(resolver CredentialResolver) *PgDiscoveryRepository {
 	r.credentials = resolver
+	return r
+}
+
+// WithSubnetLookup enables filling the Subnet name and deleted flag of linked targets in
+// source responses (RFC-026 §7).
+func (r *PgDiscoveryRepository) WithSubnetLookup(lookup SubnetLookup) *PgDiscoveryRepository {
+	r.subnets = lookup
 	return r
 }
 
@@ -218,6 +237,7 @@ func (r *PgDiscoveryRepository) CreateSource(ctx context.Context, req *dto.Creat
 		return nil, err
 	}
 	resp.Collectors = collectorResponses
+	r.attachTargetSubnets(ctx, resp)
 	return resp, nil
 }
 
@@ -275,6 +295,7 @@ func (r *PgDiscoveryRepository) GetSourceByID(ctx context.Context, id uuid.UUID)
 	}
 
 	r.attachLastRun(ctx, resp)
+	r.attachTargetSubnets(ctx, resp)
 
 	return resp, nil
 }
@@ -313,7 +334,99 @@ func (r *PgDiscoveryRepository) ListSources(ctx context.Context) ([]*dto.Discove
 		mapped.Collectors = cols
 		items[i] = mapped
 	}
+	r.attachTargetSubnets(ctx, items...)
 	return items, nil
+}
+
+// ListSourcesLinkedToSubnet returns the active discovery sources holding at least one target
+// linked to subnetID, in the order of ListSources (RFC-026 §6). Targets live in the encrypted
+// source configuration, so the filter runs on the decrypted payloads rather than in SQL.
+// A source whose configuration cannot be decrypted is skipped with a warning, so it does not
+// block reporting, or deleting, an unrelated subnet.
+func (r *PgDiscoveryRepository) ListSourcesLinkedToSubnet(ctx context.Context, subnetID uuid.UUID) ([]dto.SourceRef, error) {
+	rows, err := r.queries.ListDiscoverySources(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list discovery sources: %w", err)
+	}
+
+	refs := make([]dto.SourceRef, 0)
+	for i := range rows {
+		targets, decodeErr := r.decodeSourceTargets(&rows[i])
+		if decodeErr != nil {
+			slog.Warn("skipping discovery source with an unreadable config while listing the sources linked to a subnet",
+				slog.String("source_id", rows[i].ID.String()),
+				slog.Any("error", decodeErr),
+			)
+			continue
+		}
+		for _, target := range targets {
+			if target.SubnetID != nil && *target.SubnetID == subnetID {
+				refs = append(refs, dto.SourceRef{ID: rows[i].ID, Name: rows[i].Name})
+				break
+			}
+		}
+	}
+	return refs, nil
+}
+
+// attachTargetSubnets fills the Subnet name and deleted flag of every linked target across
+// sources with one lookup. A Subnet the lookup does not return is reported as deleted; a
+// failed lookup only leaves the details empty, like attachLastRun.
+func (r *PgDiscoveryRepository) attachTargetSubnets(ctx context.Context, sources ...*dto.DiscoverySourceResponse) {
+	if r.subnets == nil {
+		return
+	}
+
+	var ids []uuid.UUID
+	seen := make(map[uuid.UUID]struct{})
+	for _, src := range sources {
+		if src == nil {
+			continue
+		}
+		for _, target := range src.Targets {
+			if target.SubnetID == nil {
+				continue
+			}
+			if _, dup := seen[*target.SubnetID]; dup {
+				continue
+			}
+			seen[*target.SubnetID] = struct{}{}
+			ids = append(ids, *target.SubnetID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+
+	subnets, err := r.subnets.ListSubnetsByIDs(ctx, ids)
+	if err != nil {
+		slog.Warn("failed to look up the subnets linked to discovery source targets", slog.Any("error", err))
+		return
+	}
+	byID := make(map[uuid.UUID]db.Subnet, len(subnets))
+	for _, subnet := range subnets {
+		byID[subnet.ID] = subnet
+	}
+
+	for _, src := range sources {
+		if src == nil {
+			continue
+		}
+		for i := range src.Targets {
+			target := &src.Targets[i]
+			if target.SubnetID == nil {
+				continue
+			}
+			subnet, found := byID[*target.SubnetID]
+			if !found {
+				target.SubnetDeleted = true
+				continue
+			}
+			name := subnet.Name
+			target.SubnetName = &name
+			target.SubnetDeleted = subnet.DeletedAt.Valid
+		}
+	}
 }
 
 // UpdateSourceStatus updates the execution status and timestamp of a discovery source.
@@ -349,6 +462,7 @@ func (r *PgDiscoveryRepository) UpdateSourceStatus(ctx context.Context, id uuid.
 	}
 
 	r.attachLastRun(ctx, resp)
+	r.attachTargetSubnets(ctx, resp)
 
 	return resp, nil
 }
@@ -493,24 +607,37 @@ func (r *PgDiscoveryRepository) mapSourceToDTO(row *db.DiscoverySource) (*dto.Di
 	if row.LastRunAt.Valid {
 		resp.LastRunAt = &row.LastRunAt.Time
 	}
-	if row.ConfigEncrypted.Valid {
-		if r.encryptor == nil {
-			return nil, fmt.Errorf("cannot decrypt source config for %s: encryptor is not configured", row.ID)
-		}
-		decrypted, err := r.encryptor.Decrypt(row.ConfigEncrypted.String)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt source config for %s: %w", row.ID, err)
-		}
-		var cfg ConfigPayload
-		if err := json.Unmarshal(decrypted, &cfg); err != nil {
-			return nil, fmt.Errorf("failed to parse source config for %s: %w", row.ID, err)
-		}
-		resp.Targets = dto.NewSourceTargetResponses(cfg.SourceTargets())
+	targets, err := r.decodeSourceTargets(row)
+	if err != nil {
+		return nil, err
+	}
+	if targets != nil {
+		resp.Targets = dto.NewSourceTargetResponses(targets)
 		if len(resp.Targets) > 0 {
 			resp.ConfigCIDR = resp.Targets[0].CIDR
 		}
 	}
 	return resp, nil
+}
+
+// decodeSourceTargets decrypts a source configuration and returns its targets. It returns nil
+// when the source has no stored configuration.
+func (r *PgDiscoveryRepository) decodeSourceTargets(row *db.DiscoverySource) ([]dto.SourceTarget, error) {
+	if !row.ConfigEncrypted.Valid {
+		return nil, nil
+	}
+	if r.encryptor == nil {
+		return nil, fmt.Errorf("cannot decrypt source config for %s: encryptor is not configured", row.ID)
+	}
+	decrypted, err := r.encryptor.Decrypt(row.ConfigEncrypted.String)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt source config for %s: %w", row.ID, err)
+	}
+	var cfg ConfigPayload
+	if err := json.Unmarshal(decrypted, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse source config for %s: %w", row.ID, err)
+	}
+	return cfg.SourceTargets(), nil
 }
 
 func mapRecordToDTO(row *db.DeviceDiscoveryRecord) *dto.DiscoveryRecordResponse {
@@ -1019,5 +1146,6 @@ func (r *PgDiscoveryRepository) UpdateSource(ctx context.Context, id uuid.UUID, 
 	}
 	resp.Collectors = collectorResponses
 	r.attachLastRun(ctx, resp)
+	r.attachTargetSubnets(ctx, resp)
 	return resp, nil
 }

@@ -157,6 +157,9 @@ All endpoints are prefixed with `/api/v1`.
 ### 5. Topology & Subnets (`topology`)
 - `GET /api/v1/subnets` — List configured subnets and VLANs.
 - `POST /api/v1/subnets` — Add new subnet scope.
+- `GET /api/v1/subnets/:id/deletion-impact` — Report what deleting the subnet affects, without deleting it. `DELETE /api/v1/subnets/:id` returns the same `impact` object next to `deleted_id`.
+  - **Response**: `{ "subnet_id", "impact": { "affected_devices", "unlinked_topology_edges", "discovery_sources": [{ "id", "name" }] } }`.
+  - `discovery_sources` ([RFC-026](./RFC-026-multi-target-discovery-sources-spec.md) §6) lists the active discovery sources holding a target linked to the subnet; it is always an array, `[]` when none is. Deleting the subnet does not change those sources: their linked target is kept, reported with `subnet_deleted: true` and skipped on runs.
 - `GET /api/v1/topology/graph` — Retrieve complete node/edge graph data for visualization.
 - `GET /api/v1/topology/links` — List topology connection links.
 
@@ -180,7 +183,10 @@ All endpoints are prefixed with `/api/v1`.
 
 - `PUT  /api/v1/discovery/sources/:id` — Update discovery source collectors and config. Accepts `config.targets` and `config.cidr` with the same rules and errors as `POST`. A request that carries neither key keeps the stored targets, which are validated against the new plan and rewritten as `targets`.
 - `GET  /api/v1/discovery/sources/:id` — Get single discovery source with collector details and last run summary.
-  - **Response** (`DiscoverySourceResponse`, also returned by `GET /api/v1/discovery/sources`, `POST` and `PUT`): `targets: [{ "cidr", "subnet_id" }]`, in order, with `subnet_id` set to `null` for a free-form target and `targets` set to `[]` for a source without targets.
+  - **Response** (`DiscoverySourceResponse`, also returned by `GET /api/v1/discovery/sources`, `POST` and `PUT`): `targets: [{ "cidr", "subnet_id", "subnet_name", "subnet_deleted" }]`, in order, with `targets` set to `[]` for a source without targets ([RFC-026](./RFC-026-multi-target-discovery-sources-spec.md) §7).
+    - Free-form target: `subnet_id` and `subnet_name` are `null`, `subnet_deleted` is `false`.
+    - Linked target: `subnet_name` is the Subnet's current name. `subnet_deleted` is `true` when the Subnet was soft-deleted or no longer exists; the target stays in the list (ADR-014 *preserve & unlink*), `subnet_name` still holds the deleted Subnet's name when it is known, and the target is skipped on runs until it is removed.
+    - Example: `{ "cidr": "10.0.10.0/24", "subnet_id": "6f1c…", "subnet_name": "Lab", "subnet_deleted": false }`.
   - `config_cidr` — **Deprecated.** Holds the first target's CIDR, kept for clients that predate `targets`; omitted when the source has no targets. Removed in the next minor version.
 - `DELETE /api/v1/discovery/sources/:id` — Remove discovery source.
 - `POST /api/v1/discovery/sources/:id/run` — Manually trigger scan for a source.

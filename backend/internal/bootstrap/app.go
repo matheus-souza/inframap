@@ -13,6 +13,7 @@ import (
 
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matheussouza/inframap/internal/platform/crypto"
 	"github.com/matheussouza/inframap/internal/platform/db"
@@ -46,6 +47,7 @@ import (
 	integrationsreg "github.com/matheussouza/inframap/modules/integrations/registry"
 	"github.com/matheussouza/inframap/modules/inventory"
 	invctrl "github.com/matheussouza/inframap/modules/inventory/controller"
+	invdto "github.com/matheussouza/inframap/modules/inventory/dto"
 	invrepo "github.com/matheussouza/inframap/modules/inventory/repository"
 	invuc "github.com/matheussouza/inframap/modules/inventory/usecase"
 	"github.com/matheussouza/inframap/modules/realtime"
@@ -85,6 +87,24 @@ func (s *sessionValidatorAdapter) ValidateSession(ctx context.Context, token str
 	}
 	perms, _ := s.repo.GetUserPermissions(ctx, session.UserID)
 	return session.UserID.String(), perms, nil
+}
+
+// subnetSourceFinderAdapter lets the inventory module list the discovery sources linked to a
+// subnet (RFC-026 §6) without either module importing the other's types.
+type subnetSourceFinderAdapter struct {
+	repo *discrepo.PgDiscoveryRepository
+}
+
+func (a *subnetSourceFinderAdapter) ListSourcesLinkedToSubnet(ctx context.Context, subnetID uuid.UUID) ([]invdto.SubnetDiscoverySource, error) {
+	refs, err := a.repo.ListSourcesLinkedToSubnet(ctx, subnetID)
+	if err != nil {
+		return nil, err
+	}
+	sources := make([]invdto.SubnetDiscoverySource, len(refs))
+	for i, ref := range refs {
+		sources[i] = invdto.SubnetDiscoverySource{ID: ref.ID.String(), Name: ref.Name}
+	}
+	return sources, nil
 }
 
 // NewConfigFromEnv loads configuration parameters from environment variables.
@@ -206,6 +226,10 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 
 	// 8. Initialize Discovery Module
 	discRepo := discrepo.NewPgDiscoveryRepository(pool, encryptor)
+	// Source responses name the Subnet behind each linked target, and a subnet's deletion
+	// impact lists the sources linked to it (RFC-026 §6, §7).
+	discRepo.WithSubnetLookup(invRepo)
+	invUseCase.WithSubnetSourceFinder(&subnetSourceFinderAdapter{repo: discRepo})
 	discUseCase := discuc.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, log)
 	discCtrl := discctrl.NewDiscoveryController(discUseCase)
 	discScheduler := scheduler.New(discUseCase, discRepo, bus, log)
