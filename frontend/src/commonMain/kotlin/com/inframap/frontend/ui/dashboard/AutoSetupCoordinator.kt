@@ -14,12 +14,9 @@ import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
-import com.inframap.frontend.generated.resources.Res
-import com.inframap.frontend.generated.resources.auto_setup_local_network_source_name
 import com.inframap.frontend.ui.discovery.DiscoveryTargetRules
 import com.inframap.frontend.ui.discovery.toRequestTargets
 import kotlinx.coroutines.delay
-import org.jetbrains.compose.resources.getString
 
 class AutoSetupCoordinator(
     private val getNetworkInterfacesUseCase: GetNetworkInterfacesUseCase,
@@ -81,7 +78,7 @@ class AutoSetupCoordinator(
         val result =
             createDiscoverySourceUseCase(
                 CreateDiscoverySourceRequest(
-                    name = getString(Res.string.auto_setup_local_network_source_name),
+                    name = LOCAL_NETWORK_SOURCE_NAME,
                     type = "icmp_sweep",
                     enabled = true,
                     scheduleCron = "0 * * * *",
@@ -169,6 +166,9 @@ class AutoSetupCoordinator(
         }
 
         const val KEY_DISMISSED = "inframap_auto_setup_dismissed"
+
+        // Stored server-side as the source name, so it is not resolved from UI string resources.
+        internal const val LOCAL_NETWORK_SOURCE_NAME = "Local network sweep"
         private const val POLL_INTERVAL_MS = 3000L
         private const val MAX_POLL_ATTEMPTS = 60
         private const val CONFLICT_STATUS = 409

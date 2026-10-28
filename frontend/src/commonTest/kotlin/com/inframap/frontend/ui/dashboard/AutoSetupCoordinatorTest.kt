@@ -19,12 +19,9 @@ import com.inframap.frontend.fakes.FakeDiscoveryRepository
 import com.inframap.frontend.fakes.FakeLocalStorage
 import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
-import com.inframap.frontend.generated.resources.Res
-import com.inframap.frontend.generated.resources.auto_setup_local_network_source_name
 import com.inframap.frontend.ui.discovery.DiscoveryTargetRules
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
-import org.jetbrains.compose.resources.getString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -157,7 +154,7 @@ class AutoSetupCoordinatorTest {
             assertEquals(1, discoveryRepo.createSourceCallCount)
             assertEquals(1, discoveryRepo.triggerRunCallCount)
             val request = assertNotNull(discoveryRepo.lastCreateSourceRequest)
-            assertEquals(getString(Res.string.auto_setup_local_network_source_name), request.name)
+            assertEquals(AutoSetupCoordinator.LOCAL_NETWORK_SOURCE_NAME, request.name)
             assertEquals("icmp_sweep", request.type)
             assertEquals(
                 DiscoverySourceConfigDto(

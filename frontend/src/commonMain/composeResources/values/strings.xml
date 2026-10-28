@@ -237,7 +237,6 @@
     <string name="dashboard_auto_setup_scanning">Escaneando redes ativas...</string>
     <string name="dashboard_auto_setup_completed">Varredura concluída! %1$d dispositivos encontrados.</string>
     <string name="dashboard_auto_setup_view_staging">Ver na Fila de Staging</string>
-    <string name="auto_setup_local_network_source_name">Varredura da rede local</string>
 
     <!-- Command Palette -->
     <string name="command_palette_category_acoes">Ações Rápidas</string>

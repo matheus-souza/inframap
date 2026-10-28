@@ -237,7 +237,6 @@
     <string name="dashboard_auto_setup_scanning">Scanning active networks...</string>
     <string name="dashboard_auto_setup_completed">Scan complete! %1$d devices found.</string>
     <string name="dashboard_auto_setup_view_staging">View in Staging Queue</string>
-    <string name="auto_setup_local_network_source_name">Local network sweep</string>
 
     <!-- Command Palette -->
     <string name="command_palette_category_acoes">Quick Actions</string>
