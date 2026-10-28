@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,6 +29,8 @@ type mockDiscoveryUseCase struct {
 	failGetSource           bool
 	failListSources         bool
 	failTriggerRun          bool
+	triggerRunErr           error // returned next to the source response in status error
+	triggerRunNoResponse    bool  // drops the response that comes with triggerRunErr
 	failTriggerScan         bool
 	failDeleteSource        bool
 	failListRecordsByDevice bool
@@ -59,7 +62,6 @@ func (m *mockDiscoveryUseCase) UpdateSource(_ context.Context, idStr string, req
 	}
 	return nil, repository.ErrSourceNotFound
 }
-
 
 func (m *mockDiscoveryUseCase) CreateSource(_ context.Context, req *dto.CreateDiscoverySourceRequest) (*dto.DiscoverySourceResponse, error) {
 	if m.failCreateSource {
@@ -118,6 +120,13 @@ func (m *mockDiscoveryUseCase) TriggerRun(_ context.Context, idStr string) (*dto
 	s, err := m.GetSourceByID(context.Background(), idStr)
 	if err != nil {
 		return nil, err
+	}
+	if m.triggerRunErr != nil {
+		if m.triggerRunNoResponse {
+			return nil, m.triggerRunErr
+		}
+		s.LastStatus = "error"
+		return s, m.triggerRunErr
 	}
 	s.LastStatus = "idle"
 	return s, nil
@@ -317,8 +326,6 @@ func TestDiscoveryController_Unit(t *testing.T) {
 	mux.HandleFunc("POST /api/v1/discovery/scan", ctrl.TriggerScan)
 	mux.HandleFunc("DELETE /api/v1/discovery/sources/{id}", ctrl.DeleteSource)
 	mux.HandleFunc("GET /api/v1/discovery/devices/{id}/records", ctrl.ListRecordsByDevice)
-
-
 
 	// Pre-seed a source
 	src, _ := uc.CreateSource(context.Background(), &dto.CreateDiscoverySourceRequest{
@@ -547,6 +554,55 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		uc.failTriggerRun = false
 	})
 
+	t.Run("TriggerRun answers a recorded run failure with 200 and the final status", func(t *testing.T) {
+		uc.triggerRunErr = fmt.Errorf("%w: discovery source has no target left to scan: target subnet deleted", usecase.ErrRunFailed)
+		defer func() { uc.triggerRunErr = nil }()
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/"+src.ID.String()+"/run", nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d: %s", rec.Code, rec.Body.String())
+		}
+		var env struct {
+			Data dto.DiscoverySourceResponse `json:"data"`
+		}
+		if err := json.NewDecoder(rec.Body).Decode(&env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if env.Data.ID != src.ID || env.Data.LastStatus != "error" {
+			t.Errorf("expected the source in status error, got %+v", env.Data)
+		}
+	})
+
+	t.Run("TriggerRun answers 500 when a run failure comes without a recorded status", func(t *testing.T) {
+		uc.triggerRunErr = fmt.Errorf("%w: unexpected", usecase.ErrRunFailed)
+		uc.triggerRunNoResponse = true
+		defer func() { uc.triggerRunErr, uc.triggerRunNoResponse = nil, false }()
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/"+src.ID.String()+"/run", nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500 Internal Server Error, got %d", rec.Code)
+		}
+	})
+
+	t.Run("TriggerRun keeps answering a cancelled run with 500", func(t *testing.T) {
+		uc.triggerRunErr = context.Canceled
+		defer func() { uc.triggerRunErr = nil }()
+		req := httptest.NewRequest("POST", "/api/v1/discovery/sources/"+src.ID.String()+"/run", nil)
+		rec := httptest.NewRecorder()
+
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500 Internal Server Error, got %d", rec.Code)
+		}
+	})
+
 	t.Run("ListRecordsByDevice Success", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/discovery/devices/"+uuid.New().String()+"/records", nil)
 		rec := httptest.NewRecorder()
@@ -753,7 +809,6 @@ func TestDiscoveryController_Unit(t *testing.T) {
 			t.Errorf("expected total_valid 3, got %d", int(tv))
 		}
 	})
-
 
 	t.Run("TriggerScan Invalid JSON", func(t *testing.T) {
 		req := httptest.NewRequest("POST", "/api/v1/discovery/scan", bytes.NewReader([]byte("invalid json")))
@@ -1262,7 +1317,3 @@ func TestDiscoveryController_Unit(t *testing.T) {
 		}
 	})
 }
-
-
-
-

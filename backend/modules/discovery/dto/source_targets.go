@@ -198,8 +198,10 @@ func ValidateSourceTargets(targets []SourceTarget, requiresCIDR bool) error {
 }
 
 // WithSourceTargets returns a copy of config that stores targets under config.targets and
-// drops the legacy config.cidr, migrating the payload on its next save. The input map is not
-// modified: request normalization may share it with a collector's config.
+// drops the legacy config.cidr, migrating the payload on its next save. Every target CIDR is
+// stored as its masked prefix, so "10.0.0.5/24" is saved, returned and scanned as
+// "10.0.0.0/24". The input map and slice are not modified: request normalization may share
+// the map with a collector's config.
 func WithSourceTargets(config map[string]interface{}, targets []SourceTarget) map[string]interface{} {
 	out := make(map[string]interface{}, len(config)+1)
 	for key, value := range config {
@@ -209,7 +211,9 @@ func WithSourceTargets(config map[string]interface{}, targets []SourceTarget) ma
 		out[key] = value
 	}
 	stored := make([]SourceTarget, len(targets))
-	copy(stored, targets)
+	for i, target := range targets {
+		stored[i] = SourceTarget{CIDR: canonicalTargetCIDR(target.CIDR), SubnetID: target.SubnetID}
+	}
 	out[ConfigKeyTargets] = stored
 	return out
 }
@@ -247,23 +251,24 @@ func SourceTargetsAdded(previous, next []SourceTarget) bool {
 		if target.SubnetID != nil {
 			knownSubnets[*target.SubnetID] = true
 		}
-		knownBlocks[targetBlockKey(target.CIDR)] = true
+		knownBlocks[canonicalTargetCIDR(target.CIDR)] = true
 	}
 
 	for _, target := range next {
 		if target.SubnetID != nil && knownSubnets[*target.SubnetID] {
 			continue
 		}
-		if !knownBlocks[targetBlockKey(target.CIDR)] {
+		if !knownBlocks[canonicalTargetCIDR(target.CIDR)] {
 			return true
 		}
 	}
 	return false
 }
 
-// targetBlockKey normalizes a target CIDR for comparison. A value that does not parse is
-// compared as written, so it never matches a valid block.
-func targetBlockKey(cidr string) string {
+// canonicalTargetCIDR returns a target CIDR as its masked prefix, the form targets are stored
+// and compared in. A value that does not parse is returned as written, so it never matches a
+// valid block.
+func canonicalTargetCIDR(cidr string) string {
 	cidr = strings.TrimSpace(cidr)
 	if prefix, err := netip.ParsePrefix(cidr); err == nil {
 		return prefix.Masked().String()

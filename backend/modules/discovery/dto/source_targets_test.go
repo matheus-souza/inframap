@@ -229,6 +229,39 @@ func TestWithSourceTargets(t *testing.T) {
 	}
 }
 
+func TestWithSourceTargets_StoresMaskedPrefixes(t *testing.T) {
+	subnetID := uuid.New()
+	targets := []dto.SourceTarget{
+		{CIDR: "10.99.0.5/24"},
+		{CIDR: "192.0.2.130/25", SubnetID: &subnetID},
+		{CIDR: "198.51.100.0/24"},
+	}
+
+	out := dto.WithSourceTargets(map[string]interface{}{"cidr": "10.99.0.5/24"}, targets)
+
+	stored, ok := out["targets"].([]dto.SourceTarget)
+	if !ok || len(stored) != 3 {
+		t.Fatalf("expected 3 stored targets, got %v", out["targets"])
+	}
+	want := []string{"10.99.0.0/24", "192.0.2.128/25", "198.51.100.0/24"}
+	for i, cidr := range want {
+		if stored[i].CIDR != cidr {
+			t.Errorf("target %d: expected %s, got %s", i, cidr, stored[i].CIDR)
+		}
+	}
+	if stored[1].SubnetID == nil || *stored[1].SubnetID != subnetID {
+		t.Errorf("expected the link to be kept, got %+v", stored[1])
+	}
+	if targets[0].CIDR != "10.99.0.5/24" {
+		t.Errorf("expected the input targets to be left unmodified, got %s", targets[0].CIDR)
+	}
+
+	// The masked form is still the same destination for the credential guard.
+	if dto.SourceTargetsAdded(targets, stored) || dto.SourceTargetsAdded(stored, targets) {
+		t.Error("expected host bits not to count as a destination change")
+	}
+}
+
 func TestSourceTargetResponses(t *testing.T) {
 	subnetID := uuid.New()
 	stored := []dto.SourceTarget{{CIDR: "10.0.10.0/24", SubnetID: &subnetID}, {CIDR: "192.0.2.0/24"}}

@@ -125,3 +125,60 @@ func TestE2E_SubnetTargetLinks(t *testing.T) {
 		}
 	})
 }
+
+// TestE2E_RunWithEveryLinkedSubnetDeleted runs a sweep-only source whose only target links to
+// a deleted Subnet (CONTEXT.md guideline #220): the run is recorded with status error and a
+// skipped row, and the endpoint answers 200 with that final status rather than 500.
+func TestE2E_RunWithEveryLinkedSubnetDeleted(t *testing.T) {
+	app, ts := setupTestApp(t)
+	defer app.Close()
+	defer ts.Close()
+	token := loginAdmin(t, ts)
+
+	seed := uuid.New()
+	second := 1 + int(seed[0])%250
+	third := int(seed[1]) % 250
+	subnetCIDR := fmt.Sprintf("10.%d.%d.0/24", second, third)
+	suffix := fmt.Sprintf("%d-%d-%s", second, third, seed.String()[:8])
+
+	status, env := apiCall(t, ts, token, http.MethodPost, "/api/v1/subnets", map[string]any{
+		"name": "Deleted lab " + suffix,
+		"cidr": subnetCIDR,
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("expected 201 creating the subnet, got %d: %v", status, env)
+	}
+	subnetID, _ := env["data"].(map[string]any)["id"].(string)
+
+	status, env = apiCall(t, ts, token, http.MethodPost, "/api/v1/discovery/sources", map[string]any{
+		"name":   "Sweep of a deleted subnet " + suffix,
+		"type":   "icmp_sweep",
+		"config": map[string]any{"targets": []map[string]any{{"cidr": subnetCIDR, "subnet_id": subnetID}}},
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("expected 201 creating the source, got %d: %v", status, env)
+	}
+	sourceID, _ := env["data"].(map[string]any)["id"].(string)
+
+	if status, env := apiCall(t, ts, token, http.MethodDelete, "/api/v1/subnets/"+subnetID, nil); status != http.StatusOK {
+		t.Fatalf("expected 200 deleting the subnet, got %d: %v", status, env)
+	}
+
+	status, env = apiCall(t, ts, token, http.MethodPost, "/api/v1/discovery/sources/"+sourceID+"/run", nil)
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 for a recorded run failure, got %d: %v", status, env)
+	}
+	data, _ := env["data"].(map[string]any)
+	if data["last_status"] != "error" {
+		t.Errorf("expected last_status error, got %v", data["last_status"])
+	}
+	lastRun, _ := data["last_run"].(map[string]any)
+	rows, _ := lastRun["collectors"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("expected one skipped row in last_run, got %v", lastRun)
+	}
+	row, _ := rows[0].(map[string]any)
+	if row["status"] != "skipped" || row["target_cidr"] != subnetCIDR || row["error_message"] != "target subnet deleted" {
+		t.Errorf("expected the deleted target skipped, got %v", row)
+	}
+}
