@@ -74,10 +74,14 @@ fun EditDiscoverySourceScreen(
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize().padding(24.dp)) {
-        if (state.isLoading) {
-            InfraMapFormSkeleton(fields = 4)
-        } else {
-            EditDiscoverySourceContent(state = state, actions = actions)
+        when {
+            state.isLoading -> InfraMapFormSkeleton(fields = 4)
+            state.loadError != null ->
+                EditDiscoverySourceLoadError(
+                    errorMessage = state.loadError.asString(),
+                    actions = actions,
+                )
+            else -> EditDiscoverySourceContent(state = state, actions = actions)
         }
 
         EditDiscoverySourceOverlays(state = state, actions = actions)
@@ -98,14 +102,6 @@ private fun EditDiscoverySourceContent(
         EditDiscoverySourceHeader(onBackClicked = actions.onBackClicked)
 
         Spacer(modifier = Modifier.height(20.dp))
-
-        if (state.errorMessage != null) {
-            EditDiscoverySourceErrorCard(
-                errorMessage = state.errorMessage.asString(),
-                onDismiss = actions.onDismissError,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
 
         EditDiscoverySourceFormCard(state = state, actions = actions)
 
@@ -153,26 +149,34 @@ private fun EditDiscoverySourceHeader(onBackClicked: () -> Unit) {
     }
 }
 
+/** The source could not be loaded: there is nothing to edit, only a retry. */
 @Composable
-private fun EditDiscoverySourceErrorCard(
+private fun EditDiscoverySourceLoadError(
     errorMessage: String,
-    onDismiss: () -> Unit,
+    actions: EditDiscoverySourceActions,
 ) {
-    InfraMapCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = errorMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            InfraMapOutlinedButton(
-                text = stringResource(Res.string.devices_retry),
-                onClick = onDismiss,
-            )
+    Column(modifier = Modifier.fillMaxSize()) {
+        EditDiscoverySourceHeader(onBackClicked = actions.onBackClicked)
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        InfraMapCard(modifier = Modifier.fillMaxWidth().testTag("edit_source_load_error")) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = errorMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                InfraMapOutlinedButton(
+                    text = stringResource(Res.string.devices_retry),
+                    onClick = actions.onRetryLoad,
+                    modifier = Modifier.testTag("edit_source_load_retry"),
+                )
+            }
         }
     }
 }
@@ -446,6 +450,16 @@ private fun EditDiscoverySourceFormButtons(
     state: EditDiscoverySourceUiState,
     actions: EditDiscoverySourceActions,
 ) {
+    // A refused save is explained next to the button that sent it.
+    if (state.submitError != null) {
+        Text(
+            text = state.submitError.asString(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.fillMaxWidth().testTag("edit_source_submit_error"),
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,

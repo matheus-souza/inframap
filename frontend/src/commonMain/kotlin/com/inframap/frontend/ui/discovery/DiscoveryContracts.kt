@@ -159,7 +159,13 @@ data class EditDiscoverySourceUiState(
     val isLoading: Boolean = true,
     val isSubmitting: Boolean = false,
     val isSuccess: Boolean = false,
-    val errorMessage: UiText? = null,
+    /** Why the source could not be loaded; the screen offers a retry instead of the form. */
+    val loadError: UiText? = null,
+    /**
+     * Why the last save was refused, shown next to the save button. A rule a single field
+     * breaks (a target rule, RFC-026 §2) is shown on that field instead.
+     */
+    val submitError: UiText? = null,
     val validationErrors: Map<String, UiText> = emptyMap(),
     val providerConfigs: Map<String, Map<String, String>> = emptyMap(),
     val initialProviderTargets: Map<String, Map<String, String>> = emptyMap(),
@@ -226,6 +232,6 @@ data class EditDiscoverySourceActions(
     val onDeleteClicked: () -> Unit,
     val onConfirmDeleteClicked: () -> Unit,
     val onDismissDeleteDialog: () -> Unit,
-    val onDismissError: () -> Unit,
+    val onRetryLoad: () -> Unit,
     val onBackClicked: () -> Unit,
 )

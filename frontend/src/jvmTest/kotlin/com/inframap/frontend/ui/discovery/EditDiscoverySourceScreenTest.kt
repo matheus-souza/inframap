@@ -10,26 +10,32 @@ import androidx.compose.ui.test.runComposeUiTest
 import com.inframap.frontend.designsystem.InfraMapTheme
 import com.inframap.frontend.domain.model.DiscoveryTarget
 import com.inframap.frontend.domain.model.SubnetSummary
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.edit_discovery_source_error_load
+import com.inframap.frontend.generated.resources.edit_discovery_source_error_update
+import com.inframap.frontend.ui.util.UiText
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalTestApi::class)
 class EditDiscoverySourceScreenTest {
-    private fun actions(targets: DiscoveryTargetsEditorActions = DiscoveryTargetsEditorActions()) =
-        EditDiscoverySourceActions(
-            onNameChanged = {},
-            onScheduleCronChanged = {},
-            onEnabledChanged = {},
-            onProviderFieldChanged = { _, _, _ -> },
-            onProviderTabSelected = {},
-            targets = targets,
-            onSubmitClicked = {},
-            onDeleteClicked = {},
-            onConfirmDeleteClicked = {},
-            onDismissDeleteDialog = {},
-            onDismissError = {},
-            onBackClicked = {},
-        )
+    private fun actions(
+        targets: DiscoveryTargetsEditorActions = DiscoveryTargetsEditorActions(),
+        onRetryLoad: () -> Unit = {},
+    ) = EditDiscoverySourceActions(
+        onNameChanged = {},
+        onScheduleCronChanged = {},
+        onEnabledChanged = {},
+        onProviderFieldChanged = { _, _, _ -> },
+        onProviderTabSelected = {},
+        targets = targets,
+        onSubmitClicked = {},
+        onDeleteClicked = {},
+        onConfirmDeleteClicked = {},
+        onDismissDeleteDialog = {},
+        onRetryLoad = onRetryLoad,
+        onBackClicked = {},
+    )
 
     private val sweepState =
         EditDiscoverySourceUiState(
@@ -98,5 +104,54 @@ class EditDiscoverySourceScreenTest {
             }
 
             onNodeWithTag("discovery_targets_editor").assertDoesNotExist()
+        }
+
+    @Test
+    fun refusedSaveIsShownInlineWithoutTheLoadRetry() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    EditDiscoverySourceScreen(
+                        state =
+                            sweepState.copy(
+                                submitError = UiText.Resource(Res.string.edit_discovery_source_error_update),
+                                validationErrors =
+                                    mapOf(TARGETS_ERROR_KEY to TargetRuleViolation.SubnetNotFound.message),
+                            ),
+                        actions = actions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("edit_source_submit_error").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Failed to update discovery source.").assertIsDisplayed()
+            onNodeWithTag("edit_source_name_input").assertExists()
+            onNodeWithTag("edit_source_load_error").assertDoesNotExist()
+            onNodeWithText("Try Again").assertDoesNotExist()
+        }
+
+    @Test
+    fun loadFailureOffersRetryInsteadOfTheForm() =
+        runComposeUiTest {
+            var retried = 0
+            setContent {
+                InfraMapTheme {
+                    EditDiscoverySourceScreen(
+                        state =
+                            EditDiscoverySourceUiState(
+                                id = "src-lan",
+                                isLoading = false,
+                                loadError = UiText.Resource(Res.string.edit_discovery_source_error_load),
+                            ),
+                        actions = actions(onRetryLoad = { retried++ }),
+                    )
+                }
+            }
+
+            onNodeWithText("Failed to load discovery source.").assertIsDisplayed()
+            onNodeWithTag("edit_source_name_input").assertDoesNotExist()
+            onNodeWithTag("edit_source_submit_error").assertDoesNotExist()
+            onNodeWithTag("edit_source_load_retry").performClick()
+            assertEquals(1, retried)
         }
 }

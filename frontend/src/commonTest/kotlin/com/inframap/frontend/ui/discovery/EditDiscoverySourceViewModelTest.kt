@@ -9,6 +9,7 @@ import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.ProviderHealth
 import com.inframap.frontend.domain.model.SourceCollector
 import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.usecase.discovery.DeleteDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceByIdUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceDeletionImpactUseCase
@@ -132,7 +133,7 @@ class EditDiscoverySourceViewModelTest {
 
             val state = vm.state.value
             assertFalse(state.isLoading)
-            assertNull(state.errorMessage)
+            assertNull(state.loadError)
             assertEquals("Proxmox Cluster", state.name)
             assertEquals("proxmox", state.sourceType)
             assertEquals("0 */4 * * *", state.scheduleCron)
@@ -227,7 +228,8 @@ class EditDiscoverySourceViewModelTest {
             advanceUntilIdle()
 
             assertFalse(vm.state.value.isSuccess)
-            assertNotNull(vm.state.value.errorMessage)
+            assertNotNull(vm.state.value.submitError)
+            assertNull(vm.state.value.loadError)
             assertTrue(vm.state.value.targetChangedWarnings["proxmox"] == true)
         }
 
@@ -564,8 +566,80 @@ class EditDiscoverySourceViewModelTest {
             vm.onSubmitClicked()
             advanceUntilIdle()
 
-            assertEquals(TargetRuleViolation.Overlap.message, vm.state.value.errorMessage)
             assertEquals(TargetRuleViolation.Overlap.message, vm.state.value.validationErrors[TARGETS_ERROR_KEY])
+            assertNull(vm.state.value.submitError)
+            assertNull(vm.state.value.loadError)
+            vm.clear()
+        }
+
+    @Test
+    fun saveRejectedForADeletedSubnetStaysOnTheTargetsField() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+            fakeRepo.updateSourceResult =
+                ApiResult.Error(
+                    code = "error_target_subnet_not_found",
+                    message = "raw",
+                    requestId = "",
+                    httpStatus = 422,
+                )
+
+            vm.onSubnetToggled(SubnetSummary(id = "sub-20", name = "Lab", cidr = "198.51.100.0/24"))
+            vm.onRemoveTarget(0)
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertEquals(1, fakeRepo.updateSourceCallCount)
+            assertEquals(
+                TargetRuleViolation.SubnetNotFound.message,
+                vm.state.value.validationErrors[TARGETS_ERROR_KEY],
+            )
+            assertNull(vm.state.value.loadError)
+            assertNull(vm.state.value.submitError)
+            assertFalse(vm.state.value.isSubmitting)
+            vm.clear()
+        }
+
+    @Test
+    fun saveFailureIsASubmitErrorNotALoadError() =
+        testScope.runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+            fakeRepo.updateSourceResult =
+                ApiResult.Error(code = "INTERNAL", message = "", requestId = "", httpStatus = 500)
+
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertNotNull(vm.state.value.submitError)
+            assertNull(vm.state.value.loadError)
+
+            fakeRepo.updateSourceResult = ApiResult.NetworkError(RuntimeException("down"))
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertNotNull(vm.state.value.submitError)
+            assertNull(vm.state.value.loadError)
+            vm.clear()
+        }
+
+    @Test
+    fun loadFailureIsALoadErrorThatRetryClears() =
+        testScope.runTest {
+            fakeRepo.getSourceByIdResult = ApiResult.NetworkError(RuntimeException("down"))
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            assertNotNull(vm.state.value.loadError)
+            assertNull(vm.state.value.submitError)
+
+            fakeRepo.getSourceByIdResult = ApiResult.Success(testSource, requestId = "")
+            vm.loadSource()
+            advanceUntilIdle()
+
+            assertNull(vm.state.value.loadError)
+            assertEquals("Proxmox Cluster", vm.state.value.name)
             vm.clear()
         }
 

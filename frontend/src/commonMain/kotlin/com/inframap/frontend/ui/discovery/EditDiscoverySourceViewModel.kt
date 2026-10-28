@@ -58,7 +58,7 @@ class EditDiscoverySourceViewModel(
     }
 
     fun loadSource() {
-        updateState { it.copy(isLoading = true, errorMessage = null) }
+        updateState { it.copy(isLoading = true, loadError = null) }
         launchJob("load_source") {
             when (val result = getSourceByIdUseCase(sourceId)) {
                 is ApiResult.Success -> {
@@ -92,7 +92,7 @@ class EditDiscoverySourceViewModel(
                             initialProviderTargets = initialTargets,
                             configuredSecrets = configuredSecrets,
                             isLoading = false,
-                            errorMessage = null,
+                            loadError = null,
                         )
                     }
                 }
@@ -102,7 +102,7 @@ class EditDiscoverySourceViewModel(
                     updateState {
                         it.copy(
                             isLoading = false,
-                            errorMessage =
+                            loadError =
                                 mapError(
                                     result,
                                     UiText.Resource(Res.string.edit_discovery_source_error_load),
@@ -268,7 +268,7 @@ class EditDiscoverySourceViewModel(
     fun onSubmitClicked() {
         if (!validate()) return
 
-        updateState { it.copy(isSubmitting = true, errorMessage = null) }
+        updateState { it.copy(isSubmitting = true, submitError = null) }
         val currentState = state.value
 
         val collectors =
@@ -307,7 +307,7 @@ class EditDiscoverySourceViewModel(
                     updateState {
                         it.copy(
                             isSubmitting = false,
-                            errorMessage =
+                            submitError =
                                 mapError(
                                     result,
                                     UiText.Resource(Res.string.edit_discovery_source_error_update),
@@ -319,6 +319,11 @@ class EditDiscoverySourceViewModel(
         }
     }
 
+    /**
+     * A refused save stays on the form: a target rule (RFC-026 §2) is shown on the targets
+     * editor, anything else next to the save button. The source itself loaded fine, so this
+     * never reaches the load error and its retry.
+     */
     private fun handleUpdateError(result: ApiResult.Error) {
         val currentState = state.value
         val isSSRF = result.code == "secret_required_on_target_change"
@@ -332,13 +337,13 @@ class EditDiscoverySourceViewModel(
         val msg =
             when {
                 isSSRF -> UiText.Resource(Res.string.error_secret_required_on_target_change)
-                violation != null -> violation.message
+                violation != null -> null
                 else -> mapError(result, UiText.Resource(Res.string.edit_discovery_source_error_update))
             }
         updateState {
             it.copy(
                 isSubmitting = false,
-                errorMessage = msg,
+                submitError = msg,
                 targetChangedWarnings = it.targetChangedWarnings + warnings,
                 validationErrors =
                     if (violation != null) {
@@ -421,10 +426,6 @@ class EditDiscoverySourceViewModel(
                 deleteError = null,
             )
         }
-    }
-
-    fun onDismissError() {
-        updateState { it.copy(errorMessage = null) }
     }
 
     fun testConnection(providerId: String) {
