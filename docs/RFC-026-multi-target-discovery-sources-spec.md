@@ -1,6 +1,6 @@
 # RFC-026 — Multi-Target Discovery Sources Specification
 
-| Status | Proposed |
+| Status | Accepted |
 |---|---|
 | Created | 2026-10-27 |
 | Related | ADR-015, ADR-011, RFC-025 |
@@ -110,7 +110,7 @@ For sources with a stored secret, **adding** a target or **changing** an existin
 - **Auto-setup**: creates a single "Local network sweep" source with one target per detected interface. Installations that already went through auto-setup are not changed.
 
 ### 9. Localization Keys (PT/EN parity)
-`discovery_targets_label`, `discovery_targets_add_subnet`, `discovery_targets_add_cidr`, `discovery_targets_host_count`, `discovery_targets_more` (`+%1$d`), `discovery_target_subnet_deleted`, `error_targets_required`, `error_target_invalid`, `error_targets_overlap`, `error_targets_too_large`, `error_targets_too_many`, `error_target_subnet_not_found`, `delete_subnet_impact_sources`, `auto_setup_local_network_source_name`.
+`discovery_targets_label`, `discovery_targets_add_subnet`, `discovery_targets_add_cidr`, `discovery_targets_host_count`, `discovery_targets_more` (`+%1$d`), `discovery_target_subnet_deleted`, `error_targets_required`, `error_target_invalid`, `error_targets_overlap`, `error_targets_too_large`, `error_targets_too_many`, `error_target_subnet_not_found`, `delete_subnet_impact_sources`.
 
 ## Testing Decisions
 - **Backend Unit Tests**:
@@ -132,3 +132,14 @@ For sources with a stored secret, **adding** a target or **changing** an existin
 
 ## Further Notes
 The structural decisions are recorded in [ADR-015](./adr/ADR-015-multi-target-discovery-sources.md). This RFC builds on the fix that made providers-only sources runnable (`collectors.RequiresCIDR`, `CONTEXT.md` guideline **#218**), on which the target requirement of section 2 is based.
+
+### Implementation notes
+Where the implementation refines this specification:
+
+- **Engine entry point**: `Orchestrator.RunTargets(ctx, run, targets, …)` takes a separate `run` target carrying the fields shared by the whole run (`SourceID`, `CredentialSetID`), so a providers-only run with no targets still reaches its provider configuration. `RunScan` stays for the ad-hoc scan (`POST /api/v1/discovery/scan`).
+- **Every linked Subnet deleted**: per-block and link-local collectors are recorded as `skipped` (`target subnet deleted`); providers in the same plan still run, so the source ends `partial`. A sweep-only plan in that state does not reach the engine and ends `error` (`CONTEXT.md` guideline **#220**).
+- **Credential guard identity**: a linked target is identified by `subnet_id` and a free-form target by its masked prefix, so reordering, host bits, a Subnet edit, or linking a free-form target to a Subnet with the same CIDR are not destination changes. Collectors with target scope `none` are never guarded by source targets.
+- **Run diagnostics**: the frontend shows each collector row's `target_cidr` from `last_run.collectors[]` in the source status tooltip; `target_cidr` is also returned by `GET /api/v1/discovery/sources/{id}/runs`.
+- **`config_cidr` deprecation**: documented in the field's comment and in RFC-008 rather than with a `// Deprecated:` marker, which would fail lint on the remaining readers until the field is removed.
+- **Auto-setup limits**: an interface that would break the §2 rules (wider than `/16`, overlapping an earlier one, or beyond the target or address caps) is skipped and the rest are kept.
+- **Auto-setup source name**: "Local network sweep" is a constant in the coordinator rather than a string resource. It is stored server-side as the source name, and resolving a Compose string resource outside the UI fails on headless JVMs.

@@ -74,7 +74,7 @@ Generated from the documents' own titles and `Status` fields. Status vocabulary:
 - **RFC-023** — UI/UX Refinement, Progressive Dashboard & Session Lifecycle Specification · _Accepted_
 - **RFC-024** — Proxmox VE & Docker Engine Provider Collectors Integration · _Accepted_
 - **RFC-025** — Entity Editing, Soft-Delete Lifecycle & Secret-Safe Update Specification · _Accepted_
-- **RFC-026** — Multi-Target Discovery Sources Specification · _Proposed_
+- **RFC-026** — Multi-Target Discovery Sources Specification · _Accepted_
 
 ### ADRs (`docs/adr/`)
 
@@ -92,7 +92,7 @@ Generated from the documents' own titles and `Status` fields. Status vocabulary:
 - **ADR-012** — UI/UX Refinement, Progressive Dashboard & Session Lifecycle · _Accepted_
 - **ADR-013** — Proxmox VE & Docker Engine Provider Collectors Architecture · _Accepted_
 - **ADR-014** — Entity Editing, Soft-Delete Semantics, and Lifecycle Management · _Accepted_
-- **ADR-015** — Multi-Target Discovery Sources · _Proposed_
+- **ADR-015** — Multi-Target Discovery Sources · _Accepted_
 
 Decision IDs (`AD-NNN`) are unique across all ADRs; the next free ID is **AD-062**.
 
