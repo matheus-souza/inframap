@@ -1,6 +1,8 @@
 package com.inframap.frontend.ui.dashboard
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.DiscoverySourceConfigDto
+import com.inframap.frontend.data.dto.DiscoveryTargetRequestDto
 import com.inframap.frontend.domain.model.DiscoverySource
 import com.inframap.frontend.domain.model.NetworkInterface
 import com.inframap.frontend.domain.model.PaginatedList
@@ -17,11 +19,16 @@ import com.inframap.frontend.fakes.FakeDiscoveryRepository
 import com.inframap.frontend.fakes.FakeLocalStorage
 import com.inframap.frontend.fakes.FakeNetworkRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.auto_setup_local_network_source_name
+import com.inframap.frontend.ui.discovery.DiscoveryTargetRules
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import org.jetbrains.compose.resources.getString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -34,6 +41,12 @@ class AutoSetupCoordinatorTest {
             gateway = "192.168.1.1",
             mac = "00:11:22:33:44:55",
         )
+
+    private val secondInterface =
+        testInterface.copy(name = "eth1", ip = "192.0.2.10", cidr = "192.0.2.0/24", gateway = "")
+
+    private val thirdInterface =
+        testInterface.copy(name = "eth2", ip = "198.51.100.10", cidr = "198.51.100.0/24", gateway = "")
 
     @Test
     fun dismissStoresFlagInLocalStorage() {
@@ -75,6 +88,7 @@ class AutoSetupCoordinatorTest {
 
             val result = coordinator.createSubnets(listOf(testInterface))
             assertTrue(result is ApiResult.Success)
+            assertEquals(mapOf("192.168.1.0/24" to "sub1"), result.data)
         }
 
     @Test
@@ -88,6 +102,7 @@ class AutoSetupCoordinatorTest {
 
             val result = coordinator.createSubnets(listOf(testInterface))
             assertTrue(result is ApiResult.Success)
+            assertTrue(result.data.isEmpty())
         }
 
     @Test
@@ -104,7 +119,7 @@ class AutoSetupCoordinatorTest {
         }
 
     @Test
-    fun createSourcesAndTriggerScanReturnsSourceIds() =
+    fun createSourceAndTriggerScanReturnsSourceIds() =
         runTest {
             val discoveryRepo =
                 FakeDiscoveryRepository(
@@ -121,13 +136,104 @@ class AutoSetupCoordinatorTest {
                 )
             val coordinator = createCoordinator(discoveryRepo = discoveryRepo)
 
-            val result = coordinator.createSourcesAndTriggerScan(listOf(testInterface))
+            val result = coordinator.createSourceAndTriggerScan(listOf(testInterface))
             assertTrue(result is ApiResult.Success)
             assertEquals(listOf("ds1"), result.data)
         }
 
     @Test
-    fun createSourcesAndTriggerScanReturnsErrorWhenCreateFails() =
+    fun createSourceAndTriggerScanCreatesOneSourceWithATargetPerInterface() =
+        runTest {
+            val discoveryRepo = FakeDiscoveryRepository()
+            val coordinator = createCoordinator(discoveryRepo = discoveryRepo)
+
+            val result =
+                coordinator.createSourceAndTriggerScan(
+                    listOf(testInterface, secondInterface, thirdInterface),
+                    subnetIds = mapOf("192.168.1.0/24" to "sub1", "198.51.100.0/24" to "sub3"),
+                )
+
+            assertTrue(result is ApiResult.Success)
+            assertEquals(1, discoveryRepo.createSourceCallCount)
+            assertEquals(1, discoveryRepo.triggerRunCallCount)
+            val request = assertNotNull(discoveryRepo.lastCreateSourceRequest)
+            assertEquals(getString(Res.string.auto_setup_local_network_source_name), request.name)
+            assertEquals("icmp_sweep", request.type)
+            assertEquals(
+                DiscoverySourceConfigDto(
+                    targets =
+                        listOf(
+                            DiscoveryTargetRequestDto(cidr = "192.168.1.0/24", subnetId = "sub1"),
+                            DiscoveryTargetRequestDto(cidr = "192.0.2.0/24"),
+                            DiscoveryTargetRequestDto(cidr = "198.51.100.0/24", subnetId = "sub3"),
+                        ),
+                ),
+                request.config,
+            )
+        }
+
+    @Test
+    fun createSourceAndTriggerScanCreatesNothingWithoutInterfaces() =
+        runTest {
+            val discoveryRepo = FakeDiscoveryRepository()
+            val coordinator = createCoordinator(discoveryRepo = discoveryRepo)
+
+            val result = coordinator.createSourceAndTriggerScan(emptyList())
+
+            assertTrue(result is ApiResult.Success)
+            assertTrue(result.data.isEmpty())
+            assertEquals(0, discoveryRepo.createSourceCallCount)
+            assertEquals(0, discoveryRepo.triggerRunCallCount)
+        }
+
+    @Test
+    fun createSourceAndTriggerScanLeavesAnExistingSetupUnchanged() =
+        runTest {
+            val discoveryRepo =
+                FakeDiscoveryRepository(
+                    createSourceResult = ApiResult.Error("CONFLICT", "Already exists", "", 409),
+                )
+            val coordinator = createCoordinator(discoveryRepo = discoveryRepo)
+
+            val result = coordinator.createSourceAndTriggerScan(listOf(testInterface))
+
+            assertTrue(result is ApiResult.Success)
+            assertTrue(result.data.isEmpty())
+            assertEquals(0, discoveryRepo.triggerRunCallCount)
+        }
+
+    @Test
+    fun localNetworkTargetsSkipsInterfacesTheSourceCannotHold() {
+        val interfaces =
+            listOf(
+                testInterface,
+                testInterface.copy(name = "eth0:1", cidr = "192.168.1.128/25"),
+                testInterface.copy(name = "wide", cidr = "10.0.0.0/8"),
+                testInterface.copy(name = "big", cidr = "172.16.0.0/16"),
+            )
+
+        val targets = AutoSetupCoordinator.localNetworkTargets(interfaces, emptyMap())
+
+        // The /25 overlaps eth0, the /8 is wider than /16, and the /16 would push the
+        // summed address count past 65 536.
+        assertEquals(listOf(DiscoveryTargetRequestDto(cidr = "192.168.1.0/24")), targets)
+    }
+
+    @Test
+    fun localNetworkTargetsStopsAtTheTargetLimit() {
+        val interfaces =
+            (0 until DiscoveryTargetRules.MAX_TARGETS + 2).map { i ->
+                testInterface.copy(name = "eth$i", cidr = "10.0.$i.0/28")
+            }
+
+        val targets = AutoSetupCoordinator.localNetworkTargets(interfaces, emptyMap())
+
+        assertEquals(DiscoveryTargetRules.MAX_TARGETS, targets.size)
+        assertEquals("10.0.0.0/28", targets.first().cidr)
+    }
+
+    @Test
+    fun createSourceAndTriggerScanReturnsErrorWhenCreateFails() =
         runTest {
             val discoveryRepo =
                 FakeDiscoveryRepository(
@@ -135,12 +241,12 @@ class AutoSetupCoordinatorTest {
                 )
             val coordinator = createCoordinator(discoveryRepo = discoveryRepo)
 
-            val result = coordinator.createSourcesAndTriggerScan(listOf(testInterface))
+            val result = coordinator.createSourceAndTriggerScan(listOf(testInterface))
             assertTrue(result is ApiResult.Error)
         }
 
     @Test
-    fun createSourcesAndTriggerScanReturnsErrorWhenTriggerFails() =
+    fun createSourceAndTriggerScanReturnsErrorWhenTriggerFails() =
         runTest {
             val discoveryRepo =
                 FakeDiscoveryRepository(
@@ -153,7 +259,7 @@ class AutoSetupCoordinatorTest {
                 )
             val coordinator = createCoordinator(discoveryRepo = discoveryRepo)
 
-            val result = coordinator.createSourcesAndTriggerScan(listOf(testInterface))
+            val result = coordinator.createSourceAndTriggerScan(listOf(testInterface))
             assertTrue(result is ApiResult.Error)
         }
 

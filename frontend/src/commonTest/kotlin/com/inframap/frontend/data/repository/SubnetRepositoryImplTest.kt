@@ -3,6 +3,7 @@ package com.inframap.frontend.data.repository
 import com.inframap.frontend.data.api.ApiClient
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CreateSubnetRequest
+import com.inframap.frontend.data.dto.SubnetDiscoverySource
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -185,6 +186,42 @@ class SubnetRepositoryImplTest {
             assertEquals("sub-1", data.subnetId)
             assertEquals(3, data.impact.affectedDevices)
             assertEquals(2, data.impact.unlinkedTopologyEdges)
+            assertEquals(emptyList(), data.impact.discoverySources)
+        }
+
+    @Test
+    fun getSubnetDeletionImpactDecodesLinkedDiscoverySources() =
+        runTest {
+            val json =
+                """
+                {
+                    "data": {
+                        "subnet_id": "sub-1",
+                        "impact": {
+                            "affected_devices": 0,
+                            "unlinked_topology_edges": 0,
+                            "discovery_sources": [
+                                {"id": "src-1", "name": "Local network sweep"},
+                                {"id": "src-2", "name": "Lab SNMP"}
+                            ]
+                        }
+                    },
+                    "meta": {"request_id": "req-1"}
+                }
+                """.trimIndent()
+
+            val repo = SubnetRepositoryImpl(createMockApiClient(json))
+            val result = repo.getSubnetDeletionImpact("sub-1")
+
+            assertIs<ApiResult.Success<*>>(result)
+            val data = (result as ApiResult.Success).data
+            assertEquals(
+                listOf(
+                    SubnetDiscoverySource(id = "src-1", name = "Local network sweep"),
+                    SubnetDiscoverySource(id = "src-2", name = "Lab SNMP"),
+                ),
+                data.impact.discoverySources,
+            )
         }
 
     @Test
@@ -212,5 +249,32 @@ class SubnetRepositoryImplTest {
             assertEquals("sub-1", data.deletedId)
             assertEquals(3, data.impact.affectedDevices)
             assertEquals(2, data.impact.unlinkedTopologyEdges)
+            assertEquals(emptyList(), data.impact.discoverySources)
+        }
+
+    @Test
+    fun deleteSubnetDecodesLinkedDiscoverySources() =
+        runTest {
+            val json =
+                """
+                {
+                    "data": {
+                        "deleted_id": "sub-1",
+                        "impact": {
+                            "affected_devices": 1,
+                            "unlinked_topology_edges": 0,
+                            "discovery_sources": [{"id": "src-1", "name": "Local network sweep"}]
+                        }
+                    },
+                    "meta": {"request_id": "req-1"}
+                }
+                """.trimIndent()
+
+            val repo = SubnetRepositoryImpl(createMockApiClient(json))
+            val result = repo.deleteSubnet("sub-1")
+
+            assertIs<ApiResult.Success<*>>(result)
+            val data = (result as ApiResult.Success).data
+            assertEquals(listOf(SubnetDiscoverySource(id = "src-1", name = "Local network sweep")), data.impact.discoverySources)
         }
 }

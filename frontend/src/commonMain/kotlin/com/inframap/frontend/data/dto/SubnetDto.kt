@@ -56,10 +56,22 @@ data class SubnetCidrImpactResponse(
     @SerialName("affected_devices_count") val affectedDevicesCount: Int,
 )
 
+/** An active discovery source holding a target linked to the Subnet (RFC-026 §6). */
+@Serializable
+data class SubnetDiscoverySource(
+    val id: String,
+    val name: String,
+)
+
 @Serializable
 data class SubnetDeletionImpact(
     @SerialName("affected_devices") val affectedDevices: Int,
     @SerialName("unlinked_topology_edges") val unlinkedTopologyEdges: Int,
+    /**
+     * Sources that scan the Subnet. Deleting it keeps them: the linked target stays in their
+     * list and is skipped on runs. Older backends leave the key out.
+     */
+    @SerialName("discovery_sources") val discoverySources: List<SubnetDiscoverySource> = emptyList(),
 )
 
 @Serializable

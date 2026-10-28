@@ -2,6 +2,7 @@ package com.inframap.frontend.ui.dashboard
 
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.DiscoveryTargetRequestDto
 import com.inframap.frontend.data.sse.SSEEvent
 import com.inframap.frontend.domain.model.Health
 import com.inframap.frontend.domain.model.PaginatedList
@@ -661,9 +662,11 @@ class DashboardViewModelTest {
                             requestId = "",
                         ),
                 )
+            val discoveryRepo = FakeDiscoveryRepository()
             val vm =
                 makeVm(
                     subnetRepo = subnetRepo,
+                    discoveryRepo = discoveryRepo,
                     networkRepo = netRepo,
                     scope = this,
                 )
@@ -682,6 +685,44 @@ class DashboardViewModelTest {
             advanceUntilIdle()
 
             assertEquals(AutoSetupPhase.COMPLETED, vm.state.value.autoSetup.phase)
+            // The Subnet created for the interface becomes the linked target of the one source.
+            assertEquals(1, discoveryRepo.createSourceCallCount)
+            assertEquals(
+                listOf(DiscoveryTargetRequestDto(cidr = "192.168.1.0/24", subnetId = FakeSubnetRepository.DEFAULT_SUBNET.id)),
+                discoveryRepo.lastCreateSourceRequest?.config?.targets,
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun autoSetupIsNotOfferedWhenSubnetsAlreadyExist() =
+        runTest {
+            val netRepo =
+                FakeNetworkRepository(
+                    getInterfacesResult =
+                        ApiResult.Success(
+                            listOf(
+                                com.inframap.frontend.domain.model.NetworkInterface(
+                                    name = "eth0",
+                                    ip = "192.168.1.10",
+                                    cidr = "192.168.1.0/24",
+                                    mac = "00:11:22:33:44:55",
+                                ),
+                            ),
+                            requestId = "",
+                        ),
+                )
+            val discoveryRepo = FakeDiscoveryRepository()
+            val vm = makeVm(discoveryRepo = discoveryRepo, networkRepo = netRepo, scope = this)
+            advanceUntilIdle()
+
+            vm.checkAutoSetup()
+            vm.startAutoSetup()
+            advanceUntilIdle()
+
+            assertFalse(vm.state.value.autoSetup.isVisible)
+            assertEquals(AutoSetupPhase.IDLE, vm.state.value.autoSetup.phase)
+            assertEquals(0, discoveryRepo.createSourceCallCount)
             vm.clear()
         }
 

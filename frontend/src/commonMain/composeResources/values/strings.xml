@@ -237,6 +237,7 @@
     <string name="dashboard_auto_setup_scanning">Escaneando redes ativas...</string>
     <string name="dashboard_auto_setup_completed">Varredura concluída! %1$d dispositivos encontrados.</string>
     <string name="dashboard_auto_setup_view_staging">Ver na Fila de Staging</string>
+    <string name="auto_setup_local_network_source_name">Varredura da rede local</string>
 
     <!-- Command Palette -->
     <string name="command_palette_category_acoes">Ações Rápidas</string>
@@ -446,7 +447,6 @@
     <string name="topology_hosted_on">Hospedado em</string>
     <string name="topology_inspector_power_state">Estado de energia</string>
     <string name="device_detail_power_state">Estado de energia</string>
-    <string name="subnet_chips_title">Sub-redes cadastradas</string>
     <string name="subnet_chips_empty">Nenhuma sub-rede cadastrada para sugestão.</string>
 
     <!-- Collector and Provider Tooltips -->
@@ -497,6 +497,7 @@
     <string name="delete_subnet_confirm_message">Tem certeza de que deseja excluir a sub-rede \"%1$s\"? Esta ação removerá a sub-rede da listagem ativa.</string>
     <string name="delete_subnet_impact_devices">%1$d dispositivo(s) contido(s)</string>
     <string name="delete_subnet_impact_edges">%1$d aresta(s) de topologia vinculada(s)</string>
+    <string name="delete_subnet_impact_sources">%1$d fonte(s) de descoberta varrendo esta sub-rede: %2$s. As fontes são mantidas e este alvo será ignorado nas próximas execuções.</string>
     <string name="delete_subnet_success">Sub-rede \"%1$s\" excluída com sucesso.</string>
     <string name="delete_subnet_error">Falha ao excluir sub-rede.</string>
 
