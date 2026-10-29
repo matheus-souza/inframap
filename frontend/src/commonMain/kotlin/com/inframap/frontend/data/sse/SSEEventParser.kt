@@ -3,13 +3,15 @@ package com.inframap.frontend.data.sse
 object SSEEventParser {
     /**
      * Event names the Discovery Sources module publishes when a source is created, updated or
-     * deleted, or when one of its runs finishes, whoever started it (operator, scheduler, API).
+     * deleted, or when one of its runs starts or finishes, whoever started it (operator,
+     * scheduler, API). The backend gateway forwards the same names.
      */
     val DISCOVERY_SOURCE_EVENT_TYPES: List<String> =
         listOf(
             "discovery_source.created",
             "discovery_source.updated",
             "discovery_source.deleted",
+            "discovery_source.scan.started",
             "discovery_source.run_finished",
         )
 

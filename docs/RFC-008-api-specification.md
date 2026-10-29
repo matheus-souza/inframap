@@ -194,7 +194,7 @@ All endpoints are prefixed with `/api/v1`.
   - **Multi-collector execution**: All enabled collectors run in parallel. Per-collector results are stored in `discovery_collector_runs` table.
   - **Partial status**: Response `last_status` is `"partial"` when some collectors succeed and some fail; `"idle"` when all succeed; `"error"` when all fail; `"cancelled"` on context cancellation.
   - **Recorded failures**: a run that ends in error once its outcome is recorded (every collector failed, no target left to scan, a stored target that no longer parses) answers `200` with the source response in `last_status: "error"` and its `last_run`, like any other finished run. `500 INTERNAL_ERROR` is kept for a run that could not start or whose status could not be persisted.
-  - **Detached run**: the run belongs to the server, not to the request. A client that disconnects (a reloaded or closed page) leaves the run going to its recorded outcome, which the source's `last_status` and `last_run` show; it is cancelled only when the server shuts down. A manual run shares the per-source lock with scheduled runs: while a run of the source is in progress the endpoint answers `409 RUN_IN_PROGRESS`, and `503 SERVICE_UNAVAILABLE` while the server starts or stops. `discovery_source.scan.started` and `discovery_source.scan.completed` are published with `trigger: "manual"` (`"scheduled"` for cron runs).
+  - **Detached run**: the run belongs to the server, not to the request. A client that disconnects (a reloaded or closed page) leaves the run going to its recorded outcome, which the source's `last_status` and `last_run` show; it is cancelled only when the server shuts down. The response is exempt from the server's `WriteTimeout`, so a client that waits receives the outcome of a run that lasts minutes. A manual run shares the per-source lock with scheduled runs: while a run of the source is in progress the endpoint answers `409 RUN_IN_PROGRESS`, and `503 SERVICE_UNAVAILABLE` while the server starts or stops. `discovery_source.scan.started` and `discovery_source.scan.completed` are published with `trigger: "manual"` (`"scheduled"` for cron runs).
 - `GET  /api/v1/discovery/sources/:id/runs` — List collector run history for a source (query params: `limit` default 20, `offset` default 0). Returns `{ "data": { "items": [CollectorRunResponse], "total": count } }` with retention default of 7 days (configurable via `INFRAMAP_DISCOVERY_RUN_RETENTION_DAYS`).
   - **`target_cidr`** (RFC-026 §4, §7): every item carries the target the run scanned. Collectors with the `per_target` scope record one row per (collector, target) with `target_cidr` set; `union`- and `none`-scoped collectors record one row per collector with `target_cidr: null`. The same field appears on each `last_run.collectors[]` entry of the source response.
   - **Example item**:
@@ -256,7 +256,8 @@ InfraMap adopts **Server-Sent Events (SSE)** for streaming real-time notificatio
 ```
 
 ### SSE Stream Endpoint
-- `GET /api/v1/events/stream` — Establishes SSE stream connection.
+- `GET /api/v1/events/stream` — Establishes SSE stream connection. The stream is exempt from the server's `WriteTimeout`: it stays open for as long as the client listens, with a heartbeat comment every 15 s.
+- Forwarded event types: `discovery.progress`, `topology.updated`, `system.notification`, `device.created`, `device.updated`, and the Discovery Sources events `discovery_source.created`, `discovery_source.updated`, `discovery_source.deleted`, `discovery_source.scan.started` and `discovery_source.run_finished`. The `discovery_source.*` payloads carry the source id, status, schedule and run counts, never a source's configuration or credentials.
 
 ### SSE Message Payload Format
 
@@ -278,6 +279,12 @@ data: {"action":"link_added","source_device_id":"0198a1...","target_device_id":"
 ```text
 event: system.notification
 data: {"level":"warning","message":"Integration Proxmox node-01 connection timed out"}
+```
+
+#### 4. Discovery Source Run Finished (`discovery_source.run_finished`)
+```text
+event: discovery_source.run_finished
+data: {"source_id":"0198a...","status":"partial","duration_ms":235366,"total_collected":20,"total_valid":20,"total_discovered":3,"total_updated":17}
 ```
 
 ### SSE Reconnection & Event Recovery (`Last-Event-ID`)

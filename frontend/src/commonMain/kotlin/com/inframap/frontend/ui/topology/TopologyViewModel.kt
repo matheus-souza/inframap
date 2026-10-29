@@ -109,17 +109,22 @@ class TopologyViewModel(
     private fun setupSseListening() {
         val client = sseClient ?: return
         launchJob("sse_listening") {
-            while (isActive) {
-                client
-                    .connect("/api/v1/events/stream")
-                    .takeWhile { it !is SSEEvent.Disconnected }
-                    .collect { event ->
-                        if (event is SSEEvent.TopologyUpdated || event is SSEEvent.DeviceCreated) {
-                            loadGraph()
+            // clear() cancels this job; the finally closes the browser's connection with it.
+            try {
+                while (isActive) {
+                    client
+                        .connect("/api/v1/events/stream")
+                        .takeWhile { it !is SSEEvent.Disconnected }
+                        .collect { event ->
+                            if (event is SSEEvent.TopologyUpdated || event is SSEEvent.DeviceCreated) {
+                                loadGraph()
+                            }
                         }
-                    }
+                    client.disconnect()
+                    delay(5000L)
+                }
+            } finally {
                 client.disconnect()
-                delay(5000L)
             }
         }
     }

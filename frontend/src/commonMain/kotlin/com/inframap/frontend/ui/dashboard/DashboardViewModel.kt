@@ -274,22 +274,27 @@ class DashboardViewModel(
     private fun startSseListening() {
         val client = sseClient ?: return
         launchJob("sse_listening") {
-            while (isActive) {
-                client
-                    .connect("/api/v1/events/stream")
-                    .takeWhile { it !is SSEEvent.Disconnected }
-                    .collect { event ->
-                        when (event) {
-                            is SSEEvent.DeviceCreated,
-                            is SSEEvent.DeviceUpdated,
-                            is SSEEvent.TopologyUpdated,
-                            is SSEEvent.DiscoveryProgress,
-                            -> triggerFetchMetrics()
-                            else -> Unit
+            // clear() cancels this job; the finally closes the browser's connection with it.
+            try {
+                while (isActive) {
+                    client
+                        .connect("/api/v1/events/stream")
+                        .takeWhile { it !is SSEEvent.Disconnected }
+                        .collect { event ->
+                            when (event) {
+                                is SSEEvent.DeviceCreated,
+                                is SSEEvent.DeviceUpdated,
+                                is SSEEvent.TopologyUpdated,
+                                is SSEEvent.DiscoveryProgress,
+                                -> triggerFetchMetrics()
+                                else -> Unit
+                            }
                         }
-                    }
+                    client.disconnect()
+                    delay(5000L)
+                }
+            } finally {
                 client.disconnect()
-                delay(5000L)
             }
         }
     }

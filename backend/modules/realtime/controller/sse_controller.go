@@ -2,6 +2,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -30,6 +31,13 @@ func (c *SSEController) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		httputil.WriteError(w, r, http.StatusBadRequest, "STREAMING_UNSUPPORTED", "Server-Sent Events streaming is not supported by connection", nil)
 		return
+	}
+
+	// The server's WriteTimeout bounds ordinary responses; a stream stays open for as long as
+	// the client listens, so it lifts the deadline (the client otherwise drops and reconnects
+	// at the first heartbeat after it).
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		slog.Warn("failed to lift the write deadline of an SSE stream", "error", err)
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")

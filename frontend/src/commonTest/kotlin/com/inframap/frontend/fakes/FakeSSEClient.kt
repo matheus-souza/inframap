@@ -9,11 +9,14 @@ import kotlinx.coroutines.flow.asSharedFlow
 class FakeSSEClient : SSEClient {
     val events = MutableSharedFlow<SSEEvent>()
     var connectCount = 0
+    var disconnectCount = 0
 
     override fun connect(url: String): SharedFlow<SSEEvent> {
         connectCount++
         return events.asSharedFlow()
     }
 
-    override fun disconnect() {}
+    override fun disconnect() {
+        disconnectCount++
+    }
 }

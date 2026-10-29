@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,13 +27,16 @@ import kotlin.test.assertTrue
 private class FakeTopologySSEClient : SSEClient {
     val events = MutableSharedFlow<SSEEvent>()
     var connectCount = 0
+    var disconnectCount = 0
 
     override fun connect(url: String): SharedFlow<SSEEvent> {
         connectCount++
         return events.asSharedFlow()
     }
 
-    override fun disconnect() {}
+    override fun disconnect() {
+        disconnectCount++
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -193,6 +197,26 @@ class TopologyViewModelTest {
             }
 
             viewModel.clear()
+        }
+
+    @Test
+    fun leavingTheScreenClosesTheEventStream() =
+        runTest {
+            val fakeSse = FakeTopologySSEClient()
+            val fakeRepo = FakeTopologyRepository(ApiResult.Success(sampleGraph, requestId = "req-1"))
+            val viewModel =
+                TopologyViewModel(
+                    getTopologyGraphUseCase = GetTopologyGraphUseCase(fakeRepo),
+                    sseClient = fakeSse,
+                    scope = this,
+                )
+            runCurrent()
+            assertEquals(1, fakeSse.connectCount)
+            assertEquals(0, fakeSse.disconnectCount)
+
+            viewModel.clear()
+            runCurrent()
+            assertEquals(1, fakeSse.disconnectCount)
         }
 
     @Test
