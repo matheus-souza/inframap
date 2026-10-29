@@ -1021,3 +1021,180 @@ func TestScheduler_InvalidInterval_GuardsAgainstPanicAndPreservesDefault(t *test
 }
 
 
+
+func startManualScheduler(t *testing.T, uc *fakeUseCase, updater *fakeStatusUpdater) (*scheduler.Scheduler, eventbus.EventBus) {
+	t.Helper()
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	t.Cleanup(func() { _ = bus.Close() })
+	s := scheduler.New(uc, updater, bus, slog.Default())
+	if err := s.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error: %v", err)
+	}
+	return s, bus
+}
+
+func TestScheduler_RunNowReturnsTheRunOutcome(t *testing.T) {
+	srcID := uuid.New()
+	uc := &fakeUseCase{triggerResult: &dto.DiscoverySourceResponse{ID: srcID, LastStatus: "partial"}}
+	s, bus := startManualScheduler(t, uc, &fakeStatusUpdater{})
+	defer s.Stop()
+
+	completed := make(chan map[string]interface{}, 1)
+	_ = bus.Subscribe("discovery_source.scan.completed", func(_ context.Context, e eventbus.DomainEvent) error {
+		payload, _ := e.Payload().(map[string]interface{})
+		completed <- payload
+		return nil
+	})
+
+	res, err := s.RunNow(context.Background(), srcID)
+	if err != nil {
+		t.Fatalf("RunNow() error: %v", err)
+	}
+	if res == nil || res.LastStatus != "partial" {
+		t.Fatalf("expected the run's response, got %+v", res)
+	}
+
+	select {
+	case payload := <-completed:
+		if payload["trigger"] != "manual" || payload["status"] != "partial" {
+			t.Errorf("expected a manual completed event with status partial, got %v", payload)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("discovery_source.scan.completed event not received within 3s")
+	}
+}
+
+func TestScheduler_RunNowKeepsRunningAfterTheCallerLeaves(t *testing.T) {
+	srcID := uuid.New()
+	uc := &fakeUseCase{triggerDelay: 300 * time.Millisecond}
+	s, _ := startManualScheduler(t, uc, &fakeStatusUpdater{})
+	defer s.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := s.RunNow(ctx, srcID); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected the caller's deadline, got %v", err)
+	}
+
+	// The fake records a call only when its delay ends on the run's own context.
+	waitForCalls(t, uc, 1, 3*time.Second)
+}
+
+func TestScheduler_RunNowRefusesASourceAlreadyRunning(t *testing.T) {
+	srcID := uuid.New()
+	started := make(chan struct{}, 1)
+	uc := &fakeUseCase{
+		triggerDelay:   30 * time.Second,
+		onTriggerStart: func() { started <- struct{}{} },
+	}
+	s, _ := startManualScheduler(t, uc, &fakeStatusUpdater{})
+	defer s.Stop()
+
+	go func() { _, _ = s.RunNow(context.Background(), srcID) }()
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("first run did not start within 3s")
+	}
+
+	if _, err := s.RunNow(context.Background(), srcID); !errors.Is(err, scheduler.ErrRunInProgress) {
+		t.Fatalf("expected ErrRunInProgress, got %v", err)
+	}
+	if _, err := s.RunNow(context.Background(), uuid.New()); err != nil {
+		t.Fatalf("another source must run alongside: %v", err)
+	}
+}
+
+func TestScheduler_RunNowSharesTheLockWithScheduledRuns(t *testing.T) {
+	srcID := uuid.New()
+	started := make(chan struct{}, 1)
+	uc := &fakeUseCase{
+		sources: []*dto.DiscoverySourceResponse{
+			{ID: srcID, Enabled: true, ScheduleCron: cron1s(), LastStatus: "idle"},
+		},
+		triggerDelay: 30 * time.Second,
+		onTriggerStart: func() {
+			select {
+			case started <- struct{}{}:
+			default:
+			}
+		},
+	}
+	s, _ := startManualScheduler(t, uc, &fakeStatusUpdater{})
+	defer s.Stop()
+
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("scheduled run did not start within 3s")
+	}
+	if _, err := s.RunNow(context.Background(), srcID); !errors.Is(err, scheduler.ErrRunInProgress) {
+		t.Fatalf("expected ErrRunInProgress during a scheduled run, got %v", err)
+	}
+}
+
+func TestScheduler_UpdateEventKeepsTheRunLockOfARunningSource(t *testing.T) {
+	srcID := uuid.New()
+	started := make(chan struct{}, 1)
+	uc := &fakeUseCase{
+		triggerDelay:   30 * time.Second,
+		onTriggerStart: func() { started <- struct{}{} },
+	}
+	s, bus := startManualScheduler(t, uc, &fakeStatusUpdater{})
+	defer s.Stop()
+
+	go func() { _, _ = s.RunNow(context.Background(), srcID) }()
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("first run did not start within 3s")
+	}
+
+	// Saving the source mid-run re-registers it with the scheduler.
+	_ = bus.Publish(context.Background(), eventbus.NewBaseEvent("discovery_source.updated", map[string]interface{}{
+		"source_id": srcID.String(),
+		"enabled":   true,
+	}))
+	time.Sleep(200 * time.Millisecond)
+
+	if _, err := s.RunNow(context.Background(), srcID); !errors.Is(err, scheduler.ErrRunInProgress) {
+		t.Fatalf("expected ErrRunInProgress after an update event, got %v", err)
+	}
+}
+
+func TestScheduler_StopCancelsAManualRunAndRecordsIt(t *testing.T) {
+	srcID := uuid.New()
+	started := make(chan struct{}, 1)
+	uc := &fakeUseCase{
+		triggerDelay:   30 * time.Second,
+		onTriggerStart: func() { started <- struct{}{} },
+	}
+	updater := &fakeStatusUpdater{}
+	s, _ := startManualScheduler(t, uc, updater)
+
+	go func() { _, _ = s.RunNow(context.Background(), srcID) }()
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("manual run did not start within 3s")
+	}
+
+	s.Stop()
+
+	if status, ok := updater.getStatus(srcID); !ok || status != "cancelled" {
+		t.Errorf("expected status 'cancelled' after shutdown, got %q (found=%v)", status, ok)
+	}
+	if _, err := s.RunNow(context.Background(), srcID); !errors.Is(err, scheduler.ErrNotRunning) {
+		t.Errorf("expected ErrNotRunning after Stop, got %v", err)
+	}
+}
+
+func TestScheduler_RunNowBeforeStartIsRefused(t *testing.T) {
+	bus := eventbus.NewInMemoryEventBus(1, 16)
+	defer func() { _ = bus.Close() }()
+	s := scheduler.New(&fakeUseCase{}, &fakeStatusUpdater{}, bus, slog.Default())
+
+	if _, err := s.RunNow(context.Background(), uuid.New()); !errors.Is(err, scheduler.ErrNotRunning) {
+		t.Fatalf("expected ErrNotRunning before Start, got %v", err)
+	}
+}

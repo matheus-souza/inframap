@@ -24,10 +24,15 @@ func getTestDatabaseURL() string {
 	return url
 }
 
+// e2eMasterKey is a fixed 32-byte test key, not a secret.
+const e2eMasterKey = "inframap-e2e-test-master-key-32b"
+
 func setupTestApp(t *testing.T) (*bootstrap.App, *httptest.Server) {
 	t.Helper()
 	ctx := context.Background()
-	cfg := bootstrap.Config{DatabaseURL: getTestDatabaseURL()}
+	// One key for every app of the run: a started app's scheduler lists, and so decrypts,
+	// the sources earlier tests stored.
+	cfg := bootstrap.Config{DatabaseURL: getTestDatabaseURL(), MasterKey: e2eMasterKey}
 
 	// Test if DB is reachable
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
@@ -42,6 +47,12 @@ func setupTestApp(t *testing.T) (*bootstrap.App, *httptest.Server) {
 	app, err := bootstrap.New(ctx, cfg)
 	if err != nil {
 		t.Fatalf("failed to bootstrap app for E2E test: %v", err)
+	}
+	// Like cmd/api: manual discovery runs go through the scheduler, which only runs once
+	// the app is started.
+	if err := app.Start(ctx); err != nil {
+		app.Close()
+		t.Fatalf("failed to start app for E2E test: %v", err)
 	}
 
 	ts := httptest.NewServer(app.Router)

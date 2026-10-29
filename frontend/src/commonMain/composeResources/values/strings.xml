@@ -123,6 +123,7 @@
     <string name="discovery_error_create">Falha ao criar fonte de descoberta.</string>
     <string name="discovery_error_delete">Falha ao excluir fonte de descoberta.</string>
     <string name="discovery_error_trigger">Falha ao disparar varredura.</string>
+    <string name="discovery_error_run_in_progress">Esta fonte já está em execução. A lista se atualiza quando ela terminar.</string>
     <string name="discovery_run_triggered">Varredura disparada com sucesso.</string>
     <string name="discovery_empty_title">Nenhuma fonte de descoberta configurada</string>
     <string name="discovery_empty_subtitle">Fontes de descoberta escaneiam sua rede automaticamente para encontrar dispositivos. Crie sua primeira fonte para começar.</string>

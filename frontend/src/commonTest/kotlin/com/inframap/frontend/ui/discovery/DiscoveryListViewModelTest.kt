@@ -11,6 +11,9 @@ import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourcesUseCase
 import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
 import com.inframap.frontend.fakes.FakeDiscoveryRepository
 import com.inframap.frontend.fakes.FakeSSEClient
+import com.inframap.frontend.generated.resources.Res
+import com.inframap.frontend.generated.resources.discovery_error_run_in_progress
+import com.inframap.frontend.ui.util.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -459,6 +462,40 @@ class DiscoveryListViewModelTest {
                     .lastStatus,
             )
             assertEquals(2, repo.getSourcesCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun aRunAlreadyInProgressIsFollowedInsteadOfReportedAsAFailure() =
+        runTest {
+            val repo =
+                FakeDiscoveryRepository(
+                    getSourcesResult = sourcesResult(sampleSource),
+                    triggerRunResult =
+                        ApiResult.Error(
+                            code = "RUN_IN_PROGRESS",
+                            message = "A run of this discovery source is already in progress",
+                            requestId = "",
+                            httpStatus = 409,
+                        ),
+                )
+            val vm = makeVm(repo = repo, scope = this)
+            runCurrent()
+
+            vm.triggerRun("src-1")
+            runCurrent()
+            val state = vm.state.value
+            assertEquals("running", state.sources.single().lastStatus)
+            assertEquals(UiText.Resource(Res.string.discovery_error_run_in_progress), state.triggerRunError)
+
+            repo.getSourcesResult = sourcesResult(sampleSource.copy(lastStatus = "success"))
+            advanceUntilIdle()
+            assertEquals(
+                "success",
+                vm.state.value.sources
+                    .single()
+                    .lastStatus,
+            )
             vm.clear()
         }
 
