@@ -678,6 +678,44 @@ func TestOrchestrator_RunTargets_Scopes(t *testing.T) {
 	})
 }
 
+func TestOrchestrator_RunTargets_UnionCollectorsRunAfterEveryTarget(t *testing.T) {
+	var mu sync.Mutex
+	var order []string
+	logCall := func(id string) func(context.Context, collectors.DiscoveryTarget) error {
+		return func(_ context.Context, target collectors.DiscoveryTarget) error {
+			mu.Lock()
+			defer mu.Unlock()
+			order = append(order, id+" "+target.CIDR)
+			return nil
+		}
+	}
+	icmp := &recordingCollector{id: "icmp"}
+	icmp.onCollect = logCall("icmp")
+	arp := &recordingCollector{id: "arp"}
+	arp.onCollect = logCall("arp")
+	docker := &recordingCollector{id: "docker"}
+	docker.onCollect = logCall("docker")
+
+	orch := engine.NewDefaultOrchestrator(nil)
+	orch.RegisterCollector(icmp)
+	orch.RegisterCollector(arp)
+	orch.RegisterCollector(docker)
+
+	targets := threeTargets()
+	if _, err := orch.RunTargets(context.Background(), collectors.DiscoveryTarget{}, targets, nil, []string{"icmp_sweep", "arp_sweep", "docker"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The ARP collector reads the neighbour table the sweeps fill, so it must come after the
+	// last target's sweep; providers need no target and keep running with the first one.
+	if len(order) != 5 || order[len(order)-1] != "arp " {
+		t.Fatalf("call order = %v, want arp last", order)
+	}
+	if !slices.Contains(order[:2], "docker ") {
+		t.Errorf("call order = %v, want docker with the first target", order)
+	}
+}
+
 func TestOrchestrator_RunTargets_NoTargets(t *testing.T) {
 	sourceID := uuid.New()
 	icmp := &recordingCollector{id: "icmp"}

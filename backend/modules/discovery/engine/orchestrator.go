@@ -191,9 +191,10 @@ func (o *DefaultOrchestrator) RunScan(ctx context.Context, target collectors.Dis
 //
 // run carries the fields shared by the whole run (SourceID, CredentialSetID); its CIDR,
 // SubnetID and Prefixes are ignored. Targets are processed sequentially, in order, and the
-// collectors of one target run in parallel under the bounded worker pool; union and none
-// collectors join the first target. With no targets, only union and none collectors run,
-// and per_target collectors are reported as errors.
+// collectors of one target run in parallel under the bounded worker pool; none collectors
+// join the first target, and union collectors run last, after every target was probed: the
+// ARP collector reads the neighbour table the sweeps just filled. With no targets, only
+// union and none collectors run, and per_target collectors are reported as errors.
 //
 // All observations of the run are then processed once, so a device reported by several
 // targets is discovered or updated once. When ctx is cancelled the current target is
@@ -252,8 +253,10 @@ func (o *DefaultOrchestrator) RunTargets(ctx context.Context, run collectors.Dis
 }
 
 // planTargetBatches splits a multi-target run into one batch of jobs per target, in target
-// order. Union and none-scope collectors run once and join the first batch. With no
-// targets, per_target collectors cannot run and are returned as error details instead.
+// order. None-scope collectors run once and join the first batch; union collectors run once
+// in a final batch of their own, so a link-local reader (ARP) sees the neighbours the
+// per_target sweeps reached. With no targets, per_target collectors cannot run and are
+// returned as error details instead.
 func planTargetBatches(run collectors.DiscoveryTarget, targets []collectors.DiscoveryTarget, cols []collectors.Collector) ([][]collectorJob, []CollectorRunDetail) {
 	base := run
 	base.CIDR = ""
@@ -261,15 +264,15 @@ func planTargetBatches(run collectors.DiscoveryTarget, targets []collectors.Disc
 	base.Prefixes = nil
 
 	var perTarget []collectors.Collector
-	var shared []collectorJob
+	var unionJobs, noneJobs []collectorJob
 	for _, col := range cols {
 		switch collectors.TargetScopeOf(col.ID()) {
 		case collectors.TargetScopeUnion:
 			union := base
 			union.Prefixes = unionPrefixes(targets)
-			shared = append(shared, collectorJob{collector: col, target: union})
+			unionJobs = append(unionJobs, collectorJob{collector: col, target: union})
 		case collectors.TargetScopeNone:
-			shared = append(shared, collectorJob{collector: col, target: base})
+			noneJobs = append(noneJobs, collectorJob{collector: col, target: base})
 		default:
 			perTarget = append(perTarget, col)
 		}
@@ -284,15 +287,16 @@ func planTargetBatches(run collectors.DiscoveryTarget, targets []collectors.Disc
 				ErrorMessage:  fmt.Sprintf("collector %q requires a target CIDR", col.ID()),
 			})
 		}
+		shared := append(noneJobs, unionJobs...)
 		if len(shared) == 0 {
 			return nil, unrunnable
 		}
 		return [][]collectorJob{shared}, unrunnable
 	}
 
-	batches := make([][]collectorJob, 0, len(targets))
+	batches := make([][]collectorJob, 0, len(targets)+1)
 	for i, tgt := range targets {
-		batch := make([]collectorJob, 0, len(perTarget)+len(shared))
+		batch := make([]collectorJob, 0, len(perTarget)+len(noneJobs))
 		for _, col := range perTarget {
 			target := base
 			target.CIDR = tgt.CIDR
@@ -300,9 +304,12 @@ func planTargetBatches(run collectors.DiscoveryTarget, targets []collectors.Disc
 			batch = append(batch, collectorJob{collector: col, target: target, targetCIDR: tgt.CIDR})
 		}
 		if i == 0 {
-			batch = append(batch, shared...)
+			batch = append(batch, noneJobs...)
 		}
 		batches = append(batches, batch)
+	}
+	if len(unionJobs) > 0 {
+		batches = append(batches, unionJobs)
 	}
 	return batches, nil
 }

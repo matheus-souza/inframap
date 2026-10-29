@@ -75,6 +75,32 @@ docker run --rm --network container:inframap busybox cat /proc/sys/net/ipv4/ping
 - **User namespaces (unprivileged LXC, rootless Docker)**: the kernel accepts only group IDs mapped in the container's user namespace, so a range beyond the mapping fails container start with `failed to write sysctl net.ipv4.ping_group_range ... invalid argument`. Such a namespace usually maps 65 536 IDs (`cat /proc/self/uid_map` on the Docker host shows e.g. `0 100000 65536`), which is why the range above ends at `65535`; it still covers the image's group `65532`. Docker's own default (`0 2147483647`) cannot be applied there either, which is how ICMP sweeps end up without a socket on such hosts.
 - **`network_mode: host`**: Docker rejects `net.*` sysctls in the host's network namespace, and the host's own value applies. Set it on the host instead (`sysctl -w net.ipv4.ping_group_range="0 65535"`, persisted in a file under `/etc/sysctl.d/`).
 
+### LAN Discovery: Host Networking
+
+On a Docker bridge network the container has a network of its own, so two collectors cannot see the LAN:
+
+- **ARP** reads the kernel's neighbour table, which in a bridge container lists only the bridge gateway: the run records `arp_sweep` as `success` with 0 devices and no device gets a MAC address.
+- **mDNS** joins the `224.0.0.251` multicast group, and multicast does not cross the bridge: no `.local` names are found.
+
+ICMP sweeps, reverse DNS, SNMP and the API providers (Proxmox, Docker) work on either network. To discover MAC addresses and mDNS names, run InfraMap on the host's network with [`docker-compose.homelab-host.yml`](../docker-compose.homelab-host.yml):
+
+1. **PostgreSQL on the loopback**: the database stays on its own network and is published on `127.0.0.1` only, so point the app at it there:
+   ```env
+   DATABASE_URL=postgres://inframap:your_secure_postgres_password_here@127.0.0.1:5432/inframap?sslmode=disable
+   # Optional, when 5432 is taken on the host:
+   # POSTGRES_HOST_PORT=5433
+   ```
+2. **ICMP on the host**: Docker rejects `sysctls` with `network_mode: host`, so set the ping group range on the host (inside the LXC for an LXC-hosted Docker) and persist it:
+   ```bash
+   echo 'net.ipv4.ping_group_range = 0 65535' | sudo tee /etc/sysctl.d/90-inframap-ping.conf
+   sudo sysctl --system
+   cat /proc/sys/net/ipv4/ping_group_range   # expect: 0	65535
+   ```
+3. **Port**: the app listens on `INFRAMAP_PORT` (`8055`) directly on the host; there is no `ports:` mapping. Make sure nothing else on the host uses that port.
+4. **Switching an existing install**: stop the bridge stack and start the host one with the same `.env` and data volume (`docker compose -f docker-compose.homelab.yml down`, then `docker compose -f docker-compose.homelab-host.yml up -d`). Both files use the same volume name, so the data is kept.
+
+The ARP collector runs after every target was swept, so it reads the neighbour entries the ICMP sweep of the same run just created; add **Varredura ARP** next to **ICMP Ping** in a source to record MAC addresses.
+
 ### Image Tags
 
 Every published image carries its exact version tag; `:latest` is reserved for stable releases.
