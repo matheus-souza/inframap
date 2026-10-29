@@ -105,4 +105,36 @@ class DiscoveryTargetRulesTest {
         assertEquals(linked.targets, linked.targets.withoutTarget(5))
         assertEquals(TargetRuleViolation.Invalid, emptyList<DiscoveryTarget>().withCidr("x").violation)
     }
+
+    @Test
+    fun canonicalClearsHostBits() {
+        assertEquals("10.99.0.0/24", DiscoveryTargetRules.canonical("10.99.0.5/24"))
+        assertEquals("10.99.0.0/16", DiscoveryTargetRules.canonical(" 10.99.200.7/16 "))
+        assertEquals("192.0.2.1/32", DiscoveryTargetRules.canonical("192.0.2.1/32"))
+        assertEquals("198.51.100.128/25", DiscoveryTargetRules.canonical("198.51.100.200/25"))
+        assertEquals("255.255.255.0/24", DiscoveryTargetRules.canonical("255.255.255.255/24"))
+        assertNull(DiscoveryTargetRules.canonical("10.0.0.0/8"))
+        assertNull(DiscoveryTargetRules.canonical("nope"))
+    }
+
+    @Test
+    fun typedTargetIsStoredAsItsNetwork() {
+        val added = emptyList<DiscoveryTarget>().withCidr(" 10.99.0.5/24 ")
+        assertNull(added.violation)
+        assertEquals(listOf(DiscoveryTarget("10.99.0.0/24")), added.targets)
+        assertEquals(
+            "10.99.0.0/24",
+            added.targets
+                .toRequestTargets()
+                .single()
+                .cidr,
+        )
+    }
+
+    @Test
+    fun typedTargetWithHostBitsStillOverlapsItsNetwork() {
+        val existing = emptyList<DiscoveryTarget>().withCidr("10.99.0.5/24").targets
+        assertEquals(TargetRuleViolation.Overlap, existing.withCidr("10.99.0.0/24").violation)
+        assertEquals(existing, existing.withCidr("10.99.0.0/24").targets)
+    }
 }

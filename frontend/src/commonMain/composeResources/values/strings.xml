@@ -20,7 +20,7 @@
     <string name="status_active">Ativo</string>
     <string name="status_offline">Offline</string>
     <string name="status_staged">Staged</string>
-    <string name="status_idle">Inativa</string>
+    <string name="status_idle">Ociosa</string>
     <string name="status_running">Em execução</string>
     <string name="status_partial">Parcial</string>
     <string name="status_error">Erro</string>
@@ -280,7 +280,7 @@
 
     <!-- Staging Screen -->
     <string name="staging_dismiss_error_prefix">Erro ao descartar: %1$s\n\nDeseja tentar novamente?</string>
-    <string name="staging_dismiss_confirm_message">Tem certeza que deseja descartar o dispositivo \'%1$s\' da fila de staging?</string>
+    <string name="staging_dismiss_confirm_message">Tem certeza que deseja descartar o dispositivo '%1$s' da fila de staging?</string>
     <string name="staging_dismiss_dialog_title">Descartar Dispositivo em Staging</string>
     <string name="staging_dismiss_processing">Descartando...</string>
     <string name="staging_dismiss_action">Descartar</string>
@@ -299,7 +299,7 @@
     <!-- Device List Screen -->
     <string name="devices_search_placeholder">Buscar por hostname...</string>
     <string name="devices_delete_dialog_title">Excluir Dispositivo</string>
-    <string name="devices_delete_confirm_message">Tem certeza que deseja excluir o dispositivo \'%1$s\'? Esta ação marca o dispositivo como excluído.</string>
+    <string name="devices_delete_confirm_message">Tem certeza que deseja excluir o dispositivo '%1$s'? Esta ação marca o dispositivo como excluído.</string>
     <string name="devices_delete_error_retry">Erro ao excluir: %1$s\n\nTem certeza que deseja tentar novamente?</string>
     <string name="devices_delete_processing">Excluindo...</string>
     <string name="devices_delete_action">Excluir</string>
@@ -317,7 +317,7 @@
 
     <!-- Device Detail Screen -->
     <string name="device_detail_delete_dialog_title">Excluir Dispositivo</string>
-    <string name="device_detail_delete_confirm">Deseja realmente excluir o dispositivo \'%1$s\'?</string>
+    <string name="device_detail_delete_confirm">Deseja realmente excluir o dispositivo '%1$s'?</string>
     <string name="device_detail_delete_processing">Excluindo...</string>
     <string name="device_detail_delete_action">Excluir</string>
     <string name="device_detail_back">Voltar</string>
@@ -370,7 +370,7 @@
     <!-- Discovery List Screen -->
     <string name="discovery_new_button">+ Nova Fonte</string>
     <string name="discovery_delete_dialog_title">Excluir Fonte de Descoberta</string>
-    <string name="discovery_delete_confirm_message">Tem certeza que deseja excluir a fonte \'%1$s\'? Os agendamentos associados serão removidos.</string>
+    <string name="discovery_delete_confirm_message">Tem certeza que deseja excluir a fonte '%1$s'? Os agendamentos associados serão removidos.</string>
     <string name="discovery_col_name">Nome</string>
     <string name="discovery_col_type">Tipo</string>
     <string name="discovery_col_cidr">CIDR</string>
@@ -493,11 +493,11 @@
     <string name="edit_subnet_impact_title">Aviso de Impacto no Bloco CIDR</string>
     <string name="edit_subnet_impact_warning">A alteração da faixa CIDR deixará %1$d dispositivo(s) fora da nova sub-rede. Deseja prosseguir com a alteração?</string>
     <string name="delete_subnet_dialog_title">Excluir Sub-rede</string>
-    <string name="delete_subnet_confirm_message">Tem certeza de que deseja excluir a sub-rede \"%1$s\"? Esta ação removerá a sub-rede da listagem ativa.</string>
+    <string name="delete_subnet_confirm_message">Tem certeza de que deseja excluir a sub-rede "%1$s"? Esta ação removerá a sub-rede da listagem ativa.</string>
     <string name="delete_subnet_impact_devices">%1$d dispositivo(s) contido(s)</string>
     <string name="delete_subnet_impact_edges">%1$d aresta(s) de topologia vinculada(s)</string>
     <string name="delete_subnet_impact_sources">%1$d fonte(s) de descoberta varrendo esta sub-rede: %2$s. As fontes são mantidas e este alvo será ignorado nas próximas execuções.</string>
-    <string name="delete_subnet_success">Sub-rede \"%1$s\" excluída com sucesso.</string>
+    <string name="delete_subnet_success">Sub-rede "%1$s" excluída com sucesso.</string>
     <string name="delete_subnet_error">Falha ao excluir sub-rede.</string>
 
     <!-- Edit Discovery Source -->
@@ -519,10 +519,10 @@
     <string name="edit_discovery_source_test_unsaved_warning">Salve as alterações para testar a nova configuração</string>
     <string name="device_discovery_source_inactive">Origem inativa</string>
     <string name="delete_discovery_source_dialog_title">Excluir Fonte de Descoberta</string>
-    <string name="delete_discovery_source_confirm_message">Tem certeza de que deseja excluir a fonte \&quot;%1$s\&quot;? Seus coletores e agendamentos serão desativados.</string>
+    <string name="delete_discovery_source_confirm_message">Tem certeza de que deseja excluir a fonte "%1$s"? Seus coletores e agendamentos serão desativados.</string>
     <string name="delete_discovery_source_impact_collectors">%1$d coletor(es) a desativar</string>
     <string name="delete_discovery_source_impact_devices">%1$d dispositivo(s) associado(s)</string>
-    <string name="delete_discovery_source_success">Fonte de descoberta \&quot;%1$s\&quot; excluída com sucesso.</string>
+    <string name="delete_discovery_source_success">Fonte de descoberta "%1$s" excluída com sucesso.</string>
     <string name="delete_discovery_source_error">Falha ao excluir fonte de descoberta.</string>
     <string name="error_credential_in_use">Esta credencial está em uso por %1$d fonte(s) de descoberta ativa(s).</string>
 </resources>

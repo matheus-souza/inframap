@@ -52,6 +52,12 @@ private data class Ipv4Block(
     val last: Long get() = first + size - 1
 
     fun overlaps(other: Ipv4Block): Boolean = first <= other.last && other.first <= last
+
+    /** The block in CIDR notation with its host bits cleared, e.g. `10.99.0.0/24`. */
+    override fun toString(): String {
+        val octets = (OCTET_COUNT - 1 downTo 0).map { octet -> (first shr (octet * OCTET_BITS)) and OCTET_MAX.toLong() }
+        return octets.joinToString(".") + "/$bits"
+    }
 }
 
 private const val IPV4_BITS = 32
@@ -71,6 +77,13 @@ object DiscoveryTargetRules {
 
     /** Whether [cidr] is an IPv4 CIDR no larger than /16. Host bits may be set, as on the backend. */
     fun isValid(cidr: String): Boolean = parse(cidr) != null
+
+    /**
+     * [cidr] reduced to the network it names, `10.99.0.5/24` becoming `10.99.0.0/24`, or null
+     * when it is not a valid target. A typed target is stored in this form, so the list, the
+     * overlap checks and the request all carry the block the backend scans.
+     */
+    fun canonical(cidr: String): String? = parse(cidr)?.toString()
 
     /** Summed address count of the targets, ignoring any that do not parse. */
     fun addressCount(targets: List<DiscoveryTarget>): Long = targets.mapNotNull { parse(it.cidr) }.sumOf { it.size }
@@ -146,9 +159,12 @@ internal data class TargetsEdit(
     val violation: TargetRuleViolation? = null,
 )
 
-/** Adds a free-form CIDR at the end of the list, unless it breaks a rule. */
+/**
+ * Adds a free-form CIDR at the end of the list in its canonical form (host bits cleared),
+ * unless it breaks a rule.
+ */
 internal fun List<DiscoveryTarget>.withCidr(cidr: String): TargetsEdit {
-    val candidate = DiscoveryTarget(cidr = cidr.trim())
+    val candidate = DiscoveryTarget(cidr = DiscoveryTargetRules.canonical(cidr) ?: cidr.trim())
     val violation = DiscoveryTargetRules.checkAddition(this, candidate)
     return if (violation == null) TargetsEdit(this + candidate) else TargetsEdit(this, violation)
 }

@@ -871,7 +871,7 @@ private fun EditDiscoverySourceRoute(
             onDeleteClicked = viewModel::onDeleteClicked,
             onConfirmDeleteClicked = viewModel::onConfirmDeleteClicked,
             onDismissDeleteDialog = viewModel::onDismissDeleteDialog,
-            onDismissError = viewModel::onDismissError,
+            onRetryLoad = viewModel::loadSource,
             onBackClicked = { navigator.navigateTo(Route.DiscoverySources) },
         )
 

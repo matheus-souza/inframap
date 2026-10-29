@@ -28,6 +28,16 @@ sealed class SSEEvent {
         val data: String,
     ) : SSEEvent()
 
+    /**
+     * A Discovery Source changed or finished a run; [type] is the wire name, one of
+     * [SSEEventParser.DISCOVERY_SOURCE_EVENT_TYPES].
+     */
+    data class DiscoverySourceChanged(
+        override val id: String,
+        val type: String,
+        val data: String,
+    ) : SSEEvent()
+
     data class Connected(
         override val id: String = "",
     ) : SSEEvent()

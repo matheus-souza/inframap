@@ -391,6 +391,30 @@ class CreateDiscoverySourceViewModelTest {
         }
 
     @Test
+    fun typedTargetWithHostBitsIsSentAsItsNetwork() =
+        runTest {
+            val discoveryRepo = FakeDiscoveryRepository()
+            val vm = makeVm(discoveryRepo = discoveryRepo, scope = this)
+
+            vm.onNameChanged("Lab")
+            vm.onCollectorsChanged(setOf("icmp_sweep"))
+            vm.addCidr("10.99.0.5/24")
+
+            assertEquals(listOf(DiscoveryTarget("10.99.0.0/24")), vm.state.value.targets)
+            vm.createSource()
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf("10.99.0.0/24"),
+                discoveryRepo.lastCreateSourceRequest
+                    ?.config
+                    ?.targets
+                    ?.map { it.cidr },
+            )
+            vm.clear()
+        }
+
+    @Test
     fun createSourceWithCustomCronScheduleSubmitsCorrectCron() =
         runTest {
             val discoveryRepo = FakeDiscoveryRepository()

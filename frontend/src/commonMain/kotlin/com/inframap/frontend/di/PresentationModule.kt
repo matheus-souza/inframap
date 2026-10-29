@@ -39,7 +39,7 @@ val presentationModule =
             CreateSubnetViewModel(get(), get(), get(), prefilledCidr, prefilledName)
         }
 
-        factory { DiscoveryListViewModel(get(), get(), get(), get()) }
+        factory { DiscoveryListViewModel(get(), get(), get(), get(), getOrNull()) }
         factory { CreateDiscoverySourceViewModel(get(), get(), get(), get(), get()) }
         factory { (sourceId: String) ->
             EditDiscoverySourceViewModel(sourceId, get(), get(), get(), get(), get(), get())

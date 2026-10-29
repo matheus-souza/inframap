@@ -2,7 +2,9 @@ package com.inframap.frontend.data.sse
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class SSEEventParserTest {
     @Test
@@ -108,6 +110,10 @@ class SSEEventParserTest {
                 "system.notification" to SSEEvent.SystemNotification::class,
                 "device.created" to SSEEvent.DeviceCreated::class,
                 "device.updated" to SSEEvent.DeviceUpdated::class,
+                "discovery_source.created" to SSEEvent.DiscoverySourceChanged::class,
+                "discovery_source.updated" to SSEEvent.DiscoverySourceChanged::class,
+                "discovery_source.deleted" to SSEEvent.DiscoverySourceChanged::class,
+                "discovery_source.run_finished" to SSEEvent.DiscoverySourceChanged::class,
             )
 
         knownTypes.forEach { (type, expectedClass) ->
@@ -118,5 +124,24 @@ class SSEEventParserTest {
                 "Expected $expectedClass for type '$type' but got ${event::class}",
             )
         }
+    }
+
+    @Test
+    fun discoverySourceRunFinishedKeepsItsNameAndPayload() {
+        val payload = """{"source_id":"src-1","status":"success","duration_ms":1200}"""
+        val event = SSEEventParser.parse("discovery_source.run_finished", "evt-9", payload)
+        assertIs<SSEEvent.DiscoverySourceChanged>(event)
+        assertEquals("evt-9", event.id)
+        assertEquals("discovery_source.run_finished", event.type)
+        assertEquals(payload, event.data)
+    }
+
+    @Test
+    fun everyListenedEventTypeIsParsed() {
+        SSEEventParser.EVENT_TYPES.forEach { type ->
+            val event = SSEEventParser.parse(type, "id", "{}")
+            assertFalse(event is SSEEvent.Unknown, "'$type' is listened to but parsed as Unknown")
+        }
+        assertTrue(SSEEventParser.EVENT_TYPES.containsAll(SSEEventParser.DISCOVERY_SOURCE_EVENT_TYPES))
     }
 }
