@@ -18,6 +18,8 @@ data class TopologyNode(
     val powerState: String? = null,
     /** The host that runs this workload, when it is contained by one. */
     val parentDeviceId: String? = null,
+    /** The device's IPv4 address; places the node inside its registered Subnet. */
+    val ipAddress: String? = null,
 )
 
 data class TopologyEdge(

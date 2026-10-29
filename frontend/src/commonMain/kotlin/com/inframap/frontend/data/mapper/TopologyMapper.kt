@@ -15,6 +15,7 @@ fun TopologyNodeDto.toDomain(): TopologyNode =
         status = status,
         powerState = powerState?.takeIf { it.isNotBlank() },
         parentDeviceId = parentDeviceId?.takeIf { it.isNotBlank() },
+        ipAddress = ipAddress?.takeIf { it.isNotBlank() },
     )
 
 fun TopologyEdgeDto.toDomain(): TopologyEdge =

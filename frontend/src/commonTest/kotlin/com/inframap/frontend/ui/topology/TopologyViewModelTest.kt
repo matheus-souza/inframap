@@ -8,7 +8,9 @@ import com.inframap.frontend.data.sse.SSEEvent
 import com.inframap.frontend.domain.model.TopologyEdge
 import com.inframap.frontend.domain.model.TopologyGraph
 import com.inframap.frontend.domain.model.TopologyNode
+import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.domain.usecase.topology.GetTopologyGraphUseCase
+import com.inframap.frontend.fakes.FakeSubnetRepository
 import com.inframap.frontend.fakes.FakeTopologyRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -44,6 +46,32 @@ class TopologyViewModelTest {
     private val sampleNode = TopologyNode(id = "n1", label = "router-01", deviceType = "router", status = "active")
     private val sampleEdge = TopologyEdge(id = "e1", source = "n1", target = "n1", linkType = "physical")
     private val sampleGraph = TopologyGraph(nodes = listOf(sampleNode), edges = listOf(sampleEdge))
+
+    @Test
+    fun registeredSubnetsOutlineTheNodesTheyContain() =
+        runTest {
+            val graph =
+                TopologyGraph(
+                    nodes =
+                        listOf(
+                            sampleNode.copy(id = "in", ipAddress = "192.168.1.1"),
+                            sampleNode.copy(id = "out", ipAddress = "10.9.9.9"),
+                        ),
+                    edges = emptyList(),
+                )
+            val viewModel =
+                TopologyViewModel(
+                    getTopologyGraphUseCase = GetTopologyGraphUseCase(FakeTopologyRepository(ApiResult.Success(graph, requestId = ""))),
+                    listSubnetsUseCase = ListSubnetsUseCase(FakeSubnetRepository()),
+                    scope = this,
+                )
+            advanceUntilIdle()
+
+            val groups = viewModel.state.value.subnetGroups
+            assertEquals(listOf("homelab"), groups.map { it.subnet.name })
+            assertEquals(listOf("in"), groups.single().nodeIds)
+            viewModel.clear()
+        }
 
     @Test
     fun loadGraphSuccessPopulatesState() =

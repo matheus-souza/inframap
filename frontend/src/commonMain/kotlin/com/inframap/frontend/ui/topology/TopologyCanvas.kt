@@ -121,7 +121,7 @@ fun TopologyCanvas(
             } else {
                 // 3. Subnet Boundary Boxes
                 if (state.showSubnetBoundaries) {
-                    drawSubnetBoundaries(graph.nodes, positions, textMeasurer)
+                    drawSubnetBoundaries(state.subnetGroups, positions, textMeasurer)
                 }
 
                 // 4. Edges
@@ -238,28 +238,19 @@ private fun DrawScope.drawEmptyCanvasNodePreview(
 
 @OptIn(ExperimentalTextApi::class)
 private fun DrawScope.drawSubnetBoundaries(
-    nodes: List<TopologyNode>,
+    groups: List<SubnetGroup>,
     positions: Map<String, Offset>,
     textMeasurer: TextMeasurer,
 ) {
-    if (nodes.isEmpty()) return
-
-    // Group nodes into subnets based on IP prefix / device group
-    val groupedNodes =
-        nodes.groupBy { node ->
-            val hash = node.id.hashCode().coerceAtLeast(0) % 2
-            if (hash == 0) "192.168.1.0/24" else "10.0.0.0/24"
-        }
-
-    groupedNodes.forEach { (subnetCidr, groupList) ->
+    groups.forEach { group ->
         var minX = Float.MAX_VALUE
         var minY = Float.MAX_VALUE
         var maxX = -Float.MAX_VALUE
         var maxY = -Float.MAX_VALUE
         var count = 0
 
-        groupList.forEach { node ->
-            val pos = positions[node.id] ?: return@forEach
+        group.nodeIds.forEach { nodeId ->
+            val pos = positions[nodeId] ?: return@forEach
             count++
             minX = minOf(minX, pos.x - CARD_WIDTH / 2 - 24f)
             minY = minOf(minY, pos.y - CARD_HEIGHT / 2 - 32f)
@@ -292,7 +283,7 @@ private fun DrawScope.drawSubnetBoundaries(
 
             drawText(
                 textMeasurer = textMeasurer,
-                text = "Subnet $subnetCidr",
+                text = "${group.subnet.name} · ${group.subnet.cidr}",
                 topLeft = Offset(minX + 12f, minY + 8f),
                 style =
                     TextStyle(
