@@ -148,3 +148,38 @@ func TestTriggerRun_WithRunnerAnswers404ForAnUnknownSource(t *testing.T) {
 		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestTriggerRun_LongRunOutlivesTheServerWriteTimeout(t *testing.T) {
+	uc, mux, id := newDetachedRunFixture(t)
+	srv := httptest.NewUnstartedServer(mux)
+	srv.Config.WriteTimeout = 200 * time.Millisecond
+	srv.Start()
+	defer srv.Close()
+
+	type result struct {
+		status int
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		resp, err := http.Post(srv.URL+"/api/v1/discovery/sources/"+id.String()+"/run", "application/json", nil)
+		if err != nil {
+			done <- result{err: err}
+			return
+		}
+		_ = resp.Body.Close()
+		done <- result{status: resp.StatusCode}
+	}()
+
+	waitSignal(t, uc.started, "run start")
+	time.Sleep(500 * time.Millisecond) // past the server's WriteTimeout
+	close(uc.release)
+
+	res := waitSignal(t, done, "run response")
+	if res.err != nil {
+		t.Fatalf("a run longer than the server's WriteTimeout failed on the client: %v", res.err)
+	}
+	if res.status != http.StatusOK {
+		t.Fatalf("expected 200, got %d", res.status)
+	}
+}

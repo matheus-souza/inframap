@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/httputil"
@@ -186,6 +188,12 @@ func (c *DiscoveryController) ListSources(w http.ResponseWriter, r *http.Request
 // does not depend on the request: a client that disconnects leaves it running, and a
 // source already running answers 409.
 func (c *DiscoveryController) TriggerRun(w http.ResponseWriter, r *http.Request) {
+	// A run can last minutes, past the server's WriteTimeout; without lifting it the outcome
+	// could not be written and a run that succeeded would reach the client as a network error.
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		slog.Warn("failed to lift the write deadline of a discovery run", "error", err)
+	}
+
 	idStr := r.PathValue("id")
 	var resp *dto.DiscoverySourceResponse
 	var err error
