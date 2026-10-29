@@ -13,6 +13,7 @@ import com.inframap.frontend.ui.discovery.EditDiscoverySourceViewModel
 import com.inframap.frontend.ui.login.LoginViewModel
 import com.inframap.frontend.ui.onboarding.OnboardingCoordinator
 import com.inframap.frontend.ui.onboarding.OnboardingViewModel
+import com.inframap.frontend.ui.realtime.RealtimeStatusViewModel
 import com.inframap.frontend.ui.session.SessionResume
 import com.inframap.frontend.ui.splash.SplashViewModel
 import com.inframap.frontend.ui.staging.StagingViewModel
@@ -54,6 +55,7 @@ val presentationModule =
         factory { ProductTourViewModel(get()) }
 
         factory { TopologyViewModel(get(), getOrNull()) }
+        factory { RealtimeStatusViewModel(getOrNull()) }
 
         factory { CommandPaletteViewModel(get()) }
 
