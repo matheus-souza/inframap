@@ -120,7 +120,7 @@ To prevent network congestion or CPU exhaustion in homelab environments:
   - Override via environment variable: `INFRAMAP_SCAN_CONCURRENCY`.
 - **Protocol-Specific Rate Limiting**:
   Each collector enforces its own independent rate limiter (token bucket):
-  - **ICMP Collector**: Max 100 packets/sec.
+  - **ICMP Collector**: Max 100 packets/sec. A sweep probes its addresses concurrently within that rate, with at most 64 echo requests waiting for a reply (1 s each), so a silent `/24` takes a few seconds instead of minutes. The first address is probed alone, so an environment without ICMP is detected once (`ErrICMPUnavailable`).
   - **SNMP Collector**: Max 20 queries/sec (prevents CPU spikes on embedded switches).
   - **Reverse DNS Collector**: Max 50 queries/sec.
   - **ARP Collector**: Unrestricted (local OS table read).

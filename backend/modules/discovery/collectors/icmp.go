@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -28,7 +29,17 @@ var ErrICMPUnavailable error = unavailableError("ICMP unavailable: unprivileged 
 // as opposed to a host that did not answer.
 var errNoICMPSocket = errors.New("no ICMP socket could be opened")
 
-// ICMPPinger abstracts ICMP ping operations for testability and resilience.
+// A sweep starts at most icmpProbesPerSecond echo requests a second (RFC-018, protocol-specific rate limiting)
+// and keeps at most icmpSweepConcurrency of them waiting for a reply. A probe waits up to one
+// second, so probing one address at a time took about four minutes for a silent /24; with
+// these bounds it takes a few seconds, and a /16 about eleven minutes.
+const (
+	icmpProbesPerSecond  = 100
+	icmpSweepConcurrency = 64
+)
+
+// ICMPPinger abstracts ICMP ping operations for testability and resilience. Ping is called
+// concurrently by a sweep.
 type ICMPPinger interface {
 	Ping(ctx context.Context, ip netip.Addr) (time.Duration, error)
 }
@@ -53,11 +64,12 @@ func (c *ICMPCollector) ID() string { return "icmp" }
 // Name returns the human-readable collector name.
 func (c *ICMPCollector) Name() string { return "ICMP Reachability Tester" }
 
-// Collect tests reachability for all host IPs within the target CIDR.
-// Returns observations for reachable IPs with LatencyMs and ConfidenceScore 50.
+// Collect tests reachability for all host IPs within the target CIDR, probing up to
+// icmpSweepConcurrency addresses at once at icmpProbesPerSecond. Returns observations for reachable IPs, in address
+// order, with LatencyMs and ConfidenceScore 50.
 //
-// When the environment allows no ICMP at all, the first address already fails with
-// ErrICMPUnavailable and Collect returns it at once instead of an empty result, so the
+// The first address is probed alone: when the environment allows no ICMP at all it fails
+// with ErrICMPUnavailable and Collect returns it at once instead of an empty result, so the
 // run is recorded as skipped rather than as a sweep that found nothing.
 func (c *ICMPCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]RawObservation, error) {
 	if err := ctx.Err(); err != nil {
@@ -68,26 +80,73 @@ func (c *ICMPCollector) Collect(ctx context.Context, target DiscoveryTarget) ([]
 	if err != nil {
 		return nil, fmt.Errorf("icmp collector: %w", err)
 	}
+	if len(addrs) == 0 {
+		return nil, nil
+	}
 
 	now := time.Now()
-	var observations []RawObservation
-
-	for _, addr := range addrs {
-		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("icmp collector: %w", err)
-		}
-
-		rtt, pingErr := c.pinger.Ping(ctx, addr)
+	// Each probe writes only its own index, so the workers share no state.
+	rtts := make([]time.Duration, len(addrs))
+	reached := make([]bool, len(addrs))
+	probe := func(ctx context.Context, i int) error {
+		rtt, pingErr := c.pinger.Ping(ctx, addrs[i])
 		if pingErr != nil {
-			if errors.Is(pingErr, ErrICMPUnavailable) {
-				return nil, ErrICMPUnavailable
-			}
-			continue // Unreachable host or request timeout
+			return pingErr // An unreachable host, a timeout, or no ICMP at all
 		}
+		rtts[i], reached[i] = rtt, true
+		return nil
+	}
 
+	if err := probe(ctx, 0); errors.Is(err, ErrICMPUnavailable) {
+		return nil, ErrICMPUnavailable
+	}
+
+	sweepCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var unavailable atomic.Bool
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, icmpSweepConcurrency)
+	pace := time.NewTicker(time.Second / icmpProbesPerSecond)
+	defer pace.Stop()
+dispatch:
+	for i := 1; i < len(addrs); i++ {
+		select {
+		case <-pace.C:
+		case <-sweepCtx.Done():
+			break dispatch
+		}
+		select {
+		case slots <- struct{}{}:
+		case <-sweepCtx.Done():
+			break dispatch
+		}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-slots }()
+			if errors.Is(probe(sweepCtx, i), ErrICMPUnavailable) {
+				unavailable.Store(true)
+				cancel()
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("icmp collector: %w", err)
+	}
+	if unavailable.Load() {
+		return nil, ErrICMPUnavailable
+	}
+
+	var observations []RawObservation
+	for i, addr := range addrs {
+		if !reached[i] {
+			continue
+		}
 		observations = append(observations, RawObservation{
 			IPAddress:       addr.String(),
-			LatencyMs:       rtt.Milliseconds(),
+			LatencyMs:       rtts[i].Milliseconds(),
 			ProtocolSource:  "icmp",
 			ConfidenceScore: 50,
 			ObservedAt:      now,
