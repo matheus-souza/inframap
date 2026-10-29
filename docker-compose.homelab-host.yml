@@ -1,0 +1,42 @@
+# Homelab deployment with host networking, for LAN discovery (docs/DEPLOYMENT.md,
+# "LAN Discovery: Host Networking"). The ARP collector reads the host's neighbour table and
+# the mDNS collector joins the LAN's multicast group; neither reaches the LAN from a Docker
+# bridge network, so MAC addresses and mDNS names stay empty there.
+services:
+  inframap:
+    image: ghcr.io/matheus-souza/inframap:${INFRAMAP_TAG:-latest}
+    container_name: inframap
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      # PostgreSQL is published on the host's loopback only (see the postgres service).
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set (postgres://...@127.0.0.1:5432/...)}
+      INFRAMAP_PORT: "8055"
+      INFRAMAP_MASTER_KEY: ${INFRAMAP_MASTER_KEY:?INFRAMAP_MASTER_KEY must be set}
+    # Docker rejects net.* sysctls in the host's network namespace: ICMP sweeps rely on the
+    # host's net.ipv4.ping_group_range instead (docs/DEPLOYMENT.md).
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: inframap-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: inframap
+      POSTGRES_USER: inframap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    # Reachable by the host-networked app, and by nothing else on the LAN.
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - ${POSTGRES_DATA_PATH:-inframap-pgdata}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inframap"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  inframap-pgdata:
