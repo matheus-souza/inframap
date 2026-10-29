@@ -194,7 +194,28 @@ class NavigatorTest {
         navAfterReload.completeLogin(resumePrevious = false)
 
         assertEquals(Route.Dashboard, navAfterReload.currentRoute.value)
-        assertNull(store.restore())
+        // The old route is gone; the store holds the screen the login landed on.
+        assertEquals(Route.Dashboard, store.restore())
+    }
+
+    @Test
+    fun aSecondReloadReturnsToTheScreenTheFirstOneRestored() {
+        val storage = FakeLocalStorage()
+        val clock = FakeEpochClock(now = 1_000_000L)
+        val sessionOwner = SessionOwnerStore(storage)
+        sessionOwner.setOwner("user-1")
+        val store = InterruptedRouteStore(storage, clock, sessionOwner)
+
+        Navigator(initialRoute = Route.Splash, interruptedRouteStore = store).navigateTo(Route.DiscoverySources)
+
+        val firstReload = Navigator(initialRoute = Route.Splash, interruptedRouteStore = store)
+        firstReload.completeLogin(resumePrevious = true)
+        assertEquals(Route.DiscoverySources, firstReload.currentRoute.value)
+
+        // No navigation in between: the next reload must land on the same screen.
+        val secondReload = Navigator(initialRoute = Route.Splash, interruptedRouteStore = store)
+        secondReload.completeLogin(resumePrevious = true)
+        assertEquals(Route.DiscoverySources, secondReload.currentRoute.value)
     }
 
     @Test

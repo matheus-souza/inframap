@@ -175,6 +175,10 @@ data class EditDiscoverySourceUiState(
     val providerConfigs: Map<String, Map<String, String>> = emptyMap(),
     val initialProviderTargets: Map<String, Map<String, String>> = emptyMap(),
     val configuredSecrets: Map<String, Set<String>> = emptyMap(),
+    /** Providers the source loaded pointing at a stored credential. */
+    val initialCredentialProviders: Set<String> = emptySet(),
+    /** Stored credentials a provider can reference instead of carrying its secrets inline. */
+    val credentials: List<CredentialSummary> = emptyList(),
     val targetChangedWarnings: Map<String, Boolean> = emptyMap(),
     val connectionTests: Map<String, ConnectionTest> = emptyMap(),
     val activeProviderTab: String? = null,
@@ -195,6 +199,20 @@ data class EditDiscoverySourceUiState(
      * their required fields, secrets included, must be filled in as on the create form.
      */
     val addedProviders: List<String> get() = selectedProviders.filter { it !in initialCollectors }
+
+    /**
+     * Providers whose secrets must be typed in this edit, as on create: those added now, and
+     * those that loaded with a stored credential and no longer point at one (nothing inline
+     * is stored for the backend to keep).
+     */
+    val providersNeedingSecrets: List<String> get() =
+        selectedProviders.filter { providerId ->
+            providerId !in initialCollectors ||
+                (
+                    providerId in initialCredentialProviders &&
+                        !ProviderForms.usesStoredCredential(providerConfigs[providerId].orEmpty())
+                )
+        }
 
     /** See [CreateDiscoverySourceUiState.requiresCidr]; the editor is hidden when false. */
     val requiresCidr: Boolean get() = requiresTargets(selectedCollectors)

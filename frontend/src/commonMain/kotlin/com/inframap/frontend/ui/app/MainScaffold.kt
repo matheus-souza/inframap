@@ -76,6 +76,7 @@ import com.inframap.frontend.ui.discovery.EditDiscoverySourceActions
 import com.inframap.frontend.ui.discovery.EditDiscoverySourceScreen
 import com.inframap.frontend.ui.discovery.EditDiscoverySourceViewModel
 import com.inframap.frontend.ui.onboarding.OnboardingCoordinator
+import com.inframap.frontend.ui.realtime.RealtimeStatusViewModel
 import com.inframap.frontend.ui.staging.StagingActions
 import com.inframap.frontend.ui.staging.StagingScreen
 import com.inframap.frontend.ui.staging.StagingViewModel
@@ -152,6 +153,7 @@ fun MainScaffold(
     val tourViewModel: ProductTourViewModel = remember { koinScope.get() }
     val tourState by tourViewModel.state.collectAsState()
     val onboardingCoordinator: OnboardingCoordinator = remember { koinScope.get() }
+    val isSseConnected = rememberIsRealtimeConnected()
 
     DisposableEffect(commandPaletteViewModel) {
         onDispose { commandPaletteViewModel.clear() }
@@ -195,6 +197,7 @@ fun MainScaffold(
             currentRoute = currentRoute,
             navigator = navigator,
             isHealthy = isHealthy,
+            isSseConnected = isSseConnected,
             onHealthChanged = onHealthChanged,
             onOpenCommandPalette = onOpenCommandPalette,
             onRestartTourClicked = onRestartTourClicked,
@@ -206,6 +209,21 @@ fun MainScaffold(
             tourViewModel = tourViewModel,
         )
     }
+}
+
+/**
+ * Whether the app's realtime event stream is connected, for the top bar's badge. While the
+ * first connection is still opening there is no outage to report, so it reads connected.
+ */
+@Composable
+private fun rememberIsRealtimeConnected(): Boolean {
+    val koinScope = currentKoinScope()
+    val viewModel: RealtimeStatusViewModel = remember { koinScope.get() }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val status by viewModel.state.collectAsState()
+    return status.isConnected ?: true
 }
 
 @Composable
@@ -249,6 +267,7 @@ private fun MainScaffoldContent(
     currentRoute: Route,
     navigator: Navigator,
     isHealthy: Boolean?,
+    isSseConnected: Boolean,
     onHealthChanged: (Boolean?) -> Unit,
     onOpenCommandPalette: () -> Unit,
     onRestartTourClicked: () -> Unit,
@@ -270,6 +289,7 @@ private fun MainScaffoldContent(
             AppTopBar(
                 screenTitle = screenTitle,
                 isHealthy = isHealthy,
+                isSseConnected = isSseConnected,
                 onOpenCommandPalette = onOpenCommandPalette,
                 onRestartTourClicked = onRestartTourClicked,
             )
@@ -335,13 +355,14 @@ private fun ScaffoldMainContent(
 private fun AppTopBar(
     screenTitle: String? = null,
     isHealthy: Boolean?,
+    isSseConnected: Boolean,
     onOpenCommandPalette: () -> Unit = {},
     onRestartTourClicked: () -> Unit = {},
 ) {
     com.inframap.frontend.designsystem.InfraMapTopBar(
         screenTitle = screenTitle,
         isHealthy = isHealthy,
-        isSseConnected = isHealthy ?: true,
+        isSseConnected = isSseConnected,
         onSearchClicked = onOpenCommandPalette,
         onRestartTourClicked = onRestartTourClicked,
     )

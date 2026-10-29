@@ -1697,6 +1697,66 @@ func TestUpdateDiscoverySource_SecretPreservationAndSSRFGuard(t *testing.T) {
 			t.Errorf("expected api_url to be updated, got %v", rawConfigs["proxmox"]["api_url"])
 		}
 	})
+
+	credentialID := uuid.NewString()
+
+	t.Run("switching to a stored credential drops the inline secret", func(t *testing.T) {
+		updateReq := &dto.UpdateDiscoverySourceRequest{
+			Name: "Lab Proxmox Credential",
+			Type: "proxmox",
+			Collectors: []dto.CollectorConfig{
+				{
+					Type: "proxmox",
+					Config: map[string]interface{}{
+						"api_url":       "https://pve2.lab:8006",
+						"credential_id": credentialID,
+					},
+				},
+			},
+		}
+
+		if _, err := uc.UpdateSource(ctx, src.ID.String(), updateReq); err != nil {
+			t.Fatalf("expected update to succeed, got %v", err)
+		}
+		rawConfigs, err := discRepo.GetRawCollectorConfigs(ctx, src.ID)
+		if err != nil {
+			t.Fatalf("failed to get raw configs: %v", err)
+		}
+		// A kept inline secret would override the credential's when the reference is resolved.
+		if secret, kept := rawConfigs["proxmox"]["token_secret"]; kept {
+			t.Errorf("expected the inline secret to be dropped, got %v", secret)
+		}
+		if rawConfigs["proxmox"]["credential_id"] != credentialID {
+			t.Errorf("expected the credential reference to be stored, got %v", rawConfigs["proxmox"]["credential_id"])
+		}
+	})
+
+	t.Run("a credential reference allows a destination change without a typed secret", func(t *testing.T) {
+		updateReq := &dto.UpdateDiscoverySourceRequest{
+			Name: "Lab Proxmox Credential Moved",
+			Type: "proxmox",
+			Collectors: []dto.CollectorConfig{
+				{
+					Type: "proxmox",
+					Config: map[string]interface{}{
+						"api_url":       "https://pve3.lab:8006",
+						"credential_id": credentialID,
+					},
+				},
+			},
+		}
+
+		if _, err := uc.UpdateSource(ctx, src.ID.String(), updateReq); err != nil {
+			t.Fatalf("expected update to succeed, got %v", err)
+		}
+		rawConfigs, err := discRepo.GetRawCollectorConfigs(ctx, src.ID)
+		if err != nil {
+			t.Fatalf("failed to get raw configs: %v", err)
+		}
+		if rawConfigs["proxmox"]["api_url"] != "https://pve3.lab:8006" {
+			t.Errorf("expected api_url to be updated, got %v", rawConfigs["proxmox"]["api_url"])
+		}
+	})
 }
 
 type dummyHealthProvider struct {
