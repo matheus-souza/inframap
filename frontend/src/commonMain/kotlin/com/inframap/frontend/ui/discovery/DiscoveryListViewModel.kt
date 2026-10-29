@@ -12,6 +12,7 @@ import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.delete_discovery_source_error
 import com.inframap.frontend.generated.resources.delete_discovery_source_success
 import com.inframap.frontend.generated.resources.discovery_error_load
+import com.inframap.frontend.generated.resources.discovery_error_run_in_progress
 import com.inframap.frontend.generated.resources.discovery_error_trigger
 import com.inframap.frontend.generated.resources.discovery_run_triggered
 import com.inframap.frontend.ui.base.BaseListViewModel
@@ -110,10 +111,25 @@ class DiscoveryListViewModel(
                     pollWhileRunning()
                 }
                 is ApiResult.Error -> {
-                    updateState {
-                        it.copy(
-                            triggerRunError = mapError(result, UiText.Resource(Res.string.discovery_error_trigger)),
-                        )
+                    if (result.code == RUN_IN_PROGRESS_CODE) {
+                        // The source is already running (another tab, or its schedule):
+                        // follow that run instead of reporting a failure.
+                        updateState {
+                            it.copy(
+                                sources =
+                                    it.sources.map { src ->
+                                        if (src.id == sourceId) src.copy(lastStatus = RUNNING_STATUS) else src
+                                    },
+                                triggerRunError = UiText.Resource(Res.string.discovery_error_run_in_progress),
+                            )
+                        }
+                        pollWhileRunning()
+                    } else {
+                        updateState {
+                            it.copy(
+                                triggerRunError = mapError(result, UiText.Resource(Res.string.discovery_error_trigger)),
+                            )
+                        }
                     }
                 }
                 is ApiResult.NetworkError -> {
@@ -289,6 +305,7 @@ class DiscoveryListViewModel(
 
     private companion object {
         const val RUNNING_STATUS = "running"
+        const val RUN_IN_PROGRESS_CODE = "RUN_IN_PROGRESS"
         const val REFRESH_DEBOUNCE_MS = 500L
         const val SSE_RECONNECT_DELAY_MS = 5_000L
         const val RUNNING_POLL_INTERVAL_MS = 5_000L
