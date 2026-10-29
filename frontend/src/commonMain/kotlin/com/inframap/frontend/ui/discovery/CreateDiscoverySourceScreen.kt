@@ -63,8 +63,6 @@ import com.inframap.frontend.generated.resources.create_discovery_source_subtitl
 import com.inframap.frontend.generated.resources.create_discovery_source_title
 import com.inframap.frontend.generated.resources.draft_restored_notice_secrets
 import com.inframap.frontend.generated.resources.legend_required_fields
-import com.inframap.frontend.generated.resources.provider_credential_label
-import com.inframap.frontend.generated.resources.provider_credential_none
 import com.inframap.frontend.generated.resources.provider_docker_endpoint_hint
 import com.inframap.frontend.generated.resources.provider_section_config
 import com.inframap.frontend.generated.resources.provider_tab_has_errors
@@ -328,7 +326,7 @@ private fun ProviderConfigSection(
             modifier = Modifier.padding(bottom = 8.dp),
         )
 
-        CredentialPicker(
+        ProviderCredentialPicker(
             providerId = providerId,
             credentials = credentials,
             selectedCredential = selectedCredential,
@@ -405,29 +403,6 @@ private fun ProviderFieldInput(
             if (field.secret) PasswordVisualTransformation() else VisualTransformation.None,
         modifier = Modifier.fillMaxWidth().testTag(tag),
     )
-}
-
-/** Lets the operator point a provider at a stored credential instead of typing its secrets. */
-@Composable
-private fun CredentialPicker(
-    providerId: String,
-    credentials: List<CredentialSummary>,
-    selectedCredential: String,
-    onSelected: (String) -> Unit,
-) {
-    if (credentials.isEmpty()) return
-
-    val noneLabel = stringResource(Res.string.provider_credential_none)
-    InfraMapChoiceChipGroup(
-        options =
-            listOf(ChipOption(value = "", label = noneLabel)) +
-                credentials.map { ChipOption(value = it.id, label = it.name) },
-        selected = selectedCredential,
-        onSelected = onSelected,
-        label = stringResource(Res.string.provider_credential_label),
-        modifier = Modifier.fillMaxWidth().testTag("provider_credential_$providerId"),
-    )
-    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable

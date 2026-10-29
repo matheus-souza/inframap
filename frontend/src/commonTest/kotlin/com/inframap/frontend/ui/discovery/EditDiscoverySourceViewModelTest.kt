@@ -11,12 +11,14 @@ import com.inframap.frontend.domain.model.ProviderHealth
 import com.inframap.frontend.domain.model.SourceCollector
 import com.inframap.frontend.domain.model.Subnet
 import com.inframap.frontend.domain.model.SubnetSummary
+import com.inframap.frontend.domain.usecase.credentials.ListCredentialsUseCase
 import com.inframap.frontend.domain.usecase.discovery.DeleteDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceByIdUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceDeletionImpactUseCase
 import com.inframap.frontend.domain.usecase.discovery.TestDiscoverySourceHealthUseCase
 import com.inframap.frontend.domain.usecase.discovery.UpdateDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
+import com.inframap.frontend.fakes.FakeCredentialsRepository
 import com.inframap.frontend.fakes.FakeDiscoveryRepository
 import com.inframap.frontend.fakes.FakeSubnetRepository
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +48,7 @@ class EditDiscoverySourceViewModelTest {
     private lateinit var deleteDiscoverySourceUseCase: DeleteDiscoverySourceUseCase
     private lateinit var getDeletionImpactUseCase: GetDiscoverySourceDeletionImpactUseCase
     private lateinit var testDiscoverySourceHealthUseCase: TestDiscoverySourceHealthUseCase
+    private var credentialsRepo = FakeCredentialsRepository()
     private val fakeSubnetRepo =
         FakeSubnetRepository(
             getSubnetsResult =
@@ -123,6 +126,7 @@ class EditDiscoverySourceViewModelTest {
             getDiscoverySourceDeletionImpactUseCase = getDeletionImpactUseCase,
             testDiscoverySourceHealthUseCase = testDiscoverySourceHealthUseCase,
             listSubnetsUseCase = ListSubnetsUseCase(fakeSubnetRepo),
+            listCredentialsUseCase = ListCredentialsUseCase(credentialsRepo),
             scope = testScope,
         )
 
@@ -171,6 +175,82 @@ class EditDiscoverySourceViewModelTest {
             vm.onProviderFieldChanged("proxmox", "token_secret", "new-secret-123")
             advanceUntilIdle()
             assertFalse(vm.state.value.targetChangedWarnings["proxmox"] == true)
+        }
+
+    @Test
+    fun storedCredentialsAreOfferedOnTheEditScreen() =
+        testScope.runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf("cred-1"),
+                vm.state.value.credentials
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun pickingACredentialDropsTypedSecretsAndLetsTheHostChange() =
+        testScope.runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            vm.onProviderFieldChanged("proxmox", "token_secret", "typed-secret")
+            vm.onProviderFieldChanged("proxmox", ProviderForms.CREDENTIAL_KEY, "cred-1")
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve2.lab:8006")
+            advanceUntilIdle()
+
+            val config =
+                vm.state.value.providerConfigs["proxmox"]
+                    .orEmpty()
+            assertNull(config["token_secret"])
+            assertFalse(vm.state.value.targetChangedWarnings["proxmox"] == true)
+            assertTrue(vm.validate())
+
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+            val sent =
+                fakeRepo.lastUpdateSourceRequest
+                    ?.collectors
+                    ?.single { it.type == "proxmox" }
+                    ?.config
+                    .orEmpty()
+            assertEquals("cred-1", sent[ProviderForms.CREDENTIAL_KEY])
+            assertEquals("https://pve2.lab:8006", sent["api_url"])
+            assertNull(sent["token_secret"])
+        }
+
+    @Test
+    fun droppingTheStoredCredentialRequiresTheSecrets() =
+        testScope.runTest {
+            fakeRepo.getSourceByIdResult =
+                ApiResult.Success(
+                    testSource.copy(
+                        collectors =
+                            listOf(
+                                testSource.collectors.single().copy(
+                                    config =
+                                        mapOf(
+                                            "api_url" to "https://pve1.lab:8006",
+                                            ProviderForms.CREDENTIAL_KEY to "cred-1",
+                                        ),
+                                    configuredSecrets = emptyList(),
+                                ),
+                            ),
+                    ),
+                    requestId = "",
+                )
+            val vm = createViewModel()
+            advanceUntilIdle()
+            assertTrue(vm.validate())
+
+            vm.onProviderFieldChanged("proxmox", ProviderForms.CREDENTIAL_KEY, "")
+            advanceUntilIdle()
+
+            // Nothing inline is stored, so the backend has no secret to keep.
+            assertFalse(vm.validate())
+            assertNotNull(vm.state.value.validationErrors[ProviderForms.labelKey("proxmox")])
         }
 
     @Test

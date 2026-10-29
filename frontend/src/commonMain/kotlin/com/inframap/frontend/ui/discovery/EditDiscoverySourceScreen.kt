@@ -328,9 +328,6 @@ private fun EditProviderConfigSection(
     actions: EditDiscoverySourceActions,
 ) {
     val form = ProviderForms.formFor(providerId) ?: return
-    val config = state.providerConfigs[providerId].orEmpty()
-    val configuredSecrets = state.configuredSecrets[providerId].orEmpty()
-    val targetChangedWarning = state.targetChangedWarnings[providerId] == true
     val hasPendingChanges = state.hasPendingTargetOrSecretChanges(providerId)
     val connectionTest = state.connectionTests[providerId]
     val isSubmitting = state.isSubmitting || state.isDeleting
@@ -342,18 +339,7 @@ private fun EditProviderConfigSection(
             modifier = Modifier.padding(bottom = 8.dp),
         )
 
-        form.fields.forEach { field ->
-            val isConfigured = field.secret && field.key in configuredSecrets
-            EditProviderFieldInput(
-                providerId = providerId,
-                field = field,
-                value = config[field.key],
-                isSecretConfigured = isConfigured,
-                targetChangedWarning = targetChangedWarning,
-                onValueChange = { actions.onProviderFieldChanged(providerId, field.key, it) },
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+        EditProviderFields(providerId, form, state, actions)
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -384,6 +370,40 @@ private fun EditProviderConfigSection(
                 modifier = Modifier.padding(top = 4.dp).testTag("edit_provider_error_$providerId"),
             )
         }
+    }
+}
+
+/** The provider's credential picker and its endpoint and secret inputs. */
+@Composable
+private fun EditProviderFields(
+    providerId: String,
+    form: ProviderForm,
+    state: EditDiscoverySourceUiState,
+    actions: EditDiscoverySourceActions,
+) {
+    val config = state.providerConfigs[providerId].orEmpty()
+    val configuredSecrets = state.configuredSecrets[providerId].orEmpty()
+    val targetChangedWarning = state.targetChangedWarnings[providerId] == true
+    val selectedCredential = config[ProviderForms.CREDENTIAL_KEY].orEmpty()
+    ProviderCredentialPicker(
+        providerId = providerId,
+        credentials = state.credentials,
+        selectedCredential = selectedCredential,
+        onSelected = { actions.onProviderFieldChanged(providerId, ProviderForms.CREDENTIAL_KEY, it) },
+    )
+
+    // A credential holds authentication, not the endpoint, so only the secret inputs are
+    // hidden while one is selected.
+    form.fields.filter { !(selectedCredential.isNotBlank() && it.secret) }.forEach { field ->
+        EditProviderFieldInput(
+            providerId = providerId,
+            field = field,
+            value = config[field.key],
+            isSecretConfigured = field.secret && field.key in configuredSecrets,
+            targetChangedWarning = targetChangedWarning,
+            onValueChange = { actions.onProviderFieldChanged(providerId, field.key, it) },
+        )
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 

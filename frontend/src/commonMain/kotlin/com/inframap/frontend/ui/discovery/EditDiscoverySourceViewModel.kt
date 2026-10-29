@@ -6,6 +6,7 @@ import com.inframap.frontend.data.dto.DiscoverySourceConfigDto
 import com.inframap.frontend.data.dto.UpdateDiscoverySourceRequest
 import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.domain.model.toSummary
+import com.inframap.frontend.domain.usecase.credentials.ListCredentialsUseCase
 import com.inframap.frontend.domain.usecase.discovery.DeleteDiscoverySourceUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceByIdUseCase
 import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceDeletionImpactUseCase
@@ -33,11 +34,26 @@ class EditDiscoverySourceViewModel(
     private val getDiscoverySourceDeletionImpactUseCase: GetDiscoverySourceDeletionImpactUseCase,
     private val testDiscoverySourceHealthUseCase: TestDiscoverySourceHealthUseCase,
     private val listSubnetsUseCase: ListSubnetsUseCase,
+    private val listCredentialsUseCase: ListCredentialsUseCase,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<EditDiscoverySourceUiState>(EditDiscoverySourceUiState(id = sourceId), scope) {
     init {
         loadSource()
         loadSubnets()
+        loadCredentials()
+    }
+
+    /**
+     * The stored credentials a provider can point at. A failure is silent: the form still
+     * works with inline secrets, so an unreachable credential list must not block an edit.
+     */
+    private fun loadCredentials() {
+        launchJob("load_credentials") {
+            when (val result = listCredentialsUseCase()) {
+                is ApiResult.Success -> updateState { it.copy(credentials = result.data) }
+                else -> Unit
+            }
+        }
     }
 
     /** The registered Subnets offered as targets. A failure only leaves the chips empty. */
@@ -66,11 +82,13 @@ class EditDiscoverySourceViewModel(
                     val configs = mutableMapOf<String, Map<String, String>>()
                     val initialTargets = mutableMapOf<String, Map<String, String>>()
                     val configuredSecrets = mutableMapOf<String, Set<String>>()
+                    val credentialProviders = mutableSetOf<String>()
 
                     src.collectors.forEach { col ->
                         val colType = col.collectorType
                         configs[colType] = col.config
                         configuredSecrets[colType] = col.configuredSecrets.toSet()
+                        if (ProviderForms.usesStoredCredential(col.config)) credentialProviders += colType
 
                         val targetKeys = ProviderForms.targetKeys(colType)
                         if (targetKeys.isNotEmpty()) {
@@ -93,6 +111,7 @@ class EditDiscoverySourceViewModel(
                             providerConfigs = configs,
                             initialProviderTargets = initialTargets,
                             configuredSecrets = configuredSecrets,
+                            initialCredentialProviders = credentialProviders,
                             isLoading = false,
                             loadError = null,
                         )
@@ -174,7 +193,12 @@ class EditDiscoverySourceViewModel(
         value: String,
     ) {
         updateState { current ->
-            val providerMap = current.providerConfigs[providerId].orEmpty() + (key to value)
+            var providerMap = current.providerConfigs[providerId].orEmpty() + (key to value)
+            // Picking a credential drops whatever secrets were typed before it: an inline
+            // secret overrides the credential's when the backend resolves the reference.
+            if (key == ProviderForms.CREDENTIAL_KEY && value.isNotBlank()) {
+                providerMap = providerMap - ProviderForms.secretKeys(providerId).toSet()
+            }
             val updated = current.copy(providerConfigs = current.providerConfigs + (providerId to providerMap))
             val warning = updated.needsSecretForTargetChange(providerId)
 
@@ -256,8 +280,9 @@ class EditDiscoverySourceViewModel(
             }
         }
 
-        // A provider added in this edit has nothing stored, so it is held to the create rules.
-        errors += DiscoveryCollectorRules.providerErrors(current.addedProviders, current.providerConfigs)
+        // A provider with no inline secret stored for the backend to keep is held to the create
+        // rules: one added in this edit, or one that just stopped using a stored credential.
+        errors += DiscoveryCollectorRules.providerErrors(current.providersNeedingSecrets, current.providerConfigs)
 
         val warnings = mutableMapOf<String, Boolean>()
         current.selectedProviders.filter { current.needsSecretForTargetChange(it) }.forEach { providerId ->
@@ -492,9 +517,10 @@ private fun secretErrorKey(providerId: String): String = "secret_$providerId"
  * edit has no stored credential to protect; its secret is required by the create rules.
  */
 private fun EditDiscoverySourceUiState.needsSecretForTargetChange(providerId: String): Boolean {
-    if (providerId !in initialCollectors) return false
-    val initialTargets = initialProviderTargets[providerId].orEmpty()
     val config = providerConfigs[providerId].orEmpty()
+    // A stored credential supplies the secrets, so the new host needs none typed.
+    if (providerId !in initialCollectors || ProviderForms.usesStoredCredential(config)) return false
+    val initialTargets = initialProviderTargets[providerId].orEmpty()
     val targetChanged =
         ProviderForms.targetKeys(providerId).any { initialTargets[it].orEmpty() != config[it].orEmpty() }
     val secretFilled = ProviderForms.secretKeys(providerId).any { config[it].orEmpty().isNotBlank() }

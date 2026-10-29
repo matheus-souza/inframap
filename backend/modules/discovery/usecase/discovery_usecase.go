@@ -272,6 +272,14 @@ func (u *DefaultDiscoveryUseCase) UpdateSource(ctx context.Context, idStr string
 			changedTargetFields = append(changedTargetFields, dto.ConfigKeyTargets)
 		}
 
+		// A collector that points at a stored credential takes its secrets from it, as on
+		// create: an inline secret kept from the previous config would override the
+		// credential's (inline values win when the reference is resolved), and the operator
+		// named the credential in this request, so a destination change needs no secret typed.
+		if usesCredentialReference(col.Config) {
+			continue
+		}
+
 		// Check secret fields: if target changed and secret is blank -> 422 error!
 		// If target unchanged and secret is blank -> copy from previous config (secret preservation).
 		for k, prevVal := range prevConfig {
@@ -1570,4 +1578,14 @@ func (u *DefaultDiscoveryUseCase) TestHealth(ctx context.Context, sourceIDStr st
 		Status:     "ok",
 		Message:    "Connection established",
 	}, nil
+}
+
+// usesCredentialReference reports whether a collector config points at a stored credential
+// (repository.CredentialConfigKey) instead of carrying its secrets inline.
+func usesCredentialReference(config map[string]interface{}) bool {
+	raw, ok := config[repository.CredentialConfigKey]
+	if !ok || raw == nil {
+		return false
+	}
+	return strings.TrimSpace(fmt.Sprint(raw)) != ""
 }

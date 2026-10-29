@@ -43,7 +43,7 @@ val presentationModule =
         factory { DiscoveryListViewModel(get(), get(), get(), get(), getOrNull()) }
         factory { CreateDiscoverySourceViewModel(get(), get(), get(), get(), get()) }
         factory { (sourceId: String) ->
-            EditDiscoverySourceViewModel(sourceId, get(), get(), get(), get(), get(), get())
+            EditDiscoverySourceViewModel(sourceId, get(), get(), get(), get(), get(), get(), get())
         }
 
         single { AutoSetupCoordinator(get(), get(), get(), get(), get(), get(), get()) }
