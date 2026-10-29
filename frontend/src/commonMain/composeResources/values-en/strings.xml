@@ -123,6 +123,7 @@
     <string name="discovery_error_create">Failed to create discovery source.</string>
     <string name="discovery_error_delete">Failed to delete discovery source.</string>
     <string name="discovery_error_trigger">Failed to trigger scan.</string>
+    <string name="discovery_error_run_in_progress">This source is already running. The list refreshes when it finishes.</string>
     <string name="discovery_run_triggered">Scan triggered successfully.</string>
     <string name="discovery_empty_title">No discovery sources configured</string>
     <string name="discovery_empty_subtitle">Discovery sources scan your network automatically to find devices. Create your first source to get started.</string>
