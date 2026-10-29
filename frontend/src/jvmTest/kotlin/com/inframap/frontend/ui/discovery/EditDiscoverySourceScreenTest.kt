@@ -1,7 +1,12 @@
 package com.inframap.frontend.ui.discovery
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -13,6 +18,7 @@ import com.inframap.frontend.domain.model.SubnetSummary
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.edit_discovery_source_error_load
 import com.inframap.frontend.generated.resources.edit_discovery_source_error_update
+import com.inframap.frontend.generated.resources.provider_validation_field_required
 import com.inframap.frontend.ui.util.UiText
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -22,10 +28,12 @@ class EditDiscoverySourceScreenTest {
     private fun actions(
         targets: DiscoveryTargetsEditorActions = DiscoveryTargetsEditorActions(),
         onRetryLoad: () -> Unit = {},
+        onCollectorsChanged: (Set<String>) -> Unit = {},
     ) = EditDiscoverySourceActions(
         onNameChanged = {},
         onScheduleCronChanged = {},
         onEnabledChanged = {},
+        onCollectorsChanged = onCollectorsChanged,
         onProviderFieldChanged = { _, _, _ -> },
         onProviderTabSelected = {},
         targets = targets,
@@ -153,5 +161,88 @@ class EditDiscoverySourceScreenTest {
             onNodeWithTag("edit_source_submit_error").assertDoesNotExist()
             onNodeWithTag("edit_source_load_retry").performClick()
             assertEquals(1, retried)
+        }
+
+    @Test
+    fun collectorChipsShowThePlanAndChangeIt() =
+        runComposeUiTest {
+            var collectors by mutableStateOf(setOf("icmp_sweep", "proxmox"))
+            setContent {
+                InfraMapTheme {
+                    EditDiscoverySourceScreen(
+                        state =
+                            sweepState.copy(
+                                selectedCollectors = collectors,
+                                initialCollectors = setOf("icmp_sweep", "proxmox"),
+                                configuredSecrets = mapOf("proxmox" to setOf("token_secret")),
+                            ),
+                        actions = actions(onCollectorsChanged = { collectors = it }),
+                    )
+                }
+            }
+
+            onNodeWithText("Discovery Collectors", substring = true).performScrollTo().assertIsDisplayed()
+            onNodeWithText("ICMP Ping").performScrollTo().assertIsSelected()
+            onNodeWithText("ARP Sweep").performScrollTo().assertIsNotSelected()
+            onNodeWithText("Proxmox VE").performScrollTo().assertIsSelected()
+            onNodeWithTag("discovery_targets_editor").assertExists()
+
+            // A plan left with providers only hides the targets editor.
+            onNodeWithText("ICMP Ping").performScrollTo().performClick()
+            assertEquals(setOf("proxmox"), collectors)
+            onNodeWithTag("discovery_targets_editor").assertDoesNotExist()
+            onNodeWithText("Leave blank to preserve current credential").performScrollTo().assertIsDisplayed()
+
+            onNodeWithText("Docker").performScrollTo().performClick()
+            assertEquals(setOf("proxmox", "docker"), collectors)
+            onNodeWithTag("edit_provider_tab_docker").performScrollTo().assertIsDisplayed()
+        }
+
+    @Test
+    fun anAddedProviderShowsItsFieldsAsRequired() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    EditDiscoverySourceScreen(
+                        state =
+                            sweepState.copy(
+                                selectedCollectors = setOf("icmp_sweep", "proxmox"),
+                                initialCollectors = setOf("icmp_sweep"),
+                                validationErrors =
+                                    mapOf(
+                                        ProviderForms.labelKey("proxmox") to
+                                            UiText.Resource(Res.string.provider_validation_field_required),
+                                    ),
+                            ),
+                        actions = actions(),
+                    )
+                }
+            }
+
+            onNodeWithTag("edit_provider_field_proxmox_token_secret").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Leave blank to preserve current credential").assertDoesNotExist()
+            onNodeWithTag("edit_provider_error_proxmox").performScrollTo().assertIsDisplayed()
+            onNodeWithText("Fill in required provider fields.").assertIsDisplayed()
+            onNodeWithTag("test_connection_unsaved_hint_proxmox").performScrollTo().assertIsDisplayed()
+        }
+
+    @Test
+    fun anEmptyPlanShowsTheCollectorError() =
+        runComposeUiTest {
+            setContent {
+                InfraMapTheme {
+                    EditDiscoverySourceScreen(
+                        state =
+                            sweepState.copy(
+                                selectedCollectors = emptySet(),
+                                validationErrors =
+                                    mapOf(COLLECTORS_ERROR_KEY to checkNotNull(DiscoveryCollectorRules.selectionError(emptySet()))),
+                            ),
+                        actions = actions(),
+                    )
+                }
+            }
+
+            onNodeWithText("Select at least one discovery collector.").performScrollTo().assertIsDisplayed()
         }
 }

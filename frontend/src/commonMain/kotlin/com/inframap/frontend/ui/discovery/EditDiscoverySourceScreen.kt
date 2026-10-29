@@ -210,6 +210,26 @@ private fun EditDiscoverySourceFormCard(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
+            DiscoveryCollectorsSection(
+                selectedCollectors = state.selectedCollectors,
+                onSelectionChanged = actions.onCollectorsChanged,
+                error = state.validationErrors[COLLECTORS_ERROR_KEY]?.asString(),
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            EditProvidersSection(state = state, actions = actions)
+
+            // Targets describe a network sweep; a plan made only of providers has none (CONTEXT.md guideline #218).
+            if (state.requiresCidr) {
+                DiscoveryTargetsEditor(
+                    state = state.targetsEditor,
+                    actions = actions.targets,
+                    required = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             InfraMapTextField(
                 value = state.scheduleCron,
                 onValueChange = actions.onScheduleCronChanged,
@@ -224,19 +244,6 @@ private fun EditDiscoverySourceFormCard(
                 label = stringResource(Res.string.create_discovery_source_enabled_label),
                 modifier = Modifier.fillMaxWidth().testTag("edit_source_enabled_checkbox"),
             )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (state.requiresCidr) {
-                DiscoveryTargetsEditor(
-                    state = state.targetsEditor,
-                    actions = actions.targets,
-                    required = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            EditProvidersSection(state = state, actions = actions)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -253,10 +260,15 @@ private fun EditProvidersSection(
     if (state.selectedProviders.isEmpty()) return
 
     if (state.showsProviderTabs) {
+        val flagged =
+            state.selectedProviders
+                .filter {
+                    state.targetChangedWarnings[it] == true || ProviderForms.labelKey(it) in state.validationErrors
+                }.toSet()
         EditProviderTabs(
             selectedProviders = state.selectedProviders,
             active = state.currentProviderTab,
-            warnings = state.targetChangedWarnings,
+            flagged = flagged,
             onSelected = actions.onProviderTabSelected,
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -277,7 +289,7 @@ private fun EditProvidersSection(
 private fun EditProviderTabs(
     selectedProviders: List<String>,
     active: String?,
-    warnings: Map<String, Boolean>,
+    flagged: Set<String>,
     onSelected: (String) -> Unit,
 ) {
     val forms = selectedProviders.mapNotNull { ProviderForms.formFor(it) }
@@ -285,7 +297,7 @@ private fun EditProviderTabs(
 
     SecondaryTabRow(selectedTabIndex = activeIndex) {
         forms.forEach { form ->
-            val hasWarning = warnings[form.id] == true
+            val hasWarning = form.id in flagged
             LeadingIconTab(
                 selected = form.id == active,
                 onClick = { onSelected(form.id) },
@@ -362,6 +374,16 @@ private fun EditProviderConfigSection(
         }
 
         ConnectionTestFeedback(connectionTest)
+
+        val error = state.validationErrors[ProviderForms.labelKey(providerId)]
+        if (error != null) {
+            Text(
+                text = error.asString(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 4.dp).testTag("edit_provider_error_$providerId"),
+            )
+        }
     }
 }
 
