@@ -3,26 +3,42 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/matheussouza/inframap/internal/platform/httputil"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
 	"github.com/matheussouza/inframap/modules/discovery/repository"
+	"github.com/matheussouza/inframap/modules/discovery/scheduler"
 	"github.com/matheussouza/inframap/modules/discovery/usecase"
 )
 
+// SourceRunner runs a discovery source on request, outside the request's lifetime
+// (scheduler.Scheduler).
+type SourceRunner interface {
+	RunNow(ctx context.Context, sourceID uuid.UUID) (*dto.DiscoverySourceResponse, error)
+}
+
 // DiscoveryController handles HTTP requests for discovery management.
 type DiscoveryController struct {
-	uc usecase.DiscoveryUseCase
+	uc     usecase.DiscoveryUseCase
+	runner SourceRunner
 }
 
 // NewDiscoveryController constructs a DiscoveryController instance.
 func NewDiscoveryController(uc usecase.DiscoveryUseCase) *DiscoveryController {
 	return &DiscoveryController{uc: uc}
+}
+
+// WithRunner hands manual runs to runner, so a run outlives the request that started it.
+// Without one, a manual run is tied to its request and ends when the client goes away.
+func (c *DiscoveryController) WithRunner(runner SourceRunner) {
+	c.runner = runner
 }
 
 // CreateSource handles POST /api/v1/discovery/sources
@@ -166,10 +182,35 @@ func (c *DiscoveryController) ListSources(w http.ResponseWriter, r *http.Request
 
 // TriggerRun handles POST /api/v1/discovery/sources/{id}/run. A run that failed but was
 // recorded answers 200 with the source in its final status (last_status "error"), like any
-// other finished run; 500 is kept for a run whose outcome could not be recorded.
+// other finished run; 500 is kept for a run whose outcome could not be recorded. The run
+// does not depend on the request: a client that disconnects leaves it running, and a
+// source already running answers 409.
 func (c *DiscoveryController) TriggerRun(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
-	resp, err := c.uc.TriggerRun(r.Context(), idStr)
+	var resp *dto.DiscoverySourceResponse
+	var err error
+	if c.runner != nil {
+		id, parseErr := uuid.Parse(idStr)
+		if parseErr != nil {
+			httputil.WriteError(w, r, http.StatusBadRequest, "INVALID_UUID", "Invalid discovery source UUID format", nil)
+			return
+		}
+		resp, err = c.runner.RunNow(r.Context(), id)
+	} else {
+		resp, err = c.uc.TriggerRun(r.Context(), idStr)
+	}
+	if r.Context().Err() != nil {
+		// The client went away; the run, if one started, goes on without it.
+		return
+	}
+	if errors.Is(err, scheduler.ErrRunInProgress) {
+		httputil.WriteError(w, r, http.StatusConflict, "RUN_IN_PROGRESS", "A run of this discovery source is already in progress", nil)
+		return
+	}
+	if errors.Is(err, scheduler.ErrNotRunning) {
+		httputil.WriteError(w, r, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Discovery runs are unavailable while the server starts or stops", nil)
+		return
+	}
 	if err != nil && errors.Is(err, usecase.ErrRunFailed) && resp != nil {
 		httputil.WriteJSON(w, r, http.StatusOK, resp)
 		return

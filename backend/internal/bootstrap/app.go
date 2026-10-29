@@ -233,6 +233,9 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	discUseCase := discuc.NewDefaultDiscoveryUseCase(discRepo, invRepo, bus, log)
 	discCtrl := discctrl.NewDiscoveryController(discUseCase)
 	discScheduler := scheduler.New(discUseCase, discRepo, bus, log)
+	// A manual run belongs to the scheduler, not to the request: closing the page does not
+	// cancel it, and it shares the per-source lock with scheduled runs.
+	discCtrl.WithRunner(discScheduler)
 
 	// 9. Initialize Topology Module
 	queries := db.New(pool)

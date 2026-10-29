@@ -3,6 +3,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -19,6 +20,13 @@ const (
 	defaultStartupPurgeDelay = 1 * time.Minute
 	defaultRetentionDays     = 7
 )
+
+// ErrRunInProgress is returned by RunNow when the source already has a run in progress,
+// manual or scheduled.
+var ErrRunInProgress = errors.New("discovery run already in progress")
+
+// ErrNotRunning is returned by RunNow before Start or once Stop has begun.
+var ErrNotRunning = errors.New("discovery scheduler is not running")
 
 type registeredEntry struct {
 	entryID  cron.EntryID
@@ -65,6 +73,10 @@ type Scheduler struct {
 	purgeInterval     time.Duration
 	startupPurgeDelay time.Duration
 	retentionDays     int
+
+	// lifeMu orders RunNow's wg.Add against Stop's wg.Wait.
+	lifeMu  sync.Mutex
+	stopped bool
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -118,7 +130,9 @@ func (s *Scheduler) SetRetentionDays(days int) {
 
 // Start loads sources, cleans up stale statuses, registers cron jobs, and starts the cron runner.
 func (s *Scheduler) Start(ctx context.Context) error {
+	s.lifeMu.Lock()
 	s.ctx, s.cancel = context.WithCancel(ctx)
+	s.lifeMu.Unlock()
 	s.cron = cron.New()
 
 	if _, ok := s.uc.(RunPurger); !ok {
@@ -169,6 +183,10 @@ func (s *Scheduler) Start(ctx context.Context) error {
 // Stop halts the cron runner, cancels in-flight scans, waits for them
 // to return, and sets their persisted status to "cancelled".
 func (s *Scheduler) Stop() {
+	s.lifeMu.Lock()
+	s.stopped = true
+	s.lifeMu.Unlock()
+
 	var cronCtx context.Context
 	if s.cron != nil {
 		cronCtx = s.cron.Stop()
@@ -233,6 +251,9 @@ func (s *Scheduler) handleSourceDeleted(_ context.Context, event eventbus.Domain
 		return nil
 	}
 	s.unregisterSource(id)
+	s.runningMu.Lock()
+	delete(s.running, id)
+	s.runningMu.Unlock()
 	return nil
 }
 
@@ -273,9 +294,8 @@ func (s *Scheduler) unregisterSourceLocked(id uuid.UUID) {
 		s.cron.Remove(entry.entryID)
 		delete(s.entries, id)
 	}
-	s.runningMu.Lock()
-	delete(s.running, id)
-	s.runningMu.Unlock()
+	// The run lock stays: an update re-registers the source while a run may hold the lock,
+	// and a fresh lock would let a second run of the source start next to it.
 }
 
 func (s *Scheduler) registerSource(src *dto.DiscoverySourceResponse) {
@@ -318,26 +338,83 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 	}
 
 	s.wg.Add(1)
+	s.markInFlight(sourceID)
+	defer s.finishRun(sourceID, mu)
+
+	_, _ = s.runSource(sourceID, "scheduled")
+}
+
+// RunNow runs a source on request. The run belongs to the scheduler, not to the caller: it
+// runs on the scheduler's context, so a caller that goes away (a closed browser tab, a
+// dropped connection) does not cancel it, and Stop cancels and waits for it like a
+// scheduled run. It shares the per-source lock with scheduled runs, so a source never runs
+// twice at once: a source already running returns ErrRunInProgress.
+//
+// RunNow waits for the outcome while ctx lasts and returns what TriggerRun returned. When
+// ctx ends first it returns ctx.Err() and the run carries on to its recorded outcome.
+func (s *Scheduler) RunNow(ctx context.Context, sourceID uuid.UUID) (*dto.DiscoverySourceResponse, error) {
+	mu := s.getSourceLock(sourceID)
+	if !mu.TryLock() {
+		return nil, ErrRunInProgress
+	}
+
+	s.lifeMu.Lock()
+	if s.ctx == nil || s.stopped {
+		s.lifeMu.Unlock()
+		mu.Unlock()
+		return nil, ErrNotRunning
+	}
+	s.wg.Add(1)
+	s.lifeMu.Unlock()
+	s.markInFlight(sourceID)
+
+	type outcome struct {
+		res *dto.DiscoverySourceResponse
+		err error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		defer s.finishRun(sourceID, mu)
+		res, err := s.runSource(sourceID, "manual")
+		done <- outcome{res: res, err: err}
+	}()
+
+	select {
+	case out := <-done:
+		return out.res, out.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (s *Scheduler) markInFlight(sourceID uuid.UUID) {
 	s.inFlightMu.Lock()
 	s.inFlight[sourceID] = true
 	s.inFlightMu.Unlock()
+}
 
-	defer func() {
-		if s.ctx.Err() != nil {
-			s.cancelledMu.Lock()
-			s.cancelled[sourceID] = true
-			s.cancelledMu.Unlock()
-		}
-		s.inFlightMu.Lock()
-		delete(s.inFlight, sourceID)
-		s.inFlightMu.Unlock()
-		mu.Unlock()
-		s.wg.Done()
-	}()
+// finishRun releases what executeSource and RunNow take for a run: the in-flight mark, the
+// source lock and the WaitGroup slot. A run cut short by Stop is remembered so Stop records
+// it as cancelled.
+func (s *Scheduler) finishRun(sourceID uuid.UUID, mu *sync.Mutex) {
+	if s.ctx.Err() != nil {
+		s.cancelledMu.Lock()
+		s.cancelled[sourceID] = true
+		s.cancelledMu.Unlock()
+	}
+	s.inFlightMu.Lock()
+	delete(s.inFlight, sourceID)
+	s.inFlightMu.Unlock()
+	mu.Unlock()
+	s.wg.Done()
+}
 
+// runSource runs one source on the scheduler's context and publishes its scan events, with
+// trigger "scheduled" or "manual".
+func (s *Scheduler) runSource(sourceID uuid.UUID, trigger string) (*dto.DiscoverySourceResponse, error) {
 	_ = s.bus.Publish(s.ctx, eventbus.NewBaseEvent("discovery_source.scan.started", map[string]interface{}{
 		"source_id": sourceID.String(),
-		"trigger":   "scheduled",
+		"trigger":   trigger,
 	}))
 
 	start := time.Now()
@@ -346,25 +423,26 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 
 	if err != nil {
 		if s.ctx.Err() != nil {
-			return
+			return res, err
 		}
-		s.logger.Error("scheduled scan failed",
+		s.logger.Error("discovery scan failed",
 			slog.String("source_id", sourceID.String()),
+			slog.String("trigger", trigger),
 			slog.Any("error", err),
 		)
 		_ = s.bus.Publish(s.ctx, eventbus.NewBaseEvent("discovery_source.scan.completed", map[string]interface{}{
 			"source_id":   sourceID.String(),
-			"trigger":     "scheduled",
+			"trigger":     trigger,
 			"duration_ms": durationMs,
 			"success":     false,
 			"error":       err.Error(),
 		}))
-		return
+		return res, err
 	}
 
 	payload := map[string]interface{}{
 		"source_id":   sourceID.String(),
-		"trigger":     "scheduled",
+		"trigger":     trigger,
 		"duration_ms": durationMs,
 		"success":     true,
 	}
@@ -372,6 +450,7 @@ func (s *Scheduler) executeSource(sourceID uuid.UUID) {
 		payload["status"] = res.LastStatus
 	}
 	_ = s.bus.Publish(s.ctx, eventbus.NewBaseEvent("discovery_source.scan.completed", payload))
+	return res, nil
 }
 
 func (s *Scheduler) reconcileLoop() {
