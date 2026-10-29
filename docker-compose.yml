@@ -13,9 +13,10 @@ services:
       - INFRAMAP_PORT=8055
       - INFRAMAP_MASTER_KEY=${INFRAMAP_MASTER_KEY:?INFRAMAP_MASTER_KEY must be set}
     # Lets the image's non-root user send ICMP echo requests over an unprivileged socket,
-    # which ICMP sweeps need (docs/DEPLOYMENT.md, "ICMP Sweeps").
+    # which ICMP sweeps need (docs/DEPLOYMENT.md, "ICMP Sweeps"). The range stays within the
+    # 65 536 IDs a user namespace usually maps (unprivileged LXC, rootless Docker).
     sysctls:
-      net.ipv4.ping_group_range: "0 2147483647"
+      net.ipv4.ping_group_range: "0 65535"
     depends_on:
       postgres:
         condition: service_healthy
