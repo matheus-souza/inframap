@@ -58,6 +58,7 @@ import com.inframap.frontend.generated.resources.device_detail_status
 import com.inframap.frontend.generated.resources.device_detail_type
 import com.inframap.frontend.generated.resources.device_detail_updated_at
 import com.inframap.frontend.generated.resources.devices_retry
+import com.inframap.frontend.ui.util.Timestamps
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -219,7 +220,7 @@ private fun DeviceMainInfoCard(device: Device) {
             DetailRow(stringResource(Res.string.device_detail_hostname), device.hostname)
             DetailRow(stringResource(Res.string.device_detail_ip), device.ipAddress ?: "—", isMonospace = true)
             DetailRow(stringResource(Res.string.device_detail_mac), device.macAddress ?: "—", isMonospace = true)
-            DetailRow(stringResource(Res.string.device_detail_type), device.deviceType)
+            DetailRow(stringResource(Res.string.device_detail_type), deviceTypeLabel(device.deviceType))
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -283,8 +284,14 @@ private fun DeviceHardwareCard(device: Device) {
             DetailRow(stringResource(Res.string.device_detail_manufacturer), device.manufacturer ?: "—")
             DetailRow(stringResource(Res.string.device_detail_model), device.model ?: "—")
             DetailRow(stringResource(Res.string.device_detail_serial), device.serialNumber ?: "—")
-            DetailRow(stringResource(Res.string.device_detail_created_at), device.createdAt ?: "—")
-            DetailRow(stringResource(Res.string.device_detail_updated_at), device.updatedAt ?: "—")
+            DetailRow(
+                stringResource(Res.string.device_detail_created_at),
+                device.createdAt?.let(Timestamps::format) ?: "—",
+            )
+            DetailRow(
+                stringResource(Res.string.device_detail_updated_at),
+                device.updatedAt?.let(Timestamps::format) ?: "—",
+            )
         }
     }
 }
