@@ -54,13 +54,14 @@ class Navigator(
     /**
      * Called upon successful login completion. If [resumePrevious] is true and an expired
      * route was captured, resumes to that route; otherwise navigates to [Route.Dashboard].
-     * Clears any remembered expired route. (R20)
+     * Clears any remembered expired route (R20) and stores the route it lands on, like
+     * [navigateTo]: a reload right after a resumed reload returns to the same screen.
      */
     fun completeLogin(resumePrevious: Boolean) {
         val restored = if (resumePrevious) (expiredRoute ?: interruptedRouteStore?.restore()) else null
         val target = restored ?: Route.Dashboard
         expiredRoute = null
         interruptedRouteStore?.clear()
-        _currentRoute.value = target
+        navigateTo(target)
     }
 }
