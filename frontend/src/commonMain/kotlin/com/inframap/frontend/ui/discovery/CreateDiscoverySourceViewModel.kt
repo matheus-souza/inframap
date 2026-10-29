@@ -14,10 +14,7 @@ import com.inframap.frontend.domain.usecase.integrations.TestProviderHealthUseCa
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.discovery_error_create
-import com.inframap.frontend.generated.resources.discovery_validation_collector_required
 import com.inframap.frontend.generated.resources.provider_test_connection_failed
-import com.inframap.frontend.generated.resources.provider_validation_docker_endpoint_required
-import com.inframap.frontend.generated.resources.provider_validation_field_required
 import com.inframap.frontend.generated.resources.validation_discovery_name_required
 import com.inframap.frontend.ui.base.BaseViewModel
 import com.inframap.frontend.ui.util.UiText
@@ -109,29 +106,26 @@ class CreateDiscoverySourceViewModel(
 
     fun onCollectorsChanged(collectors: Set<String>) {
         editForm { current ->
-            // Seed a newly selected provider with its defaults, so a field the operator never
-            // touches still reaches the backend with its intended value.
-            val seeded =
-                collectors
-                    .filter { it !in current.selectedCollectors }
-                    .mapNotNull { id -> ProviderForms.defaults(id).takeIf { it.isNotEmpty() }?.let { id to it } }
-                    .toMap()
-            val errors =
-                if (collectors.isNotEmpty()) {
-                    current.validationErrors - "collectors"
-                } else {
-                    current.validationErrors
-                }
-            // A provider just switched on is the one the operator is about to configure.
-            // If none was added, retain activeProviderTab if still selected, else fall back to first selected or null.
-            val added = ProviderForms.ids.firstOrNull { it in collectors && it !in current.selectedCollectors }
-            val newActive = added ?: current.copy(selectedCollectors = collectors).currentProviderTab
-
             current.copy(
                 selectedCollectors = collectors,
-                providerConfigs = seeded + current.providerConfigs,
-                validationErrors = errors,
-                activeProviderTab = newActive,
+                providerConfigs =
+                    DiscoveryCollectorRules.seedDefaults(
+                        current.selectedCollectors,
+                        collectors,
+                        current.providerConfigs,
+                    ),
+                validationErrors =
+                    if (collectors.isNotEmpty()) {
+                        current.validationErrors - COLLECTORS_ERROR_KEY
+                    } else {
+                        current.validationErrors
+                    },
+                activeProviderTab =
+                    DiscoveryCollectorRules.providerTabAfter(
+                        current.selectedCollectors,
+                        collectors,
+                        current.activeProviderTab,
+                    ),
             )
         }
     }
@@ -213,9 +207,7 @@ class CreateDiscoverySourceViewModel(
             errors["name"] = UiText.Resource(Res.string.validation_discovery_name_required)
         }
 
-        if (selectedCollectors.isEmpty()) {
-            errors["collectors"] = UiText.Resource(Res.string.discovery_validation_collector_required)
-        }
+        DiscoveryCollectorRules.selectionError(selectedCollectors)?.let { errors[COLLECTORS_ERROR_KEY] = it }
 
         // Targets describe a network sweep. A plan made only of providers has no range to
         // scan, so its (hidden) target list is neither required nor sent.
@@ -225,7 +217,8 @@ class CreateDiscoverySourceViewModel(
             }
         }
 
-        val providerErrors = providerValidationErrors(state.value)
+        val providerErrors =
+            DiscoveryCollectorRules.providerErrors(state.value.selectedProviders, state.value.providerConfigs)
         errors += providerErrors
 
         val firstProviderWithError =
@@ -368,27 +361,6 @@ private fun buildCollectors(state: CreateDiscoverySourceUiState): List<Collector
             config = state.providerConfigs[type]?.filterValues { it.isNotBlank() }?.ifEmpty { null },
         )
     }
-
-/**
- * Validates the configuration of every selected provider.
- *
- * A connectivity check is deliberately not required to submit: the daemon may be temporarily
- * unreachable while the plan is still worth saving.
- */
-private fun providerValidationErrors(state: CreateDiscoverySourceUiState): Map<String, UiText> {
-    val errors = mutableMapOf<String, UiText>()
-    state.selectedProviders.forEach { providerId ->
-        val config = state.providerConfigs[providerId].orEmpty()
-        if (ProviderForms.missingFields(providerId, config).isNotEmpty()) {
-            errors[ProviderForms.labelKey(providerId)] =
-                UiText.Resource(Res.string.provider_validation_field_required)
-        } else if (ProviderForms.isEndpointMissing(providerId, config)) {
-            errors[ProviderForms.labelKey(providerId)] =
-                UiText.Resource(Res.string.provider_validation_docker_endpoint_required)
-        }
-    }
-    return errors
-}
 
 private fun CreateDiscoverySourceUiState.withError(
     key: String,

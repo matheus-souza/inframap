@@ -78,12 +78,14 @@ class EditDiscoverySourceViewModel(
                         }
                     }
 
+                    val loadedCollectors = src.collectors.map { c -> c.collectorType }.toSet()
                     updateState {
                         it.copy(
                             id = src.id,
                             name = src.name,
                             sourceType = src.sourceType,
-                            selectedCollectors = src.collectors.map { c -> c.collectorType }.toSet(),
+                            selectedCollectors = loadedCollectors,
+                            initialCollectors = loadedCollectors,
                             scheduleCron = src.scheduleCron.orEmpty(),
                             targets = src.targets,
                             initialTargets = src.targets,
@@ -126,44 +128,64 @@ class EditDiscoverySourceViewModel(
         updateState { it.copy(enabled = enabled) }
     }
 
+    fun toggleCollector(collectorType: String) {
+        val current = state.value.selectedCollectors
+        onCollectorsChanged(
+            if (collectorType in current) current - collectorType else current + collectorType,
+        )
+    }
+
+    /**
+     * Changes the plan with the create form's rules ([DiscoveryCollectorRules]). A collector
+     * switched off keeps what was typed for it, so switching it back on restores the form; it
+     * is only left out of the saved plan. Its errors and warnings go with it.
+     */
+    fun onCollectorsChanged(collectors: Set<String>) {
+        updateState { current ->
+            val removed = current.selectedCollectors - collectors
+            val removedErrorKeys =
+                removed.flatMap { listOf(ProviderForms.labelKey(it), secretErrorKey(it)) }.toSet()
+            current.copy(
+                selectedCollectors = collectors,
+                providerConfigs =
+                    DiscoveryCollectorRules.seedDefaults(
+                        current.selectedCollectors,
+                        collectors,
+                        current.providerConfigs,
+                    ),
+                activeProviderTab =
+                    DiscoveryCollectorRules.providerTabAfter(
+                        current.selectedCollectors,
+                        collectors,
+                        current.activeProviderTab,
+                    ),
+                targetChangedWarnings = current.targetChangedWarnings - removed,
+                validationErrors =
+                    (current.validationErrors - removedErrorKeys).let { errors ->
+                        if (collectors.isNotEmpty()) errors - COLLECTORS_ERROR_KEY else errors
+                    },
+            )
+        }
+    }
+
     fun onProviderFieldChanged(
         providerId: String,
         key: String,
         value: String,
     ) {
         updateState { current ->
-            val providerMap = current.providerConfigs[providerId].orEmpty().toMutableMap()
-            providerMap[key] = value
-            val newProviderConfigs = current.providerConfigs + (providerId to providerMap)
+            val providerMap = current.providerConfigs[providerId].orEmpty() + (key to value)
+            val updated = current.copy(providerConfigs = current.providerConfigs + (providerId to providerMap))
+            val warning = updated.needsSecretForTargetChange(providerId)
 
-            val targetKeys = ProviderForms.targetKeys(providerId)
-            val secretKeys = ProviderForms.secretKeys(providerId)
-            val initialTargets = current.initialProviderTargets[providerId].orEmpty()
-
-            val targetChanged =
-                targetKeys.any { tKey ->
-                    val initVal = initialTargets[tKey].orEmpty()
-                    val curVal = providerMap[tKey].orEmpty()
-                    initVal != curVal
-                }
-
-            val secretFilled =
-                secretKeys.any { sKey ->
-                    providerMap[sKey].orEmpty().isNotBlank()
-                }
-
-            val warning = targetChanged && !secretFilled
-            val newWarnings = current.targetChangedWarnings + (providerId to warning)
-
-            current.copy(
-                providerConfigs = newProviderConfigs,
-                targetChangedWarnings = newWarnings,
+            updated.copy(
+                targetChangedWarnings = current.targetChangedWarnings + (providerId to warning),
                 connectionTests = current.connectionTests - providerId,
                 validationErrors =
                     if (!warning) {
-                        current.validationErrors - "secret_$providerId"
+                        current.validationErrors - secretErrorKey(providerId) - ProviderForms.labelKey(providerId)
                     } else {
-                        current.validationErrors
+                        current.validationErrors - ProviderForms.labelKey(providerId)
                     },
             )
         }
@@ -217,49 +239,42 @@ class EditDiscoverySourceViewModel(
     }
 
     fun validate(): Boolean {
+        val current = state.value
         val errors = mutableMapOf<String, UiText>()
-        val name = state.value.name.trim()
+        val name = current.name.trim()
         if (name.isBlank()) {
             errors["name"] = UiText.Resource(Res.string.validation_discovery_name_required)
         }
 
-        // Unchanged targets are not sent, so they are not re-checked either: a target left
-        // behind by a deleted Subnet must not block renaming the source.
-        if (state.value.requiresCidr && state.value.targetsChanged) {
-            DiscoveryTargetRules.checkList(state.value.targets, required = true)?.let {
+        DiscoveryCollectorRules.selectionError(current.selectedCollectors)?.let { errors[COLLECTORS_ERROR_KEY] = it }
+
+        // Unchanged targets of an unchanged sweep are not sent, so they are not re-checked
+        // either: a target left behind by a deleted Subnet must not block renaming the source.
+        if (current.targetsNeedCheck) {
+            DiscoveryTargetRules.checkList(current.targets, required = true)?.let {
                 errors[TARGETS_ERROR_KEY] = it.message
             }
         }
 
+        // A provider added in this edit has nothing stored, so it is held to the create rules.
+        errors += DiscoveryCollectorRules.providerErrors(current.addedProviders, current.providerConfigs)
+
         val warnings = mutableMapOf<String, Boolean>()
-        state.value.selectedProviders.forEach { providerId ->
-            val targetKeys = ProviderForms.targetKeys(providerId)
-            val secretKeys = ProviderForms.secretKeys(providerId)
-            val initialTargets = state.value.initialProviderTargets[providerId].orEmpty()
-            val currentConfig = state.value.providerConfigs[providerId].orEmpty()
-
-            val targetChanged =
-                targetKeys.any { tKey ->
-                    val initVal = initialTargets[tKey].orEmpty()
-                    val curVal = currentConfig[tKey].orEmpty()
-                    initVal != curVal
-                }
-
-            val secretFilled =
-                secretKeys.any { sKey ->
-                    currentConfig[sKey].orEmpty().isNotBlank()
-                }
-
-            if (targetChanged && !secretFilled) {
-                warnings[providerId] = true
-                errors["secret_$providerId"] = UiText.Resource(Res.string.error_secret_required_on_target_change)
-            }
+        current.selectedProviders.filter { current.needsSecretForTargetChange(it) }.forEach { providerId ->
+            warnings[providerId] = true
+            errors[secretErrorKey(providerId)] = UiText.Resource(Res.string.error_secret_required_on_target_change)
         }
+
+        val firstProviderWithError =
+            current.selectedProviders.firstOrNull {
+                ProviderForms.labelKey(it) in errors || secretErrorKey(it) in errors
+            }
 
         updateState {
             it.copy(
                 validationErrors = errors,
                 targetChangedWarnings = it.targetChangedWarnings + warnings,
+                activeProviderTab = firstProviderWithError ?: it.activeProviderTab,
             )
         }
         return errors.isEmpty()
@@ -271,6 +286,9 @@ class EditDiscoverySourceViewModel(
         updateState { it.copy(isSubmitting = true, submitError = null) }
         val currentState = state.value
 
+        // The whole plan is sent: the backend replaces the stored collectors with this list,
+        // so a collector left out is removed. A blank secret of a collector it already stores
+        // is kept from the stored configuration.
         val collectors =
             currentState.selectedCollectors.map { colType ->
                 val cfg = currentState.providerConfigs[colType]?.filterValues { it.isNotBlank() }?.ifEmpty { null }
@@ -286,14 +304,7 @@ class EditDiscoverySourceViewModel(
                 type = currentState.sourceType,
                 enabled = currentState.enabled,
                 scheduleCron = currentState.scheduleCron.trim().ifEmpty { null },
-                // Without config.targets the backend keeps the stored list, so a source whose
-                // targets did not change (or that has none to edit) leaves them untouched.
-                config =
-                    if (currentState.requiresCidr && currentState.targetsChanged) {
-                        DiscoverySourceConfigDto(targets = currentState.targets.toRequestTargets())
-                    } else {
-                        null
-                    },
+                config = currentState.targetsConfig(),
                 collectors = collectors,
             )
 
@@ -327,9 +338,13 @@ class EditDiscoverySourceViewModel(
     private fun handleUpdateError(result: ApiResult.Error) {
         val currentState = state.value
         val isSSRF = result.code == "secret_required_on_target_change"
+        // Only a provider with a stored secret can be refused for a blank one; a provider
+        // added in this edit has none for the backend to keep.
         val warnings =
             if (isSSRF) {
-                currentState.selectedProviders.associateWith { true }
+                currentState.selectedProviders
+                    .filter { currentState.configuredSecrets[it].orEmpty().isNotEmpty() }
+                    .associateWith { true }
             } else {
                 emptyMap()
             }
@@ -467,6 +482,36 @@ class EditDiscoverySourceViewModel(
         }
     }
 }
+
+private fun secretErrorKey(providerId: String): String = "secret_$providerId"
+
+/**
+ * Whether a provider the source already had points at a new host while its secret is blank.
+ * Saving would then send the stored credential to a destination it was never used against,
+ * which the backend refuses (`secret_required_on_target_change`). A provider added in this
+ * edit has no stored credential to protect; its secret is required by the create rules.
+ */
+private fun EditDiscoverySourceUiState.needsSecretForTargetChange(providerId: String): Boolean {
+    if (providerId !in initialCollectors) return false
+    val initialTargets = initialProviderTargets[providerId].orEmpty()
+    val config = providerConfigs[providerId].orEmpty()
+    val targetChanged =
+        ProviderForms.targetKeys(providerId).any { initialTargets[it].orEmpty() != config[it].orEmpty() }
+    val secretFilled = ProviderForms.secretKeys(providerId).any { config[it].orEmpty().isNotBlank() }
+    return targetChanged && !secretFilled
+}
+
+/**
+ * The `config` of the update. Without `config.targets` the backend keeps the stored list, so
+ * unchanged targets are left out. A plan without a network sweep scans nothing, so it is saved
+ * without targets (RFC-026 §2, CONTEXT.md guideline #218): any it still stores are cleared.
+ */
+private fun EditDiscoverySourceUiState.targetsConfig(): DiscoverySourceConfigDto? =
+    when {
+        requiresCidr && targetsChanged -> DiscoverySourceConfigDto(targets = targets.toRequestTargets())
+        !requiresCidr && initialTargets.isNotEmpty() -> DiscoverySourceConfigDto(targets = emptyList())
+        else -> null
+    }
 
 private fun EditDiscoverySourceUiState.withError(
     key: String,

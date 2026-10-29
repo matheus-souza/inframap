@@ -857,6 +857,7 @@ private fun EditDiscoverySourceRoute(
             onNameChanged = viewModel::onNameChanged,
             onScheduleCronChanged = viewModel::onScheduleCronChanged,
             onEnabledChanged = viewModel::onEnabledChanged,
+            onCollectorsChanged = viewModel::onCollectorsChanged,
             onProviderFieldChanged = viewModel::onProviderFieldChanged,
             onProviderTabSelected = viewModel::onProviderTabSelected,
             targets =

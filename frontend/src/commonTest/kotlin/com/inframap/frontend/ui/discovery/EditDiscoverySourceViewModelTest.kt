@@ -1,6 +1,7 @@
 package com.inframap.frontend.ui.discovery
 
 import com.inframap.frontend.data.api.ApiResult
+import com.inframap.frontend.data.dto.CollectorConfigDto
 import com.inframap.frontend.data.dto.DiscoverySourceConfigDto
 import com.inframap.frontend.data.dto.DiscoveryTargetRequestDto
 import com.inframap.frontend.domain.model.DiscoverySource
@@ -655,6 +656,292 @@ class EditDiscoverySourceViewModelTest {
                     .isEmpty(),
             )
             assertFalse(vm.state.value.isLoadingSubnets)
+            vm.clear()
+        }
+
+    /** A plan mixing a sweep with a provider whose token is stored on the server. */
+    private val mixedSource =
+        sweepSource.copy(
+            id = "src-mixed",
+            name = "LAN and cluster",
+            targets = listOf(DiscoveryTarget("192.0.2.0/24")),
+            collectors =
+                listOf(
+                    SourceCollector(id = "col-icmp", collectorType = "icmp_sweep"),
+                    SourceCollector(id = "col-arp", collectorType = "arp_sweep"),
+                    SourceCollector(
+                        id = "col-pve",
+                        collectorType = "proxmox",
+                        config =
+                            mapOf(
+                                "api_url" to "https://pve1.lab:8006",
+                                "token_id" to "root@pam!token",
+                                "tls_verify" to "true",
+                            ),
+                        configuredSecrets = listOf("token_secret"),
+                    ),
+                ),
+        )
+
+    private fun loadMixedSource(): EditDiscoverySourceViewModel {
+        fakeRepo.getSourceByIdResult = ApiResult.Success(mixedSource, requestId = "")
+        return createViewModel(sourceId = "src-mixed")
+    }
+
+    private fun sentCollectors(): List<CollectorConfigDto> = fakeRepo.lastUpdateSourceRequest?.collectors.orEmpty()
+
+    @Test
+    fun loadSelectsTheCurrentCollectors() =
+        testScope.runTest {
+            val vm = loadMixedSource()
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertEquals(setOf("icmp_sweep", "arp_sweep", "proxmox"), state.selectedCollectors)
+            assertEquals(state.selectedCollectors, state.initialCollectors)
+            assertEquals(listOf("proxmox"), state.selectedProviders)
+            assertTrue(state.addedProviders.isEmpty())
+            assertTrue(state.requiresCidr)
+            vm.clear()
+        }
+
+    @Test
+    fun theRequestCarriesTheWholeCollectorList() =
+        testScope.runTest {
+            val vm = loadMixedSource()
+            advanceUntilIdle()
+
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value.isSuccess)
+            assertEquals(setOf("icmp_sweep", "arp_sweep", "proxmox"), sentCollectors().map { it.type }.toSet())
+            // The stored token is not resent: a blank secret of an unchanged provider is kept.
+            val proxmox = sentCollectors().single { it.type == "proxmox" }
+            assertEquals("https://pve1.lab:8006", proxmox.config?.get("api_url"))
+            assertNull(proxmox.config?.get("token_secret"))
+            assertNull(fakeRepo.lastUpdateSourceRequest?.config)
+            vm.clear()
+        }
+
+    @Test
+    fun switchingTheSweepsOffHidesTargetsAndSavesWithoutThem() =
+        testScope.runTest {
+            val vm = loadMixedSource()
+            advanceUntilIdle()
+
+            vm.toggleCollector("icmp_sweep")
+            vm.toggleCollector("arp_sweep")
+
+            assertFalse(vm.state.value.requiresCidr)
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value.isSuccess)
+            assertEquals(listOf("proxmox"), sentCollectors().map { it.type })
+            // The stored targets are cleared rather than kept hidden behind a plan that scans nothing.
+            assertEquals(DiscoverySourceConfigDto(targets = emptyList()), fakeRepo.lastUpdateSourceRequest?.config)
+            vm.clear()
+        }
+
+    @Test
+    fun removingACollectorLeavesItOutOfThePlan() =
+        testScope.runTest {
+            val vm = loadMixedSource()
+            advanceUntilIdle()
+
+            vm.toggleCollector("arp_sweep")
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertEquals(listOf("icmp_sweep", "proxmox"), sentCollectors().map { it.type }.sorted())
+            // The sweep that remains still scans the unchanged targets, which are kept as stored.
+            assertNull(fakeRepo.lastUpdateSourceRequest?.config)
+            vm.clear()
+        }
+
+    @Test
+    fun theLastCollectorCannotBeRemoved() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+
+            vm.toggleCollector("icmp_sweep")
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertNotNull(vm.state.value.validationErrors[COLLECTORS_ERROR_KEY])
+            assertEquals(0, fakeRepo.updateSourceCallCount)
+
+            vm.toggleCollector("mdns")
+            assertNull(vm.state.value.validationErrors[COLLECTORS_ERROR_KEY])
+            vm.clear()
+        }
+
+    @Test
+    fun anAddedProviderRequiresItsFieldsIncludingTheSecret() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+
+            vm.toggleCollector("proxmox")
+            val added = vm.state.value
+            assertEquals(listOf("proxmox"), added.addedProviders)
+            assertEquals("proxmox", added.currentProviderTab)
+            assertEquals("true", added.providerConfigs["proxmox"]?.get("tls_verify"))
+
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve2.lab:8006")
+            vm.onProviderFieldChanged("proxmox", "token_id", "root@pam!inframap")
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            // Nothing is stored for it, so a blank secret is a missing field, not a target change.
+            assertNotNull(vm.state.value.validationErrors[ProviderForms.labelKey("proxmox")])
+            assertNull(vm.state.value.validationErrors["secret_proxmox"])
+            assertFalse(vm.state.value.targetChangedWarnings["proxmox"] == true)
+            assertEquals(0, fakeRepo.updateSourceCallCount)
+
+            vm.onProviderFieldChanged("proxmox", "token_secret", "synthetic-token")
+            assertNull(vm.state.value.validationErrors[ProviderForms.labelKey("proxmox")])
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value.isSuccess)
+            assertEquals(
+                CollectorConfigDto(
+                    type = "proxmox",
+                    config =
+                        mapOf(
+                            "tls_verify" to "true",
+                            "api_url" to "https://pve2.lab:8006",
+                            "token_id" to "root@pam!inframap",
+                            "token_secret" to "synthetic-token",
+                        ),
+                ),
+                sentCollectors().single { it.type == "proxmox" },
+            )
+            vm.clear()
+        }
+
+    @Test
+    fun anAddedDockerNeedsAnEndpoint() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+
+            vm.onCollectorsChanged(setOf("icmp_sweep", "docker"))
+            assertFalse(vm.validate())
+            assertNotNull(vm.state.value.validationErrors[ProviderForms.labelKey("docker")])
+
+            vm.onProviderFieldChanged("docker", "tcp_url", "tcp://192.0.2.10:2376")
+            assertTrue(vm.validate())
+            vm.clear()
+        }
+
+    @Test
+    fun anAddedProviderCannotBeTestedBeforeSaving() =
+        testScope.runTest {
+            val vm = loadSweepSource()
+            advanceUntilIdle()
+
+            vm.toggleCollector("docker")
+            assertTrue(vm.state.value.hasPendingTargetOrSecretChanges("docker"))
+            vm.testConnection("docker")
+            advanceUntilIdle()
+
+            assertEquals(0, fakeRepo.testSourceHealthCallCount)
+            vm.clear()
+        }
+
+    @Test
+    fun removingAProviderDropsItsErrors() =
+        testScope.runTest {
+            val vm = loadMixedSource()
+            advanceUntilIdle()
+
+            vm.onProviderFieldChanged("proxmox", "api_url", "https://pve9.lab:8006")
+            vm.toggleCollector("docker")
+            assertFalse(vm.validate())
+            assertNotNull(vm.state.value.validationErrors["secret_proxmox"])
+            assertNotNull(vm.state.value.validationErrors[ProviderForms.labelKey("docker")])
+            assertEquals("proxmox", vm.state.value.currentProviderTab)
+
+            vm.toggleCollector("proxmox")
+            vm.toggleCollector("docker")
+
+            val state = vm.state.value
+            assertNull(state.validationErrors["secret_proxmox"])
+            assertNull(state.validationErrors[ProviderForms.labelKey("docker")])
+            assertFalse(state.targetChangedWarnings["proxmox"] == true)
+            assertTrue(vm.validate())
+            vm.clear()
+        }
+
+    @Test
+    fun reAddingALoadedProviderKeepsItsStoredSecret() =
+        testScope.runTest {
+            val vm = loadMixedSource()
+            advanceUntilIdle()
+
+            vm.toggleCollector("proxmox")
+            vm.toggleCollector("proxmox")
+
+            val state = vm.state.value
+            assertTrue(state.addedProviders.isEmpty())
+            assertEquals("https://pve1.lab:8006", state.providerConfigs["proxmox"]?.get("api_url"))
+            assertTrue(vm.validate())
+            vm.clear()
+        }
+
+    @Test
+    fun aFirstSweepNeedsATarget() =
+        testScope.runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            vm.toggleCollector("icmp_sweep")
+            assertTrue(vm.state.value.requiresCidr)
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertEquals(TargetRuleViolation.Required.message, vm.state.value.validationErrors[TARGETS_ERROR_KEY])
+            assertEquals(0, fakeRepo.updateSourceCallCount)
+
+            vm.onTargetInputChanged("198.51.100.0/24")
+            vm.onAddTargetCidr()
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            assertEquals(
+                DiscoverySourceConfigDto(targets = listOf(DiscoveryTargetRequestDto("198.51.100.0/24"))),
+                fakeRepo.lastUpdateSourceRequest?.config,
+            )
+            assertEquals(setOf("proxmox", "icmp_sweep"), sentCollectors().map { it.type }.toSet())
+            vm.clear()
+        }
+
+    @Test
+    fun aRefusedTargetChangeFlagsOnlyProvidersWithAStoredSecret() =
+        testScope.runTest {
+            fakeRepo.updateSourceResult =
+                ApiResult.Error(
+                    code = "secret_required_on_target_change",
+                    message = "secret required",
+                    requestId = "",
+                    httpStatus = 422,
+                )
+            val vm = loadMixedSource()
+            advanceUntilIdle()
+
+            vm.toggleCollector("docker")
+            vm.onProviderFieldChanged("docker", "socket_path", "unix:///var/run/docker.sock")
+            vm.onSubmitClicked()
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertNotNull(state.submitError)
+            assertTrue(state.targetChangedWarnings["proxmox"] == true)
+            assertFalse(state.targetChangedWarnings["docker"] == true)
             vm.clear()
         }
 }

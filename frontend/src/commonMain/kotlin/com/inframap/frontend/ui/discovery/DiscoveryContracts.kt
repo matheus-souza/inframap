@@ -148,6 +148,11 @@ data class EditDiscoverySourceUiState(
     val name: String = "",
     val sourceType: String = "",
     val selectedCollectors: Set<String> = emptySet(),
+    /**
+     * Collectors the source had when loaded. Only these have a configuration stored on the
+     * server, so only these can keep a secret left blank.
+     */
+    val initialCollectors: Set<String> = emptySet(),
     val scheduleCron: String = "",
     val targets: List<DiscoveryTarget> = emptyList(),
     /** Targets as loaded; the update carries `config.targets` only when they changed. */
@@ -185,8 +190,21 @@ data class EditDiscoverySourceUiState(
     val currentProviderTab: String? get() =
         activeProviderTab?.takeIf { it in selectedProviders } ?: selectedProviders.firstOrNull()
 
+    /**
+     * Selected providers the source did not have when loaded. Nothing is stored for them, so
+     * their required fields, secrets included, must be filled in as on the create form.
+     */
+    val addedProviders: List<String> get() = selectedProviders.filter { it !in initialCollectors }
+
     /** See [CreateDiscoverySourceUiState.requiresCidr]; the editor is hidden when false. */
     val requiresCidr: Boolean get() = requiresTargets(selectedCollectors)
+
+    /**
+     * Whether the targets must be checked before saving: when they changed, or when the plan
+     * gained its first network sweep, which now scans them.
+     */
+    val targetsNeedCheck: Boolean get() =
+        requiresCidr && (targetsChanged || !requiresTargets(initialCollectors))
 
     /** Whether the operator added, removed, reordered or replaced a target since loading. */
     val targetsChanged: Boolean get() =
@@ -202,7 +220,13 @@ data class EditDiscoverySourceUiState(
             listError = validationErrors[TARGETS_ERROR_KEY],
         )
 
+    /**
+     * Whether the provider's form differs from what is stored, so a connection test (which runs
+     * against the stored configuration) would not check what the operator sees. A provider
+     * added in this edit has nothing stored yet.
+     */
     fun hasPendingTargetOrSecretChanges(providerId: String): Boolean {
+        if (providerId !in initialCollectors) return true
         val targetKeys = ProviderForms.targetKeys(providerId)
         val secretKeys = ProviderForms.secretKeys(providerId)
         val initialTargets = initialProviderTargets[providerId].orEmpty()
@@ -224,6 +248,7 @@ data class EditDiscoverySourceActions(
     val onNameChanged: (String) -> Unit,
     val onScheduleCronChanged: (String) -> Unit,
     val onEnabledChanged: (Boolean) -> Unit,
+    val onCollectorsChanged: (Set<String>) -> Unit = {},
     val onProviderFieldChanged: (providerId: String, key: String, value: String) -> Unit,
     val onProviderTabSelected: (providerId: String) -> Unit,
     val targets: DiscoveryTargetsEditorActions = DiscoveryTargetsEditorActions(),
