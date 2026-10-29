@@ -54,7 +54,7 @@ val presentationModule =
 
         factory { ProductTourViewModel(get()) }
 
-        factory { TopologyViewModel(get(), getOrNull()) }
+        factory { TopologyViewModel(get(), getOrNull(), get()) }
         factory { RealtimeStatusViewModel(getOrNull()) }
 
         factory { CommandPaletteViewModel(get()) }
