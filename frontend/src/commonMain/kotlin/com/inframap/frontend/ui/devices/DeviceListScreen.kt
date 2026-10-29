@@ -240,7 +240,7 @@ private fun DeviceTableRowCell(
             )
         2 ->
             Text(
-                text = item.deviceType,
+                text = deviceTypeLabel(item.deviceType),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
             )

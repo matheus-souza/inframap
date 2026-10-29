@@ -52,6 +52,7 @@ import com.inframap.frontend.generated.resources.staging_header
 import com.inframap.frontend.generated.resources.staging_retry
 import com.inframap.frontend.generated.resources.staging_subtitle
 import com.inframap.frontend.generated.resources.staging_value_empty
+import com.inframap.frontend.ui.devices.deviceTypeLabel
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.ceil
 
@@ -229,7 +230,7 @@ private fun StagingRowCell(
             )
         3 ->
             Text(
-                text = item.deviceType,
+                text = deviceTypeLabel(item.deviceType),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )

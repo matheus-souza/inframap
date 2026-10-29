@@ -358,6 +358,7 @@
     <string name="device_type_firewall">Firewall</string>
     <string name="device_type_access_point">Access Point</string>
     <string name="device_type_iot">IoT</string>
+    <string name="device_type_host">Host</string>
     <string name="device_type_other">Outro</string>
     <string name="edit_device_header_title">Editar Dispositivo</string>
     <string name="edit_device_header_subtitle">Atualize as informações do ativo ID: %1$s</string>
