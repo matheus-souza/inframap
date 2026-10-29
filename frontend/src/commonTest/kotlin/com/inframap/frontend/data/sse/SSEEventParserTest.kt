@@ -113,6 +113,7 @@ class SSEEventParserTest {
                 "discovery_source.created" to SSEEvent.DiscoverySourceChanged::class,
                 "discovery_source.updated" to SSEEvent.DiscoverySourceChanged::class,
                 "discovery_source.deleted" to SSEEvent.DiscoverySourceChanged::class,
+                "discovery_source.scan.started" to SSEEvent.DiscoverySourceChanged::class,
                 "discovery_source.run_finished" to SSEEvent.DiscoverySourceChanged::class,
             )
 

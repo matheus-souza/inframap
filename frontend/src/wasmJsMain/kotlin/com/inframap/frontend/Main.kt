@@ -2,11 +2,14 @@ package com.inframap.frontend
 
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.ComposeViewport
+import com.inframap.frontend.data.sse.BrowserSSEClient
+import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.data.storage.BrowserLocalStorage
 import com.inframap.frontend.data.storage.LocalStorage
 import com.inframap.frontend.di.appModules
 import com.inframap.frontend.ui.app.InfraMapApp
 import kotlinx.browser.document
+import kotlinx.coroutines.MainScope
 import org.koin.compose.KoinApplication
 import org.koin.dsl.module
 
@@ -47,6 +50,9 @@ fun main() {
         val platformModule =
             module {
                 single<LocalStorage> { BrowserLocalStorage() }
+                // One client per screen ViewModel: each holds its own EventSource and closes it
+                // when the screen is left.
+                factory<SSEClient> { BrowserSSEClient(MainScope()) }
             }
         KoinApplication(application = { modules(appModules(baseUrl) + platformModule) }) {
             InfraMapApp()

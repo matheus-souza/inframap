@@ -339,6 +339,20 @@ class DiscoveryListViewModelTest {
         }
 
     @Test
+    fun leavingTheScreenClosesTheEventStream() =
+        runTest {
+            val sse = FakeSSEClient()
+            val vm = makeVm(scope = this, sse = sse)
+            runCurrent()
+            assertEquals(1, sse.connectCount)
+            assertEquals(0, sse.disconnectCount)
+
+            vm.clear()
+            runCurrent()
+            assertEquals(1, sse.disconnectCount)
+        }
+
+    @Test
     fun eventsOfOtherModulesDoNotRefreshTheList() =
         runTest {
             val repo = FakeDiscoveryRepository(getSourcesResult = sourcesResult(sampleSource))

@@ -300,6 +300,20 @@ class DashboardViewModelTest {
         }
 
     @Test
+    fun leavingTheScreenClosesTheEventStream() =
+        runTest {
+            val fakeSse = FakeSSEClient()
+            val vm = makeVm(sseClient = fakeSse, scope = this)
+            runCurrent()
+            assertEquals(1, fakeSse.connectCount)
+            assertEquals(0, fakeSse.disconnectCount)
+
+            vm.clear()
+            runCurrent()
+            assertEquals(1, fakeSse.disconnectCount)
+        }
+
+    @Test
     fun sseEventsTriggerMetricsReload() =
         runTest {
             val fakeSse = FakeSSEClient()

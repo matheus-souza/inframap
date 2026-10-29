@@ -34,12 +34,20 @@ func (g *Gateway) Start(_ context.Context) error {
 		return nil
 	}
 
+	// The frontend's SSEEventParser.EVENT_TYPES listens to these names; a topic missing here
+	// never reaches the browser. The discovery_source.* payloads carry ids, status and
+	// counts only, never a source's configuration or credentials.
 	topics := []string{
 		"discovery.progress",
 		"topology.updated",
 		"system.notification",
 		"device.created",
 		"device.updated",
+		"discovery_source.created",
+		"discovery_source.updated",
+		"discovery_source.deleted",
+		"discovery_source.scan.started",
+		"discovery_source.run_finished",
 	}
 
 	for _, topic := range topics {

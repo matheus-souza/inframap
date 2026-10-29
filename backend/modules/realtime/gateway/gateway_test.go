@@ -79,3 +79,34 @@ func TestGateway(t *testing.T) {
 		}
 	})
 }
+
+func TestGateway_ForwardsDiscoverySourceEvents(t *testing.T) {
+	bus := eventbus.NewInMemoryEventBus(1, 10)
+	defer func() { _ = bus.Close() }()
+	gw := gateway.NewGateway(bus)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := gw.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	ch, unsub := gw.Subscribe()
+	defer unsub()
+
+	for _, topic := range []string{
+		"discovery_source.created",
+		"discovery_source.updated",
+		"discovery_source.deleted",
+		"discovery_source.scan.started",
+		"discovery_source.run_finished",
+	} {
+		_ = bus.Publish(ctx, eventbus.NewBaseEvent(topic, map[string]interface{}{"source_id": "src-1"}))
+		select {
+		case msg := <-ch:
+			if msg.Event != topic {
+				t.Errorf("expected %s forwarded, got %s", topic, msg.Event)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("%s was not forwarded to SSE subscribers", topic)
+		}
+	}
+}

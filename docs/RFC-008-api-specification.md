@@ -255,7 +255,8 @@ InfraMap adopts **Server-Sent Events (SSE)** for streaming real-time notificatio
 ```
 
 ### SSE Stream Endpoint
-- `GET /api/v1/events/stream` — Establishes SSE stream connection.
+- `GET /api/v1/events/stream` — Establishes SSE stream connection. The stream is exempt from the server's `WriteTimeout`: it stays open for as long as the client listens, with a heartbeat comment every 15 s.
+- Forwarded event types: `discovery.progress`, `topology.updated`, `system.notification`, `device.created`, `device.updated`, and the Discovery Sources events `discovery_source.created`, `discovery_source.updated`, `discovery_source.deleted`, `discovery_source.scan.started` and `discovery_source.run_finished`. The `discovery_source.*` payloads carry the source id, status, schedule and run counts, never a source's configuration or credentials.
 
 ### SSE Message Payload Format
 
@@ -277,6 +278,12 @@ data: {"action":"link_added","source_device_id":"0198a1...","target_device_id":"
 ```text
 event: system.notification
 data: {"level":"warning","message":"Integration Proxmox node-01 connection timed out"}
+```
+
+#### 4. Discovery Source Run Finished (`discovery_source.run_finished`)
+```text
+event: discovery_source.run_finished
+data: {"source_id":"0198a...","status":"partial","duration_ms":235366,"total_collected":20,"total_valid":20,"total_discovered":3,"total_updated":17}
 ```
 
 ### SSE Reconnection & Event Recovery (`Last-Event-ID`)

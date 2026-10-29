@@ -1,6 +1,7 @@
 package controller_test
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"net/http"
@@ -235,3 +236,52 @@ func (f *failingResponseWriter) Write(b []byte) (int, error) {
 
 func (f *failingResponseWriter) WriteHeader(statusCode int) { f.rec.WriteHeader(statusCode) }
 func (f *failingResponseWriter) Flush()                     {}
+
+func TestSSEController_StreamOutlivesTheServerWriteTimeout(t *testing.T) {
+	bus := eventbus.NewInMemoryEventBus(1, 10)
+	defer func() { _ = bus.Close() }()
+	gw := gateway.NewGateway(bus)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/events/stream", controller.NewSSEController(gw).StreamEvents)
+
+	srv := httptest.NewUnstartedServer(mux)
+	srv.Config.WriteTimeout = 300 * time.Millisecond
+	srv.Start()
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/v1/events/stream")
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if !waitForSubscriber(gw, 1, time.Second) {
+		t.Fatal("timeout waiting for subscriber to connect")
+	}
+
+	lines := make(chan string, 16)
+	go func() {
+		defer close(lines)
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+	}()
+
+	time.Sleep(600 * time.Millisecond) // past the server's WriteTimeout
+	gw.Broadcast(gateway.EventMessage{ID: "late-1", Event: "discovery_source.run_finished", Data: "{}"})
+
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case line, open := <-lines:
+			if !open {
+				t.Fatal("stream closed before an event sent after the server's WriteTimeout")
+			}
+			if line == "id: late-1" {
+				return
+			}
+		case <-deadline:
+			t.Fatal("event sent after the server's WriteTimeout not received within 2s")
+		}
+	}
+}
