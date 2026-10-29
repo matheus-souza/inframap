@@ -252,3 +252,68 @@ func TestIdentityMatcher_MatchDevice_Tier0ProviderRef(t *testing.T) {
 		}
 	})
 }
+
+func TestIdentityMatcher_MatchDevice_Tier5IPAddress(t *testing.T) {
+	matcher := engine.NewDefaultIdentityMatcher()
+
+	addr := netip.MustParseAddr("192.0.2.1")
+	routerMAC, _ := net.ParseMAC("aa:bb:cc:00:00:01")
+	routerID := uuid.New()
+	// The user renamed the router, so no collector will ever report this hostname.
+	router := db.Device{ID: routerID, Hostname: "home-router", IpAddress: &addr}
+
+	t.Run("matches a swept address to the device that holds it", func(t *testing.T) {
+		res := matcher.MatchDevice(&dto.NormalizedDeviceDTO{IPAddress: "192.0.2.1"}, []db.Device{router})
+		if res.DeviceID == nil || *res.DeviceID != routerID {
+			t.Fatalf("DeviceID = %v, want %v", res.DeviceID, routerID)
+		}
+		if res.MatchedBy != "ip_address" {
+			t.Errorf("MatchedBy = %q, want %q", res.MatchedBy, "ip_address")
+		}
+	})
+
+	t.Run("matches when the observation brings a MAC the device does not have yet", func(t *testing.T) {
+		norm := &dto.NormalizedDeviceDTO{IPAddress: "192.0.2.1", MACAddress: "aa:bb:cc:00:00:01"}
+		if res := matcher.MatchDevice(norm, []db.Device{router}); res.DeviceID == nil || *res.DeviceID != routerID {
+			t.Fatalf("DeviceID = %v, want %v", res.DeviceID, routerID)
+		}
+	})
+
+	t.Run("matches when the device has a MAC the observation does not report", func(t *testing.T) {
+		withMAC := router
+		withMAC.MacAddress = routerMAC
+		if res := matcher.MatchDevice(&dto.NormalizedDeviceDTO{IPAddress: "192.0.2.1"}, []db.Device{withMAC}); res.DeviceID == nil {
+			t.Fatal("expected a match by address")
+		}
+	})
+
+	t.Run("refuses the address when the MAC addresses disagree", func(t *testing.T) {
+		withMAC := router
+		withMAC.MacAddress = routerMAC
+		norm := &dto.NormalizedDeviceDTO{IPAddress: "192.0.2.1", MACAddress: "aa:bb:cc:00:00:99"}
+		if res := matcher.MatchDevice(norm, []db.Device{withMAC}); res.DeviceID != nil {
+			t.Fatalf("expected no match for another device that took the address, got %v", res.DeviceID)
+		}
+	})
+
+	t.Run("refuses an address two live devices hold", func(t *testing.T) {
+		other := db.Device{ID: uuid.New(), Hostname: "printer", IpAddress: &addr}
+		if res := matcher.MatchDevice(&dto.NormalizedDeviceDTO{IPAddress: "192.0.2.1"}, []db.Device{router, other}); res.DeviceID != nil {
+			t.Fatalf("expected no match for an ambiguous address, got %v", res.DeviceID)
+		}
+	})
+
+	t.Run("prefers the live device over a deleted one with the same address", func(t *testing.T) {
+		deleted := db.Device{ID: uuid.New(), Hostname: "old-router", IpAddress: &addr, DeletedAt: pgtype.Timestamptz{Valid: true}}
+		res := matcher.MatchDevice(&dto.NormalizedDeviceDTO{IPAddress: "192.0.2.1"}, []db.Device{deleted, router})
+		if res.DeviceID == nil || *res.DeviceID != routerID {
+			t.Fatalf("DeviceID = %v, want the live device %v", res.DeviceID, routerID)
+		}
+	})
+
+	t.Run("ignores an observation without an address", func(t *testing.T) {
+		if res := matcher.MatchDevice(&dto.NormalizedDeviceDTO{Hostname: "home-router-mdns"}, []db.Device{router}); res.DeviceID != nil {
+			t.Fatalf("expected no match, got %v", res.DeviceID)
+		}
+	})
+}

@@ -43,7 +43,8 @@ func NewDefaultIdentityMatcher() *DefaultIdentityMatcher {
 // Tier 2: Provider UUID (legacy Proxmox VM ID / Docker Container ID)
 // Tier 3: Hardware Serial Number
 // Tier 4: Hostname + IP Address
-// Tier 5: No Match (returns nil DeviceID)
+// Tier 5: IP Address alone, when no MAC address contradicts it
+// Tier 6: No Match (returns nil DeviceID)
 func (m *DefaultIdentityMatcher) MatchDevice(norm *dto.NormalizedDeviceDTO, activeDevices []db.Device) MatchResult {
 	if norm == nil {
 		return MatchResult{DeviceID: nil, MatchedBy: ""}
@@ -126,8 +127,51 @@ func (m *DefaultIdentityMatcher) MatchDevice(norm *dto.NormalizedDeviceDTO, acti
 		}
 	}
 
-	// Tier 5: No Match
+	// Tier 5: IP address alone. An ICMP sweep reports nothing but the address, and a device
+	// whose hostname the user set carries one no collector will ever report, so without this
+	// tier every device approved from a sweep went back to staging on the next run.
+	if id := matchByAddress(normIP, normMAC, activeDevices); id != nil {
+		return MatchResult{DeviceID: id, MatchedBy: "ip_address"}
+	}
+
+	// Tier 6: No Match
 	return MatchResult{DeviceID: nil, MatchedBy: ""}
+}
+
+// matchByAddress returns the only device holding ip whose MAC address does not contradict
+// mac (either side unknown counts as no contradiction). A live device wins over a deleted
+// one; two candidates of the same kind are ambiguous and match nothing.
+func matchByAddress(ip, mac string, activeDevices []db.Device) *uuid.UUID {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return nil
+	}
+	observedMAC, _ := net.ParseMAC(mac)
+
+	var live, deleted []*db.Device
+	for i := range activeDevices {
+		dev := &activeDevices[i]
+		if dev.IpAddress == nil || *dev.IpAddress != addr {
+			continue
+		}
+		if len(observedMAC) > 0 && len(dev.MacAddress) > 0 && !strings.EqualFold(dev.MacAddress.String(), observedMAC.String()) {
+			continue
+		}
+		if dev.DeletedAt.Valid {
+			deleted = append(deleted, dev)
+		} else {
+			live = append(live, dev)
+		}
+	}
+
+	switch {
+	case len(live) == 1:
+		return &live[0].ID
+	case len(live) == 0 && len(deleted) == 1:
+		return &deleted[0].ID
+	default:
+		return nil
+	}
 }
 
 // deviceProviderRefKey reads the canonical ProviderRef stored on a device, returning an

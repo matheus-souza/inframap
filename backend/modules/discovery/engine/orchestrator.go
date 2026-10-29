@@ -88,7 +88,8 @@ func DefaultWorkerPoolSize() int {
 
 // DeviceCallback is invoked for each valid, normalized observation after matching.
 // sourceType is the protocol source (e.g. "icmp", "arp"). norm is the normalized DTO.
-// matched indicates whether the device was found in active inventory.
+// matched indicates whether the device was found in active inventory; when it was,
+// norm.MatchedDeviceID names it.
 type DeviceCallback func(ctx context.Context, norm *dto.NormalizedDeviceDTO, sourceType string, matched bool)
 
 // DefaultOrchestrator implements Orchestrator.
@@ -595,6 +596,7 @@ func (o *DefaultOrchestrator) processObservations(ctx context.Context, observati
 						}
 					}
 				} else {
+					normDTO.MatchedDeviceID = &existingDev.ID
 					_, changed := o.reconciler.Reconcile(existingDev, normDTO, normalized.ProtocolSource)
 					if changed && !processedKeys[dedupeKey] {
 						totalUpdated++
@@ -609,13 +611,17 @@ func (o *DefaultOrchestrator) processObservations(ctx context.Context, observati
 								slog.Warn("failed to publish device.updated event", "device_id", existingDev.ID, "error", pubErr)
 							}
 						}
+					}
 
-						o.mu.RLock()
-						cb := o.onDeviceCallback
-						o.mu.RUnlock()
-						if cb != nil {
-							cb(ctx, normDTO, normalized.ProtocolSource, true)
-						}
+					// Every observation of a known device is handed on, changed or not: seeing
+					// the device is what refreshes its presence, and the reconciliation above
+					// ran against the inventory as it stood before this run, so only the
+					// callback, which reads the device again, can persist what it adds.
+					o.mu.RLock()
+					cb := o.onDeviceCallback
+					o.mu.RUnlock()
+					if cb != nil {
+						cb(ctx, normDTO, normalized.ProtocolSource, true)
 					}
 				}
 			}
