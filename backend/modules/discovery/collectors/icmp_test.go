@@ -5,21 +5,27 @@ import (
 	"errors"
 	"net/netip"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/matheussouza/inframap/modules/discovery/collectors"
 )
 
-// fakeICMPPinger implements collectors.ICMPPinger for testing.
+// fakeICMPPinger implements collectors.ICMPPinger for testing. A sweep calls it concurrently.
 type fakeICMPPinger struct {
-	rtts  map[netip.Addr]time.Duration
-	err   error
+	rtts map[netip.Addr]time.Duration
+	err  error
+
+	mu    sync.Mutex
 	calls int
 }
 
 func (f *fakeICMPPinger) Ping(_ context.Context, ip netip.Addr) (time.Duration, error) {
+	f.mu.Lock()
 	f.calls++
+	f.mu.Unlock()
 	if f.err != nil {
 		return 0, f.err
 	}
@@ -225,4 +231,117 @@ func TestParsePingRTT(t *testing.T) {
 			t.Error("expected ok to be false")
 		}
 	})
+}
+
+// slowICMPPinger answers every address after delay, except those in down and the one in
+// unavailableAt, and records the most probes it saw in flight at once.
+type slowICMPPinger struct {
+	delay         time.Duration
+	down          map[netip.Addr]bool
+	unavailableAt netip.Addr
+
+	inFlight    atomic.Int32
+	maxInFlight atomic.Int32
+	calls       atomic.Int32
+}
+
+func (p *slowICMPPinger) Ping(ctx context.Context, ip netip.Addr) (time.Duration, error) {
+	p.calls.Add(1)
+	n := p.inFlight.Add(1)
+	defer p.inFlight.Add(-1)
+	for {
+		m := p.maxInFlight.Load()
+		if n <= m || p.maxInFlight.CompareAndSwap(m, n) {
+			break
+		}
+	}
+	if ip == p.unavailableAt {
+		return 0, collectors.ErrICMPUnavailable
+	}
+	select {
+	case <-time.After(p.delay):
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+	if p.down[ip] {
+		return 0, errors.New("request timed out")
+	}
+	return time.Millisecond, nil
+}
+
+func TestICMPCollector_SweepsAddressesConcurrently(t *testing.T) {
+	pinger := &slowICMPPinger{
+		delay: 100 * time.Millisecond,
+		down:  map[netip.Addr]bool{netip.MustParseAddr("192.0.2.7"): true},
+	}
+	c := collectors.NewICMPCollector(pinger)
+
+	start := time.Now()
+	obs, err := c.Collect(context.Background(), collectors.DiscoveryTarget{CIDR: "192.0.2.0/24"})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// One address at a time would take 254 × 100 ms ≈ 25 s; at 100 probes a second the
+	// sweep cannot start its last probe before about 2.5 s.
+	if elapsed > 6*time.Second {
+		t.Errorf("sweep of a /24 took %s, expected the addresses to be probed concurrently", elapsed)
+	}
+	if elapsed < 2400*time.Millisecond {
+		t.Errorf("sweep of a /24 took %s, faster than 100 probes a second allows", elapsed)
+	}
+	if got := pinger.maxInFlight.Load(); got < 2 || got > 64 {
+		t.Errorf("max probes in flight = %d, want between 2 and the bound of 64", got)
+	}
+	if got := pinger.calls.Load(); got != 254 {
+		t.Errorf("expected every host address probed once, got %d probes", got)
+	}
+	if len(obs) != 253 {
+		t.Fatalf("expected 253 reachable hosts, got %d", len(obs))
+	}
+	for i := 1; i < len(obs); i++ {
+		prev := netip.MustParseAddr(obs[i-1].IPAddress)
+		cur := netip.MustParseAddr(obs[i].IPAddress)
+		if !prev.Less(cur) {
+			t.Fatalf("observations out of address order: %s before %s", prev, cur)
+		}
+	}
+	for _, o := range obs {
+		if o.IPAddress == "192.0.2.7" {
+			t.Error("a host that did not answer must not be observed")
+		}
+	}
+}
+
+func TestICMPCollector_UnavailableMidSweepIsReported(t *testing.T) {
+	pinger := &slowICMPPinger{
+		delay:         10 * time.Millisecond,
+		unavailableAt: netip.MustParseAddr("192.0.2.40"),
+	}
+	c := collectors.NewICMPCollector(pinger)
+
+	obs, err := c.Collect(context.Background(), collectors.DiscoveryTarget{CIDR: "192.0.2.0/24"})
+	if !errors.Is(err, collectors.ErrICMPUnavailable) {
+		t.Fatalf("expected ErrICMPUnavailable, got %v", err)
+	}
+	if len(obs) != 0 {
+		t.Errorf("expected no observations, got %d", len(obs))
+	}
+}
+
+func TestICMPCollector_CancellationStopsTheSweep(t *testing.T) {
+	pinger := &slowICMPPinger{delay: 5 * time.Second}
+	c := collectors.NewICMPCollector(pinger)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := c.Collect(ctx, collectors.DiscoveryTarget{CIDR: "192.0.2.0/24"})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected the deadline error, got %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Errorf("cancelled sweep returned after %s, expected it to stop promptly", elapsed)
+	}
 }
