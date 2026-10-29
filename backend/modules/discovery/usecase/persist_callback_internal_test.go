@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/netip"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	"github.com/matheussouza/inframap/internal/platform/eventbus"
 	"github.com/matheussouza/inframap/modules/discovery/collectors"
 	"github.com/matheussouza/inframap/modules/discovery/dto"
+	"github.com/matheussouza/inframap/modules/discovery/engine"
 	inventoryRepo "github.com/matheussouza/inframap/modules/inventory/repository"
 )
 
@@ -28,19 +30,26 @@ type stubInvRepo struct {
 	capturedParams    []db.CreateStagingDeviceParams
 	staged            []db.DeviceStaging
 	failCreateStaging bool
+
+	devicesByID   map[uuid.UUID]db.Device
+	deviceUpdates []db.UpdateDeviceParams
 }
 
 func (s *stubInvRepo) CreateDevice(_ context.Context, _ db.CreateDeviceParams) (*db.Device, error) {
 	return nil, nil
 }
-func (s *stubInvRepo) GetDeviceByID(_ context.Context, _ uuid.UUID, _ bool) (*db.Device, error) {
+func (s *stubInvRepo) GetDeviceByID(_ context.Context, id uuid.UUID, _ bool) (*db.Device, error) {
+	if dev, ok := s.devicesByID[id]; ok {
+		return &dev, nil
+	}
 	return nil, inventoryRepo.ErrDeviceNotFound
 }
 func (s *stubInvRepo) ListDevices(_ context.Context, _, _ string, _, _ int32, _ bool) ([]db.Device, int64, error) {
 	return nil, 0, nil
 }
-func (s *stubInvRepo) UpdateDevice(_ context.Context, _ db.UpdateDeviceParams) (*db.Device, error) {
-	return nil, nil
+func (s *stubInvRepo) UpdateDevice(_ context.Context, params db.UpdateDeviceParams) (*db.Device, error) {
+	s.deviceUpdates = append(s.deviceUpdates, params)
+	return &db.Device{ID: params.ID}, nil
 }
 func (s *stubInvRepo) SoftDeleteDevice(_ context.Context, _ uuid.UUID) error { return nil }
 func (s *stubInvRepo) RestoreDevice(_ context.Context, _ db.RestoreDeviceParams) (*db.Device, error) {
@@ -94,9 +103,72 @@ func (s *stubInvRepo) GetInactiveDiscoverySourceDeviceIDs(_ context.Context, _ [
 }
 
 func TestPersistDiscoveredDevice(t *testing.T) {
-	t.Run("matched device is skipped", func(_ *testing.T) {
-		uc := &DefaultDiscoveryUseCase{}
-		uc.persistDiscoveredDevice(context.Background(), &dto.NormalizedDeviceDTO{}, "arp", true)
+	t.Run("matched observation is reconciled onto the device it matched", func(t *testing.T) {
+		routerID := uuid.New()
+		addr := netip.MustParseAddr("192.0.2.1")
+		inv := &stubInvRepo{devicesByID: map[uuid.UUID]db.Device{
+			routerID: {ID: routerID, Hostname: "home-router", IpAddress: &addr, DeviceType: "router", Status: "active"},
+		}}
+		uc := &DefaultDiscoveryUseCase{invRepo: inv, reconciler: engine.NewDefaultFieldReconciler()}
+
+		norm := &dto.NormalizedDeviceDTO{IPAddress: "192.0.2.1", MACAddress: "aa:bb:cc:00:00:01", MatchedDeviceID: &routerID}
+		uc.persistDiscoveredDevice(context.Background(), norm, "arp", true)
+
+		if len(inv.deviceUpdates) != 1 {
+			t.Fatalf("expected 1 device update, got %d", len(inv.deviceUpdates))
+		}
+		got := inv.deviceUpdates[0]
+		if got.ID != routerID || got.MacAddress.String() != "aa:bb:cc:00:00:01" {
+			t.Errorf("update = %s with MAC %q, want %s with the observed MAC", got.ID, got.MacAddress, routerID)
+		}
+		if got.Hostname != "home-router" || got.DeviceType != "router" {
+			t.Errorf("update changed what the observation did not report: hostname %q, type %q", got.Hostname, got.DeviceType)
+		}
+		if len(inv.staged) != 0 {
+			t.Errorf("a known device must not be staged, got %d staging rows", len(inv.staged))
+		}
+	})
+
+	t.Run("matched observation with nothing new still refreshes the device's presence", func(t *testing.T) {
+		routerID := uuid.New()
+		addr := netip.MustParseAddr("192.0.2.1")
+		inv := &stubInvRepo{devicesByID: map[uuid.UUID]db.Device{
+			routerID: {ID: routerID, Hostname: "home-router", IpAddress: &addr, Status: "active"},
+		}}
+		uc := &DefaultDiscoveryUseCase{invRepo: inv, reconciler: engine.NewDefaultFieldReconciler()}
+
+		uc.persistDiscoveredDevice(context.Background(), &dto.NormalizedDeviceDTO{IPAddress: "192.0.2.1", MatchedDeviceID: &routerID}, "icmp", true)
+
+		if len(inv.deviceUpdates) != 1 {
+			t.Fatalf("expected the device to be written back to refresh last_seen_at, got %d updates", len(inv.deviceUpdates))
+		}
+	})
+
+	t.Run("matched observation without the matched device id writes nothing", func(t *testing.T) {
+		inv := &stubInvRepo{}
+		uc := &DefaultDiscoveryUseCase{invRepo: inv, reconciler: engine.NewDefaultFieldReconciler()}
+
+		uc.persistDiscoveredDevice(context.Background(), &dto.NormalizedDeviceDTO{IPAddress: "192.0.2.1"}, "icmp", true)
+
+		if len(inv.deviceUpdates) != 0 || len(inv.staged) != 0 {
+			t.Errorf("expected no writes, got %d updates and %d staging rows", len(inv.deviceUpdates), len(inv.staged))
+		}
+	})
+
+	t.Run("matched device that can no longer be read is logged", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		missingID := uuid.New()
+		inv := &stubInvRepo{}
+		uc := &DefaultDiscoveryUseCase{invRepo: inv, reconciler: engine.NewDefaultFieldReconciler(), logger: slog.New(slog.NewTextHandler(buf, nil))}
+
+		uc.persistDiscoveredDevice(context.Background(), &dto.NormalizedDeviceDTO{IPAddress: "192.0.2.1", MatchedDeviceID: &missingID}, "icmp", true)
+
+		if len(inv.deviceUpdates) != 0 {
+			t.Errorf("expected no update, got %d", len(inv.deviceUpdates))
+		}
+		if !bytes.Contains(buf.Bytes(), []byte("failed to read matched device")) {
+			t.Error("expected a log about the unreadable device")
+		}
 	})
 
 	t.Run("nil invRepo logs error", func(t *testing.T) {

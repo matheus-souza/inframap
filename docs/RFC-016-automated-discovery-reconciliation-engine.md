@@ -51,7 +51,8 @@ To prevent asset duplication across multiple discovery sources, incoming payload
 | **2** | **Provider UUID** | Match on provider namespace in `metadata` (`metadata.proxmox.vm_id`, `metadata.docker.container_id`) | Associate payload to existing `device_id` |
 | **3** | **Hardware Serial** | Match on `serial_number` | Associate payload to existing `device_id` |
 | **4** | **Hostname + IP Address** | Exact match on `hostname` and `ip_address` | Associate payload to existing `device_id` |
-| **5 (Lowest)** | **No Match** | None of the above matchers yielded a hit | Route to Staging Queue or Auto-Approve |
+| **5** | **IP Address** | The only device holding `ip_address` whose MAC does not contradict the observation's (either side unknown is no contradiction); a live device wins over a deleted one, two of the same kind match nothing | Associate payload to existing `device_id` |
+| **6 (Lowest)** | **No Match** | None of the above matchers yielded a hit | Route to Staging Queue or Auto-Approve |
 
 ---
 
