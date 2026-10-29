@@ -272,6 +272,14 @@ func (u *DefaultDiscoveryUseCase) UpdateSource(ctx context.Context, idStr string
 			changedTargetFields = append(changedTargetFields, dto.ConfigKeyTargets)
 		}
 
+		// A collector that points at a stored credential takes its secrets from it, as on
+		// create: an inline secret kept from the previous config would override the
+		// credential's (inline values win when the reference is resolved), and the operator
+		// named the credential in this request, so a destination change needs no secret typed.
+		if usesCredentialReference(col.Config) {
+			continue
+		}
+
 		// Check secret fields: if target changed and secret is blank -> 422 error!
 		// If target unchanged and secret is blank -> copy from previous config (secret preservation).
 		for k, prevVal := range prevConfig {
@@ -982,22 +990,7 @@ func (u *DefaultDiscoveryUseCase) IngestNormalizedDevice(ctx context.Context, so
 
 		reconciledDB, changed := u.reconciler.Reconcile(existingDB, norm, effectiveType)
 		if changed {
-			updateParams := db.UpdateDeviceParams{
-				ID:           reconciledDB.ID,
-				Hostname:     reconciledDB.Hostname,
-				IpAddress:    reconciledDB.IpAddress,
-				MacAddress:   reconciledDB.MacAddress,
-				Manufacturer: reconciledDB.Manufacturer,
-				Model:        reconciledDB.Model,
-				SerialNumber: reconciledDB.SerialNumber,
-				DeviceType:   reconciledDB.DeviceType,
-				Status:       reconciledDB.Status,
-				Metadata:     reconciledDB.Metadata,
-				// Empty for network sweeps, in which case the query keeps whatever scope the
-				// device already had: a sweep must never claim a workload out of its provider.
-				ProviderScope: observationProviderScope(norm),
-			}
-			_, updateErr := u.invRepo.UpdateDevice(ctx, updateParams)
+			_, updateErr := u.invRepo.UpdateDevice(ctx, reconciledDeviceUpdate(reconciledDB, norm))
 			if updateErr != nil {
 				if u.logger != nil {
 					u.logger.Error("failed to update reconciled device", slog.String("device_id", targetDeviceID.String()), slog.Any("error", updateErr))
@@ -1176,16 +1169,38 @@ func (u *DefaultDiscoveryUseCase) stageDeviceWithIdempotency(ctx context.Context
 	return staged, true, nil
 }
 
-// persistDiscoveredDevice is called by the orchestrator for each valid observation.
-// New devices go to staging; matched devices are already reconciled in-memory by the orchestrator.
-func (u *DefaultDiscoveryUseCase) persistDiscoveredDevice(ctx context.Context, norm *dto.NormalizedDeviceDTO, sourceType string, matched bool) {
-	if matched {
-		return
+// reconciledDeviceUpdate writes a reconciled device back as it is, which also refreshes its
+// last_seen_at and clears its absence streak.
+func reconciledDeviceUpdate(reconciled *db.Device, norm *dto.NormalizedDeviceDTO) db.UpdateDeviceParams {
+	return db.UpdateDeviceParams{
+		ID:           reconciled.ID,
+		Hostname:     reconciled.Hostname,
+		IpAddress:    reconciled.IpAddress,
+		MacAddress:   reconciled.MacAddress,
+		Manufacturer: reconciled.Manufacturer,
+		Model:        reconciled.Model,
+		SerialNumber: reconciled.SerialNumber,
+		DeviceType:   reconciled.DeviceType,
+		Status:       reconciled.Status,
+		Metadata:     reconciled.Metadata,
+		// Empty for network sweeps, in which case the query keeps whatever scope the
+		// device already had: a sweep must never claim a workload out of its provider.
+		ProviderScope: observationProviderScope(norm),
 	}
+}
+
+// persistDiscoveredDevice is called by the orchestrator for each valid observation.
+// New devices go to staging; an observation of a device already in the inventory is
+// reconciled onto it.
+func (u *DefaultDiscoveryUseCase) persistDiscoveredDevice(ctx context.Context, norm *dto.NormalizedDeviceDTO, sourceType string, matched bool) {
 	if u.invRepo == nil {
 		if u.logger != nil {
 			u.logger.Error("cannot persist discovered device: inventory repository is not configured")
 		}
+		return
+	}
+	if matched {
+		u.refreshMatchedDevice(ctx, norm, sourceType)
 		return
 	}
 
@@ -1210,6 +1225,28 @@ func (u *DefaultDiscoveryUseCase) persistDiscoveredDevice(ctx context.Context, n
 			}
 		}
 		_ = u.eventBus.Publish(ctx, eventbus.NewBaseEvent("device.staged", eventData))
+	}
+}
+
+// refreshMatchedDevice reconciles an observation onto the inventory device it matched and
+// writes the device back even when no field changed, since being observed is what keeps
+// last_seen_at current. The device is read again rather than taken from the orchestrator,
+// whose copy predates the run, so what earlier collectors of the same run wrote is kept.
+func (u *DefaultDiscoveryUseCase) refreshMatchedDevice(ctx context.Context, norm *dto.NormalizedDeviceDTO, sourceType string) {
+	if norm.MatchedDeviceID == nil {
+		return
+	}
+	existing, err := u.invRepo.GetDeviceByID(ctx, *norm.MatchedDeviceID, false)
+	if err != nil {
+		if u.logger != nil {
+			u.logger.Error("failed to read matched device", slog.String("device_id", norm.MatchedDeviceID.String()), slog.Any("error", err))
+		}
+		return
+	}
+
+	reconciled, _ := u.reconciler.Reconcile(existing, norm, sourceType)
+	if _, err := u.invRepo.UpdateDevice(ctx, reconciledDeviceUpdate(reconciled, norm)); err != nil && u.logger != nil {
+		u.logger.Error("failed to update matched device", slog.String("device_id", existing.ID.String()), slog.Any("error", err))
 	}
 }
 
@@ -1570,4 +1607,14 @@ func (u *DefaultDiscoveryUseCase) TestHealth(ctx context.Context, sourceIDStr st
 		Status:     "ok",
 		Message:    "Connection established",
 	}, nil
+}
+
+// usesCredentialReference reports whether a collector config points at a stored credential
+// (repository.CredentialConfigKey) instead of carrying its secrets inline.
+func usesCredentialReference(config map[string]interface{}) bool {
+	raw, ok := config[repository.CredentialConfigKey]
+	if !ok || raw == nil {
+		return false
+	}
+	return strings.TrimSpace(fmt.Sprint(raw)) != ""
 }

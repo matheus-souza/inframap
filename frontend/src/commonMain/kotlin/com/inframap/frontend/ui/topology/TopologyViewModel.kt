@@ -4,6 +4,8 @@ import androidx.compose.ui.geometry.Offset
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.sse.SSEClient
 import com.inframap.frontend.data.sse.SSEEvent
+import com.inframap.frontend.domain.model.toSummary
+import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
 import com.inframap.frontend.domain.usecase.topology.GetTopologyGraphUseCase
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.topology_error_load
@@ -19,6 +21,7 @@ import kotlinx.coroutines.isActive
 class TopologyViewModel(
     private val getTopologyGraphUseCase: GetTopologyGraphUseCase,
     private val sseClient: SSEClient? = null,
+    private val listSubnetsUseCase: ListSubnetsUseCase? = null,
     scope: CoroutineScope? = null,
 ) : BaseViewModel<TopologyState>(TopologyState(), scope) {
     init {
@@ -26,7 +29,22 @@ class TopologyViewModel(
         setupSseListening()
     }
 
+    /**
+     * The registered Subnets the canvas outlines. A failure leaves the nodes without
+     * boundaries; the graph itself is unaffected.
+     */
+    private fun loadSubnets() {
+        val useCase = listSubnetsUseCase ?: return
+        launchJob("loadSubnets") {
+            val result = useCase()
+            if (result is ApiResult.Success) {
+                updateState { it.copy(subnets = result.data.items.map { subnet -> subnet.toSummary() }) }
+            }
+        }
+    }
+
     fun loadGraph() {
+        loadSubnets()
         updateState { it.copy(isLoading = true, errorMessage = null) }
         launchJob("loadGraph") {
             val result = getTopologyGraphUseCase()

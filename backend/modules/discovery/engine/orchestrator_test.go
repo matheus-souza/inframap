@@ -432,6 +432,40 @@ func TestOrchestrator_RunScan(t *testing.T) {
 		}
 	})
 
+	t.Run("DeviceCallback receives every observation of a known device and the device it matched", func(t *testing.T) {
+		// An ICMP sweep reports only the address, and the user renamed the router: nothing
+		// about the device changes, but the observation still has to reach persistence.
+		col := &fakeCollector{
+			id:   "icmp",
+			name: "ICMP",
+			observations: []collectors.RawObservation{
+				{IPAddress: "10.0.0.1", ProtocolSource: "icmp", ConfidenceScore: 20},
+			},
+		}
+
+		routerID := uuid.New()
+		addr := netip.MustParseAddr("10.0.0.1")
+		activeDevices := []db.Device{{ID: routerID, Hostname: "home-router", IpAddress: &addr}}
+
+		orch := engine.NewDefaultOrchestrator(nil)
+		orch.RegisterCollector(col)
+
+		var matchedIDs []*uuid.UUID
+		orch.SetDeviceCallback(func(_ context.Context, norm *dto.NormalizedDeviceDTO, _ string, matched bool) {
+			if !matched {
+				t.Errorf("expected the router to be matched, got a new device for %s", norm.IPAddress)
+			}
+			matchedIDs = append(matchedIDs, norm.MatchedDeviceID)
+		})
+
+		if _, err := orch.RunScan(context.Background(), collectors.DiscoveryTarget{CIDR: "10.0.0.0/24"}, activeDevices, nil); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(matchedIDs) != 1 || matchedIDs[0] == nil || *matchedIDs[0] != routerID {
+			t.Fatalf("callback matched IDs = %v, want [%s]", matchedIDs, routerID)
+		}
+	})
+
 	t.Run("DeviceCallback receives populated DeviceType", func(t *testing.T) {
 		col := &fakeCollector{
 			id:   "arp",
@@ -676,6 +710,44 @@ func TestOrchestrator_RunTargets_Scopes(t *testing.T) {
 			t.Errorf("got %d run details, want 5 (3 icmp + arp + docker)", len(res.Collectors))
 		}
 	})
+}
+
+func TestOrchestrator_RunTargets_UnionCollectorsRunAfterEveryTarget(t *testing.T) {
+	var mu sync.Mutex
+	var order []string
+	logCall := func(id string) func(context.Context, collectors.DiscoveryTarget) error {
+		return func(_ context.Context, target collectors.DiscoveryTarget) error {
+			mu.Lock()
+			defer mu.Unlock()
+			order = append(order, id+" "+target.CIDR)
+			return nil
+		}
+	}
+	icmp := &recordingCollector{id: "icmp"}
+	icmp.onCollect = logCall("icmp")
+	arp := &recordingCollector{id: "arp"}
+	arp.onCollect = logCall("arp")
+	docker := &recordingCollector{id: "docker"}
+	docker.onCollect = logCall("docker")
+
+	orch := engine.NewDefaultOrchestrator(nil)
+	orch.RegisterCollector(icmp)
+	orch.RegisterCollector(arp)
+	orch.RegisterCollector(docker)
+
+	targets := threeTargets()
+	if _, err := orch.RunTargets(context.Background(), collectors.DiscoveryTarget{}, targets, nil, []string{"icmp_sweep", "arp_sweep", "docker"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The ARP collector reads the neighbour table the sweeps fill, so it must come after the
+	// last target's sweep; providers need no target and keep running with the first one.
+	if len(order) != 5 || order[len(order)-1] != "arp " {
+		t.Fatalf("call order = %v, want arp last", order)
+	}
+	if !slices.Contains(order[:2], "docker ") {
+		t.Errorf("call order = %v, want docker with the first target", order)
+	}
 }
 
 func TestOrchestrator_RunTargets_NoTargets(t *testing.T) {
