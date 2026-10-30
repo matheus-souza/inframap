@@ -3,6 +3,7 @@ package com.inframap.frontend.ui.devices
 import app.cash.turbine.test
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.domain.model.IpAssignments
 import com.inframap.frontend.domain.usecase.device.DeleteDeviceUseCase
 import com.inframap.frontend.domain.usecase.device.GetDeviceByIdUseCase
 import com.inframap.frontend.domain.usecase.device.UpdateDeviceUseCase
@@ -151,6 +152,25 @@ class EditDeviceViewModelTest {
                 assertNull(state.errorMessage)
                 cancelAndIgnoreRemainingEvents()
             }
+            vm.clear()
+        }
+
+    @Test
+    fun theStoredIpAssignmentIsLoadedAndAChangedOneIsSubmitted() =
+        runTest {
+            val repo =
+                FakeDeviceRepository(
+                    getDeviceByIdResult = ApiResult.Success(sampleDevice.copy(ipAssignment = IpAssignments.DYNAMIC), requestId = ""),
+                )
+            val vm = makeVm(repo = repo, scope = this)
+            advanceUntilIdle()
+            assertEquals(IpAssignments.DYNAMIC, vm.state.value.ipAssignment)
+
+            vm.onIpAssignmentChanged(IpAssignments.RESERVED)
+            vm.updateDevice()
+            advanceUntilIdle()
+
+            assertEquals(IpAssignments.RESERVED, repo.lastUpdateRequest?.ipAssignment)
             vm.clear()
         }
 

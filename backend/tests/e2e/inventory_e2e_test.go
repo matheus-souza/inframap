@@ -2,10 +2,13 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/matheussouza/inframap/internal/platform/db"
 	"github.com/matheussouza/inframap/internal/platform/httputil"
 	configdto "github.com/matheussouza/inframap/modules/configuration/dto"
 	identitydto "github.com/matheussouza/inframap/modules/identity/dto"
@@ -144,6 +147,58 @@ func TestE2E_InventoryFlow(t *testing.T) {
 
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+		}
+	})
+
+	// 4b. Mark the address as reserved; discovery's reconciliation must keep it (RFC-027)
+	t.Run("Step 4b: IP Assignment Survives Reconciliation", func(t *testing.T) {
+		putAssignment := func(value string) *http.Response {
+			body, _ := json.Marshal(invdto.UpdateDeviceRequest{IPAssignment: &value})
+			req, _ := http.NewRequest(http.MethodPut, ts.URL+"/api/v1/devices/"+deviceID, bytes.NewReader(body))
+			req.Header.Set("Authorization", "Bearer "+adminToken)
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatalf("update device request failed: %v", err)
+			}
+			return resp
+		}
+
+		resp := putAssignment("reserved")
+		var env httputil.SuccessEnvelope
+		err := json.NewDecoder(resp.Body).Decode(&env)
+		_ = resp.Body.Close()
+		if err != nil || resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d (%v)", resp.StatusCode, err)
+		}
+		if got := env.Data.(map[string]any)["ip_assignment"]; got != "reserved" {
+			t.Fatalf("ip_assignment = %v, want reserved", got)
+		}
+
+		// The write a discovery run makes for a matched device carries no assignment.
+		queries := db.New(app.DB)
+		id := uuid.MustParse(deviceID)
+		device, err := queries.GetDeviceByID(context.Background(), db.GetDeviceByIDParams{ID: id})
+		if err != nil {
+			t.Fatalf("read device: %v", err)
+		}
+		_, err = queries.UpdateDevice(context.Background(), db.UpdateDeviceParams{
+			ID: device.ID, Hostname: device.Hostname, IpAddress: device.IpAddress, MacAddress: device.MacAddress,
+			Manufacturer: device.Manufacturer, Model: device.Model, SerialNumber: device.SerialNumber,
+			DeviceType: device.DeviceType, Status: device.Status, Metadata: device.Metadata,
+		})
+		if err != nil {
+			t.Fatalf("reconciliation update: %v", err)
+		}
+		device, err = queries.GetDeviceByID(context.Background(), db.GetDeviceByIDParams{ID: id})
+		if err != nil || device.IpAssignment != "reserved" {
+			t.Fatalf("after reconciliation ip_assignment = %q (%v), want reserved", device.IpAssignment, err)
+		}
+
+		resp = putAssignment("leased")
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected 400 for an unknown assignment, got %d", resp.StatusCode)
 		}
 	})
 

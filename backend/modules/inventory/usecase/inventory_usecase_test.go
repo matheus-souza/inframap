@@ -28,11 +28,11 @@ type mockInventoryRepository struct {
 	absenceCalls           []uuid.UUID
 	absenceCounts          map[uuid.UUID]int16
 
-	devices  map[uuid.UUID]*db.Device
-	staging  map[uuid.UUID]*db.DeviceStaging
-	subnets  map[uuid.UUID]*db.Subnet
+	devices                 map[uuid.UUID]*db.Device
+	staging                 map[uuid.UUID]*db.DeviceStaging
+	subnets                 map[uuid.UUID]*db.Subnet
 	inactiveSourceDeviceIDs map[uuid.UUID]bool
-	errToRet error
+	errToRet                error
 
 	lastListDevicesLimit  int32
 	lastListDevicesOffset int32
@@ -44,9 +44,9 @@ type mockInventoryRepository struct {
 
 func newMockInventoryRepository() *mockInventoryRepository {
 	return &mockInventoryRepository{
-		devices: make(map[uuid.UUID]*db.Device),
-		staging: make(map[uuid.UUID]*db.DeviceStaging),
-		subnets: make(map[uuid.UUID]*db.Subnet),
+		devices:                 make(map[uuid.UUID]*db.Device),
+		staging:                 make(map[uuid.UUID]*db.DeviceStaging),
+		subnets:                 make(map[uuid.UUID]*db.Subnet),
 		inactiveSourceDeviceIDs: make(map[uuid.UUID]bool),
 	}
 }
@@ -66,6 +66,7 @@ func (m *mockInventoryRepository) CreateDevice(_ context.Context, params db.Crea
 		DeviceType:   params.DeviceType,
 		Status:       params.Status,
 		Metadata:     params.Metadata,
+		IpAssignment: "unknown", // the column default
 		CreatedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		UpdatedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
@@ -113,6 +114,10 @@ func (m *mockInventoryRepository) UpdateDevice(_ context.Context, params db.Upda
 	d.DeviceType = params.DeviceType
 	d.Status = params.Status
 	d.Metadata = params.Metadata
+	// Mirrors the query: an empty assignment keeps the stored one.
+	if params.IpAssignment != "" {
+		d.IpAssignment = params.IpAssignment
+	}
 	return d, nil
 }
 
@@ -464,6 +469,47 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 		}
 		if updated.MACAddress != "aa:bb:cc:dd:ee:ff" {
 			t.Errorf("expected MAC aa:bb:cc:dd:ee:ff, got %s", updated.MACAddress)
+		}
+	})
+
+	t.Run("UpdateDevice sets the IP assignment", func(t *testing.T) {
+		created, _ := uc.CreateDevice(context.Background(), dto.CreateDeviceRequest{Hostname: "nas", DeviceType: "server"})
+
+		reserved := " Reserved "
+		updated, err := uc.UpdateDevice(context.Background(), created.ID, dto.UpdateDeviceRequest{IPAssignment: &reserved})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if updated.IPAssignment != "reserved" {
+			t.Errorf("ip_assignment = %q, want reserved", updated.IPAssignment)
+		}
+		if len(updated.UserLockedFields) != 0 {
+			t.Errorf("an assignment is not a discovered field and locks nothing, got %v", updated.UserLockedFields)
+		}
+	})
+
+	t.Run("UpdateDevice without an assignment keeps the stored one", func(t *testing.T) {
+		created, _ := uc.CreateDevice(context.Background(), dto.CreateDeviceRequest{Hostname: "printer", DeviceType: "printer"})
+		static := "static"
+		_, _ = uc.UpdateDevice(context.Background(), created.ID, dto.UpdateDeviceRequest{IPAssignment: &static})
+
+		name := "office-printer"
+		updated, err := uc.UpdateDevice(context.Background(), created.ID, dto.UpdateDeviceRequest{Hostname: &name})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if updated.IPAssignment != "static" {
+			t.Errorf("ip_assignment = %q, want static", updated.IPAssignment)
+		}
+	})
+
+	t.Run("UpdateDevice rejects an unknown IP assignment", func(t *testing.T) {
+		created, _ := uc.CreateDevice(context.Background(), dto.CreateDeviceRequest{Hostname: "tv", DeviceType: "iot"})
+
+		leased := "leased"
+		_, err := uc.UpdateDevice(context.Background(), created.ID, dto.UpdateDeviceRequest{IPAssignment: &leased})
+		if !errors.Is(err, usecase.ErrInvalidInput) {
+			t.Errorf("expected ErrInvalidInput, got %v", err)
 		}
 	})
 
@@ -831,8 +877,6 @@ func TestInventoryUseCase_Unit(t *testing.T) {
 		}
 	})
 }
-
-
 
 func waitForEvent(t *testing.T, ch <-chan string, expectedType string) {
 	t.Helper()

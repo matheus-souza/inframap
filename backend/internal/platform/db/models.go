@@ -54,6 +54,7 @@ type Device struct {
 	ParentDeviceID    pgtype.UUID        `json:"parent_device_id"`
 	ProviderScope     pgtype.Text        `json:"provider_scope"`
 	AbsenceCount      int16              `json:"absence_count"`
+	IpAssignment      string             `json:"ip_assignment"`
 }
 
 type DeviceDiscoveryRecord struct {

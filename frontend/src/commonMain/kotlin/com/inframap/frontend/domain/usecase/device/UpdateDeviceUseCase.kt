@@ -28,6 +28,7 @@ class UpdateDeviceUseCase(
         macAddress: String? = null,
         deviceType: String? = null,
         status: String? = null,
+        ipAssignment: String? = null,
     ): ApiResult<Device> =
         invoke(
             Params(
@@ -39,6 +40,7 @@ class UpdateDeviceUseCase(
                         macAddress = macAddress,
                         deviceType = deviceType,
                         status = status,
+                        ipAssignment = ipAssignment,
                     ),
             ),
         )

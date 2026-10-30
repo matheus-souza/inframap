@@ -50,7 +50,7 @@ INSERT INTO devices (
     id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, metadata, provider_scope, parent_provider_ref
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
-) RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
+) RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count, ip_assignment
 `
 
 type CreateDeviceParams struct {
@@ -104,6 +104,7 @@ func (q *Queries) CreateDevice(ctx context.Context, arg CreateDeviceParams) (Dev
 		&i.ParentDeviceID,
 		&i.ProviderScope,
 		&i.AbsenceCount,
+		&i.IpAssignment,
 	)
 	return i, err
 }
@@ -242,7 +243,7 @@ func (q *Queries) FindPendingStagingDevice(ctx context.Context, arg FindPendingS
 }
 
 const getDeviceByID = `-- name: GetDeviceByID :one
-SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count FROM devices
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count, ip_assignment FROM devices
 WHERE id = $1 AND (deleted_at IS NULL OR $2::boolean = true)
 `
 
@@ -274,12 +275,13 @@ func (q *Queries) GetDeviceByID(ctx context.Context, arg GetDeviceByIDParams) (D
 		&i.ParentDeviceID,
 		&i.ProviderScope,
 		&i.AbsenceCount,
+		&i.IpAssignment,
 	)
 	return i, err
 }
 
 const getDeviceByProviderRef = `-- name: GetDeviceByProviderRef :one
-SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count FROM devices
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count, ip_assignment FROM devices
 WHERE metadata->>'provider_ref' = $1::text AND deleted_at IS NULL
 `
 
@@ -308,6 +310,7 @@ func (q *Queries) GetDeviceByProviderRef(ctx context.Context, providerRef string
 		&i.ParentDeviceID,
 		&i.ProviderScope,
 		&i.AbsenceCount,
+		&i.IpAssignment,
 	)
 	return i, err
 }
@@ -392,7 +395,7 @@ func (q *Queries) GetSubnetByID(ctx context.Context, id uuid.UUID) (Subnet, erro
 }
 
 const listDevices = `-- name: ListDevices :many
-SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count FROM devices
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count, ip_assignment FROM devices
 WHERE (deleted_at IS NULL OR $1::boolean = true)
   AND ($2::text = '' OR hostname ILIKE '%' || $2 || '%' || $2 || '%')
   AND ($3::text = '' OR device_type = $3)
@@ -443,6 +446,7 @@ func (q *Queries) ListDevices(ctx context.Context, arg ListDevicesParams) ([]Dev
 			&i.ParentDeviceID,
 			&i.ProviderScope,
 			&i.AbsenceCount,
+			&i.IpAssignment,
 		); err != nil {
 			return nil, err
 		}
@@ -455,7 +459,7 @@ func (q *Queries) ListDevices(ctx context.Context, arg ListDevicesParams) ([]Dev
 }
 
 const listDevicesByProviderScope = `-- name: ListDevicesByProviderScope :many
-SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count FROM devices
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count, ip_assignment FROM devices
 WHERE provider_scope = $1
   AND deleted_at IS NULL
   AND status <> 'archived'
@@ -492,6 +496,7 @@ func (q *Queries) ListDevicesByProviderScope(ctx context.Context, providerScope 
 			&i.ParentDeviceID,
 			&i.ProviderScope,
 			&i.AbsenceCount,
+			&i.IpAssignment,
 		); err != nil {
 			return nil, err
 		}
@@ -504,7 +509,7 @@ func (q *Queries) ListDevicesByProviderScope(ctx context.Context, providerScope 
 }
 
 const listDevicesPendingParentResolution = `-- name: ListDevicesPendingParentResolution :many
-SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count FROM devices
+SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count, ip_assignment FROM devices
 WHERE parent_provider_ref = $1
   AND parent_device_id IS NULL
   AND deleted_at IS NULL
@@ -542,6 +547,7 @@ func (q *Queries) ListDevicesPendingParentResolution(ctx context.Context, parent
 			&i.ParentDeviceID,
 			&i.ProviderScope,
 			&i.AbsenceCount,
+			&i.IpAssignment,
 		); err != nil {
 			return nil, err
 		}
@@ -676,7 +682,7 @@ SET absence_count = absence_count + 1,
     status = CASE WHEN absence_count + 1 >= $2::int THEN 'archived' ELSE 'offline' END,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
+RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count, ip_assignment
 `
 
 type MarkDeviceAbsentParams struct {
@@ -710,6 +716,7 @@ func (q *Queries) MarkDeviceAbsent(ctx context.Context, arg MarkDeviceAbsentPara
 		&i.ParentDeviceID,
 		&i.ProviderScope,
 		&i.AbsenceCount,
+		&i.IpAssignment,
 	)
 	return i, err
 }
@@ -728,7 +735,7 @@ SET deleted_at = NULL,
     absence_count = 0,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
+RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count, ip_assignment
 `
 
 type RestoreDeviceParams struct {
@@ -772,6 +779,7 @@ func (q *Queries) RestoreDevice(ctx context.Context, arg RestoreDeviceParams) (D
 		&i.ParentDeviceID,
 		&i.ProviderScope,
 		&i.AbsenceCount,
+		&i.IpAssignment,
 	)
 	return i, err
 }
@@ -782,7 +790,7 @@ SET parent_device_id = $2,
     parent_provider_ref = COALESCE(NULLIF($3::text, ''), parent_provider_ref),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
+RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count, ip_assignment
 `
 
 type SetDeviceParentParams struct {
@@ -816,6 +824,7 @@ func (q *Queries) SetDeviceParent(ctx context.Context, arg SetDeviceParentParams
 		&i.ParentDeviceID,
 		&i.ProviderScope,
 		&i.AbsenceCount,
+		&i.IpAssignment,
 	)
 	return i, err
 }
@@ -857,11 +866,13 @@ SET hostname = $2,
     status = $9,
     metadata = $10,
     provider_scope = COALESCE(NULLIF($11::text, ''), provider_scope),
+    -- Operator intent (RFC-027): empty keeps it, so reconciliation never changes it.
+    ip_assignment = COALESCE(NULLIF($12::text, ''), ip_assignment),
     last_seen_at = NOW(),
     absence_count = 0,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count
+RETURNING id, hostname, ip_address, mac_address, manufacturer, model, serial_number, device_type, status, first_seen_at, last_seen_at, metadata, deleted_at, created_at, updated_at, parent_provider_ref, parent_device_id, provider_scope, absence_count, ip_assignment
 `
 
 type UpdateDeviceParams struct {
@@ -876,6 +887,7 @@ type UpdateDeviceParams struct {
 	Status        string           `json:"status"`
 	Metadata      []byte           `json:"metadata"`
 	ProviderScope string           `json:"provider_scope"`
+	IpAssignment  string           `json:"ip_assignment"`
 }
 
 // Observing a device is what proves it is still there, so every update refreshes
@@ -893,6 +905,7 @@ func (q *Queries) UpdateDevice(ctx context.Context, arg UpdateDeviceParams) (Dev
 		arg.Status,
 		arg.Metadata,
 		arg.ProviderScope,
+		arg.IpAssignment,
 	)
 	var i Device
 	err := row.Scan(
@@ -915,6 +928,7 @@ func (q *Queries) UpdateDevice(ctx context.Context, arg UpdateDeviceParams) (Dev
 		&i.ParentDeviceID,
 		&i.ProviderScope,
 		&i.AbsenceCount,
+		&i.IpAssignment,
 	)
 	return i, err
 }

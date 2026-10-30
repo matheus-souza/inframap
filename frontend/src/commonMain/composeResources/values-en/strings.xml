@@ -365,6 +365,11 @@
     <string name="edit_device_header_subtitle">Update network asset ID: %1$s</string>
     <string name="edit_device_form_title">Device Details</string>
     <string name="edit_device_submit_button">Save Changes</string>
+    <string name="ip_assignment_label">IP assignment</string>
+    <string name="ip_assignment_unknown">Unknown</string>
+    <string name="ip_assignment_dynamic">Dynamic DHCP</string>
+    <string name="ip_assignment_reserved">DHCP reservation</string>
+    <string name="ip_assignment_static">Static</string>
     <string name="edit_device_status_label">Status</string>
     <string name="edit_device_status_active">Active</string>
     <string name="edit_device_status_inactive">Inactive</string>

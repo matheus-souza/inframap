@@ -12,6 +12,8 @@ type DeviceResponse struct {
 	ID           string `json:"id"`
 	Hostname     string `json:"hostname"`
 	IPAddress    string `json:"ip_address,omitempty"`
+	// IPAssignment is how IPAddress is assigned: unknown, dynamic, reserved or static.
+	IPAssignment string `json:"ip_assignment"`
 	MACAddress   string `json:"mac_address,omitempty"`
 	Manufacturer string `json:"manufacturer,omitempty"`
 	Model        string `json:"model,omitempty"`
@@ -78,6 +80,9 @@ type UpdateDeviceRequest struct {
 	SerialNumber *string `json:"serial_number,omitempty"`
 	DeviceType   *string `json:"device_type,omitempty"`
 	Status       *string `json:"status,omitempty"`
+	// IPAssignment is how the device's address is assigned: unknown, dynamic, reserved or
+	// static (RFC-027). Discovery never changes it.
+	IPAssignment *string `json:"ip_assignment,omitempty"`
 }
 
 // StagingDeviceResponse represents an unverified device in the staging queue.

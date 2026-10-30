@@ -3,6 +3,7 @@
 package com.inframap.frontend.ui.devices
 
 import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.domain.model.IpAssignments
 import com.inframap.frontend.ui.base.Paginated
 import com.inframap.frontend.ui.util.UiText
 
@@ -75,6 +76,7 @@ data class EditDeviceUiState(
     val deviceId: String,
     val hostname: String = "",
     val ipAddress: String = "",
+    val ipAssignment: String = IpAssignments.UNKNOWN,
     val macAddress: String = "",
     val deviceType: String = "",
     val status: String = "active",
@@ -91,6 +93,7 @@ data class EditDeviceUiState(
 data class EditDeviceActions(
     val onHostnameChanged: (String) -> Unit,
     val onIpAddressChanged: (String) -> Unit,
+    val onIpAssignmentChanged: (String) -> Unit,
     val onMacAddressChanged: (String) -> Unit,
     val onDeviceTypeChanged: (String) -> Unit,
     val onStatusChanged: (String) -> Unit,
