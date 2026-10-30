@@ -227,3 +227,31 @@ type DeleteSubnetResponse struct {
 }
 
 
+
+// SubnetAddressMapResponse is every host address of a subnet with what holds it (RFC-027 §2).
+type SubnetAddressMapResponse struct {
+	SubnetID  string          `json:"subnet_id"`
+	CIDR      string          `json:"cidr"`
+	Total     int             `json:"total"`
+	Free      int             `json:"free"`
+	InUse     int             `json:"in_use"`
+	Reserved  int             `json:"reserved"`
+	Conflict  int             `json:"conflict"`
+	Addresses []SubnetAddress `json:"addresses"`
+}
+
+// SubnetAddress is one host address of a subnet. State is free, in_use, reserved or conflict.
+type SubnetAddress struct {
+	Address   string                `json:"address"`
+	State     string                `json:"state"`
+	IsGateway bool                  `json:"is_gateway,omitempty"`
+	Devices   []SubnetAddressDevice `json:"devices"`
+}
+
+// SubnetAddressDevice is a live device holding a subnet address.
+type SubnetAddressDevice struct {
+	ID           string `json:"id"`
+	Hostname     string `json:"hostname"`
+	DeviceType   string `json:"device_type"`
+	IPAssignment string `json:"ip_assignment"`
+}

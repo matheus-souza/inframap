@@ -5,6 +5,7 @@ import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.api.map
 import com.inframap.frontend.data.dto.CreateSubnetRequest
 import com.inframap.frontend.data.dto.DeleteSubnetResponse
+import com.inframap.frontend.data.dto.SubnetAddressMapResponse
 import com.inframap.frontend.data.dto.SubnetCidrImpactRequest
 import com.inframap.frontend.data.dto.SubnetCidrImpactResponse
 import com.inframap.frontend.data.dto.SubnetDeletionImpactResponse
@@ -47,6 +48,9 @@ class SubnetRepositoryImpl(
 
     override suspend fun getSubnetDeletionImpact(id: String): ApiResult<SubnetDeletionImpactResponse> =
         apiClient.get<SubnetDeletionImpactResponse>("/api/v1/subnets/$id/deletion-impact")
+
+    override suspend fun getSubnetAddressMap(id: String): ApiResult<SubnetAddressMapResponse> =
+        apiClient.get<SubnetAddressMapResponse>("/api/v1/subnets/$id/addresses")
 
     override suspend fun deleteSubnet(id: String): ApiResult<DeleteSubnetResponse> =
         apiClient.delete<DeleteSubnetResponse>("/api/v1/subnets/$id")

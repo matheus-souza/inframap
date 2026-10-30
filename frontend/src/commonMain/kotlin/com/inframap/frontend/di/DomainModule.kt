@@ -30,6 +30,7 @@ import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
 import com.inframap.frontend.domain.usecase.subnet.CreateSubnetUseCase
 import com.inframap.frontend.domain.usecase.subnet.DeleteSubnetUseCase
+import com.inframap.frontend.domain.usecase.subnet.GetSubnetAddressMapUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetByIdUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetCidrImpactUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetDeletionImpactUseCase
@@ -60,6 +61,7 @@ val domainModule =
         factory { GetSubnetCidrImpactUseCase(get()) }
         factory { DeleteSubnetUseCase(get()) }
         factory { GetSubnetDeletionImpactUseCase(get()) }
+        factory { GetSubnetAddressMapUseCase(get()) }
 
         factory { GetNetworkInterfacesUseCase(get()) }
 

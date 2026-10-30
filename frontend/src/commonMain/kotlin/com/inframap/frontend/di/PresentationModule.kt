@@ -19,6 +19,7 @@ import com.inframap.frontend.ui.splash.SplashViewModel
 import com.inframap.frontend.ui.staging.StagingViewModel
 import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
 import com.inframap.frontend.ui.subnets.EditSubnetViewModel
+import com.inframap.frontend.ui.subnets.SubnetAddressMapViewModel
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
 import com.inframap.frontend.ui.topology.TopologyViewModel
 import com.inframap.frontend.ui.tour.ProductTourViewModel
@@ -36,6 +37,7 @@ val presentationModule =
 
         factory { SubnetsViewModel(get(), get(), get(), get()) }
         factory { (subnetId: String) -> EditSubnetViewModel(subnetId, get(), get(), get(), get(), get()) }
+        factory { (subnetId: String) -> SubnetAddressMapViewModel(subnetId, get()) }
         factory { (prefilledCidr: String?, prefilledName: String?) ->
             CreateSubnetViewModel(get(), get(), get(), prefilledCidr, prefilledName)
         }

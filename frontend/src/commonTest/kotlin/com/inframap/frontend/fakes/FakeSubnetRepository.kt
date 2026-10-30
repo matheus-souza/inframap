@@ -3,6 +3,7 @@ package com.inframap.frontend.fakes
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CreateSubnetRequest
 import com.inframap.frontend.data.dto.DeleteSubnetResponse
+import com.inframap.frontend.data.dto.SubnetAddressMapResponse
 import com.inframap.frontend.data.dto.SubnetCidrImpactRequest
 import com.inframap.frontend.data.dto.SubnetCidrImpactResponse
 import com.inframap.frontend.data.dto.SubnetDeletionImpact
@@ -30,6 +31,8 @@ class FakeSubnetRepository(
             ),
             requestId = "",
         ),
+    var getSubnetAddressMapResult: ApiResult<SubnetAddressMapResponse> =
+        ApiResult.Success(SubnetAddressMapResponse(subnetId = "sub1", cidr = "192.0.2.0/30"), requestId = ""),
     var getSubnetDeletionImpactResult: ApiResult<SubnetDeletionImpactResponse> =
         ApiResult.Success(
             SubnetDeletionImpactResponse(
@@ -64,6 +67,8 @@ class FakeSubnetRepository(
     ) = getSubnetCidrImpactResult
 
     override suspend fun getSubnetDeletionImpact(id: String) = getSubnetDeletionImpactResult
+
+    override suspend fun getSubnetAddressMap(id: String) = getSubnetAddressMapResult
 
     override suspend fun deleteSubnet(id: String) = deleteSubnetResult
 

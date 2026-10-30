@@ -19,6 +19,8 @@ import (
 func strPtr(s string) *string { return &s }
 
 type mockInventoryUseCase struct {
+	addressMapResp *dto.SubnetAddressMapResponse
+	addressMapErr  error
 	createDeviceResp  *dto.DeviceResponse
 	createDeviceErr   error
 	getDeviceResp     *dto.DeviceResponse
@@ -140,6 +142,10 @@ func (m *mockInventoryUseCase) SoftDeleteSubnet(_ context.Context, idStr string)
 			UnlinkedTopologyEdges: 0,
 		},
 	}, nil
+}
+
+func (m *mockInventoryUseCase) GetSubnetAddressMap(_ context.Context, _ string) (*dto.SubnetAddressMapResponse, error) {
+	return m.addressMapResp, m.addressMapErr
 }
 
 func (m *mockInventoryUseCase) GetSubnetDeletionImpact(_ context.Context, idStr string) (*dto.SubnetDeletionImpactResponse, error) {
@@ -990,3 +996,31 @@ func TestInventoryController_Unit(t *testing.T) {
 	})
 }
 
+func TestInventoryController_GetSubnetAddressMap(t *testing.T) {
+	cases := []struct {
+		name string
+		resp *dto.SubnetAddressMapResponse
+		err  error
+		want int
+	}{
+		{name: "map", resp: &dto.SubnetAddressMapResponse{CIDR: "192.0.2.0/24", Total: 254}, want: http.StatusOK},
+		{name: "invalid id", err: usecase.ErrInvalidUUID, want: http.StatusBadRequest},
+		{name: "missing subnet", err: repository.ErrSubnetNotFound, want: http.StatusNotFound},
+		{name: "too large", err: usecase.ErrSubnetTooLargeToMap, want: http.StatusUnprocessableEntity},
+		{name: "failure", err: errors.New("db down"), want: http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := controller.NewInventoryController(&mockInventoryUseCase{addressMapResp: tc.resp, addressMapErr: tc.err})
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/subnets/sub-1/addresses", nil)
+			req.SetPathValue("id", "sub-1")
+			w := httptest.NewRecorder()
+
+			ctrl.GetSubnetAddressMap(w, req)
+
+			if w.Code != tc.want {
+				t.Errorf("status = %d, want %d", w.Code, tc.want)
+			}
+		})
+	}
+}

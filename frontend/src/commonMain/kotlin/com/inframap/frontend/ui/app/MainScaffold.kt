@@ -41,6 +41,7 @@ import com.inframap.frontend.generated.resources.edit_device_title
 import com.inframap.frontend.generated.resources.edit_discovery_source_title
 import com.inframap.frontend.generated.resources.edit_subnet_title
 import com.inframap.frontend.generated.resources.staging_header
+import com.inframap.frontend.generated.resources.subnet_addresses_title
 import com.inframap.frontend.generated.resources.subnets_title
 import com.inframap.frontend.generated.resources.topology_title
 import com.inframap.frontend.navigation.Navigator
@@ -86,6 +87,9 @@ import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
 import com.inframap.frontend.ui.subnets.EditSubnetActions
 import com.inframap.frontend.ui.subnets.EditSubnetScreen
 import com.inframap.frontend.ui.subnets.EditSubnetViewModel
+import com.inframap.frontend.ui.subnets.SubnetAddressMapActions
+import com.inframap.frontend.ui.subnets.SubnetAddressMapScreen
+import com.inframap.frontend.ui.subnets.SubnetAddressMapViewModel
 import com.inframap.frontend.ui.subnets.SubnetsActions
 import com.inframap.frontend.ui.subnets.SubnetsScreen
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
@@ -132,6 +136,7 @@ fun resolveScreenTitleResource(route: Route): StringResource? =
         Route.Subnets -> Res.string.subnets_title
         is Route.CreateSubnet -> Res.string.create_subnet_title
         is Route.EditSubnet -> Res.string.edit_subnet_title
+        is Route.SubnetAddresses -> Res.string.subnet_addresses_title
         Route.DiscoverySources -> Res.string.discovery_title
 
         Route.CreateDiscoverySource -> Res.string.create_discovery_source_title
@@ -402,6 +407,7 @@ private fun AppNavRail(
             Route.Subnets,
             is Route.CreateSubnet,
             is Route.EditSubnet,
+            is Route.SubnetAddresses,
             -> "subnets"
 
             Route.Topology -> "topology"
@@ -458,6 +464,7 @@ private fun RouteContent(
                 subnetId = currentRoute.id,
                 navigator = navigator,
             )
+        is Route.SubnetAddresses -> SubnetAddressMapRoute(subnetId = currentRoute.id, navigator = navigator)
         Route.DiscoverySources -> DiscoveryListRoute(navigator = navigator)
 
         Route.CreateDiscoverySource -> CreateDiscoverySourceRoute(navigator = navigator)
@@ -681,7 +688,7 @@ private fun SubnetsRoute(navigator: Navigator) {
                     ),
                 )
             },
-            onSubnetClicked = { subnet -> navigator.navigateTo(Route.EditSubnet(subnet.id)) },
+            onSubnetClicked = { subnet -> navigator.navigateTo(Route.SubnetAddresses(subnet.id)) },
             onEditSubnetClicked = { subnet -> navigator.navigateTo(Route.EditSubnet(subnet.id)) },
             onDeleteSubnetClicked = viewModel::requestDelete,
             onConfirmDeleteClicked = viewModel::confirmDelete,
@@ -692,6 +699,31 @@ private fun SubnetsRoute(navigator: Navigator) {
     SubnetsScreen(
         state = state,
         actions = actions,
+    )
+}
+
+@Composable
+private fun SubnetAddressMapRoute(
+    subnetId: String,
+    navigator: Navigator,
+) {
+    val koinScope = currentKoinScope()
+    val viewModel: SubnetAddressMapViewModel = remember(subnetId) { koinScope.get { parametersOf(subnetId) } }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+
+    SubnetAddressMapScreen(
+        state = state,
+        actions =
+            SubnetAddressMapActions(
+                onAddressSelected = viewModel::onAddressSelected,
+                onDeviceClicked = { navigator.navigateTo(Route.DeviceDetail(it)) },
+                onEditSubnetClicked = { navigator.navigateTo(Route.EditSubnet(subnetId)) },
+                onBackClicked = { navigator.navigateTo(Route.Subnets) },
+                onRetryClicked = viewModel::load,
+            ),
     )
 }
 

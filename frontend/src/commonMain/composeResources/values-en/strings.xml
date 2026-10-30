@@ -534,6 +534,15 @@
     <string name="delete_discovery_source_success">Discovery source "%1$s" successfully deleted.</string>
     <string name="delete_discovery_source_error">Failed to delete discovery source.</string>
     <string name="error_credential_in_use">This credential is in use by %1$d active discovery source(s).</string>
+    <string name="subnet_addresses_title">Address map</string>
+    <string name="subnet_addresses_hint">Each tile is an address of the subnet (last octet). Select one to see what holds it.</string>
+    <string name="subnet_addresses_free">Free</string>
+    <string name="subnet_addresses_in_use">In use</string>
+    <string name="subnet_addresses_reserved">Reserved</string>
+    <string name="subnet_addresses_conflict">Conflicts</string>
+    <string name="subnet_addresses_gateway">Subnet gateway</string>
+    <string name="subnet_addresses_nobody">No device holds this address.</string>
+    <string name="subnet_addresses_error_load">Could not load the address map.</string>
 </resources>
 
 

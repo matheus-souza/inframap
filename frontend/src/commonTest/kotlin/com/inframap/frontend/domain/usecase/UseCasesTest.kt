@@ -44,6 +44,7 @@ import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
 import com.inframap.frontend.domain.usecase.subnet.DeleteSubnetUseCase
+import com.inframap.frontend.domain.usecase.subnet.GetSubnetAddressMapUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetDeletionImpactUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
@@ -110,6 +111,13 @@ private class FakeFullRepository :
         "req-1",
     )
 
+    override suspend fun getSubnetAddressMap(id: String) =
+        ApiResult.Success(
+            com.inframap.frontend.data.dto
+                .SubnetAddressMapResponse(subnetId = id, cidr = "192.0.2.0/30"),
+            "req-1",
+        )
+
     override suspend fun getSubnetDeletionImpact(id: String) =
         ApiResult.Success(
             SubnetDeletionImpactResponse(
@@ -170,6 +178,7 @@ class UseCasesTest {
             assertIs<ApiResult.Success<*>>(GetSubnetsUseCase(repo)())
             assertIs<ApiResult.Success<*>>(ListSubnetsUseCase(repo)())
             assertIs<ApiResult.Success<*>>(GetSubnetDeletionImpactUseCase(repo)("sub-1"))
+            assertIs<ApiResult.Success<*>>(GetSubnetAddressMapUseCase(repo)("sub-1"))
             assertIs<ApiResult.Success<*>>(DeleteSubnetUseCase(repo)("sub-1"))
         }
 
