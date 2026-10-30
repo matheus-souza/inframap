@@ -58,6 +58,7 @@ type InventoryUseCase interface {
 	SoftDeleteSubnet(ctx context.Context, idStr string) (*dto.DeleteSubnetResponse, error)
 	GetSubnetDeletionImpact(ctx context.Context, idStr string) (*dto.SubnetDeletionImpactResponse, error)
 	GetSubnetCIDRImpact(ctx context.Context, idStr string, req dto.SubnetCIDRImpactRequest) (*dto.SubnetCIDRImpactResponse, error)
+	GetSubnetAddressMap(ctx context.Context, idStr string) (*dto.SubnetAddressMapResponse, error)
 }
 
 

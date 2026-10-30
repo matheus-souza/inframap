@@ -64,6 +64,9 @@ private class FakeSubnetRepository : SubnetRepository {
             requestId = "req-1",
         )
 
+    override suspend fun getSubnetAddressMap(id: String): ApiResult<com.inframap.frontend.data.dto.SubnetAddressMapResponse> =
+        ApiResult.Error(code = "NOT_IMPLEMENTED", message = "", requestId = "", httpStatus = 501)
+
     override suspend fun getSubnetDeletionImpact(id: String): ApiResult<com.inframap.frontend.data.dto.SubnetDeletionImpactResponse> =
         ApiResult.Success(
             data =

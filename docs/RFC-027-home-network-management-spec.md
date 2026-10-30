@@ -43,8 +43,8 @@ Three operator-owned layers on top of the discovered inventory. Discovery never 
 
 ```json
 { "address": "192.0.2.20", "state": "reserved",
-  "devices": [{ "id": "…", "hostname": "nas", "ip_assignment": "reserved" }],
-  "dns_names": ["nas.home.arpa"] }
+  "is_gateway": false,
+  "devices": [{ "id": "…", "hostname": "nas", "device_type": "server", "ip_assignment": "reserved" }] }
 ```
 
 | State | Rule |
@@ -54,9 +54,10 @@ Three operator-owned layers on top of the discovered inventory. Discovery never 
 | `reserved` | One live device holds it with assignment `reserved` or `static` |
 | `conflict` | Two or more live devices hold it |
 
-- Only Subnets of at most 1 024 host addresses (`/22` for IPv4) are mapped; larger ones return `422 error_subnet_too_large_to_map`. IPv6 Subnets are not mapped.
+- The response also counts each state (`total`, `free`, `in_use`, `reserved`, `conflict`) and flags the Subnet's gateway (`is_gateway`). The DNS names pointing at each address are added with phase 3.
+- Only Subnets of at most 1 024 addresses (`/22` for IPv4) are mapped; larger ones and IPv6 Subnets return `422 SUBNET_TOO_LARGE_TO_MAP`.
 - Membership is containment-based, like every other device-to-subnet association (ADR-015 context 2).
-- The Subnet screen gets an address map: a grid of addresses coloured by state, with the holder and DNS names on selection.
+- Selecting a Subnet opens its address map: a grid of addresses coloured by state with the counts, and the holders of the selected address, which open the device. Editing the Subnet is a button on the map and stays in the row menu.
 
 ### 3. DNS records (phase 3)
 New table `dns_records`:

@@ -63,6 +63,12 @@ sealed interface Route {
     ) : Route
 
     @Serializable
+    @SerialName("subnet_addresses")
+    data class SubnetAddresses(
+        val id: String,
+    ) : Route
+
+    @Serializable
     @SerialName("discovery_sources")
     data object DiscoverySources : Route
 

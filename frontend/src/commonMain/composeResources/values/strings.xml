@@ -532,6 +532,15 @@
     <string name="delete_discovery_source_success">Fonte de descoberta "%1$s" excluída com sucesso.</string>
     <string name="delete_discovery_source_error">Falha ao excluir fonte de descoberta.</string>
     <string name="error_credential_in_use">Esta credencial está em uso por %1$d fonte(s) de descoberta ativa(s).</string>
+    <string name="subnet_addresses_title">Mapa de endereços</string>
+    <string name="subnet_addresses_hint">Cada quadro é um endereço da sub-rede (último octeto). Selecione um para ver quem o usa.</string>
+    <string name="subnet_addresses_free">Livres</string>
+    <string name="subnet_addresses_in_use">Em uso</string>
+    <string name="subnet_addresses_reserved">Reservados</string>
+    <string name="subnet_addresses_conflict">Conflitos</string>
+    <string name="subnet_addresses_gateway">Gateway da sub-rede</string>
+    <string name="subnet_addresses_nobody">Nenhum dispositivo usa este endereço.</string>
+    <string name="subnet_addresses_error_load">Não foi possível carregar o mapa de endereços.</string>
 </resources>
 
 

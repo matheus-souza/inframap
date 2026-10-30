@@ -25,6 +25,7 @@ func RegisterRoutes(mux *http.ServeMux, ctrl *controller.InventoryController) {
 	mux.HandleFunc("PUT /api/v1/subnets/{id}", ctrl.UpdateSubnet)
 	mux.HandleFunc("POST /api/v1/subnets/{id}/cidr-impact", ctrl.GetSubnetCIDRImpact)
 	mux.HandleFunc("GET /api/v1/subnets/{id}/deletion-impact", ctrl.GetSubnetDeletionImpact)
+	mux.HandleFunc("GET /api/v1/subnets/{id}/addresses", ctrl.GetSubnetAddressMap)
 	mux.HandleFunc("DELETE /api/v1/subnets/{id}", ctrl.DeleteSubnet)
 }
 
