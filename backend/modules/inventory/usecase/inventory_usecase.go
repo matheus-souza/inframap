@@ -28,6 +28,10 @@ var (
 	// ErrInvalidInput indicates malformed user input.
 	ErrInvalidInput = errors.New("invalid input")
 
+	// IPAssignments are the values of a device's IP assignment (RFC-027), mirrored by the
+	// chk_devices_ip_assignment constraint.
+	IPAssignments = []string{"unknown", "dynamic", "reserved", "static"}
+
 	// ErrGatewayNotContained indicates gateway IP does not belong to the subnet CIDR.
 	ErrGatewayNotContained = errors.New("gateway IP is not contained within CIDR prefix")
 
@@ -274,6 +278,13 @@ func (uc *DefaultInventoryUseCase) UpdateDevice(ctx context.Context, idStr strin
 	}
 	if req.Status != nil {
 		params.Status = strings.TrimSpace(*req.Status)
+	}
+	if req.IPAssignment != nil {
+		assignment := strings.ToLower(strings.TrimSpace(*req.IPAssignment))
+		if !slices.Contains(IPAssignments, assignment) {
+			return nil, fmt.Errorf("%w: invalid IP assignment %q, want one of %s", ErrInvalidInput, *req.IPAssignment, strings.Join(IPAssignments, ", "))
+		}
+		params.IpAssignment = assignment
 	}
 
 	updatedMeta, err := repository.FormatMetadataWithLockedFields(existing.Metadata, lockedFields)
@@ -816,6 +827,7 @@ func (uc *DefaultInventoryUseCase) mapDeviceToResponse(device *db.Device) *dto.D
 		ID:               device.ID.String(),
 		Hostname:         device.Hostname,
 		IPAddress:        repository.MapInetToString(device.IpAddress),
+		IPAssignment:     device.IpAssignment,
 		MACAddress:       repository.MapMacToString(device.MacAddress),
 		Manufacturer:     device.Manufacturer.String,
 		Model:            device.Model.String,

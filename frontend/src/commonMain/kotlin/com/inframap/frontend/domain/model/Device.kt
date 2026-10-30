@@ -4,6 +4,8 @@ data class Device(
     val id: String,
     val hostname: String,
     val ipAddress: String? = null,
+    /** How [ipAddress] is assigned, one of [IpAssignments.ALL]; set by the operator. */
+    val ipAssignment: String = IpAssignments.UNKNOWN,
     val macAddress: String? = null,
     val manufacturer: String? = null,
     val model: String? = null,

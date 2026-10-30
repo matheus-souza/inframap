@@ -11,6 +11,7 @@ object DeviceMapper {
             id = dto.id,
             hostname = dto.hostname,
             ipAddress = dto.ipAddress,
+            ipAssignment = dto.ipAssignment,
             macAddress = dto.macAddress,
             manufacturer = dto.manufacturer,
             model = dto.model,

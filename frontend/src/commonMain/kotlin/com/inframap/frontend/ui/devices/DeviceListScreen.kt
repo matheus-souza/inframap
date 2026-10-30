@@ -32,6 +32,7 @@ import com.inframap.frontend.designsystem.InfraMapTextField
 import com.inframap.frontend.designsystem.RowOverflowMenu
 import com.inframap.frontend.designsystem.TableColumn
 import com.inframap.frontend.domain.model.Device
+import com.inframap.frontend.domain.model.IpAssignments
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.common_cancel
 import com.inframap.frontend.generated.resources.devices_col_hostname
@@ -231,13 +232,7 @@ private fun DeviceTableRowCell(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-        1 ->
-            Text(
-                text = item.ipAddress ?: "—",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-            )
+        1 -> DeviceAddressCell(item)
         2 ->
             Text(
                 text = deviceTypeLabel(item.deviceType),
@@ -269,6 +264,26 @@ private fun DeviceStatusCell(item: Device) {
         if (item.discoverySourceInactive) {
             InfraMapInactiveSourceBadge(
                 modifier = Modifier.testTag("device_discovery_source_inactive_${item.id}"),
+            )
+        }
+    }
+}
+
+/** The address, with its assignment underneath when the operator can rely on it. */
+@Composable
+private fun DeviceAddressCell(item: Device) {
+    Column {
+        Text(
+            text = item.ipAddress ?: "—",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+        )
+        if (item.ipAddress != null && IpAssignments.isFixed(item.ipAssignment)) {
+            Text(
+                text = ipAssignmentLabel(item.ipAssignment),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
     }

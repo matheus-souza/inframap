@@ -39,6 +39,7 @@ import com.inframap.frontend.designsystem.InfraMapFormSkeleton
 import com.inframap.frontend.designsystem.InfraMapIcons
 import com.inframap.frontend.designsystem.InfraMapOutlinedButton
 import com.inframap.frontend.designsystem.InfraMapTextField
+import com.inframap.frontend.domain.model.IpAssignments
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.common_cancel
 import com.inframap.frontend.generated.resources.create_device_back_button
@@ -71,6 +72,7 @@ import com.inframap.frontend.generated.resources.edit_device_status_inactive
 import com.inframap.frontend.generated.resources.edit_device_status_label
 import com.inframap.frontend.generated.resources.edit_device_status_maintenance
 import com.inframap.frontend.generated.resources.edit_device_submit_button
+import com.inframap.frontend.generated.resources.ip_assignment_label
 import com.inframap.frontend.generated.resources.legend_required_fields
 import org.jetbrains.compose.resources.stringResource
 
@@ -230,6 +232,8 @@ private fun EditDeviceFormFields(
     Column(modifier = Modifier.fillMaxWidth()) {
         EditDeviceNetworkFields(state = state, actions = actions)
         Spacer(modifier = Modifier.height(16.dp))
+        EditDeviceIpAssignmentField(state = state, actions = actions)
+        Spacer(modifier = Modifier.height(16.dp))
         EditDeviceTypeField(state = state, actions = actions)
         Spacer(modifier = Modifier.height(16.dp))
         EditDeviceStatusField(state = state, actions = actions)
@@ -311,6 +315,20 @@ private fun EditDeviceTypeField(
             modifier = Modifier.padding(start = 16.dp, top = 4.dp),
         )
     }
+}
+
+@Composable
+private fun EditDeviceIpAssignmentField(
+    state: EditDeviceUiState,
+    actions: EditDeviceActions,
+) {
+    InfraMapChoiceChipGroup(
+        options = IpAssignments.ALL.map { ChipOption(it, ipAssignmentLabel(it)) },
+        selected = state.ipAssignment,
+        onSelected = actions.onIpAssignmentChanged,
+        label = stringResource(Res.string.ip_assignment_label),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

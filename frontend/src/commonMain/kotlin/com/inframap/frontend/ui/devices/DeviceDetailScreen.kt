@@ -58,6 +58,7 @@ import com.inframap.frontend.generated.resources.device_detail_status
 import com.inframap.frontend.generated.resources.device_detail_type
 import com.inframap.frontend.generated.resources.device_detail_updated_at
 import com.inframap.frontend.generated.resources.devices_retry
+import com.inframap.frontend.generated.resources.ip_assignment_label
 import com.inframap.frontend.ui.util.Timestamps
 import org.jetbrains.compose.resources.stringResource
 
@@ -219,6 +220,7 @@ private fun DeviceMainInfoCard(device: Device) {
 
             DetailRow(stringResource(Res.string.device_detail_hostname), device.hostname)
             DetailRow(stringResource(Res.string.device_detail_ip), device.ipAddress ?: "—", isMonospace = true)
+            DetailRow(stringResource(Res.string.ip_assignment_label), ipAssignmentLabel(device.ipAssignment))
             DetailRow(stringResource(Res.string.device_detail_mac), device.macAddress ?: "—", isMonospace = true)
             DetailRow(stringResource(Res.string.device_detail_type), deviceTypeLabel(device.deviceType))
             Row(

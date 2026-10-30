@@ -33,6 +33,7 @@ class EditDeviceViewModel(
                         it.copy(
                             hostname = result.data.hostname,
                             ipAddress = result.data.ipAddress ?: "",
+                            ipAssignment = result.data.ipAssignment,
                             macAddress = result.data.macAddress ?: "",
                             deviceType = result.data.deviceType,
                             status = result.data.status,
@@ -77,6 +78,10 @@ class EditDeviceViewModel(
                 validationErrors = it.validationErrors - "ip_address",
             )
         }
+    }
+
+    fun onIpAssignmentChanged(ipAssignment: String) {
+        updateState { it.copy(ipAssignment = ipAssignment) }
     }
 
     fun onMacAddressChanged(macAddress: String) {
@@ -133,6 +138,7 @@ class EditDeviceViewModel(
                         macAddress = current.macAddress.trim().ifEmpty { null },
                         deviceType = current.deviceType.trim().ifEmpty { null },
                         status = current.status.trim().ifEmpty { null },
+                        ipAssignment = current.ipAssignment,
                     )
             ) {
                 is ApiResult.Success -> {

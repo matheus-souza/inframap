@@ -618,6 +618,7 @@ private fun EditDeviceRoute(
         EditDeviceActions(
             onHostnameChanged = viewModel::onHostnameChanged,
             onIpAddressChanged = viewModel::onIpAddressChanged,
+            onIpAssignmentChanged = viewModel::onIpAssignmentChanged,
             onMacAddressChanged = viewModel::onMacAddressChanged,
             onDeviceTypeChanged = viewModel::onDeviceTypeChanged,
             onStatusChanged = viewModel::onStatusChanged,

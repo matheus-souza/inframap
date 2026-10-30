@@ -364,6 +364,11 @@
     <string name="edit_device_header_subtitle">Atualize as informações do ativo ID: %1$s</string>
     <string name="edit_device_form_title">Dados do Dispositivo</string>
     <string name="edit_device_submit_button">Salvar Alterações</string>
+    <string name="ip_assignment_label">Atribuição do IP</string>
+    <string name="ip_assignment_unknown">Desconhecida</string>
+    <string name="ip_assignment_dynamic">DHCP dinâmico</string>
+    <string name="ip_assignment_reserved">Reservado no DHCP</string>
+    <string name="ip_assignment_static">Estático</string>
     <string name="edit_device_status_label">Status</string>
     <string name="edit_device_status_active">Ativo</string>
     <string name="edit_device_status_inactive">Inativo</string>

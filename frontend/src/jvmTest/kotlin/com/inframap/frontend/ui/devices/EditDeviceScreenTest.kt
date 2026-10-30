@@ -34,6 +34,7 @@ class EditDeviceScreenTest {
                             EditDeviceActions(
                                 onHostnameChanged = {},
                                 onIpAddressChanged = {},
+                                onIpAssignmentChanged = {},
                                 onMacAddressChanged = {},
                                 onDeviceTypeChanged = {},
                                 onStatusChanged = {},
@@ -50,10 +51,10 @@ class EditDeviceScreenTest {
             onNodeWithText("Device Details").assertIsDisplayed()
             onNodeWithText("Status").assertIsDisplayed()
 
-            onNodeWithText("Cancel").performClick()
+            onNodeWithText("Cancel").performScrollTo().performClick()
             assertTrue(cancelClicked)
 
-            onNodeWithText("Save Changes").performClick()
+            onNodeWithText("Save Changes").performScrollTo().performClick()
             assertTrue(submitClicked)
         }
 
@@ -77,6 +78,7 @@ class EditDeviceScreenTest {
                             EditDeviceActions(
                                 onHostnameChanged = {},
                                 onIpAddressChanged = {},
+                                onIpAssignmentChanged = {},
                                 onMacAddressChanged = {},
                                 onDeviceTypeChanged = { selectedType = it },
                                 onStatusChanged = {},
@@ -111,6 +113,7 @@ class EditDeviceScreenTest {
                             EditDeviceActions(
                                 onHostnameChanged = {},
                                 onIpAddressChanged = {},
+                                onIpAssignmentChanged = {},
                                 onMacAddressChanged = {},
                                 onDeviceTypeChanged = {},
                                 onStatusChanged = {},
@@ -152,6 +155,7 @@ class EditDeviceScreenTest {
                             EditDeviceActions(
                                 onHostnameChanged = {},
                                 onIpAddressChanged = {},
+                                onIpAssignmentChanged = {},
                                 onMacAddressChanged = {},
                                 onDeviceTypeChanged = {},
                                 onStatusChanged = {},
@@ -169,5 +173,43 @@ class EditDeviceScreenTest {
                 .assertIsDisplayed()
             onNodeWithText("Delete").performClick()
             assertTrue(confirmDeleteClicked)
+        }
+
+    @Test
+    fun picksTheAddressAssignment() =
+        runComposeUiTest {
+            var selected = ""
+
+            setContent {
+                InfraMapTheme {
+                    EditDeviceScreen(
+                        state =
+                            EditDeviceUiState(
+                                deviceId = "dev-200",
+                                hostname = "nas",
+                                ipAddress = "192.0.2.20",
+                                deviceType = "server",
+                                status = "active",
+                                isLoading = false,
+                            ),
+                        actions =
+                            EditDeviceActions(
+                                onHostnameChanged = {},
+                                onIpAddressChanged = {},
+                                onIpAssignmentChanged = { selected = it },
+                                onMacAddressChanged = {},
+                                onDeviceTypeChanged = {},
+                                onStatusChanged = {},
+                                onSubmitClicked = {},
+                                onCancelClicked = {},
+                                onRetryClicked = {},
+                            ),
+                    )
+                }
+            }
+
+            onNodeWithText("IP assignment").assertIsDisplayed()
+            onNodeWithText("DHCP reservation").performScrollTo().performClick()
+            assertEquals("reserved", selected)
         }
 }

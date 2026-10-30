@@ -20,6 +20,7 @@ class FakeDeviceRepository(
     var onGetDevices: (suspend () -> Unit)? = null,
 ) : DeviceRepository {
     var getDevicesCallCount = 0
+    var lastUpdateRequest: UpdateDeviceRequest? = null
 
     override suspend fun getDevices(
         page: Int,
@@ -38,7 +39,10 @@ class FakeDeviceRepository(
     override suspend fun updateDevice(
         id: String,
         request: UpdateDeviceRequest,
-    ) = updateDeviceResult
+    ): ApiResult<Device> {
+        lastUpdateRequest = request
+        return updateDeviceResult
+    }
 
     override suspend fun deleteDevice(id: String) = deleteDeviceResult
 

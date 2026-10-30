@@ -37,6 +37,8 @@ SET hostname = $2,
     status = $9,
     metadata = $10,
     provider_scope = COALESCE(NULLIF(sqlc.arg(provider_scope)::text, ''), provider_scope),
+    -- Operator intent (RFC-027): empty keeps it, so reconciliation never changes it.
+    ip_assignment = COALESCE(NULLIF(sqlc.arg(ip_assignment)::text, ''), ip_assignment),
     last_seen_at = NOW(),
     absence_count = 0,
     updated_at = NOW()

@@ -1,5 +1,6 @@
 package com.inframap.frontend.data.dto
 
+import com.inframap.frontend.domain.model.IpAssignments
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -8,6 +9,7 @@ data class DeviceDto(
     val id: String,
     val hostname: String,
     @SerialName("ip_address") val ipAddress: String? = null,
+    @SerialName("ip_assignment") val ipAssignment: String = IpAssignments.UNKNOWN,
     @SerialName("mac_address") val macAddress: String? = null,
     val manufacturer: String? = null,
     val model: String? = null,
@@ -47,6 +49,7 @@ data class UpdateDeviceRequest(
     @SerialName("mac_address") val macAddress: String? = null,
     @SerialName("device_type") val deviceType: String? = null,
     val status: String? = null,
+    @SerialName("ip_assignment") val ipAssignment: String? = null,
 )
 
 @Serializable

@@ -85,6 +85,7 @@ class ScreenLoadingSkeletonTest {
                             EditDeviceActions(
                                 onHostnameChanged = {},
                                 onIpAddressChanged = {},
+                                onIpAssignmentChanged = {},
                                 onMacAddressChanged = {},
                                 onDeviceTypeChanged = {},
                                 onStatusChanged = {},
