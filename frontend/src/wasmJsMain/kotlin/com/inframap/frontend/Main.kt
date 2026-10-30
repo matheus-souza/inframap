@@ -2,8 +2,10 @@ package com.inframap.frontend
 
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.ComposeViewport
-import com.inframap.frontend.data.sse.BrowserSSEClient
+import com.inframap.frontend.data.sse.BrowserEventStreamOpener
 import com.inframap.frontend.data.sse.SSEClient
+import com.inframap.frontend.data.sse.SharedEventStream
+import com.inframap.frontend.data.sse.SharedSSEClient
 import com.inframap.frontend.data.storage.BrowserLocalStorage
 import com.inframap.frontend.data.storage.LocalStorage
 import com.inframap.frontend.di.appModules
@@ -50,9 +52,10 @@ fun main() {
         val platformModule =
             module {
                 single<LocalStorage> { BrowserLocalStorage() }
-                // One client per screen ViewModel: each holds its own EventSource and closes it
-                // when the screen is left.
-                factory<SSEClient> { BrowserSSEClient(MainScope()) }
+                // One client per ViewModel, all on the tab's single event stream: each releases
+                // it when its screen is left (see SharedEventStream).
+                single { SharedEventStream(MainScope(), BrowserEventStreamOpener()) }
+                factory<SSEClient> { SharedSSEClient(get()) }
             }
         KoinApplication(application = { modules(appModules(baseUrl) + platformModule) }) {
             InfraMapApp()
