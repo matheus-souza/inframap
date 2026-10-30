@@ -257,6 +257,7 @@ InfraMap adopts **Server-Sent Events (SSE)** for streaming real-time notificatio
 
 ### SSE Stream Endpoint
 - `GET /api/v1/events/stream` — Establishes SSE stream connection. The stream is exempt from the server's `WriteTimeout`: it stays open for as long as the client listens, with a heartbeat comment every 15 s.
+- **One stream per browser tab**: a browser allows six HTTP/1.1 connections per host and an open stream holds one of them, so the frontend opens a single stream per tab and shares it among every listener (the top bar badge and the current screen). A connection per listener used all six with three tabs open, and every other request to the server queued behind them.
 - Forwarded event types: `discovery.progress`, `topology.updated`, `system.notification`, `device.created`, `device.updated`, and the Discovery Sources events `discovery_source.created`, `discovery_source.updated`, `discovery_source.deleted`, `discovery_source.scan.started` and `discovery_source.run_finished`. The `discovery_source.*` payloads carry the source id, status, schedule and run counts, never a source's configuration or credentials.
 
 ### SSE Message Payload Format
