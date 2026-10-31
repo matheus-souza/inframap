@@ -543,6 +543,12 @@
     <string name="subnet_addresses_gateway">Subnet gateway</string>
     <string name="subnet_addresses_nobody">No device holds this address.</string>
     <string name="subnet_addresses_error_load">Could not load the address map.</string>
+
+    <string name="dns_records_title">DNS Records</string>
+    <string name="dns_records_subtitle">DNS records (A and CNAME) for the local network.</string>
+    <string name="dns_records_empty">No DNS records found.</string>
+    <string name="dns_records_loading">Loading DNS records…</string>
+    <string name="dns_records_error_load">Failed to load DNS records.</string>
 </resources>
 
 

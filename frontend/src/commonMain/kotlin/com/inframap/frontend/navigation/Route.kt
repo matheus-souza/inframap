@@ -69,6 +69,10 @@ sealed interface Route {
     ) : Route
 
     @Serializable
+    @SerialName("dns_records")
+    data object DnsRecords : Route
+
+    @Serializable
     @SerialName("discovery_sources")
     data object DiscoverySources : Route
 

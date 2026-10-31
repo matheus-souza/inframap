@@ -23,6 +23,7 @@ import com.inframap.frontend.domain.usecase.discovery.GetDiscoverySourceDeletion
 import com.inframap.frontend.domain.usecase.discovery.TestDiscoverySourceHealthUseCase
 import com.inframap.frontend.domain.usecase.discovery.TriggerDiscoveryRunUseCase
 import com.inframap.frontend.domain.usecase.discovery.UpdateDiscoverySourceUseCase
+import com.inframap.frontend.domain.usecase.dns.GetDnsRecordsUseCase
 import com.inframap.frontend.domain.usecase.integrations.TestProviderHealthUseCase
 import com.inframap.frontend.domain.usecase.network.GetNetworkInterfacesUseCase
 import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
@@ -76,6 +77,7 @@ val domainModule =
         factory { GetDiscoverySourcesUseCase(get()) }
 
         factory { GetTopologyGraphUseCase(get()) }
+        factory { GetDnsRecordsUseCase(get()) }
 
         factory { SearchIndexUseCase(get(), get(), get()) }
         factory { GetDiscoverySources(get()) }

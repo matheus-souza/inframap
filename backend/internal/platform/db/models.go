@@ -178,6 +178,41 @@ type Subnet struct {
 	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
 }
 
+// DNSRecord represents an operator-owned DNS record (RFC-027 §3).
+type DNSRecord struct {
+	ID        uuid.UUID          `json:"id"`
+	Name      string             `json:"name"`
+	RecordType string            `json:"record_type"`
+	Address   *netip.Addr        `json:"address,omitempty"`
+	Target    pgtype.Text        `json:"target,omitempty"`
+	DeviceID  pgtype.UUID        `json:"device_id,omitempty"`
+	Notes     pgtype.Text        `json:"notes,omitempty"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+// CreateDNSRecordParams are the parameters for creating a DNS record.
+type CreateDNSRecordParams struct {
+	ID          uuid.UUID          `json:"id"`
+	Name        string             `json:"name"`
+	RecordType  string             `json:"record_type"`
+	Address     *netip.Addr        `json:"address,omitempty"`
+	Target      pgtype.Text        `json:"target,omitempty"`
+	DeviceID    pgtype.UUID        `json:"device_id,omitempty"`
+	Notes       pgtype.Text        `json:"notes,omitempty"`
+}
+
+// UpdateDNSRecordParams are the parameters for updating a DNS record.
+type UpdateDNSRecordParams struct {
+	ID          uuid.UUID          `json:"id"`
+	Name        string             `json:"name"`
+	RecordType  string             `json:"record_type"`
+	Address     *netip.Addr        `json:"address,omitempty"`
+	Target      pgtype.Text        `json:"target,omitempty"`
+	DeviceID    pgtype.UUID        `json:"device_id,omitempty"`
+	Notes       pgtype.Text        `json:"notes,omitempty"`
+}
+
 type SystemState struct {
 	ID                    uuid.UUID          `json:"id"`
 	OnboardingCompleted   bool               `json:"onboarding_completed"`

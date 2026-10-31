@@ -27,7 +27,7 @@ object SubnetMapper {
         val list = response.subnets
         return PaginatedList(
             items = list.map { toDomain(it) },
-            total = response.total,
+            total = response.total.toLong(),
             page = 1,
             perPage = list.size.coerceAtLeast(1),
         )
