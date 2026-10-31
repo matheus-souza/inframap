@@ -18,6 +18,7 @@ import (
 	"github.com/matheussouza/inframap/modules/topology/dto"
 	topoRepo "github.com/matheussouza/inframap/modules/topology/repository"
 	"github.com/matheussouza/inframap/modules/topology/usecase"
+	"net/netip"
 )
 
 type mockTopoRepo struct {
@@ -201,6 +202,10 @@ func (m *mockInvRepo) SoftDeleteSubnet(_ context.Context, _ uuid.UUID) error {
 
 func (m *mockInvRepo) GetInactiveDiscoverySourceDeviceIDs(_ context.Context, _ []uuid.UUID) ([]uuid.UUID, error) {
 	return nil, nil
+}
+
+func (m *mockInvRepo) ListDevicesBySubnetCIDR(_ context.Context, _ netip.Prefix) ([]db.Device, error) {
+	return m.devices, nil
 }
 
 func TestTopologyUseCase_Unit(t *testing.T) {

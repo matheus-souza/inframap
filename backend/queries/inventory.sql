@@ -192,6 +192,16 @@ SET deleted_at = NOW(),
     updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL;
 
+-- name: ListDevicesBySubnetCIDR :many
+-- RFC-027 §2: every live device whose ip_address falls within the subnet CIDR,
+-- with its ip_assignment, used to build the subnet address map.
+SELECT id, hostname, ip_address, ip_assignment, status, deleted_at
+FROM devices
+WHERE deleted_at IS NULL
+  AND ip_address IS NOT NULL
+  AND ip_address <<= $1::cidr
+ORDER BY ip_address ASC;
+
 -- name: GetInactiveDiscoverySourceDeviceIDs :many
 SELECT DISTINCT ddr.device_id
 FROM device_discovery_records ddr

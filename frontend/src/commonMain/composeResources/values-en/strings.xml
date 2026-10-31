@@ -509,6 +509,16 @@
     <string name="delete_subnet_success">Subnet "%1$s" successfully deleted.</string>
     <string name="delete_subnet_error">Failed to delete subnet.</string>
 
+    <!-- Subnet Address Map (RFC-027 §2) -->
+    <string name="subnet_address_map_title">Address Map</string>
+    <string name="subnet_address_map_subtitle">Status of each address in the subnet: free, in use, reserved or conflict.</string>
+    <string name="subnet_address_map_loading">Loading address map…</string>
+    <string name="subnet_address_map_empty">No addresses found in this subnet.</string>
+    <string name="subnet_address_map_error_load">Failed to load the address map.</string>
+    <string name="subnet_address_map_col_address">Address</string>
+    <string name="subnet_address_map_col_state">Status</string>
+    <string name="subnet_address_map_col_devices">Devices</string>
+
     <!-- Edit Discovery Source -->
     <string name="edit_discovery_source_title">Edit Discovery Source</string>
     <string name="edit_discovery_source_header_title">Edit Discovery Source</string>

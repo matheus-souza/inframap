@@ -226,4 +226,27 @@ type DeleteSubnetResponse struct {
 	Impact    SubnetDeletionImpact `json:"impact"`
 }
 
+// SubnetAddressEntry is one host address within a Subnet's CIDR in the address map
+// (RFC-027 §2): its state, the devices holding it, and the DNS names pointing at it.
+type SubnetAddressEntry struct {
+	Address  string              `json:"address"`
+	State    string              `json:"state"` // free, in_use, reserved, conflict
+	Devices  []SubnetAddressDevice `json:"devices"`
+	DNSNames []string            `json:"dns_names"`
+}
+
+// SubnetAddressDevice is a device holding an address in the subnet address map.
+type SubnetAddressDevice struct {
+	ID            string `json:"id"`
+	Hostname      string `json:"hostname"`
+	IPAssignment  string `json:"ip_assignment"`
+}
+
+// SubnetAddressMapResponse is the response of GET /api/v1/subnets/{id}/addresses.
+type SubnetAddressMapResponse struct {
+	SubnetID string                `json:"subnet_id"`
+	CIDR     string                `json:"cidr"`
+	Entries  []SubnetAddressEntry  `json:"entries"`
+}
+
 

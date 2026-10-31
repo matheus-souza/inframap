@@ -21,6 +21,7 @@ import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.SetupStatus
 import com.inframap.frontend.domain.model.StagingDevice
 import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.model.SubnetAddressMap
 import com.inframap.frontend.domain.model.User
 import com.inframap.frontend.domain.repository.AuthRepository
 import com.inframap.frontend.domain.repository.DashboardRepository
@@ -44,6 +45,7 @@ import com.inframap.frontend.domain.usecase.staging.ApproveDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.DismissDeviceUseCase
 import com.inframap.frontend.domain.usecase.staging.GetStagingDevicesUseCase
 import com.inframap.frontend.domain.usecase.subnet.DeleteSubnetUseCase
+import com.inframap.frontend.domain.usecase.subnet.GetSubnetAddressMapUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetDeletionImpactUseCase
 import com.inframap.frontend.domain.usecase.subnet.GetSubnetsUseCase
 import com.inframap.frontend.domain.usecase.subnet.ListSubnetsUseCase
@@ -128,6 +130,16 @@ private class FakeFullRepository :
             "req-1",
         )
 
+    override suspend fun getSubnetAddressMap(id: String) =
+        ApiResult.Success(
+            SubnetAddressMap(
+                subnetId = id,
+                cidr = "192.168.1.0/24",
+                entries = emptyList(),
+            ),
+            "req-1",
+        )
+
     override suspend fun getSetupStatus() = ApiResult.Success(SetupStatus(true, "inst-1"), "req-1")
 
     override suspend fun login(request: LoginRequest) = ApiResult.Success(LoginResult("tok", "u1", request.username), "req-1")
@@ -171,6 +183,7 @@ class UseCasesTest {
             assertIs<ApiResult.Success<*>>(ListSubnetsUseCase(repo)())
             assertIs<ApiResult.Success<*>>(GetSubnetDeletionImpactUseCase(repo)("sub-1"))
             assertIs<ApiResult.Success<*>>(DeleteSubnetUseCase(repo)("sub-1"))
+            assertIs<ApiResult.Success<*>>(GetSubnetAddressMapUseCase(repo)("sub-1"))
         }
 
     @Test

@@ -30,6 +30,7 @@ data class SubnetsActions(
     val onAddInterfaceClicked: (NetworkInterface) -> Unit,
     val onSubnetClicked: (Subnet) -> Unit = {},
     val onEditSubnetClicked: (Subnet) -> Unit = {},
+    val onViewAddressMapClicked: (Subnet) -> Unit = {},
     val onDeleteSubnetClicked: (Subnet) -> Unit = {},
     val onConfirmDeleteClicked: () -> Unit = {},
     val onDismissDeleteClicked: () -> Unit = {},

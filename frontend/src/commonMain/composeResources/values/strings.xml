@@ -507,6 +507,16 @@
     <string name="delete_subnet_success">Sub-rede "%1$s" excluída com sucesso.</string>
     <string name="delete_subnet_error">Falha ao excluir sub-rede.</string>
 
+    <!-- Subnet Address Map (RFC-027 §2) -->
+    <string name="subnet_address_map_title">Mapa de Endereços</string>
+    <string name="subnet_address_map_subtitle">Situação de cada endereço da sub-rede: livre, em uso, reservado ou conflito.</string>
+    <string name="subnet_address_map_loading">Carregando mapa de endereços…</string>
+    <string name="subnet_address_map_empty">Nenhum endereço encontrado nesta sub-rede.</string>
+    <string name="subnet_address_map_error_load">Falha ao carregar o mapa de endereços.</string>
+    <string name="subnet_address_map_col_address">Endereço</string>
+    <string name="subnet_address_map_col_state">Situação</string>
+    <string name="subnet_address_map_col_devices">Dispositivos</string>
+
     <!-- Edit Discovery Source -->
     <string name="edit_discovery_source_title">Editar Fonte de Descoberta</string>
     <string name="edit_discovery_source_header_title">Editar Fonte de Descoberta</string>

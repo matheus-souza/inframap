@@ -85,3 +85,25 @@ data class DeleteSubnetResponse(
     @SerialName("deleted_id") val deletedId: String,
     val impact: SubnetDeletionImpact,
 )
+
+@Serializable
+data class SubnetAddressDevice(
+    val id: String,
+    val hostname: String,
+    @SerialName("ip_assignment") val ipAssignment: String,
+)
+
+@Serializable
+data class SubnetAddressEntry(
+    val address: String,
+    val state: String,
+    val devices: List<SubnetAddressDevice> = emptyList(),
+    val dnsNames: List<String> = emptyList(),
+)
+
+@Serializable
+data class SubnetAddressMapResponse(
+    @SerialName("subnet_id") val subnetId: String,
+    val cidr: String,
+    val entries: List<SubnetAddressEntry> = emptyList(),
+)

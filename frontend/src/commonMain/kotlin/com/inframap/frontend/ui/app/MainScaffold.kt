@@ -86,6 +86,9 @@ import com.inframap.frontend.ui.subnets.CreateSubnetViewModel
 import com.inframap.frontend.ui.subnets.EditSubnetActions
 import com.inframap.frontend.ui.subnets.EditSubnetScreen
 import com.inframap.frontend.ui.subnets.EditSubnetViewModel
+import com.inframap.frontend.ui.subnets.SubnetAddressMapActions
+import com.inframap.frontend.ui.subnets.SubnetAddressMapScreen
+import com.inframap.frontend.ui.subnets.SubnetAddressMapViewModel
 import com.inframap.frontend.ui.subnets.SubnetsActions
 import com.inframap.frontend.ui.subnets.SubnetsScreen
 import com.inframap.frontend.ui.subnets.SubnetsViewModel
@@ -458,6 +461,11 @@ private fun RouteContent(
                 subnetId = currentRoute.id,
                 navigator = navigator,
             )
+        is Route.SubnetAddressMap ->
+            SubnetAddressMapRoute(
+                subnetId = currentRoute.subnetId,
+                navigator = navigator,
+            )
         Route.DiscoverySources -> DiscoveryListRoute(navigator = navigator)
 
         Route.CreateDiscoverySource -> CreateDiscoverySourceRoute(navigator = navigator)
@@ -683,6 +691,7 @@ private fun SubnetsRoute(navigator: Navigator) {
             },
             onSubnetClicked = { subnet -> navigator.navigateTo(Route.EditSubnet(subnet.id)) },
             onEditSubnetClicked = { subnet -> navigator.navigateTo(Route.EditSubnet(subnet.id)) },
+            onViewAddressMapClicked = { subnet -> navigator.navigateTo(Route.SubnetAddressMap(subnet.id)) },
             onDeleteSubnetClicked = viewModel::requestDelete,
             onConfirmDeleteClicked = viewModel::confirmDelete,
             onDismissDeleteClicked = viewModel::dismissDelete,
@@ -733,6 +742,31 @@ private fun EditSubnetRoute(
         )
 
     EditSubnetScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun SubnetAddressMapRoute(
+    subnetId: String,
+    navigator: Navigator,
+) {
+    val koinScope = currentKoinScope()
+    val viewModel: SubnetAddressMapViewModel = remember(subnetId) {
+        koinScope.get { parametersOf(subnetId) }
+    }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+
+    val actions =
+        SubnetAddressMapActions(
+            onBackClicked = { navigator.navigateTo(Route.Subnets) },
+        )
+
+    SubnetAddressMapScreen(
         state = state,
         actions = actions,
     )

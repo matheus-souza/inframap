@@ -6,9 +6,11 @@ import com.inframap.frontend.data.dto.DeleteSubnetResponse
 import com.inframap.frontend.data.dto.SubnetCidrImpactRequest
 import com.inframap.frontend.data.dto.SubnetCidrImpactResponse
 import com.inframap.frontend.data.dto.SubnetDeletionImpactResponse
+import com.inframap.frontend.data.dto.SubnetDto
 import com.inframap.frontend.data.dto.UpdateSubnetRequest
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.model.SubnetAddressMap
 
 interface SubnetRepository {
     suspend fun getSubnets(): ApiResult<PaginatedList<Subnet>>
@@ -30,4 +32,6 @@ interface SubnetRepository {
     suspend fun getSubnetDeletionImpact(id: String): ApiResult<SubnetDeletionImpactResponse>
 
     suspend fun deleteSubnet(id: String): ApiResult<DeleteSubnetResponse>
+
+    suspend fun getSubnetAddressMap(id: String): ApiResult<SubnetAddressMap>
 }

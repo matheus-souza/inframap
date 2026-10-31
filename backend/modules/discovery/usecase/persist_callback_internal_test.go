@@ -101,6 +101,9 @@ func (s *stubInvRepo) SoftDeleteSubnet(_ context.Context, _ uuid.UUID) error { r
 func (s *stubInvRepo) GetInactiveDiscoverySourceDeviceIDs(_ context.Context, _ []uuid.UUID) ([]uuid.UUID, error) {
 	return nil, nil
 }
+func (s *stubInvRepo) ListDevicesBySubnetCIDR(_ context.Context, _ netip.Prefix) ([]db.Device, error) {
+	return nil, nil
+}
 
 func TestPersistDiscoveredDevice(t *testing.T) {
 	t.Run("matched observation is reconciled onto the device it matched", func(t *testing.T) {

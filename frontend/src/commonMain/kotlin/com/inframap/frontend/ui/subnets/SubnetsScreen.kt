@@ -188,7 +188,7 @@ private fun SubnetsTableCard(
                 InfraMapTable(
                     columns = columns,
                     items = state.subnets,
-                    onRowClick = { actions.onSubnetClicked(it) },
+                    onRowClick = { actions.onViewAddressMapClicked(it) },
                     modifier = Modifier.weight(1f),
                 ) { colIndex, item ->
                     SubnetRowCell(

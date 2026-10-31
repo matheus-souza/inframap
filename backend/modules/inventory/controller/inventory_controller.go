@@ -397,3 +397,28 @@ func (c *InventoryController) DeleteSubnet(w http.ResponseWriter, r *http.Reques
 	httputil.WriteJSON(w, r, http.StatusOK, resp)
 }
 
+// GetSubnetAddressMap handles GET /api/v1/subnets/{id}/addresses.
+func (c *InventoryController) GetSubnetAddressMap(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+
+	resp, err := c.useCase.GetSubnetAddressMap(r.Context(), idStr)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidUUID) {
+			httputil.WriteError(w, r, http.StatusBadRequest, "BAD_REQUEST", "Invalid subnet ID format", nil)
+			return
+		}
+		if errors.Is(err, repository.ErrSubnetNotFound) {
+			httputil.WriteError(w, r, http.StatusNotFound, "NOT_FOUND", "Subnet not found", nil)
+			return
+		}
+		if errors.Is(err, usecase.ErrSubnetTooLargeToMap) {
+			httputil.WriteError(w, r, http.StatusUnprocessableEntity, "UNPROCESSABLE_ENTITY", "Subnet too large to map", nil)
+			return
+		}
+		httputil.WriteError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get subnet address map", nil)
+		return
+	}
+
+	httputil.WriteJSON(w, r, http.StatusOK, resp)
+}
+

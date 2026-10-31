@@ -7,6 +7,7 @@ import com.inframap.frontend.data.dto.CreateSubnetRequest
 import com.inframap.frontend.data.dto.DeleteSubnetResponse
 import com.inframap.frontend.data.dto.SubnetCidrImpactRequest
 import com.inframap.frontend.data.dto.SubnetCidrImpactResponse
+import com.inframap.frontend.data.dto.SubnetAddressMapResponse
 import com.inframap.frontend.data.dto.SubnetDeletionImpactResponse
 import com.inframap.frontend.data.dto.SubnetDto
 import com.inframap.frontend.data.dto.SubnetListResponse
@@ -14,6 +15,7 @@ import com.inframap.frontend.data.dto.UpdateSubnetRequest
 import com.inframap.frontend.data.mapper.SubnetMapper
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.model.SubnetAddressMap
 import com.inframap.frontend.domain.repository.SubnetRepository
 
 class SubnetRepositoryImpl(
@@ -50,4 +52,8 @@ class SubnetRepositoryImpl(
 
     override suspend fun deleteSubnet(id: String): ApiResult<DeleteSubnetResponse> =
         apiClient.delete<DeleteSubnetResponse>("/api/v1/subnets/$id")
+
+    override suspend fun getSubnetAddressMap(id: String): ApiResult<SubnetAddressMap> =
+        apiClient.get<com.inframap.frontend.data.dto.SubnetAddressMapResponse>("/api/v1/subnets/$id/addresses")
+            .map { SubnetAddressMap.fromDto(it) }
 }

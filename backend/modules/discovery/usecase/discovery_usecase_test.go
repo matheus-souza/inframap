@@ -531,6 +531,10 @@ func (m *mockInvRepo) GetInactiveDiscoverySourceDeviceIDs(_ context.Context, _ [
 	return nil, nil
 }
 
+func (m *mockInvRepo) ListDevicesBySubnetCIDR(_ context.Context, _ netip.Prefix) ([]db.Device, error) {
+	return m.devices, nil
+}
+
 func TestDiscoveryUseCase_Unit(t *testing.T) {
 	discRepo := newMockDiscRepo()
 	invRepo := newMockInvRepo()

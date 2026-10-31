@@ -54,6 +54,8 @@ type InventoryRepository interface {
 	UpdateSubnet(ctx context.Context, params db.UpdateSubnetParams) (*db.Subnet, error)
 	SoftDeleteSubnet(ctx context.Context, id uuid.UUID) error
 
+	ListDevicesBySubnetCIDR(ctx context.Context, cidr netip.Prefix) ([]db.Device, error)
+
 	GetInactiveDiscoverySourceDeviceIDs(ctx context.Context, deviceIDs []uuid.UUID) ([]uuid.UUID, error)
 }
 
@@ -351,6 +353,47 @@ func (r *PgInventoryRepository) SoftDeleteSubnet(ctx context.Context, id uuid.UU
 		return fmt.Errorf("failed to soft-delete subnet: %w", err)
 	}
 	return nil
+}
+
+// ListDevicesBySubnetCIDR returns every live device whose ip_address is contained in
+// the given subnet CIDR, ordered by address ascending (RFC-027 §2 address map).
+func (r *PgInventoryRepository) ListDevicesBySubnetCIDR(ctx context.Context, cidr netip.Prefix) ([]db.Device, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, hostname, ip_address, mac_address, manufacturer, model, serial_number,
+		       device_type, status, metadata, provider_scope, parent_provider_ref,
+		       ip_assignment, last_seen_at, absence_count, first_seen_at,
+		       created_at, updated_at, deleted_at, parent_device_id
+		FROM devices
+		WHERE deleted_at IS NULL
+		  AND ip_address IS NOT NULL
+		  AND ip_address <<= $1::cidr
+		ORDER BY ip_address ASC
+	`, cidr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list devices by subnet CIDR: %w", err)
+	}
+	defer rows.Close()
+
+	var devices []db.Device
+	for rows.Next() {
+		var d db.Device
+		if err := rows.Scan(
+			&d.ID, &d.Hostname, &d.IpAddress, &d.MacAddress, &d.Manufacturer, &d.Model,
+			&d.SerialNumber, &d.DeviceType, &d.Status, &d.Metadata, &d.ProviderScope,
+			&d.ParentProviderRef, &d.IpAssignment, &d.LastSeenAt, &d.AbsenceCount,
+			&d.FirstSeenAt, &d.CreatedAt, &d.UpdatedAt, &d.DeletedAt, &d.ParentDeviceID,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan device: %w", err)
+		}
+		devices = append(devices, d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate devices: %w", err)
+	}
+	if devices == nil {
+		devices = []db.Device{}
+	}
+	return devices, nil
 }
 
 // GetInactiveDiscoverySourceDeviceIDs returns device IDs whose discovery source has been soft-deleted and have no active discovery sources.

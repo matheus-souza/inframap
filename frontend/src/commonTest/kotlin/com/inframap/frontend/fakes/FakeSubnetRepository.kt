@@ -10,6 +10,7 @@ import com.inframap.frontend.data.dto.SubnetDeletionImpactResponse
 import com.inframap.frontend.data.dto.UpdateSubnetRequest
 import com.inframap.frontend.domain.model.PaginatedList
 import com.inframap.frontend.domain.model.Subnet
+import com.inframap.frontend.domain.model.SubnetAddressMap
 import com.inframap.frontend.domain.repository.SubnetRepository
 
 class FakeSubnetRepository(
@@ -46,6 +47,15 @@ class FakeSubnetRepository(
             ),
             requestId = "",
         ),
+    var getSubnetAddressMapResult: ApiResult<SubnetAddressMap> =
+        ApiResult.Success(
+            SubnetAddressMap(
+                subnetId = "sub1",
+                cidr = "192.168.1.0/24",
+                entries = emptyList(),
+            ),
+            requestId = "",
+        ),
 ) : SubnetRepository {
     override suspend fun getSubnets() = getSubnetsResult
 
@@ -66,6 +76,8 @@ class FakeSubnetRepository(
     override suspend fun getSubnetDeletionImpact(id: String) = getSubnetDeletionImpactResult
 
     override suspend fun deleteSubnet(id: String) = deleteSubnetResult
+
+    override suspend fun getSubnetAddressMap(id: String) = getSubnetAddressMapResult
 
     companion object {
         val DEFAULT_SUBNET =

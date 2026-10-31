@@ -1477,3 +1477,14 @@ func (m *mockInventoryRepository) SetDeviceParent(_ context.Context, id, parentD
 		ParentProviderRef: pgtype.Text{String: parentProviderRef, Valid: parentProviderRef != ""},
 	}, nil
 }
+
+func (m *mockInventoryRepository) ListDevicesBySubnetCIDR(_ context.Context, _ netip.Prefix) ([]db.Device, error) {
+	if m.errToRet != nil {
+		return nil, m.errToRet
+	}
+	out := make([]db.Device, 0, len(m.devices))
+	for _, d := range m.devices {
+		out = append(out, *d)
+	}
+	return out, nil
+}

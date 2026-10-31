@@ -91,6 +91,19 @@ private class FakeSubnetRepository : SubnetRepository {
                 ),
             requestId = "req-1",
         )
+
+    override suspend fun getSubnetAddressMap(
+        id: String,
+    ): ApiResult<com.inframap.frontend.domain.model.SubnetAddressMap> =
+        ApiResult.Success(
+            data =
+                com.inframap.frontend.domain.model.SubnetAddressMap(
+                    subnetId = id,
+                    cidr = "10.0.0.0/24",
+                    entries = emptyList(),
+                ),
+            requestId = "req-1",
+        )
 }
 
 class CreateSubnetUseCaseTest {

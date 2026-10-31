@@ -37,6 +37,9 @@ var (
 
 	// ErrSubnetConflict indicates subnet CIDR conflicts with an active subnet.
 	ErrSubnetConflict = errors.New("subnet CIDR conflicts with an active subnet")
+
+	// ErrSubnetTooLargeToMap indicates a Subnet's CIDR has too many host addresses to map.
+	ErrSubnetTooLargeToMap = errors.New("subnet too large to map")
 )
 
 // InventoryUseCase defines business capabilities for inventory resources.
@@ -58,6 +61,7 @@ type InventoryUseCase interface {
 	SoftDeleteSubnet(ctx context.Context, idStr string) (*dto.DeleteSubnetResponse, error)
 	GetSubnetDeletionImpact(ctx context.Context, idStr string) (*dto.SubnetDeletionImpactResponse, error)
 	GetSubnetCIDRImpact(ctx context.Context, idStr string, req dto.SubnetCIDRImpactRequest) (*dto.SubnetCIDRImpactResponse, error)
+	GetSubnetAddressMap(ctx context.Context, idStr string) (*dto.SubnetAddressMapResponse, error)
 }
 
 
@@ -815,6 +819,130 @@ func (uc *DefaultInventoryUseCase) mapSubnetToResponse(subnet *db.Subnet) *dto.S
 	return resp
 }
 
+
+// GetSubnetAddressMap builds the operator-owned address map for a Subnet (RFC-027 §2):
+// one entry per host address with its state (free, in_use, reserved, conflict), the
+// devices holding it, and the DNS names pointing at it.
+func (uc *DefaultInventoryUseCase) GetSubnetAddressMap(ctx context.Context, idStr string) (*dto.SubnetAddressMapResponse, error) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, ErrInvalidUUID
+	}
+
+	subnet, err := uc.repo.GetSubnetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	prefix := subnet.Cidr
+
+	// Only IPv4 Subnets of at most 1 024 host addresses (/22) are mapped; IPv6 is out of
+	// scope for the address map (RFC-027 §2).
+	if prefix.Addr().Is4() == false || prefix.Bits() > 30 {
+		return nil, fmt.Errorf("%w: %s (only IPv4 up to /22 are mapped)", ErrSubnetTooLargeToMap, prefix.String())
+	}
+	hostCount := 1 << (32 - prefix.Bits())
+	if hostCount > 1024 {
+		return nil, fmt.Errorf("%w: %s has %d host addresses (> 1 024)", ErrSubnetTooLargeToMap, prefix.String(), hostCount-2)
+	}
+
+	devices, err := uc.repo.ListDevicesBySubnetCIDR(ctx, prefix)
+	if err != nil {
+		return nil, err
+	}
+
+	// Group devices by the address they hold.
+	byAddress := make(map[string][]db.Device)
+	for _, d := range devices {
+		if d.IpAddress == nil {
+			continue
+		}
+		byAddress[d.IpAddress.String()] = append(byAddress[d.IpAddress.String()], d)
+	}
+
+	// Generate every host address of the CIDR (network and broadcast excluded).
+	addrs := hostAddresses(prefix)
+	entries := make([]dto.SubnetAddressEntry, 0, len(addrs))
+	for _, addr := range addrs {
+		addrStr := addr.String()
+		held := byAddress[addrStr]
+		state := "free"
+		switch len(held) {
+		case 0:
+			state = "free"
+		case 1:
+			switch held[0].IpAssignment {
+			case "reserved", "static":
+				state = "reserved"
+			default:
+				state = "in_use"
+			}
+		default:
+			state = "conflict"
+		}
+
+		entryDevices := make([]dto.SubnetAddressDevice, 0, len(held))
+		for _, d := range held {
+			entryDevices = append(entryDevices, dto.SubnetAddressDevice{
+				ID:          d.ID.String(),
+				Hostname:    d.Hostname,
+				IPAssignment: d.IpAssignment,
+			})
+		}
+
+		entries = append(entries, dto.SubnetAddressEntry{
+			Address:  addrStr,
+			State:    state,
+			Devices:  entryDevices,
+			DNSNames: nil, // DNS records are phase 3 (RFC-027 §3).
+		})
+	}
+
+	return &dto.SubnetAddressMapResponse{
+		SubnetID: idStr,
+		CIDR:     prefix.String(),
+		Entries:  entries,
+	}, nil
+}
+
+// hostAddresses returns every assignable host address of an IPv4 prefix (network and
+// broadcast excluded). For /31 and /32 the single address is returned.
+func hostAddresses(prefix netip.Prefix) []netip.Addr {
+	return hostAddressesFrom(prefix.Masked().Addr(), prefix.Bits())
+}
+
+// hostAddressesFrom returns every assignable host address for a network address with the
+// given prefix length (IPv4 only). Network and broadcast are excluded; /31 keeps both.
+func hostAddressesFrom(base netip.Addr, prefixBits int) []netip.Addr {
+	if !base.Is4() {
+		return nil
+	}
+	hostBits := 32 - prefixBits
+	if hostBits <= 0 {
+		return []netip.Addr{base}
+	}
+
+	// Walk the 32-bit space as a uint32 to find network and broadcast.
+	addr4 := base.As4()
+	ip := uint32(addr4[0])<<24 | uint32(addr4[1])<<16 | uint32(addr4[2])<<8 | uint32(addr4[3])
+	hostMask := uint32(1<<hostBits) - 1
+	network := ip &^ hostMask
+	broadcast := network | hostMask
+
+	out := make([]netip.Addr, 0)
+	for cur := network + 1; cur < broadcast; cur++ {
+		out = append(out, netip.AddrFrom4([4]byte{
+			byte(cur >> 24), byte(cur >> 16), byte(cur >> 8), byte(cur),
+		}))
+	}
+	// /31 (RFC 3021): both addresses are usable; include broadcast as a host.
+	if hostBits == 1 {
+		out = append(out, netip.AddrFrom4([4]byte{
+			byte(broadcast >> 24), byte(broadcast >> 16), byte(broadcast >> 8), byte(broadcast),
+		}))
+	}
+	return out
+}
 
 func (uc *DefaultInventoryUseCase) mapDeviceToResponse(device *db.Device) *dto.DeviceResponse {
 	if device == nil {

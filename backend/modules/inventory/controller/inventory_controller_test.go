@@ -46,6 +46,8 @@ type mockInventoryUseCase struct {
 	deletionImpactErr  error
 	impactResp         *dto.SubnetCIDRImpactResponse
 	impactErr          error
+	addressMapResp     *dto.SubnetAddressMapResponse
+	addressMapErr      error
 }
 
 func (m *mockInventoryUseCase) CreateDevice(_ context.Context, _ dto.CreateDeviceRequest) (*dto.DeviceResponse, error) {
@@ -163,6 +165,13 @@ func (m *mockInventoryUseCase) GetSubnetCIDRImpact(_ context.Context, _ string, 
 		return nil, m.impactErr
 	}
 	return m.impactResp, nil
+}
+
+func (m *mockInventoryUseCase) GetSubnetAddressMap(_ context.Context, _ string) (*dto.SubnetAddressMapResponse, error) {
+	if m.addressMapErr != nil {
+		return nil, m.addressMapErr
+	}
+	return m.addressMapResp, nil
 }
 
 
