@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.inframap.frontend.designsystem.motion.m3ClickableCursor
 import com.inframap.frontend.domain.model.DnsRecord
 import com.inframap.frontend.generated.resources.Res
 import com.inframap.frontend.generated.resources.dns_records_empty
@@ -109,7 +110,12 @@ private fun DnsRecordRow(
     onClick: () -> Unit,
 ) {
     androidx.compose.material3.Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable(onClick = onClick),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+                .m3ClickableCursor()
+                .clickable(onClick = onClick),
     ) {
         androidx.compose.foundation.layout.Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
