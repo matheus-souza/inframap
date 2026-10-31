@@ -9,7 +9,5 @@ import com.inframap.frontend.domain.usecase.UseCase
 class GetDnsRecordsUseCase(
     private val dnsRepository: DnsRepository,
 ) : UseCase<Unit, ApiResult<PaginatedList<DnsRecord>>> {
-    override suspend fun invoke(params: Unit): ApiResult<PaginatedList<DnsRecord>> {
-        return dnsRepository.getDnsRecords()
-    }
+    override suspend fun invoke(params: Unit): ApiResult<PaginatedList<DnsRecord>> = dnsRepository.getDnsRecords()
 }

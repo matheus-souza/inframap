@@ -3,7 +3,6 @@ package com.inframap.frontend.domain.repository
 import com.inframap.frontend.data.api.ApiResult
 import com.inframap.frontend.data.dto.CreateDnsRecordRequest
 import com.inframap.frontend.data.dto.DeleteDnsRecordResponse
-import com.inframap.frontend.data.dto.DnsRecordDto
 import com.inframap.frontend.data.dto.UpdateDnsRecordRequest
 import com.inframap.frontend.domain.model.DnsRecord
 import com.inframap.frontend.domain.model.PaginatedList

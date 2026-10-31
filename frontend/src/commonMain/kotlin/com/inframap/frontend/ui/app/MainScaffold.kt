@@ -37,11 +37,11 @@ import com.inframap.frontend.generated.resources.dashboard_title
 import com.inframap.frontend.generated.resources.device_detail_title
 import com.inframap.frontend.generated.resources.devices_title
 import com.inframap.frontend.generated.resources.discovery_title
+import com.inframap.frontend.generated.resources.dns_records_title
 import com.inframap.frontend.generated.resources.edit_device_title
 import com.inframap.frontend.generated.resources.edit_discovery_source_title
 import com.inframap.frontend.generated.resources.edit_subnet_title
 import com.inframap.frontend.generated.resources.staging_header
-import com.inframap.frontend.generated.resources.dns_records_title
 import com.inframap.frontend.generated.resources.subnet_addresses_title
 import com.inframap.frontend.generated.resources.subnets_title
 import com.inframap.frontend.generated.resources.topology_title

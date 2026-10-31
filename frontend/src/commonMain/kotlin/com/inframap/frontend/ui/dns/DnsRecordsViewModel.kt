@@ -1,7 +1,6 @@
 package com.inframap.frontend.ui.dns
 
 import com.inframap.frontend.data.api.ApiResult
-import com.inframap.frontend.data.dto.DnsRecordDto
 import com.inframap.frontend.domain.model.DnsRecord
 import com.inframap.frontend.domain.usecase.dns.GetDnsRecordsUseCase
 import com.inframap.frontend.generated.resources.Res
@@ -24,19 +23,20 @@ class DnsRecordsViewModel(
         launchJob("fetch") {
             when (val result = getDnsRecordsUseCase(Unit)) {
                 is ApiResult.Success -> {
-                    val records = result.data.items?.map { dto ->
-                        DnsRecord(
-                            id = dto.id,
-                            name = dto.name,
-                            recordType = dto.recordType,
-                            deviceId = dto.deviceId,
-                            address = dto.address,
-                            target = dto.target,
-                            notes = dto.notes,
-                            createdAt = dto.createdAt,
-                            updatedAt = dto.updatedAt,
-                        )
-                    } ?: emptyList()
+                    val records =
+                        result.data.items?.map { dto ->
+                            DnsRecord(
+                                id = dto.id,
+                                name = dto.name,
+                                recordType = dto.recordType,
+                                deviceId = dto.deviceId,
+                                address = dto.address,
+                                target = dto.target,
+                                notes = dto.notes,
+                                createdAt = dto.createdAt,
+                                updatedAt = dto.updatedAt,
+                            )
+                        } ?: emptyList()
                     updateState {
                         it.copy(
                             records = records,
