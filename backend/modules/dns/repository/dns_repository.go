@@ -36,6 +36,7 @@ func NewPgDNSRecordRepository(pool *pgxpool.Pool) *PgDNSRecordRepository {
 	return &PgDNSRecordRepository{pool: pool}
 }
 
+// CreateDNSRecord inserts a new DNS record and returns it with generated fields.
 func (r *PgDNSRecordRepository) CreateDNSRecord(ctx context.Context, params db.CreateDNSRecordParams) (*db.DNSRecord, error) {
 	var d db.DNSRecord
 	err := r.pool.QueryRow(ctx, `
@@ -50,6 +51,7 @@ func (r *PgDNSRecordRepository) CreateDNSRecord(ctx context.Context, params db.C
 	return &d, nil
 }
 
+// GetDNSRecordByID returns a DNS record by its UUID.
 func (r *PgDNSRecordRepository) GetDNSRecordByID(ctx context.Context, id uuid.UUID) (*db.DNSRecord, error) {
 	var d db.DNSRecord
 	err := r.pool.QueryRow(ctx, `
@@ -65,6 +67,7 @@ func (r *PgDNSRecordRepository) GetDNSRecordByID(ctx context.Context, id uuid.UU
 	return &d, nil
 }
 
+// ListDNSRecords returns a paginated list of all DNS records.
 func (r *PgDNSRecordRepository) ListDNSRecords(ctx context.Context, limit, offset int32) ([]db.DNSRecord, int64, error) {
 	var total int64
 	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM dns_records`).Scan(&total)
@@ -95,6 +98,7 @@ func (r *PgDNSRecordRepository) ListDNSRecords(ctx context.Context, limit, offse
 	return records, total, nil
 }
 
+// UpdateDNSRecord updates an existing DNS record and returns it.
 func (r *PgDNSRecordRepository) UpdateDNSRecord(ctx context.Context, params db.UpdateDNSRecordParams) (*db.DNSRecord, error) {
 	var d db.DNSRecord
 	err := r.pool.QueryRow(ctx, `
@@ -113,6 +117,7 @@ func (r *PgDNSRecordRepository) UpdateDNSRecord(ctx context.Context, params db.U
 	return &d, nil
 }
 
+// DeleteDNSRecord deletes a DNS record by its UUID.
 func (r *PgDNSRecordRepository) DeleteDNSRecord(ctx context.Context, id uuid.UUID) error {
 	res, err := r.pool.Exec(ctx, `DELETE FROM dns_records WHERE id = $1`, id)
 	if err != nil {
@@ -124,6 +129,7 @@ func (r *PgDNSRecordRepository) DeleteDNSRecord(ctx context.Context, id uuid.UUI
 	return nil
 }
 
+// ListDNSRecordsByDevice returns all DNS records associated with a device.
 func (r *PgDNSRecordRepository) ListDNSRecordsByDevice(ctx context.Context, deviceID uuid.UUID) ([]db.DNSRecord, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, name, record_type, address, target, device_id, notes, created_at, updated_at
