@@ -37,6 +37,7 @@ import com.inframap.frontend.generated.resources.dashboard_title
 import com.inframap.frontend.generated.resources.device_detail_title
 import com.inframap.frontend.generated.resources.devices_title
 import com.inframap.frontend.generated.resources.discovery_title
+import com.inframap.frontend.generated.resources.dns_records_title
 import com.inframap.frontend.generated.resources.edit_device_title
 import com.inframap.frontend.generated.resources.edit_discovery_source_title
 import com.inframap.frontend.generated.resources.edit_subnet_title
@@ -76,6 +77,9 @@ import com.inframap.frontend.ui.discovery.DiscoveryTargetsEditorActions
 import com.inframap.frontend.ui.discovery.EditDiscoverySourceActions
 import com.inframap.frontend.ui.discovery.EditDiscoverySourceScreen
 import com.inframap.frontend.ui.discovery.EditDiscoverySourceViewModel
+import com.inframap.frontend.ui.dns.DnsRecordsActions
+import com.inframap.frontend.ui.dns.DnsRecordsScreen
+import com.inframap.frontend.ui.dns.DnsRecordsViewModel
 import com.inframap.frontend.ui.onboarding.OnboardingCoordinator
 import com.inframap.frontend.ui.realtime.RealtimeStatusViewModel
 import com.inframap.frontend.ui.staging.StagingActions
@@ -122,6 +126,7 @@ internal val defaultNavItems =
         NavItem(Res.string.subnets_title, InfraMapIcons.Lan, Route.Subnets, "subnets"),
         NavItem(Res.string.discovery_title, InfraMapIcons.Radar, Route.DiscoverySources, "discovery"),
         NavItem(Res.string.topology_title, InfraMapIcons.AccountTree, Route.Topology, "topology"),
+        NavItem(Res.string.dns_records_title, InfraMapIcons.Dns, Route.DnsRecords, "dns"),
     )
 
 @Suppress("CyclomaticComplexMethod")
@@ -142,6 +147,7 @@ fun resolveScreenTitleResource(route: Route): StringResource? =
         Route.CreateDiscoverySource -> Res.string.create_discovery_source_title
         is Route.EditDiscoverySource -> Res.string.edit_discovery_source_title
         Route.Topology -> Res.string.topology_title
+        Route.DnsRecords -> Res.string.dns_records_title
         else -> null
     }
 
@@ -411,6 +417,7 @@ private fun AppNavRail(
             -> "subnets"
 
             Route.Topology -> "topology"
+            Route.DnsRecords -> "dns"
             else -> "dashboard"
         }
 
@@ -474,6 +481,7 @@ private fun RouteContent(
                 navigator = navigator,
             )
         Route.Topology -> TopologyRoute(navigator = navigator)
+        Route.DnsRecords -> DnsRecordsRoute(navigator = navigator)
         else -> PlaceholderScreen("")
     }
 }
@@ -955,6 +963,26 @@ private fun TopologyRoute(navigator: Navigator) {
             onConfigureDiscovery = { navigator.navigateTo(Route.DiscoverySources) },
         )
     TopologyScreen(
+        state = state,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun DnsRecordsRoute(navigator: Navigator) {
+    val koinScope = currentKoinScope()
+    val viewModel: DnsRecordsViewModel = remember { koinScope.get() }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clear() }
+    }
+    val state by viewModel.state.collectAsState()
+    val actions =
+        DnsRecordsActions(
+            onRecordClicked = { navigator.navigateTo(Route.DnsRecords) },
+            onBackClicked = { navigator.navigateTo(Route.Subnets) },
+            onRefreshClicked = viewModel::refresh,
+        )
+    DnsRecordsScreen(
         state = state,
         actions = actions,
     )

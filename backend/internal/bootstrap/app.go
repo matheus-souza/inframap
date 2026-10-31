@@ -40,6 +40,10 @@ import (
 	identityctrl "github.com/matheussouza/inframap/modules/identity/controller"
 	identityrepo "github.com/matheussouza/inframap/modules/identity/repository"
 	identityuc "github.com/matheussouza/inframap/modules/identity/usecase"
+	"github.com/matheussouza/inframap/modules/dns"
+	dnsctrl "github.com/matheussouza/inframap/modules/dns/controller"
+	dnsrepo "github.com/matheussouza/inframap/modules/dns/repository"
+	dnsuc "github.com/matheussouza/inframap/modules/dns/usecase"
 	"github.com/matheussouza/inframap/modules/integrations"
 	integrationsctrl "github.com/matheussouza/inframap/modules/integrations/controller"
 	dockerprovider "github.com/matheussouza/inframap/modules/integrations/providers/docker"
@@ -243,6 +247,11 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	topoUseCase := topouc.NewDefaultTopologyUseCase(topoRepo, invRepo, bus, log)
 	topoCtrl := topoctrl.NewTopologyController(topoUseCase)
 
+	// Wire DNS module
+	dnsRepo := dnsrepo.NewPgDNSRecordRepository(pool)
+	dnsUseCase := dnsuc.NewDefaultDNSRecordUseCase(dnsRepo)
+	dnsCtrl := dnsctrl.NewDNSController(dnsUseCase)
+
 	_ = bus.Subscribe("device.created", topoUseCase.HandleDeviceEvent)
 	_ = bus.Subscribe("device.updated", topoUseCase.HandleDeviceEvent)
 	_ = bus.Subscribe("device.deleted", topoUseCase.HandleDeviceEvent)
@@ -310,6 +319,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	inventory.RegisterRoutes(mux, invCtrl)
 	discovery.RegisterRoutes(mux, discCtrl)
 	topology.RegisterRoutes(mux, topoCtrl)
+	dns.RegisterRoutes(mux, dnsCtrl)
 	integrations.RegisterRoutes(mux, integCtrl)
 	realtime.RegisterRoutes(mux, rtCtrl)
 	credentials.RegisterRoutes(mux, credCtrl)

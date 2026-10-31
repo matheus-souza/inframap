@@ -541,6 +541,12 @@
     <string name="subnet_addresses_gateway">Gateway da sub-rede</string>
     <string name="subnet_addresses_nobody">Nenhum dispositivo usa este endereço.</string>
     <string name="subnet_addresses_error_load">Não foi possível carregar o mapa de endereços.</string>
+
+    <string name="dns_records_title">Registros DNS</string>
+    <string name="dns_records_subtitle">Registros de nomes (A e CNAME) da rede local.</string>
+    <string name="dns_records_empty">Nenhum registro DNS encontrado.</string>
+    <string name="dns_records_loading">Carregando registros DNS…</string>
+    <string name="dns_records_error_load">Falha ao carregar registros DNS.</string>
 </resources>
 
 

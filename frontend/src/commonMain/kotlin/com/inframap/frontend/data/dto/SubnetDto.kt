@@ -39,7 +39,7 @@ data class UpdateSubnetRequest(
 @Serializable
 data class SubnetListResponse(
     @SerialName("items") val items: List<SubnetDto>? = emptyList(),
-    val total: Long = 0,
+    val total: Int = 0,
 ) {
     val subnets: List<SubnetDto> get() = items ?: emptyList()
 }
